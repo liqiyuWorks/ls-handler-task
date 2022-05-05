@@ -7,8 +7,6 @@ import json
 import logging
 import logging.handlers
 import traceback
-
-from soupsieve import escape
 from basic.database import RdsQueue
 from basic.scheduler import CustomScheduler
 from basic.thread import MultiThread
