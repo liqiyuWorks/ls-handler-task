@@ -7,7 +7,5 @@ from basic.util import load_dic
 
 def get_task_dic():
     task_dic = {}
-    run_mode = os.getenv('RUN_MODE', '*')
-    if run_mode == '*' or run_mode.find('forecast') >= 0:
-        load_dic(task_dic, get_typhoon_dic())
+    load_dic(task_dic, get_typhoon_dic())
     return task_dic
