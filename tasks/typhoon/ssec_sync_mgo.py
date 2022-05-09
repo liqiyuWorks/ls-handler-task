@@ -31,14 +31,14 @@ class SsecSyncMgo:
             "mgo_db":
             mgo_db,
             'collection':
-            'ssec_data',
+            'ssec_listing_data',
             'uniq_idx': [('dataTime', pymongo.ASCENDING),
                          ('StormID', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)]
         }
         self.mgo = MgoStore(config)  # 初始化
 
-    def handle_storm(self, Storm_url):
+    def handle_listing_storm(self, Storm_url):
         item = {"StormID": self.storm_id, "sea_area": self.sea_area}
         r = parse_url(Storm_url)
         if r.status_code == 200:
@@ -77,11 +77,17 @@ class SsecSyncMgo:
                 item.pop('Time')
                 yield item
 
+    def handle_archer_storm(self):
+        pass
+
     def run(self):
         try:
-            for item in self.handle_storm(self.listing_index):
+            for item in self.handle_listing_storm(self.listing_index):
                 self.mgo.set(None, item)
-            print('Ssec 的数据导入成功！')
+
+            # for item in self.handle_archer_storm(self.listing_index):
+            #     self.mgo.set(None, item)
+            # print('Ssec 的数据导入成功！') 
                 
         except Exception as e:
             logging.error('run error {}'.format(e))

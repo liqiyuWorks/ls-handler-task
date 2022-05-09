@@ -98,7 +98,7 @@ class NoaaSyncMgo:
 
                             ## 查询 ssec 的数据
                             SsecSyncMgo(storm_id=item['StormID'], sea_area = item['sea_area']).run()
-                            print('Noaa 的数据导入成功！')
+                            print('Ssec 的数据导入成功！')
 
                             
         except Exception as e:
