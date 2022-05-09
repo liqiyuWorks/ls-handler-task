@@ -2,16 +2,12 @@
 # -*- coding: utf-8 -*-
 import os
 import time
-import redis
-import json
 import logging
 import logging.handlers
 import traceback
 from basic.database import RdsQueue
-from basic.scheduler import CustomScheduler
 from basic.thread import MultiThread
-from task.test_task import test_func_a, test_func_b, test_func_c
-from task.noaa_sync_mgo import noaa_sync_mgo
+from tasks.typhoon.task_dic import get_task_dic
 
 LOG_FILE = "./log/run.log"
 SCHEDULER_FLAG = int(os.getenv('SCHEDULER_FLAG', 1))
@@ -33,12 +29,7 @@ def init_log():
 def main():
     rds = RdsQueue()
     if SCHEDULER_FLAG:
-        TASK_DICT = {
-        # "test_func_a": lambda: CustomScheduler(test_func_a).run(),
-        # "test_func_b": lambda: CustomScheduler(test_func_b).run(),
-        # "test_func_c": lambda: CustomScheduler(test_func_c).run(),
-        "noaa_sync_mgo": lambda: CustomScheduler(noaa_sync_mgo).run(),
-        }
+        TASK_DICT = get_task_dic()
         if "," in TASK_TYPE:
             task_type_list = TASK_TYPE.split(",")
             handlers = {}
@@ -55,9 +46,7 @@ def main():
                 logging.info('还未实现相关功能！')
 
     else:
-        TASK_DICT = {
-            "test": lambda: test_func()
-        }
+        TASK_DICT = get_task_dic()
         while True:
             try:
                 # 从队列获取任务

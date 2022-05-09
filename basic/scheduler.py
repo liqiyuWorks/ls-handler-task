@@ -3,9 +3,11 @@
 from apscheduler.schedulers.blocking import BlockingScheduler
 import os
 
+RUN_ONCE= int(os.getenv('RUN_ONCE', 1))
+
 class CustomScheduler:
-    def __init__(self, func):
-        self.func = func
+    def __init__(self, obj):
+        self.obj = obj()
         self.sched = BlockingScheduler()
 
     def get_scheduler_param(self, scheduler_mode):
@@ -37,11 +39,14 @@ class CustomScheduler:
                 pass
             else:
                 dic[key] = int(dic[key])
-        self.sched.add_job(self.func, scheduler_mode, **dic)
+        self.sched.add_job(self.obj.run, scheduler_mode, **dic)
 
     def run(self):
-        self.add_job()
-        self.sched.start()
+        if RUN_ONCE:
+            self.obj.run()
+        else:
+            self.add_job()
+            self.sched.start()
 
 
 
