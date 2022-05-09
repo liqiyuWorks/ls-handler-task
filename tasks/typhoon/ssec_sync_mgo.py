@@ -19,13 +19,13 @@ month_abbr_list = [
 ]
 
 class SsecSyncMgo:
-    def __init__(self, storm_id='',sea_area=''):
+    def __init__(self, storm_id='02B',sea_area='Bay of Bengal'):
         self.storm_id = storm_id
         self.sea_area = sea_area
         self.listing_index = "https://tropic.ssec.wisc.edu/real-time/adt/{}-list.txt".format(self.storm_id)
         self.archer_index = "https://tropic.ssec.wisc.edu/real-time/adt/ARCHER/ARCHERinfo_{}.html".format(self.storm_id)
         mgo_client, mgo_db = get_mgo()
-        config = {
+        listing_config = {
             "mgo_client":
             mgo_client,
             "mgo_db":
@@ -36,7 +36,19 @@ class SsecSyncMgo:
                          ('StormID', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)]
         }
-        self.mgo = MgoStore(config)  # 初始化
+        archer_config = {
+            "mgo_client":
+            mgo_client,
+            "mgo_db":
+            mgo_db,
+            'collection':
+            'ssec_archer_data',
+            'uniq_idx': [('dataTime', pymongo.ASCENDING),
+                         ('StormID', pymongo.ASCENDING),
+                         ('sea_area', pymongo.ASCENDING)]
+        }
+        self.listing_mgo = MgoStore(listing_config)  # 初始化
+        self.archer_mgo = MgoStore(archer_config)  # 初始化
 
     def handle_listing_storm(self, Storm_url):
         item = {"StormID": self.storm_id, "sea_area": self.sea_area}
@@ -77,19 +89,67 @@ class SsecSyncMgo:
                 item.pop('Time')
                 yield item
 
-    def handle_archer_storm(self):
-        pass
+    def get_group1(self,item, data):
+        group = str(data[2])
+        for i in range(8,0,-1):
+            group = group.replace(' '*i,'\t')
+        group = group.split('\t')
+        item['source'] = group[0]
+        item['Sensor'] = group[1]
+        item['FORECAST_lat'] = group[2]
+        item['FORECAST_lon'] = group[3]
+        item['Vmax'] = group[4]
+        item['ARCHER_lat'] = group[5]
+        item['ARCHER_lon'] = group[6]
+        item['50_cert_radius'] = group[7]
+        item['95_cert_radius'] = group[8]
+        return item
+
+    def get_group2(self,item, data):
+        group = str(data[4])
+        for i in range(8,0,-1):
+            group = group.replace(' '*i,'\t')
+        group = group.split('\t')
+        item['conf_score']=group[0]
+        item['alpha_score']=group[1]
+        item['eye_prob']=group[2]
+        return item
+
+
+    def handle_archer_storm(self,Storm_url):
+        r = parse_url(Storm_url)
+        if r.status_code == 200:
+            html_xpath = etree.parse('test.html', etree.HTMLParser(encoding='utf-8'))
+            pres = html_xpath.xpath('/html/body/center/table/tr[2]/td/font/pre//text()')
+            new_pres = pres[3:]
+            for index,i in enumerate(new_pres[::6]):
+                item = {"StormID":self.storm_id, "sea_area":self.sea_area}
+                data = []
+                for elem in new_pres[index*6:6*(index+1)]:
+                    elem = str(elem).strip().replace('\n','')
+                    data.append(elem)
+                data[1] = data[1].replace(':','')
+                item['dataTime'] = f'{data[0]}{data[1]}'
+                item['Eyewall radius'] = data[3]
+                item = self.get_group1(item, data)
+                item = self.get_group2(item, data)
+                yield item
+
+    def close(self):
+        self.listing_mgo.close()
+        self.archer_mgo.close()
 
     def run(self):
         try:
             for item in self.handle_listing_storm(self.listing_index):
-                self.mgo.set(None, item)
+                self.listing_mgo.set(None, item)
+            print('Ssec - listing 数据导入成功！') 
 
-            # for item in self.handle_archer_storm(self.listing_index):
-            #     self.mgo.set(None, item)
-            # print('Ssec 的数据导入成功！') 
+            for item in self.handle_archer_storm(self.archer_index):
+                self.archer_mgo.set(None, item)
+            print('Ssec - archer 数据导入成功！') 
                 
         except Exception as e:
             logging.error('run error {}'.format(e))
         finally:
-            self.mgo.close()
+            self.close()
