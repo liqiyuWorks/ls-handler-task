@@ -7,7 +7,7 @@ import logging.handlers
 import traceback
 from basic.database import RdsQueue
 from basic.thread import MultiThread
-from tasks.typhoon.task_dic import get_task_dic
+from tasks.task_dic import get_task_dic
 
 LOG_FILE = "./log/run.log"
 SCHEDULER_FLAG = int(os.getenv('SCHEDULER_FLAG', 1))

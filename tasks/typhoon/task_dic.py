@@ -11,6 +11,4 @@ def get_task_dic():
         "noaa_sync_mgo": lambda: CustomScheduler(NoaaSyncMgo).run(),
         "ssec_sync_mgo": lambda: CustomScheduler(SsecSyncMgo).run(),
     }
-    print('任务列表: ',task_dict)
-
     return task_dict
