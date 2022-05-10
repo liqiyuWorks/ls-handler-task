@@ -3,12 +3,14 @@
 import os
 from tasks.typhoon.task_dic import get_task_dic as get_typhoon_dic
 from tasks.irrigation.task_dic import get_task_dic as get_irrigation_dic
+from tasks.handle_mgo.task_dic import get_task_dic as get_handle_mgo_dic
 from basic.util import load_dic
 
 def get_task_dic():
     task_dic = {}
     load_dic(task_dic, get_typhoon_dic())
     load_dic(task_dic, get_irrigation_dic())
+    load_dic(task_dic, get_handle_mgo_dic())
     print('\n===任务列表start===')
     for k,v in task_dic.items():
         print(f'{k} - {v}')
