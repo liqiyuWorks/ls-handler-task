@@ -26,9 +26,9 @@ class SyncMashanHourlyData:
     def close(self):
         self.mgo.close()
 
-    def run(self,hours=-2):
+    def run(self):
         try:
-            date_now = (datetime.datetime.now() + datetime.timedelta(hours=hours)).strftime("%Y%m%d%H")
+            date_now = (datetime.datetime.now() + datetime.timedelta(hours=-2)).strftime("%Y%m%d%H")
             file = f"{date_now}.csv"
             print('当前同步的是: {}'.format(file))
             try:

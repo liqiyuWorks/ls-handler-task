@@ -3,7 +3,7 @@
 from apscheduler.schedulers.blocking import BlockingScheduler
 import os
 
-RUN_ONCE= int(os.getenv('RUN_ONCE', 1))
+RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
 
 class CustomScheduler:
     def __init__(self, obj):
