@@ -6,10 +6,7 @@ import logging
 from basic.database import get_mgo, MgoStore
 from tasks.irrigation.deps import read_real_prer_nc
 import pymongo
-from apscheduler.schedulers.blocking import BlockingScheduler
-BASE_PATH = os.getenv('BASE_PATH', os.path.abspath(os.path.dirname(os.getcwd())))
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/irrigation/input/")
-sys.path.append(BASE_PATH)
 
 HANDLE_PATH = []
 HANDLE_PATH.append(INPUT_PATH+"GFS/")
