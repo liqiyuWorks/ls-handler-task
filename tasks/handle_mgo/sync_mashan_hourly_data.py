@@ -45,7 +45,6 @@ class SyncMashanHourlyData:
                     del row['id']
                     del row['PM2.5']
                     self.mgo.set(None, row)
-                    print('===insert {} ok'.format(row))
         except Exception as e:
             logging.error(e)
         finally:
