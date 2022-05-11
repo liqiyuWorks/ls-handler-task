@@ -127,8 +127,8 @@ class MgoStore(object):
             if res.raw_result['updatedExisting']:
                 if res.raw_result['nModified'] > 0:
                     logging.info('update {}'.format(data))
-                else:
-                    logging.info('nothing to update for key {}'.format(query))
+                # else:
+                #     logging.info('nothing to update for key {}'.format(query))
             elif 'upserted' in res.raw_result:
                 logging.info('insert {} {}'.format(res.raw_result['upserted'],
                                                    data))

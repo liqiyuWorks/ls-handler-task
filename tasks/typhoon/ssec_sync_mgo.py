@@ -19,7 +19,7 @@ month_abbr_list = [
 ]
 
 class SsecSyncMgo:
-    def __init__(self, storm_id='02B',sea_area='Bay of Bengal'):
+    def __init__(self, storm_id,sea_area):
         self.storm_id = storm_id
         self.sea_area = sea_area
         self.listing_index = "https://tropic.ssec.wisc.edu/real-time/adt/{}-list.txt".format(self.storm_id)
@@ -87,7 +87,7 @@ class SsecSyncMgo:
                         Date)) + item['Date'][7:] + item['Time']
                 item.pop('Date')
                 item.pop('Time')
-                yield item
+                self.listing_mgo.set(None, item)
 
     def get_group1(self,item, data):
         group = str(data[2])
@@ -133,7 +133,7 @@ class SsecSyncMgo:
                 item['Eyewall radius'] = data[3]
                 item = self.get_group1(item, data)
                 item = self.get_group2(item, data)
-                yield item
+                self.archer_mgo.set(None, item)
 
     def close(self):
         self.listing_mgo.close()
@@ -141,13 +141,18 @@ class SsecSyncMgo:
 
     def run(self):
         try:
-            for item in self.handle_listing_storm(self.listing_index):
-                self.listing_mgo.set(None, item)
-            print('Ssec - listing 数据导入成功！') 
+            try:
+                self.handle_listing_storm(self.listing_index)
+            except Exception as e:
+                logging.error('run error {}'.format(e))
+            logging.info('Ssec - listing 数据导入成功！') 
 
-            for item in self.handle_archer_storm(self.archer_index):
-                self.archer_mgo.set(None, item)
-            print('Ssec - archer 数据导入成功！') 
+            try:
+                self.handle_archer_storm(self.archer_index)
+            except Exception as e:
+                logging.error('run error {}'.format(e))
+                
+            logging.info('Ssec - archer 数据导入成功！') 
                 
         except Exception as e:
             logging.error('run error {}'.format(e))

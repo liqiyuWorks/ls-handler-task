@@ -11,4 +11,4 @@ export INTERVAL_MINUTE=5
 export SCHEDULER_FLAG=1
 export INTERVAL_START_TIME="2022-05-05 10:45:00"
 export RUN_ONCE=1
-export TASK_TYPE=zktj_sync_mgo
+export TASK_TYPE=noaa_sync_mgo
