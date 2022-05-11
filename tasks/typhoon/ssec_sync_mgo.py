@@ -119,7 +119,7 @@ class SsecSyncMgo:
     def handle_archer_storm(self,Storm_url):
         r = parse_url(Storm_url)
         if r.status_code == 200:
-            html_xpath = etree.parse('test.html', etree.HTMLParser(encoding='utf-8'))
+            html_xpath = etree.HTML(r.text)
             pres = html_xpath.xpath('/html/body/center/table/tr[2]/td/font/pre//text()')
             new_pres = pres[3:]
             for index,i in enumerate(new_pres[::6]):
