@@ -210,8 +210,8 @@ class HandleTyphoon:
             StormID = r.get('StormID')
             StormName = r.get('StormName')
             date_list.append((date, id, StormID, StormName))
-        date_list = sorted(date_list, key=lambda d: d[0], reverse=True)
         if date_list:
+            date_list = sorted(date_list, key=lambda d: d[0], reverse=True)
             exist_tuple = date_list[0]
             reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
             forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
