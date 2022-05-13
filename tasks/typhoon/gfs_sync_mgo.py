@@ -69,7 +69,7 @@ class GfsSyncMgo:
         try:
             date_now = datetime.datetime.now().strftime("%Y%m%d")
             print(f'当前启动任务，入库时间== {date_now} ==')
-            date_now = "20220511"
+            # date_now = "20220511"
             res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep gfs_{date_now}")
             if res:
                 print(res)
