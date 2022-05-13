@@ -208,7 +208,7 @@ class HandleTyphoon:
             if id == None:
                 continue
             r = self._mgo.mgo_db[self.MONGO_TYPHOON].find_one({"_id":id})
-            date = r.get('start_reporttime_UTC')
+            date = r.get('dataTime',[])[-1].get('reporttime_UTC')
             StormID = r.get('StormID')
             StormName = r.get('StormName')
             date_list.append((date, id, StormID, StormName))

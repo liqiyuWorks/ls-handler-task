@@ -59,7 +59,8 @@ class GfsSyncMgo:
                         print('开始匹配数据...')
                         typhoon_id = handle_typhoon.query_real_time_typhoon()
                         handle_typhoon.save_gfs_data(typhoon_id)
-                        # break
+                #     break
+                # break
         except Exception as e:
             logging.error('run error {}'.format(e))
         finally:
@@ -89,8 +90,8 @@ class GfsSyncMgo:
                                 typhoon_id = handle_typhoon.query_real_time_typhoon()
                                 handle_typhoon.save_gfs_data(typhoon_id)
 
-                            # break
-                    # break
+                            break
+                    break
         except Exception as e:
             logging.error('run error {}'.format(e))
         finally:
