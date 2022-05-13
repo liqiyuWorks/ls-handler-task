@@ -142,7 +142,7 @@ class HandleTyphoon:
         if len(self._reporttime_UTC) != 19:
             self._reporttime_UTC = self._reporttime_UTC + ' 00:00:00'
         self._StormName = self._row.get('StormName')
-        print("row=",self._row.to_dict())
+        # print("row=",self._row.to_dict())
 
 
     def query_typhoon(self):
