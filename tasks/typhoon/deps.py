@@ -276,7 +276,7 @@ class HandleTyphoon:
                 if (lon > 0 and self._Lon>0) or (lon < 0 and self._Lon<0):
                     a = (lat, lon)
                     temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
-                    if temp_diff <= 100:
+                    if temp_diff <= 50:
                         diffs.append([temp_diff, id])
         diffs = sorted(diffs, key=lambda x: x[0])
         # print("最短距离:",diffs)
