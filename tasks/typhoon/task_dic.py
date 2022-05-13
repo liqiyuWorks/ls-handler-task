@@ -14,5 +14,6 @@ def get_task_dic():
         "ssec_sync_mgo": lambda: CustomScheduler(SsecSyncMgo).run(),
         "typhoon_sync_mgo": lambda: CustomScheduler(TyphoonSyncMgo).run(),
         "gfs_sync_mgo": lambda: CustomScheduler(GfsSyncMgo).run(),
+        "history_gfs_sync_mgo": lambda: GfsSyncMgo().history(),
     }
     return task_dict

@@ -53,7 +53,7 @@ class GfsSyncMgo:
                 except EmptyDataError as e:
                     continue
                 for index, row in df.iterrows():
-                    handle_typhoon = HandleTyphoon(mgo=mgo,row=row)
+                    handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row)
                     flag = handle_typhoon.query_gfs_typhoon()
                     if flag:
                         print('开始匹配数据...')
@@ -69,7 +69,7 @@ class GfsSyncMgo:
         try:
             date_now = datetime.datetime.now().strftime("%Y%m%d")
             print(f'当前启动任务，入库时间== {date_now} ==')
-            # date_now = "20220511"
+            date_now = "20220511"
             res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep gfs_{date_now}")
             if res:
                 print(res)
@@ -81,12 +81,16 @@ class GfsSyncMgo:
                         df = pd.read_csv(gfs_file)
                     except EmptyDataError as e:
                         pass  
-                    for index, row in df.iterrows():
-                        handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row)
-                        flag = handle_typhoon.query_gfs_typhoon()
-                        if flag:
-                            typhoon_id = handle_typhoon.query_real_time_typhoon()
-                            handle_typhoon.save_gfs_data(typhoon_id)
+                    else:
+                        for index, row in df.iterrows():
+                            handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row)
+                            flag = handle_typhoon.query_gfs_typhoon()
+                            if flag:
+                                typhoon_id = handle_typhoon.query_real_time_typhoon()
+                                handle_typhoon.save_gfs_data(typhoon_id)
+
+                            # break
+                    break
         except Exception as e:
             logging.error('run error {}'.format(e))
         finally:

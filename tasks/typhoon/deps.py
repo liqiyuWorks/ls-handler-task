@@ -129,6 +129,7 @@ class MgoStore(object):
 
 class HandleTyphoon:
     def __init__(self, **kwargs) -> None:
+        self.MONGO_TYPHOON = "typhoon_real_time_data"
         self._mgo = kwargs.get('mgo')
         self._row = kwargs.get('row')
         self._Lat = self._row.get('Lat')
@@ -141,7 +142,7 @@ class HandleTyphoon:
         if len(self._reporttime_UTC) != 19:
             self._reporttime_UTC = self._reporttime_UTC + ' 00:00:00'
         self._StormName = self._row.get('StormName')
-        # print("row=",self._row.to_dict())
+        print("row=",self._row.to_dict())
 
 
     def query_typhoon(self):
@@ -192,29 +193,34 @@ class HandleTyphoon:
 
     def query_gfs_typhoon(self):
         typhoon_id = None
-        query = {"StormID": self._StormID,"Basin": self._Basin,}
-        res = self._mgo.mgo_coll.find_one(query)
+        query = {"StormID": self._StormID,"Basin": self._Basin}
+        res = self._mgo.mgo_coll.find_one(query,sort=[('forecast_time', -1)])
         if res:
-            typhoon_id = res.get('typhoon_id')
-            if typhoon_id is not None:
-                reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-                forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
-                data = self._row.to_dict()
-                data['typhoon_id'] = typhoon_id
-                data['typhoon_StormName'] = res.get('typhoon_StormName')
-                data['typhoon_StormID'] = res.get('typhoon_StormID')
-                data['forecast_time'] = forecast_time
-                del data['reporttime_UTC']
-                res = self._mgo.set(None, data)
-                print("数据库已存在该台风")
-                return False
+            newest_forecast_time = res.get('forecast_time')
+            reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+            newest_forecast_time = datetime.strptime(newest_forecast_time, '%Y-%m-%d %H:%M:%S')
+            print((newest_forecast_time - reporttime_UTC).days)
+            if abs((newest_forecast_time - reporttime_UTC).days) < 30:
+                typhoon_id = res.get('typhoon_id')
+                if typhoon_id is not None:
+                    reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+                    forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
+                    data = self._row.to_dict()
+                    data['typhoon_id'] = typhoon_id
+                    data['typhoon_StormName'] = res.get('typhoon_StormName')
+                    data['typhoon_StormID'] = res.get('typhoon_StormID')
+                    data['forecast_time'] = forecast_time
+                    del data['reporttime_UTC']
+                    res = self._mgo.set(None, data)
+                    print("数据库已存在该台风")
+                    return False
         return True
 
 
     def query_real_time_typhoon(self):
         typhoon_id = None
         query = {"dataTime": {"$elemMatch":{ "reporttime_UTC": self._reporttime_UTC}}}
-        res = self._mgo.mgo_db[MONGO_TYPHOON].find(query,{'dataTime.$': 1})
+        res = self._mgo.mgo_db[self.MONGO_TYPHOON].find(query,{'dataTime.$': 1})
 
         diffs = []
         for item in res:
@@ -238,7 +244,7 @@ class HandleTyphoon:
     def save_gfs_data(self,typhoon_id):
         ## 确定该轨迹属于 某个台风
         query = {"_id": typhoon_id}
-        typhoon = self._mgo.mgo_db[MONGO_TYPHOON].find_one(query)
+        typhoon = self._mgo.mgo_db[self.MONGO_TYPHOON].find_one(query)
         typhoon = typhoon if typhoon else {}
         # 修改时间
         reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
