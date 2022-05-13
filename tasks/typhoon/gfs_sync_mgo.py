@@ -14,7 +14,7 @@ INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/
 
 class GfsSyncMgo:
     def __init__(self):
-        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2021")  
+        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2022")  
         mgo_client, mgo_db = get_mgo()
         config = {
             "mgo_client": mgo_client,
