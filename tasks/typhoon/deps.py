@@ -203,25 +203,27 @@ class HandleTyphoon:
         ]
         res = self._mgo.mgo_coll.aggregate(pipeline)
         date_list = []
+        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+        forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
         for re in res:
             id = re.get("_id")
             if id == None:
                 continue
             r = self._mgo.mgo_db[self.MONGO_TYPHOON].find_one({"_id":id})
             date = r.get('dataTime',[])[-1].get('reporttime_UTC')
-            StormID = r.get('StormID')
-            StormName = r.get('StormName')
-            date_list.append((date, id, StormID, StormName))
+            date = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
+            if abs((date-forecast_time).days) < 3:
+                StormID = r.get('StormID')
+                StormName = r.get('StormName')
+                date_list.append((date, id, StormID, StormName))
         if date_list:
             date_list = sorted(date_list, key=lambda d: d[0], reverse=True)
             exist_tuple = date_list[0]
-            reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-            forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
             data = self._row.to_dict()
             data['typhoon_id'] = exist_tuple[1]
             data['typhoon_StormID'] = exist_tuple[2]
             data['typhoon_StormName'] = exist_tuple[3]
-            data['forecast_time'] = forecast_time
+            data['forecast_time'] = forecast_time.strftime('%Y-%m-%d %H:%M:%S')
             del data['reporttime_UTC']
             self._mgo.set(None, data)
             print("数据库已存在该台风")
