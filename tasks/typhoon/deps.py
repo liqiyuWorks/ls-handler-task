@@ -193,22 +193,26 @@ class HandleTyphoon:
 
     def query_gfs_typhoon(self):
         typhoon_id = None
-        query = {"StormID": self._StormID,"Basin": self._Basin}
-        res = self._mgo.mgo_coll.find(query,sort=[('forecast_time', -1)])
+        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+        forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
 
         pipeline = [
             {'$match': {"StormID": self._StormID,"Basin": self._Basin}},
-            {'$group': {'_id': "$typhoon_id"
+            {'$group': {'_id': "$typhoon_id",
+                        '_date_list': {"$push": "$forecast_time"}
                         }}
         ]
         res = self._mgo.mgo_coll.aggregate(pipeline)
         date_list = []
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
+        
         for re in res:
             id = re.get("_id")
             if id == None:
                 continue
+            orig_date = re.get('_date_list')[0]
+            if orig_date < forecast_time.strftime('%Y-%m-%d %H:%M:%S'):
+                continue
+            
             r = self._mgo.mgo_db[self.MONGO_TYPHOON].find_one({"_id":id})
             date = r.get('dataTime',[])[-1].get('reporttime_UTC')
             date = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
