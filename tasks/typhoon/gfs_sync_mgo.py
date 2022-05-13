@@ -9,7 +9,7 @@ import pandas as pd
 from basic.database import get_mgo, MgoStore
 from tasks.typhoon.deps import HandleTyphoon
 import subprocess
-INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/typhoon_data/UNIFORM/")
+INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/")
 
 
 class GfsSyncMgo:
@@ -69,6 +69,7 @@ class GfsSyncMgo:
         try:
             date_now = datetime.datetime.now().strftime("%Y%m%d")
             print(f'当前启动任务，入库时间== {date_now} ==')
+            # date_now = "20220511"
             res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep gfs_{date_now}")
             if res:
                 print(res)
@@ -81,7 +82,7 @@ class GfsSyncMgo:
                     except EmptyDataError as e:
                         pass  
                     for index, row in df.iterrows():
-                        handle_typhoon = HandleTyphoon(mgo=mgo,row=row)
+                        handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row)
                         flag = handle_typhoon.query_gfs_typhoon()
                         if flag:
                             typhoon_id = handle_typhoon.query_real_time_typhoon()
