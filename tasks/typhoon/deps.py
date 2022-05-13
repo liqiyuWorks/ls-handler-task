@@ -129,6 +129,7 @@ class MgoStore(object):
 
 class HandleTyphoon:
     def __init__(self, **kwargs) -> None:
+        self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
         self.MONGO_TYPHOON = "typhoon_real_time_data"
         self._mgo = kwargs.get('mgo')
         self._row = kwargs.get('row')
@@ -276,7 +277,7 @@ class HandleTyphoon:
                 if (lon > 0 and self._Lon>0) or (lon < 0 and self._Lon<0):
                     a = (lat, lon)
                     temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
-                    if temp_diff <= 50:
+                    if temp_diff <= self.default_distance:
                         diffs.append([temp_diff, id])
         diffs = sorted(diffs, key=lambda x: x[0])
         # print("最短距离:",diffs)
