@@ -7,7 +7,7 @@ from basic.scheduler import CustomScheduler
 
 def get_task_dic():
     task_dict = {
-        "sync_mashan_hourly_data": lambda: CustomScheduler(SyncMashanHourlyData).run(),
-        "sync_cma_new_ground": lambda: CustomScheduler(SyncCmaNewGround).run()
+        "sync_mashan_hourly_data": (lambda: CustomScheduler(SyncMashanHourlyData).run(),'同步马山逐小时数据到mongo'),
+        "sync_cma_new_ground": (lambda: CustomScheduler(SyncCmaNewGround).run(),'环保: 协助戴铭拉平new_ground表')
     }
     return task_dict

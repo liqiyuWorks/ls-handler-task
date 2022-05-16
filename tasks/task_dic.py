@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os,sys
+import logging
 import importlib.util
 from basic.util import load_dic
 
@@ -24,9 +25,13 @@ def get_task_dic():
         spec_function = importlib.util.spec_from_file_location('get_task_dic', sub_task_path) 
         module_function = importlib.util.module_from_spec(spec_function) 
         spec_function.loader.exec_module(module_function) 
-        load_dic(task_dic, module_function.get_task_dic())
         print(f'[{index+1}] {dir}')
-        for k,v in task_dic.items():
-            print(f' ** TASK_TYPE = {k}')
+        for key, value in module_function.get_task_dic().items():
+            if key in task_dic:
+                logging.error('duplicate tasc_dic key {}'.format(key))
+            else:
+                print(' ** TASK_TYPE = {} \t\t| Desc:"{}"'.format(key, value[1]))
+                task_dic[key] = value[0]
+        
     print('===任务列表end===\n')
     return task_dic
