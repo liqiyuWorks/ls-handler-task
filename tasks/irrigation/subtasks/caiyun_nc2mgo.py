@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 import logging
 from basic.database import get_mgo, MgoStore
+from public.decorator import decorate
 from tasks.irrigation.deps import write_caiyun_mgo,supplement_request2png,PREP_URL
 import pymongo
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/irrigation/input/cy_rain/")
@@ -27,18 +28,15 @@ class CaiyunNcMgo:
     def close(self):
         self.mgo.close()
 
+    @decorate.exception_capture_close_datebase
     def run(self):
-        try:
-            now_date_time = (datetime.now() + timedelta(minutes=-5)).strftime('%Y%m%d%H%M')
-            input_path = INPUT_PATH+f"{now_date_time[:4]}/{now_date_time[:8]}/{now_date_time}"
+        now_date_time = (datetime.now() + timedelta(minutes=-5)).strftime('%Y%m%d%H%M')
+        input_path = INPUT_PATH+f"{now_date_time[:4]}/{now_date_time[:8]}/{now_date_time}"
 
-            for row in write_caiyun_mgo(input_path):
-                res = self.mgo.set(None, row)
-            print(f'{now_date_time}写入成功！')
-        except Exception as e:
-            logging.error(e)
-        finally:
-            self.close()
+        for row in write_caiyun_mgo(input_path):
+            res = self.mgo.set(None, row)
+        print(f'{now_date_time}写入成功！')
+
 
     def supplement_history(self):
         START_DATE = os.getenv('START_DATE', "20220201")

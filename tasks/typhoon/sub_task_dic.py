@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import logging
-from tasks.typhoon.noaa_sync_mgo import NoaaSyncMgo
-from tasks.typhoon.ssec_sync_mgo import SsecSyncMgo
-from tasks.typhoon.typhoon_sync_mgo import TyphoonSyncMgo
-from tasks.typhoon.gfs_sync_mgo import GfsSyncMgo
-from tasks.typhoon.spider_currMerger2json import SpiderCurrmergerJson
+from tasks.typhoon.subtasks.noaa_sync_mgo import NoaaSyncMgo
+from tasks.typhoon.subtasks.ssec_sync_mgo import SsecSyncMgo
+from tasks.typhoon.subtasks.typhoon_sync_mgo import TyphoonSyncMgo
+from tasks.typhoon.subtasks.gfs_sync_mgo import GfsSyncMgo
+from tasks.typhoon.subtasks.spider_currMerger2json import SpiderCurrmergerJson
 from basic.scheduler import CustomScheduler
 
 def get_task_dic():

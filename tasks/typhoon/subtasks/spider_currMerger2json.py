@@ -4,13 +4,13 @@ import os,sys
 import datetime
 import requests
 from basic.util import check_create_path
+from public.decorator import decorate
+from public.base_models import BaseModel
 
-OUTPUT_PATH = os.getenv('OUTPUT_PATH', ".")
+OUTPUT_PATH = os.getenv('OUTPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/output/")
 
-class SpiderCurrmergerJson:
-    def __init__(self):
-        pass
-
+class SpiderCurrmergerJson(BaseModel):
+    @decorate.exception_capture
     def run(self):
         date_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
         day = date_now[:8]

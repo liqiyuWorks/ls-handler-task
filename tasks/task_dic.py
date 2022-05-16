@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
-from tasks.typhoon.task_dic import get_task_dic as get_typhoon_dic
-from tasks.irrigation.task_dic import get_task_dic as get_irrigation_dic
-from tasks.handle_mgo.task_dic import get_task_dic as get_handle_mgo_dic
+from tasks.typhoon.sub_task_dic import get_task_dic as get_typhoon_dic
+from tasks.irrigation.sub_task_dic import get_task_dic as get_irrigation_dic
+from tasks.handle_mgo.sub_task_dic import get_task_dic as get_handle_mgo_dic
 from basic.util import load_dic
 
 def get_task_dic():

@@ -6,7 +6,7 @@ import pandas as pd
 from basic.database import get_mgo, MgoStore
 from basic.spider_utils import parse_url
 from lxml import etree
-from tasks.typhoon.ssec_sync_mgo import SsecSyncMgo
+from tasks.typhoon.subtasks.ssec_sync_mgo import SsecSyncMgo
 
 MGO_FIELD = [
     "Date", "Time", "CI", "MSLP", "Vmax", "Fnl_Tno", "Adj_Raw", "Ini_Raw",
