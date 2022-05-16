@@ -28,6 +28,5 @@ def get_task_dic():
         print(f'[{index+1}] {dir}')
         for k,v in task_dic.items():
             print(f' - task : {k}')
-        print('\n')
     print('===任务列表end===\n')
     return task_dic
