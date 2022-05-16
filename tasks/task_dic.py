@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os
-from tasks.typhoon.sub_task_dic import get_task_dic as get_typhoon_dic
-from tasks.irrigation.sub_task_dic import get_task_dic as get_irrigation_dic
-from tasks.handle_mgo.sub_task_dic import get_task_dic as get_handle_mgo_dic
+import os,sys
+import importlib.util
 from basic.util import load_dic
 
+# 递归遍历目录
+def get_current_dirs(path):
+    dirs = []
+    for dir in os.listdir(path):
+        dir = os.path.join(path, dir)
+        # 判断当前目录是否为文件夹
+        if os.path.isdir(dir) and "__pycache__" not in dir:
+            dirs.append(dir)
+    return dirs
+
 def get_task_dic():
+    print('\n ===任务列表start===')
     task_dic = {}
-    load_dic(task_dic, get_typhoon_dic())
-    load_dic(task_dic, get_irrigation_dic())
-    load_dic(task_dic, get_handle_mgo_dic())
-    print('\n===任务列表start===')
-    for k,v in task_dic.items():
-        print(f'{k} - {v}')
-    print('===任务列表over===\n')
+    base_path =  os.path.dirname(os.path.abspath(__file__))
+    dirs_list = get_current_dirs(base_path)
+    for index, dir in enumerate(dirs_list):
+        sub_task_path = os.path.join(dir, 'sub_task_dic.py')
+        spec_function = importlib.util.spec_from_file_location('get_task_dic', sub_task_path) 
+        module_function = importlib.util.module_from_spec(spec_function) 
+        spec_function.loader.exec_module(module_function) 
+        load_dic(task_dic, module_function.get_task_dic())
+        print(f'[{index+1}] {dir}')
+        for k,v in task_dic.items():
+            print(f' - task : {k}')
+        print('\n')
+    print('===任务列表end===\n')
     return task_dic
