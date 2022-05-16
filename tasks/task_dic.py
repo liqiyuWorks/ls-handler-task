@@ -27,6 +27,6 @@ def get_task_dic():
         load_dic(task_dic, module_function.get_task_dic())
         print(f'[{index+1}] {dir}')
         for k,v in task_dic.items():
-            print(f' - task : {k}')
+            print(f' ** TASK_TYPE = {k}')
     print('===任务列表end===\n')
     return task_dic
