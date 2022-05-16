@@ -3,7 +3,6 @@
 import os,sys
 import logging
 import importlib.util
-from basic.util import load_dic
 
 # 递归遍历目录
 def get_current_dirs(path):
