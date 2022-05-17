@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os
+import os, sys
+import getopt
 import time
 import logging
 import logging.handlers
@@ -11,8 +12,7 @@ from tasks.task_dic import get_task_dic
 
 LOG_FILE = "./log/run.log"
 SCHEDULER_FLAG = int(os.getenv('SCHEDULER_FLAG', 1))
-QUEUE_KEY = os.getenv('QUEUE_KEY', "test")
-TASK_TYPE = os.getenv('TASK_TYPE', "test")
+QUEUE_KEY = os.getenv('QUEUE_KEY', "ls_handler")
 
 def init_log():
     logger = logging.getLogger()
@@ -27,11 +27,19 @@ def init_log():
  
 
 def main():
-    rds = RdsQueue()
+    TASK_DICT = get_task_dic()
+    opts, args = getopt.getopt(sys.argv, "h", ["help"])  # python main.py list
+    if len(args) < 2:
+        task_type = os.getenv('TASK_TYPE')
+    else:
+        task_type = args[1]
+
+    if task_type == "list":
+        sys.exit(-1)
+
     if SCHEDULER_FLAG:
-        TASK_DICT = get_task_dic()
-        if "," in TASK_TYPE:
-            task_type_list = TASK_TYPE.split(",")
+        if "," in task_type:
+            task_type_list = task_type.split(",")
             handlers = {}
             for task_type in task_type_list:
                 handlers[task_type] = TASK_DICT.get(task_type)
@@ -40,13 +48,13 @@ def main():
             multi_handler.run()
             multi_handler.close()
         else:
-            if TASK_DICT.get(TASK_TYPE):
-                TASK_DICT[TASK_TYPE]()
+            if TASK_DICT.get(task_type):
+                TASK_DICT[task_type]()
             else:
                 logging.info('还未实现相关功能！')
 
     else:
-        TASK_DICT = get_task_dic()
+        rds = RdsQueue()
         while True:
             try:
                 # 从队列获取任务
