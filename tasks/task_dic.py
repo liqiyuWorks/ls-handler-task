@@ -15,7 +15,7 @@ def get_current_dirs(path):
     return dirs
 
 def get_task_dic():
-    print('\n ===任务列表start===')
+    print('\n ===任务列表start=== ')
     task_dic = {}
     base_path =  os.path.dirname(os.path.abspath(__file__))
     dirs_list = get_current_dirs(base_path)
@@ -32,5 +32,5 @@ def get_task_dic():
                 print(' ** TASK_TYPE = {} \t\t| Desc:"{}"'.format(key, value[1]))
                 task_dic[key] = value[0]
         
-    print('===任务列表end===\n')
+    print(' ===任务列表end=== \n')
     return task_dic
