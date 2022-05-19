@@ -6,8 +6,8 @@ import time
 import logging
 import logging.handlers
 import traceback
-from basic.database import RdsQueue
-from basic.thread import MultiThread
+from pkg.db.redis import RdsQueue
+from pkg.public.thread import MultiThread
 from tasks.task_dic import get_task_dic
 
 LOG_FILE = "./log/run.log"
