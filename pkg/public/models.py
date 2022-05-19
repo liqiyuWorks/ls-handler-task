@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
-from basic.database import get_mgo, MgoStore
+from pkg.db.mongo import get_mgo, MgoStore
 import pymongo
 
 class BaseModel:

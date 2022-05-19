@@ -3,8 +3,8 @@
 import os, sys, logging
 import pymongo
 import pandas as pd
-from basic.database import get_mgo, MgoStore
-from basic.spider_utils import parse_url
+from pkg.db.mongo import get_mgo, MgoStore
+from pkg.util.spider import parse_url
 from lxml import etree
 from tasks.typhoon.subtasks.ssec_sync_mgo import SsecSyncMgo
 

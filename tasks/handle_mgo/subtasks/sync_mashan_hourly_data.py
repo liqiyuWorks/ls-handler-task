@@ -3,7 +3,7 @@
 import datetime
 import logging
 import sys, os
-from basic.database import get_mgo, MgoStore
+from pkg.db.mongo import get_mgo, MgoStore
 import pymongo
 import pandas as pd
 import subprocess

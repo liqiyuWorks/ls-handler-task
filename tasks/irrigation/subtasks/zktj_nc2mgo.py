@@ -3,7 +3,7 @@
 import os, sys
 from datetime import datetime, timedelta
 import logging
-from basic.database import get_mgo, MgoStore
+from pkg.db.mongo import get_mgo, MgoStore
 from tasks.irrigation.deps import read_real_prer_nc
 import pymongo
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/irrigation/input/")

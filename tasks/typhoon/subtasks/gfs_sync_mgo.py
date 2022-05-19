@@ -6,7 +6,7 @@ import datetime
 import pymongo
 from pandas.errors import EmptyDataError
 import pandas as pd
-from basic.database import get_mgo, MgoStore
+from pkg.db.mongo import get_mgo, MgoStore
 from tasks.typhoon.deps import HandleTyphoon
 import subprocess
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/")

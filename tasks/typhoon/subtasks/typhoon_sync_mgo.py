@@ -6,7 +6,7 @@ import pymongo
 import datetime
 import pandas as pd
 import subprocess
-from basic.database import get_mgo, MgoStore
+from pkg.db.mongo import get_mgo, MgoStore
 from tasks.typhoon.deps import HandleTyphoon
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/typhoon_data/UNIFORM/")
 

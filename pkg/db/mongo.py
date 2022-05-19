@@ -29,41 +29,6 @@ def is_none(s):
             break
     return flag
 
-
-class RdsQueue:
-    def __init__(self):
-        host = os.getenv('REDIS_HOST', '127.0.0.1')
-        port = int(os.getenv('REDIS_PORT', '6379'))
-        password = os.getenv('REDIS_PASSWORD', '')
-        self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True)
-        logging.info('rds connect ok, {}'.format(self.rds))
-
-    # data 为dict或者list类型， 需要json序列化
-    def push(self, queue_name, data, extra=None):
-        result = None
-        try:
-            if isinstance(data, dict) or isinstance(data, list):
-                result = self.rds.rpush(queue_name, json.dumps(data))
-            else:
-                result = self.rds.rpush(queue_name, data)
-        except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
-        return result
-
-    def pop(self, queue_name, extra=None):
-        result = None
-        try:
-            result = self.rds.lpop(queue_name)
-            if result is not None:
-                result = json.loads(result)
-        except json.decoder.JSONDecodeError:
-            return result
-        except Exception as e:
-            logging.error(e)
-            logging.error(traceback.format_exc())
-        return result
-
 def get_mgo():
     # 数据库源连接
     mongo_host = os.getenv('MONGO_HOST', '119.3.248.125')

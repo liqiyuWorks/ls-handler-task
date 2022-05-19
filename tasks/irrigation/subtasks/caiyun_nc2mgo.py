@@ -3,8 +3,8 @@
 import os
 from datetime import datetime, timedelta
 import logging
-from basic.database import get_mgo, MgoStore
-from public.decorator import decorate
+from pkg.db.mongo import get_mgo, MgoStore
+from pkg.public.decorator import decorate
 from tasks.irrigation.deps import write_caiyun_mgo,supplement_request2png,PREP_URL
 import pymongo
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/irrigation/input/cy_rain/")

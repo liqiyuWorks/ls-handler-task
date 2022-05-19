@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from basic.database import MgoStore,get_mgo
-from basic.util import format_time
+from pkg.db.mongo import MgoStore,get_mgo
+from pkg.util.format import format_time
 from tasks.handle_mgo.deps import query_one,update_one,query_all
 import datetime
 import logging
