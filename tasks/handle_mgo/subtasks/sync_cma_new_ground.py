@@ -27,8 +27,8 @@ class SyncCmaNewGround:
     def run(self):
         try:
             date_now = datetime.datetime.now()
-            # date_now = date_now + datetime.timedelta(hours=-8)
-            date_now = date_now + datetime.timedelta(days=-3)
+            date_now = date_now + datetime.timedelta(hours=-9)
+            # date_now = date_now + datetime.timedelta(days=-3)
             year_now = date_now.year
             month_now = date_now.month
             day_now = date_now.day
