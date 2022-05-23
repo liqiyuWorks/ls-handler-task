@@ -10,7 +10,7 @@ from pkg.public.models import BaseModel
 OUTPUT_PATH = os.getenv('OUTPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/output/")
 
 class SpiderCurrmergerJson(BaseModel):
-    @decorate.exception_capture
+    @decorate.exception_capture_close_datebase
     def run(self):
         date_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
         day = date_now[:8]

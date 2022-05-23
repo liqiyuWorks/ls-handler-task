@@ -25,7 +25,7 @@ class BaseDecorate:
                 logging.error(traceback.format_exc())
             finally:
                 self.close()
-                logging.info('close databases ok!')
+
         return wrapper
 
 

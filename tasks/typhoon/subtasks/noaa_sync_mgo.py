@@ -3,8 +3,9 @@
 import os, sys, logging
 import pymongo
 import pandas as pd
-from pkg.db.mongo import get_mgo, MgoStore
 from pkg.util.spider import parse_url
+from pkg.public.models import BaseModel
+from pkg.public.decorator import decorate
 from lxml import etree
 from tasks.typhoon.subtasks.ssec_sync_mgo import SsecSyncMgo
 
@@ -20,22 +21,16 @@ month_abbr_list = [
 ]
 
 
-class NoaaSyncMgo:
+class NoaaSyncMgo(BaseModel):
     def __init__(self):
-        self.url_index = "https://www.ssd.noaa.gov/PS/TROP/adt.html"
-        mgo_client, mgo_db = get_mgo()
         config = {
-            "mgo_client":
-            mgo_client,
-            "mgo_db":
-            mgo_db,
-            'collection':
-            'noaa_data',
+            'collection': 'noaa_data',
             'uniq_idx': [('dataTime', pymongo.ASCENDING),
                          ('StormID', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)]
         }
-        self.mgo = MgoStore(config)  # 初始化
+        super(NoaaSyncMgo, self).__init__(config)
+        self.url_index = "https://www.ssd.noaa.gov/PS/TROP/adt.html"
 
     def handle_storm(self, item, Storm_url):
         r = parse_url(Storm_url)
@@ -75,33 +70,27 @@ class NoaaSyncMgo:
                 item.pop('Time')
                 yield item
 
+    @decorate.exception_capture_close_datebase
     def run(self):
-        try:
-            r = parse_url(self.url_index)
-            if r.status_code == 200:
-                html_xpath = etree.HTML(r.text)
-                tables = html_xpath.xpath('//*[@class="padding5"]/table')
-                for table in tables[1:]:
-                    ocean_names_list = table.xpath(".//tr[2]")[0]
-                    storm_names = table.xpath(".//tr[3]/td")
-                    for index,td in enumerate(storm_names):
-                        item = {}
-                        a_list = td.xpath('./center/a')
-                        if a_list:
-                            item['sea_area'] = ocean_names_list[index].xpath('./div/text()')[0]
-                            item['StormID']= td.xpath("./center/a[1]/strong/text()")[0]
-                            Storm_url= td.xpath("./center/a[1]/@href")[0]
-                            ## 查询 noaa 的数据
-                            for item in self.handle_storm(item,Storm_url):
-                                self.mgo.set(None, item)
-                            print('Noaa 的数据导入成功！')
+        r = parse_url(self.url_index)
+        if r.status_code == 200:
+            html_xpath = etree.HTML(r.text)
+            tables = html_xpath.xpath('//*[@class="padding5"]/table')
+            for table in tables[1:]:
+                ocean_names_list = table.xpath(".//tr[2]")[0]
+                storm_names = table.xpath(".//tr[3]/td")
+                for index,td in enumerate(storm_names):
+                    item = {}
+                    a_list = td.xpath('./center/a')
+                    if a_list:
+                        item['sea_area'] = ocean_names_list[index].xpath('./div/text()')[0]
+                        item['StormID']= td.xpath("./center/a[1]/strong/text()")[0]
+                        Storm_url= td.xpath("./center/a[1]/@href")[0]
+                        ## 查询 noaa 的数据
+                        for item in self.handle_storm(item,Storm_url):
+                            self.mgo.set(None, item)
+                        print('Noaa 的数据导入成功！')
 
-                            ## 查询 ssec 的数据
-                            SsecSyncMgo(storm_id=item['StormID'], sea_area = item['sea_area']).run()
-                            print('Ssec 的数据导入成功！')
-
-                            
-        except Exception as e:
-            logging.error('run error {}'.format(e))
-        finally:
-            self.mgo.close()
+                        ## 查询 ssec 的数据
+                        SsecSyncMgo(storm_id=item['StormID'], sea_area = item['sea_area']).run()
+                        print('Ssec 的数据导入成功！')
