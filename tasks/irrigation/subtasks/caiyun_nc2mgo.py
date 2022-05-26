@@ -3,19 +3,16 @@
 import os
 from datetime import datetime, timedelta
 import logging
-from pkg.db.mongo import get_mgo, MgoStore
+from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 from tasks.irrigation.deps import write_caiyun_mgo,supplement_request2png,PREP_URL
 import pymongo
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/irrigation/input/cy_rain/")
 
 
-class CaiyunNcMgo:
+class CaiyunNcMgo(BaseModel):
     def __init__(self):
-        mgo_client, mgo_db = get_mgo()
         config = {
-            "mgo_client": mgo_client,
-            "mgo_db": mgo_db,
             'collection': 'caiyun_precip',
             'uniq_idx': [
                 ('dataTime', pymongo.ASCENDING),
@@ -23,10 +20,7 @@ class CaiyunNcMgo:
                 ('lat', pymongo.ASCENDING)
             ]
             }
-        self.mgo = MgoStore(config)  # 初始化
-
-    def close(self):
-        self.mgo.close()
+        super(CaiyunNcMgo, self).__init__(config)
 
     @decorate.exception_capture_close_datebase
     def run(self):
@@ -34,7 +28,7 @@ class CaiyunNcMgo:
         input_path = INPUT_PATH+f"{now_date_time[:4]}/{now_date_time[:8]}/{now_date_time}"
 
         for row in write_caiyun_mgo(input_path):
-            res = self.mgo.set(None, row)
+            self.mgo.set(None, row)
         print(f'{now_date_time}写入成功！')
 
 

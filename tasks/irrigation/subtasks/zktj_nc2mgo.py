@@ -3,7 +3,8 @@
 import os, sys
 from datetime import datetime, timedelta
 import logging
-from pkg.db.mongo import get_mgo, MgoStore
+from pkg.public.models import BaseModel
+from pkg.public.decorator import decorate
 from tasks.irrigation.deps import read_real_prer_nc
 import pymongo
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/irrigation/input/")
@@ -14,12 +15,9 @@ HANDLE_PATH.append(INPUT_PATH+"zktj/")
 HANDLE_PATH.append(INPUT_PATH+"zktj/")
 
 
-class ZktjNcMgo:
+class ZktjNcMgo(BaseModel):
     def __init__(self):
-        mgo_client, mgo_db = get_mgo()
         config = {
-            "mgo_client": mgo_client,
-            "mgo_db": mgo_db,
             'collection': 'zjtj_prer',
             'uniq_idx': [
                 ('dataTime', pymongo.ASCENDING),
@@ -27,13 +25,10 @@ class ZktjNcMgo:
                 ('longitude', pymongo.ASCENDING),
             ]
             }
-        self.mgo = MgoStore(config)  # 初始化
+        super(ZktjNcMgo, self).__init__(config)
 
-    def close(self):
-        self.mgo.close()
-
+    @decorate.exception_capture_close_datebase
     def run(self):
-        try:
             now_date_time = (datetime.now() + timedelta(days=-1)).strftime('%Y%m%d')
             input_path = INPUT_PATH+f"{now_date_time}/prer.nc"
             for index, path in enumerate(HANDLE_PATH):
@@ -45,9 +40,5 @@ class ZktjNcMgo:
                 for row in read_real_prer_nc(path, date_time):
                     res = self.mgo.set(None, row)
                 print(f'{now_date_time}导入成功')
-        except Exception as e:
-            logging.error(e)
-        finally:
-            self.close()
 
 
