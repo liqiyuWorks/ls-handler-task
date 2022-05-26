@@ -70,6 +70,13 @@ def query_all(mgo_db,mgo_coll,fcityname,year_now,month_now,day_now):
     res = mgo_db[mgo_coll].find(query,{'_id': 0})
     return res
 
+def query_one_year(mgo_db,mgo_coll,fcityname,year_now):
+    query = {"Year" : year_now, 'stationName':fcityname}
+    print(query)
+    res = mgo_db[mgo_coll].find(query,{'_id': 0})
+    return res
+
+
 def query_one(mgo_db,mgo_coll,**kwargs):
     stationId = kwargs['stationId']
     Mon = kwargs['Mon']
