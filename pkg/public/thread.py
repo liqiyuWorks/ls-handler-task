@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import logging
 import threading
-from pkg.public.scheduler import CustomScheduler
 
 class MultiThread:
     def __init__(self, handlers):

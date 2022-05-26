@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
-import redis
-import json
 import logging
 import logging.handlers
-import traceback
 import pymongo
 
 def is_none(s):
