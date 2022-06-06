@@ -183,7 +183,32 @@ class HandleTyphoon:
         data['Lon'] = self._row['Lon']
 
         if not self.query_typhoon():
-            res = self._mgo.set(None, data)
+            # 考虑一种特殊情况：台风改名情况！！！！ （首先去看前一个结束时间与该台风的新时间，最后重命名为最新的）
+            query = {"StormID": self._StormID,"YEAR":self._YEAR}
+            orig_typhoon_list = list(self._mgo.mgo_coll.find(query))
+            if orig_typhoon_list:
+                if len(orig_typhoon_list) != 1:
+                    print('不仅仅有两个台风哦')
+                else:
+                    ## 判断这两个台风是不是同一个台风？？
+                    orig_typhoon = orig_typhoon_list[0]
+                    id = orig_typhoon.get('_id')
+                    lat = float(orig_typhoon.get('Lat'))
+                    lon = float(orig_typhoon.get('Lon'))
+                    orig_dataTime = orig_typhoon.get('dataTime')[-1].get('reporttime_UTC')
+                    orig_dataTime = datetime.strptime(orig_dataTime, '%Y-%m-%d %H:%M:%S')
+                    now_dataTime = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+                    print(distance.euclidean((lat, lon), (self._Lat, self._Lon)))
+                    if (abs((orig_dataTime-now_dataTime).days) < 3) and (distance.euclidean((lat, lon), (self._Lat, self._Lon))<30):
+                        ## 此时 可以确定是同一个台风
+                        orig_typhoon['StormName'] = self._StormName
+                        self._mgo.mgo_coll.update_one({"_id": id}, {"$set": orig_typhoon}, upsert=True)
+                    else:
+                        # 最后新增新台风
+                        res = self._mgo.set(None, data)
+            else:
+                # 最后新增新台风
+                res = self._mgo.set(None, data)
 
         res = self.query_reporttime_UTC_typhoon()
         if not res:
@@ -233,32 +258,6 @@ class HandleTyphoon:
             self._mgo.set(None, data)
             print("数据库已存在该台风")
             return False
-        return True
-
-        
-
-        if res:
-            newest_forecast_time = res.get('forecast_time')
-            reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-            newest_forecast_time = datetime.strptime(newest_forecast_time, '%Y-%m-%d %H:%M:%S')
-            # print((newest_forecast_time - reporttime_UTC).days)
-            if abs((newest_forecast_time - reporttime_UTC).days) < 30:
-                typhoon_id = res.get('typhoon_id')
-                if typhoon_id is not None:
-                    reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-                    forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
-                    data = self._row.to_dict()
-                    data['typhoon_id'] = typhoon_id
-                    data['typhoon_StormName'] = res.get('typhoon_StormName')
-                    data['typhoon_StormID'] = res.get('typhoon_StormID')
-                    data['forecast_time'] = forecast_time
-                    del data['reporttime_UTC']
-                    res = self._mgo.set(None, data)
-                    flag = self.compare_exist(res)
-                    if flag:
-                        res = self._mgo.set(None, data)
-                        print("数据库已存在该台风")
-                    return False
         return True
 
 

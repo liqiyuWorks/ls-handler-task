@@ -25,7 +25,7 @@ class TyphoonSyncMgo(BaseModel):
             ]
             }
         super(TyphoonSyncMgo, self).__init__(config)
-        self.GLOBAL_ROWS_TYPHOON = int(os.getenv('GLOBAL_ROWS_TYPHOON', 300))
+        self.GLOBAL_ROWS_TYPHOON = int(os.getenv('GLOBAL_ROWS_TYPHOON', 0))
         self.GLOBAL_YEAR = int(os.getenv('GLOBAL_YEAR', 2022))
 
     def history(self):
