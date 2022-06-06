@@ -9,7 +9,7 @@ import subprocess
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 from tasks.typhoon.deps import HandleTyphoon
-INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-ls-tasks/typhoon_data/UNIFORM/")
+INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/")
 
 
 class TyphoonSyncMgo(BaseModel):
@@ -61,7 +61,9 @@ class TyphoonSyncMgo(BaseModel):
 
         file_name = "tcvitals_2_{}.csv".format(YEAR)
         csv_file = INPUT_PATH + file_name
+        print(csv_file)
         res = subprocess.getoutput(f"wc -l {csv_file}")
+        print(res)
         temp_rows_typhoon = int(res.replace(' ','').split('/')[0])
         if self.GLOBAL_ROWS_TYPHOON == temp_rows_typhoon:
             print(f'该时刻暂无新台风值')

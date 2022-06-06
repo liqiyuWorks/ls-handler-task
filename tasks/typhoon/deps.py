@@ -143,7 +143,7 @@ class HandleTyphoon:
         if len(self._reporttime_UTC) != 19:
             self._reporttime_UTC = self._reporttime_UTC + ' 00:00:00'
         self._StormName = self._row.get('StormName')
-        # print("row=",self._row.to_dict())
+        print("row=",self._row.to_dict())
 
 
     def query_typhoon(self):
@@ -205,10 +205,9 @@ class HandleTyphoon:
                         self._mgo.mgo_coll.update_one({"_id": id}, {"$set": orig_typhoon}, upsert=True)
                     else:
                         # 最后新增新台风
-                        res = self._mgo.set(None, data)
+                        self._mgo.set(None, data)
             else:
-                # 最后新增新台风
-                res = self._mgo.set(None, data)
+                self._mgo.set(None, data)
 
         res = self.query_reporttime_UTC_typhoon()
         if not res:
