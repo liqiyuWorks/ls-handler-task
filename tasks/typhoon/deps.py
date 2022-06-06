@@ -128,7 +128,7 @@ class MgoStore(object):
 
 
 class HandleTyphoon:
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, **kwargs):
         self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
         self.MONGO_TYPHOON = "typhoon_real_time_data"
         self._mgo = kwargs.get('mgo')
@@ -147,8 +147,8 @@ class HandleTyphoon:
 
 
     def query_typhoon(self):
-        query = {"StormID": self._StormID,"StormName": self._StormName,"YEAR":self._YEAR}
-        res = self._mgo.mgo_coll.find_one(query)
+        query = {"StormID": self._StormID,"YEAR":self._YEAR}
+        res = list(self._mgo.mgo_coll.find(query))
         return res
 
     def query_reporttime_UTC_typhoon(self):
@@ -172,7 +172,7 @@ class HandleTyphoon:
             });
         print('更新成功,res=',res)
 
-    def save_typhoon_data(self) -> None:
+    def save_typhoon_data(self):
         data = {
             "YEAR": self._YEAR,
             "StormID": self._StormID,
@@ -182,39 +182,47 @@ class HandleTyphoon:
         data['Lat'] = self._row['Lat']
         data['Lon'] = self._row['Lon']
 
-        if not self.query_typhoon():
-            # 考虑一种特殊情况：台风改名情况！！！！ （首先去看前一个结束时间与该台风的新时间，最后重命名为最新的）
-            query = {"StormID": self._StormID,"YEAR":self._YEAR}
-            orig_typhoon_list = list(self._mgo.mgo_coll.find(query))
-            if orig_typhoon_list:
-                if len(orig_typhoon_list) != 1:
+        tythoons = self.query_typhoon()
+        if tythoons == []:
+            self._mgo.set(None, data)
+        else:
+            ## 考虑一种特殊情况：台风改名情况！！！！（首先去看前一个结束时间与该台风的新时间，最后重命名为最新的）
+            print(f"orig_typhoon_list={tythoons}")
+            if tythoons:
+                if len(tythoons) != 1:
                     print('不仅仅有两个台风哦')
                 else:
                     ## 判断这两个台风是不是同一个台风？？
-                    orig_typhoon = orig_typhoon_list[0]
+                    orig_typhoon = tythoons[0]
                     id = orig_typhoon.get('_id')
                     lat = float(orig_typhoon.get('Lat'))
                     lon = float(orig_typhoon.get('Lon'))
-                    orig_dataTime = orig_typhoon.get('dataTime')[-1].get('reporttime_UTC')
+                    if not orig_typhoon.get('dataTime'):
+                        orig_dataTime = orig_typhoon.get('start_reporttime_UTC')
+                    else:
+                        orig_dataTime = orig_typhoon.get('dataTime')[-1].get('reporttime_UTC')
+
                     orig_dataTime = datetime.strptime(orig_dataTime, '%Y-%m-%d %H:%M:%S')
                     now_dataTime = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
                     print(distance.euclidean((lat, lon), (self._Lat, self._Lon)))
+                    print(abs((orig_dataTime-now_dataTime).days))
                     if (abs((orig_dataTime-now_dataTime).days) < 3) and (distance.euclidean((lat, lon), (self._Lat, self._Lon))<30):
                         ## 此时 可以确定是同一个台风
+                        print("合并两个台风")
                         orig_typhoon['StormName'] = self._StormName
                         self._mgo.mgo_coll.update_one({"_id": id}, {"$set": orig_typhoon}, upsert=True)
                     else:
                         # 最后新增新台风
                         self._mgo.set(None, data)
-            else:
-                self._mgo.set(None, data)
 
-        res = self.query_reporttime_UTC_typhoon()
-        if not res:
-            # 插入该台风的实时轨迹
-            self.insert_dataTime2typhoon()
-        else:
-            print('该轨迹已存在')
+                    res = self.query_reporttime_UTC_typhoon()
+                    if not res:
+                        # 插入该台风的实时轨迹
+                        self.insert_dataTime2typhoon()
+                    else:
+                        print('该轨迹已存在')
+
+                    # exit(-1)
 
     def query_gfs_typhoon(self):
         typhoon_id = None
@@ -282,7 +290,6 @@ class HandleTyphoon:
         if diffs:
             typhoon_id = diffs[0][1]
             return typhoon_id
-
         return None
 
     def save_gfs_data(self,typhoon_id):

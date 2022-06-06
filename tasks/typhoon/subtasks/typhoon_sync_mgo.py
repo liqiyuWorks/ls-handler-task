@@ -63,6 +63,7 @@ class TyphoonSyncMgo(BaseModel):
         csv_file = INPUT_PATH + file_name
         res = subprocess.getoutput(f"wc -l {csv_file}")
         temp_rows_typhoon = int(res.replace(' ','').split('/')[0])
+        
         if self.GLOBAL_ROWS_TYPHOON == temp_rows_typhoon:
             print(f'该时刻暂无新台风值')
         else:
