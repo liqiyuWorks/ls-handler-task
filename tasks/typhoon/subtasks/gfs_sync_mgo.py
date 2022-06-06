@@ -69,7 +69,6 @@ class GfsSyncMgo(BaseModel):
         # date_now = "20220511"
         res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep gfs_{date_now}")
         if res:
-            print(res)
             list_gfs = res.split('\n')
             for file in list_gfs:
                 gfs_file = INPUT_PATH + file

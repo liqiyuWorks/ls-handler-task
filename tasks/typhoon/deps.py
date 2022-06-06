@@ -129,7 +129,7 @@ class MgoStore(object):
 
 class HandleTyphoon:
     def __init__(self, **kwargs):
-        self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
+        self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 100))
         self.MONGO_TYPHOON = "typhoon_real_time_data"
         self._mgo = kwargs.get('mgo')
         self._row = kwargs.get('row')
@@ -163,14 +163,15 @@ class HandleTyphoon:
         del dataTime['StormID']
         del dataTime['StormName']
         del dataTime['ModelName']
-        res = self._mgo.mgo_coll.update(
+        self._mgo.mgo_coll.update(
             {"StormID" : self._StormID,"StormName" : self._StormName,"YEAR": self._YEAR},
             {
                 "$push":{
                     "dataTime": dataTime
                 }
-            });
-        print('更新成功,res=',res)
+            })
+        self._mgo.mgo_coll.update_one({"StormID" : self._StormID,"StormName" : self._StormName,"YEAR": self._YEAR}, {"$set": {"end_reporttime_UTC":dataTime['reporttime_UTC'],
+        "Lat":self._Lat,"Lon": self._Lon}}, upsert=True)
 
     def save_typhoon_data(self):
         data = {
@@ -179,6 +180,7 @@ class HandleTyphoon:
             "StormName": self._StormName,
         }
         data['start_reporttime_UTC'] = self._reporttime_UTC
+        data['end_reporttime_UTC'] = self._reporttime_UTC
         data['Lat'] = self._row['Lat']
         data['Lon'] = self._row['Lon']
 
@@ -236,7 +238,7 @@ class HandleTyphoon:
             reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
             newest_forecast_time = datetime.strptime(newest_forecast_time, '%Y-%m-%d %H:%M:%S')
             # print((newest_forecast_time - reporttime_UTC).days)
-            if abs((newest_forecast_time - reporttime_UTC).days) < 30:
+            if abs((newest_forecast_time - reporttime_UTC).days) < 10:
                 typhoon_id = res.get('typhoon_id')
                 if typhoon_id is not None:
                     reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
@@ -248,15 +250,14 @@ class HandleTyphoon:
                     data['forecast_time'] = forecast_time
                     del data['reporttime_UTC']
                     res = self._mgo.set(None, data)
-                    res = self._mgo.set(None, data)
                     print("数据库已存在该台风")
                     return False
         return True
 
     def query_real_time_typhoon(self):
         typhoon_id = None
-        query = {"dataTime": {"$elemMatch":{ "reporttime_UTC": self._reporttime_UTC}}}
-        res = self._mgo.mgo_db[self.MONGO_TYPHOON].find(query,{'dataTime.$': 1},sort=[('start_reporttime_UTC', -1)])
+        query = {"start_reporttime_UTC": {"$lte": self._reporttime_UTC},"end_reporttime_UTC": {"$gte": self._reporttime_UTC}}
+        res = self._mgo.mgo_db[self.MONGO_TYPHOON].find(query,sort=[('end_reporttime_UTC', -1)])
 
         diffs = []
         for item in res:
@@ -264,14 +265,12 @@ class HandleTyphoon:
             print(id)
             lat = item.get('dataTime',[])[-1].get('Lat')
             lon = item.get('dataTime',[])[-1].get('Lon')
-            if (lat > 0 and self._Lat>0) or (lat < 0 and self._Lat<0):
-                if (lon > 0 and self._Lon>0) or (lon < 0 and self._Lon<0):
-                    a = (lat, lon)
-                    temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
-                    if temp_diff <= self.default_distance:
-                        diffs.append([temp_diff, id])
+            a = (lat, lon)
+            temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
+            if temp_diff <= self.default_distance:
+                diffs.append([temp_diff, id])
         diffs = sorted(diffs, key=lambda x: x[0])
-        # print("最短距离:",diffs)
+        print("最短距离:",diffs)
         if diffs:
             typhoon_id = diffs[0][1]
             return typhoon_id
