@@ -227,13 +227,11 @@ class HandleTyphoon:
 
     def query_gfs_typhoon(self):
         typhoon_id = None
-
-        typhoon_id = None
         reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
         forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
 
         pipeline = [
-            {'$match': {"StormID": self._StormID,"Basin": self._Basin}},
+            {'$match': {"Basin": self._Basin}},
             {'$group': {'_id': "$typhoon_id",
                         '_date_list': {"$push": "$forecast_time"}
                         }}
@@ -250,12 +248,15 @@ class HandleTyphoon:
                 continue
             
             r = self._mgo.mgo_db[self.MONGO_TYPHOON].find_one({"_id":id})
-            date = r.get('dataTime',[])[-1].get('reporttime_UTC')
+            date = r.get('end_reporttime_UTC')
             date = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
-            if abs((date-forecast_time).days) < 3:
+            if abs((date-forecast_time).days) < 10:
                 StormID = r.get('StormID')
                 StormName = r.get('StormName')
-                date_list.append((date, id, StormID, StormName))
+                lat = r.get('Lat')
+                lon = r.get('Lon')
+                if distance.euclidean((lat,lon), (self._Lat, self._Lon)) < self.default_distance:
+                    date_list.append((date, id, StormID, StormName))
         if date_list:
             date_list = sorted(date_list, key=lambda d: d[0], reverse=True)
             exist_tuple = date_list[0]
@@ -270,7 +271,7 @@ class HandleTyphoon:
             return False
         return True
 
-        
+
         reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
         forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
         query = {"StormID": self._StormID,"Basin": self._Basin}
