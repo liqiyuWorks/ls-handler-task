@@ -1,6 +1,6 @@
 # python generator.py -q nc2redis:gfs --file_path /Users/jiufangkeji/Documents/JiufangCodes/nc2redis/data/2022052200
 # python3 generator.py -q nc2redis:gfs --file_path /hpcdata/data_service/forecast/GFS/2022060618
-import argparse
+import datetime
 import os.path
 import redis
 import json
@@ -30,27 +30,32 @@ def get_preday_files(file_path, filter_re):
     return pre_files
 
 class GenGfsDaily:
+    def __init__(self):
+        self._file_path = os.getenv('FILE_PATH', "/hpcdata/data_service/forecast/GFS/")
+
     def run(self):
+        date_now = (datetime.datetime.now()+datetime.timedelta(days=-1)).strftime("%Y%m%d")
         queue = os.getenv('QUEUE', "nc2redis:gfs")
         redis_host = os.getenv('REDIS_HOST', "124.70.86.179")
         redis_port = os.getenv('REDIS_PORT', "21600")
         redis_password = os.getenv('REDIS_PASSWORD', "")
         cur_year = os.getenv('CUR_YEAR', "no")
-        file_path = os.getenv('FILE_PATH', None)
-        file_re = os.getenv('FILE_RE', "*")
-        rds = redis.Redis(host=redis_host, port=redis_port, db=0, password=redis_password,
-                        decode_responses=True)
-        if cur_year == "yes":
-            files = get_preday_files(file_path, file_re)
-        else:
-            files = get_files(file_path, file_re)
-        sorted_files = sorted(files)
-        for file in sorted_files:
-            task = {
-                'task_type': queue,
-                'input_file': file
-            }
-            queue_len = rds.rpush(queue, json.dumps(task))
-            print("queue {} length {}, new task {}".format(queue, queue_len, task))
+        for hour in ["00", "06","12", "18"]:
+            file_path = self._file_path + date_now + hour + "/" 
+            file_re = os.getenv('FILE_RE', "*")
+            rds = redis.Redis(host=redis_host, port=redis_port, db=0, password=redis_password,
+                            decode_responses=True)
+            if cur_year == "yes":
+                files = get_preday_files(file_path, file_re)
+            else:
+                files = get_files(file_path, file_re)
+            sorted_files = sorted(files)
+            for file in sorted_files:
+                task = {
+                    'task_type': queue,
+                    'input_file': file
+                }
+                queue_len = rds.rpush(queue, json.dumps(task))
+                print("queue {} length {}, new task {}".format(queue, queue_len, task))
 
         rds.close()
