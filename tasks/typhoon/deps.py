@@ -229,73 +229,24 @@ class HandleTyphoon:
         typhoon_id = None
         reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
         forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
-
-        pipeline = [
-            {'$match': {"Basin": self._Basin}},
-            {'$group': {'_id': "$typhoon_id",
-                        '_date_list': {"$push": "$forecast_time"}
-                        }}
-        ]
-        res = self._mgo.mgo_coll.aggregate(pipeline)
-        date_list = []
-        
-        for re in res:
-            id = re.get("_id")
-            if id == None:
-                continue
-            orig_date = re.get('_date_list')[0]
-            if orig_date < forecast_time.strftime('%Y-%m-%d %H:%M:%S'):
-                continue
-            
-            r = self._mgo.mgo_db[self.MONGO_TYPHOON].find_one({"_id":id})
-            date = r.get('end_reporttime_UTC')
-            date = datetime.strptime(date, '%Y-%m-%d %H:%M:%S')
-            if abs((date-forecast_time).days) < 10:
-                StormID = r.get('StormID')
-                StormName = r.get('StormName')
-                lat = r.get('Lat')
-                lon = r.get('Lon')
-                if distance.euclidean((lat,lon), (self._Lat, self._Lon)) < self.default_distance:
-                    date_list.append((date, id, StormID, StormName))
-        if date_list:
-            date_list = sorted(date_list, key=lambda d: d[0], reverse=True)
-            exist_tuple = date_list[0]
-            data = self._row.to_dict()
-            data['typhoon_id'] = exist_tuple[1]
-            data['typhoon_StormID'] = exist_tuple[2]
-            data['typhoon_StormName'] = exist_tuple[3]
-            data['forecast_time'] = forecast_time.strftime('%Y-%m-%d %H:%M:%S')
-            del data['reporttime_UTC']
-            self._mgo.set(None, data)
-            print("数据库已存在该台风")
-            return False
-        return True
-
-
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
-        query = {"StormID": self._StormID,"Basin": self._Basin}
+        year = reporttime_UTC.year
+        query = {"StormID": self._StormID,"Basin": self._Basin, "forecast_time": {"$gte":str(year)}}
         res = self._mgo.mgo_coll.find_one(query,sort=[('forecast_time', -1)])
 
         if res:
-            newest_forecast_time = res.get('forecast_time')
-            reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-            newest_forecast_time = datetime.strptime(newest_forecast_time, '%Y-%m-%d %H:%M:%S')
-            # print((newest_forecast_time - reporttime_UTC).days)
-            if abs((newest_forecast_time - reporttime_UTC).days) < 10:
-                typhoon_id = res.get('typhoon_id')
-                if typhoon_id is not None:
-                    reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-                    forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
-                    data = self._row.to_dict()
-                    data['typhoon_id'] = typhoon_id
-                    data['typhoon_StormName'] = res.get('typhoon_StormName')
-                    data['typhoon_StormID'] = res.get('typhoon_StormID')
-                    data['forecast_time'] = forecast_time
-                    del data['reporttime_UTC']
-                    res = self._mgo.set(None, data)
-                    print("数据库已存在该台风")
-                    return False
+            typhoon_id = res.get('typhoon_id')
+            if typhoon_id is not None:
+                reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+                forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
+                data = self._row.to_dict()
+                data['typhoon_id'] = typhoon_id
+                data['typhoon_StormName'] = res.get('typhoon_StormName')
+                data['typhoon_StormID'] = res.get('typhoon_StormID')
+                data['forecast_time'] = forecast_time
+                del data['reporttime_UTC']
+                res = self._mgo.set(None, data)
+                print("数据库已存在该台风")
+                return False
         return True
 
     def query_real_time_typhoon(self):
@@ -344,7 +295,7 @@ class HandleTyphoon:
             a = (lat, lon)
             temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
             print(f"最短距离= {temp_diff}----real_point=({a}), gfs_point=({self._Lat}, {self._Lon})")
-        res = self._mgo.set(None, data)
+            self._mgo.set(None, data)
         
         
 
