@@ -156,7 +156,7 @@ class HandleTyphoon:
         res = self._mgo.mgo_coll.find_one(query)
         return res
 
-    def insert_dataTime2typhoon(self):
+    def insert_dataTime2typhoon(self,id):
         dataTime = self._row.to_dict()
         if len(dataTime['reporttime_UTC']) != 19:
             dataTime['reporttime_UTC'] = dataTime['reporttime_UTC'] + ' 00:00:00'
@@ -164,13 +164,13 @@ class HandleTyphoon:
         del dataTime['StormName']
         del dataTime['ModelName']
         self._mgo.mgo_coll.update(
-            {"StormID" : self._StormID,"StormName" : self._StormName,"YEAR": self._YEAR},
+            {"_id" : id},
             {
                 "$push":{
                     "dataTime": dataTime
                 }
             })
-        self._mgo.mgo_coll.update_one({"StormID" : self._StormID,"StormName" : self._StormName,"YEAR": self._YEAR}, {"$set": {"end_reporttime_UTC":dataTime['reporttime_UTC'],
+        self._mgo.mgo_coll.update_one({"_id" : id}, {"$set": {"end_reporttime_UTC":dataTime['reporttime_UTC'],
         "Lat":self._Lat,"Lon": self._Lon}}, upsert=True)
 
     def save_typhoon_data(self):
@@ -191,40 +191,39 @@ class HandleTyphoon:
             ## 考虑一种特殊情况：台风改名情况！！！！（首先去看前一个结束时间与该台风的新时间，最后重命名为最新的）
             print(f"orig_typhoon_list={tythoons}")
             if tythoons:
-                if len(tythoons) != 1:
-                    print('不仅仅有两个台风哦')
-                    exit(-1)
+                sorted_typhoons = sorted(tythoons, key=lambda x: x['end_reporttime_UTC'])
+                print(sorted_typhoons)
+                
+                ## 判断这两个台风是不是同一个台风？？
+                orig_typhoon = tythoons[0]
+                id = orig_typhoon.get('_id')
+                lat = float(orig_typhoon.get('Lat'))
+                lon = float(orig_typhoon.get('Lon'))
+                if not orig_typhoon.get('dataTime'):
+                    orig_dataTime = orig_typhoon.get('start_reporttime_UTC')
                 else:
-                    ## 判断这两个台风是不是同一个台风？？
-                    orig_typhoon = tythoons[0]
-                    id = orig_typhoon.get('_id')
-                    lat = float(orig_typhoon.get('Lat'))
-                    lon = float(orig_typhoon.get('Lon'))
-                    if not orig_typhoon.get('dataTime'):
-                        orig_dataTime = orig_typhoon.get('start_reporttime_UTC')
-                    else:
-                        orig_dataTime = orig_typhoon.get('dataTime')[-1].get('reporttime_UTC')
+                    orig_dataTime = orig_typhoon.get('dataTime')[-1].get('reporttime_UTC')
 
-                    orig_dataTime = datetime.strptime(orig_dataTime, '%Y-%m-%d %H:%M:%S')
-                    now_dataTime = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-                    print(distance.euclidean((lat, lon), (self._Lat, self._Lon)))
-                    print(abs((orig_dataTime-now_dataTime).days))
-                    if (abs((orig_dataTime-now_dataTime).days) < 3) and (distance.euclidean((lat, lon), (self._Lat, self._Lon))<30):
-                        ## 此时 可以确定是同一个台风
-                        print("合并两个台风")
-                        self._mgo.mgo_coll.update_one({"_id": id}, {"$set": {"StormName": self._StormName}}, upsert=True)
-                    else:
-                        # 最后新增新台风
-                        self._mgo.set(None, data)
+                orig_dataTime = datetime.strptime(orig_dataTime, '%Y-%m-%d %H:%M:%S')
+                now_dataTime = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+                print(distance.euclidean((lat, lon), (self._Lat, self._Lon)))
+                print(abs((orig_dataTime-now_dataTime).days))
+                if (abs((orig_dataTime-now_dataTime).days) < 3) and (distance.euclidean((lat, lon), (self._Lat, self._Lon))<30):
+                    ## 此时 可以确定是同一个台风
+                    print("合并两个台风")
+                    self._mgo.mgo_coll.update_one({"_id": id}, {"$set": {"StormName": self._StormName}}, upsert=True)
+                else:
+                    # 最后新增新台风
+                    self._mgo.set(None, data)
 
-                    res = self.query_reporttime_UTC_typhoon()
-                    if not res:
-                        # 插入该台风的实时轨迹
-                        self.insert_dataTime2typhoon()
-                    else:
-                        print('该轨迹已存在')
+                res = self.query_reporttime_UTC_typhoon()
+                if not res:
+                    # 插入该台风的实时轨迹
+                    self.insert_dataTime2typhoon(id)
+                else:
+                    print('该轨迹已存在')
 
-                    # exit(-1)
+                # exit(-1)
 
     def query_gfs_typhoon(self):
         typhoon_id = None
@@ -261,10 +260,13 @@ class HandleTyphoon:
 
         diffs = []
         for item in res:
+            dataTime = item.get('dataTime',[])
+            if len(dataTime) <= 1 or dataTime is None:
+                continue
             id = item.get('_id')
             print(id)
-            lat = item.get('dataTime',[])[-1].get('Lat')
-            lon = item.get('dataTime',[])[-1].get('Lon')
+            lat = dataTime[-1].get('Lat')
+            lon = dataTime[-1].get('Lon')
             a = (lat, lon)
             temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
             if temp_diff <= self.default_distance:
