@@ -18,6 +18,7 @@ class TyphoonSyncMgo(BaseModel):
             'collection': "typhoon_real_time_data",
             'uniq_idx': [
                 ('start_reporttime_UTC', pymongo.ASCENDING),
+                ('end_reporttime_UTC', pymongo.ASCENDING),
                 ('Lat', pymongo.ASCENDING),
                 ('Lon', pymongo.ASCENDING),
                 ('StormName', pymongo.ASCENDING),

@@ -193,6 +193,7 @@ class HandleTyphoon:
             if tythoons:
                 if len(tythoons) != 1:
                     print('不仅仅有两个台风哦')
+                    exit(-1)
                 else:
                     ## 判断这两个台风是不是同一个台风？？
                     orig_typhoon = tythoons[0]
@@ -211,8 +212,7 @@ class HandleTyphoon:
                     if (abs((orig_dataTime-now_dataTime).days) < 3) and (distance.euclidean((lat, lon), (self._Lat, self._Lon))<30):
                         ## 此时 可以确定是同一个台风
                         print("合并两个台风")
-                        orig_typhoon['StormName'] = self._StormName
-                        self._mgo.mgo_coll.update_one({"_id": id}, {"$set": orig_typhoon}, upsert=True)
+                        self._mgo.mgo_coll.update_one({"_id": id}, {"$set": {"StormName": self._StormName}}, upsert=True)
                     else:
                         # 最后新增新台风
                         self._mgo.set(None, data)
