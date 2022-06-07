@@ -229,8 +229,8 @@ class HandleTyphoon:
         typhoon_id = None
         reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
         forecast_time = reporttime_UTC + timedelta(hours=self._LeadTime)
-        query = {"StormID": self._StormID,"Basin": self._Basin,}
-        res = self._mgo.mgo_coll.find_one(query)
+        query = {"StormID": self._StormID,"Basin": self._Basin}
+        res = self._mgo.mgo_coll.find_one(query,sort=[('forecast_time', -1)])
 
         if res:
             newest_forecast_time = res.get('forecast_time')
