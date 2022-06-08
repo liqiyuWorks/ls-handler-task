@@ -32,9 +32,10 @@ def get_preday_files(file_path, filter_re):
 class GenGfsDaily:
     def __init__(self):
         self._file_path = os.getenv('FILE_PATH', "/hpcdata/data_service/forecast/GFS/")
+        self._offset_days = int(os.getenv('OFFSET_DAYS', 1))
 
     def run(self):
-        date_now = (datetime.datetime.now()+datetime.timedelta(days=-1)).strftime("%Y%m%d")
+        date_now = (datetime.datetime.now()+datetime.timedelta(days=self._offset_days)).strftime("%Y%m%d")
         queue = os.getenv('QUEUE', "nc2redis:gfs")
         redis_host = os.getenv('REDIS_HOST', "124.70.86.179")
         redis_port = os.getenv('REDIS_PORT', "21600")
