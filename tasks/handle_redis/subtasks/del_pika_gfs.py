@@ -35,7 +35,7 @@ class DelPikaGfs(BaseModel):
                 key = f"gfs|{i}|{j}"
                 res = self.rds.rds.hdel(key, *time_range)
                 logging.info(f"{key} delete {res} nums ")
-                break
+            #     break
 
-            break
+            # break
             
