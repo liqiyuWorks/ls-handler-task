@@ -40,3 +40,44 @@ class RdsQueue:
             logging.error(e)
             logging.error(traceback.format_exc())
         return result
+
+
+
+# 采用redis队列
+class RdsTaskQueue:
+    def __init__(self, rds):
+        self.rds = rds
+
+    # data 为dict或者list类型， 需要json序列化
+    def push(self, queue_name, data, extra=None):
+        result = None
+        try:
+            if isinstance(data, dict) or isinstance(data, list):
+                result = self.rds.rpush(queue_name, json.dumps(data))
+            else:
+                result = self.rds.rpush(queue_name, data)
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+        return result
+
+    def pop(self, queue_name, extra=None):
+        result = None
+        try:
+            result = self.rds.lpop(queue_name)
+            if result is not None:
+                result = json.loads(result)
+        except json.decoder.JSONDecodeError:
+            return result
+        except Exception as e:
+            logging.error(e)
+            logging.error(traceback.format_exc())
+        return result
+
+    def close(self):
+        try:
+            self.rds.close()
+        except Exception as e:
+            logging.error(e)
+
+        
