@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 import logging
 import os
-from tkinter.messagebox import NO
 import redis
 from pkg.db.mongo import get_mgo, MgoStore
 from pkg.db.redis import RdsTaskQueue
