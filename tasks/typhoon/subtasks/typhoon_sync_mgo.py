@@ -21,7 +21,7 @@ class TyphoonSyncMgo(BaseModel):
                 ('end_reporttime_UTC', pymongo.ASCENDING),
                 ('Lat', pymongo.ASCENDING),
                 ('Lon', pymongo.ASCENDING),
-                ('StormName', pymongo.ASCENDING),
+                # ('StormName', pymongo.ASCENDING),
                 ('StormID', pymongo.ASCENDING)
             ]
             }
