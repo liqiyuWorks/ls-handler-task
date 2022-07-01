@@ -22,7 +22,8 @@ class GfsSyncMgo(BaseModel):
                 ('start_forecast_time', pymongo.ASCENDING),
                 ('end_forecast_time', pymongo.ASCENDING),
                 ('StormID', pymongo.ASCENDING),
-                ('Basin', pymongo.ASCENDING)
+                ('Basin', pymongo.ASCENDING),
+                ('year', pymongo.ASCENDING)
             ],
             'idx_dic': {
                     'typhoon_idx': [
@@ -50,12 +51,11 @@ class GfsSyncMgo(BaseModel):
                 except EmptyDataError as e:
                     continue
                 for index, row in df.iterrows():
-                    handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row)
+                    handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row,YEAR=self.HISTORY_YEAR)
                     flag = handle_typhoon.query_gfs_typhoon()
                     if flag:
                         print('开始匹配数据...')
-                        typhoon_id = handle_typhoon.query_real_time_typhoon()
-                        handle_typhoon.save_gfs_data(typhoon_id)
+                        handle_typhoon.save_gfs_data()
                 #     break
                 # break
         except Exception as e:
@@ -68,6 +68,7 @@ class GfsSyncMgo(BaseModel):
         date_now = datetime.datetime.now().strftime("%Y%m%d")
         print(f'当前启动任务，入库时间== {date_now} ==')
         date_now = "20220511"
+        YEAR = date_now[:4]
         res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep gfs_{date_now}")
         if res:
             list_gfs = res.split('\n')
@@ -80,11 +81,7 @@ class GfsSyncMgo(BaseModel):
                     pass  
                 else:
                     for index, row in df.iterrows():
-                        handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row)
+                        handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row,YEAR=YEAR)
                         flag = handle_typhoon.query_gfs_typhoon()
                         if flag:
-                            typhoon_id = handle_typhoon.query_real_time_typhoon()
-                            handle_typhoon.save_gfs_data(typhoon_id)
-
-                        break
-                break
+                            handle_typhoon.save_gfs_data()

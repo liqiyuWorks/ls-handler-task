@@ -143,7 +143,11 @@ class HandleTyphoon:
         if len(self._reporttime_UTC) != 19:
             self._reporttime_UTC = self._reporttime_UTC + ' 00:00:00'
         self._StormName = self._row.get('StormName')
-        print("row=",self._row.to_dict())
+        # print("row=",self._row.to_dict())
+
+        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
+        self._forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
+        logging.info(f"{self._StormID}:{self._Basin} 预测时间={self._forecast_time}")
 
 
     def query_typhoon(self):
@@ -175,24 +179,67 @@ class HandleTyphoon:
         print("插入到datatime成功")
 
     def insert_update_gfs(self,id):
-        typhoon_id = self.query_real_time_typhoon()
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
         dataTime = self._row.to_dict()
-        dataTime['forecast_time'] = forecast_time
+        dataTime['forecast_time'] = self._forecast_time
         del dataTime['reporttime_UTC']
-        del dataTime['StormID']
         del dataTime['ModelName']
-        self._mgo.mgo_coll.update(
-            {"_id" : id},
+
+        aggregate_query = [{"$unwind":"$dataTime"},
+                            {
+                                "$match":{
+                                "_id": id,
+                                "dataTime.forecast_time": self._forecast_time,
+                                }
+                            },
+                            {
+                                "$project":{
+                                "dataTime" : 1
+                                }
+                            }]
+        res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+        if res:
+            logging.info("已有该时刻预测数据，准备更新....")
+            r = self._mgo.mgo_coll.update_one({"_id" : id, "dataTime.forecast_time" : self._forecast_time}, {"$set": {
+                "end_forecast_time":self._forecast_time,
+                "Lat":self._Lat,
+                "Lon": self._Lon,
+                "dataTime.$.Lat": self._row.get('Lat'),
+                "dataTime.$.Lon": self._row.get('Lon'),
+                "dataTime.$.MinP": self._row.get('MinP'),
+                "dataTime.$.MaxSP": self._row.get('MaxSP'),
+                "dataTime.$.R7_NE": self._row.get('R7_NE'),
+                "dataTime.$.R7_SE": self._row.get('R7_SE'),
+                "dataTime.$.R7_SW": self._row.get('R7_SW'),
+                "dataTime.$.R7_NW": self._row.get('R7_NW'),
+                "dataTime.$.R10_NE": self._row.get('R10_NE'),
+                "dataTime.$.R10_SE": self._row.get('R10_SE'),
+                "dataTime.$.R10_SW": self._row.get('R10_SW'),
+                "dataTime.$.R10_NW": self._row.get('R10_NW'),
+                "dataTime.$.R12_NE": self._row.get('R12_NE'),
+                "dataTime.$.R12_SE": self._row.get('R12_SE'),
+                "dataTime.$.R12_SW": self._row.get('R12_SW'),
+                "dataTime.$.R12_NW": self._row.get('R12_NW'),
+                "dataTime.$.speed": self._row.get('speed'),
+                "dataTime.$.direction": self._row.get('direction'),
+                }}, upsert=True)
+                
+        else:
+            r = self._mgo.mgo_coll.update(
             {
-                "$push":{
-                    "dataTime": dataTime
-                }
+                "_id" : id,
+            },
+            {
+            "$set": {
+                    "end_forecast_time":self._forecast_time,
+                    "Lat":self._Lat,
+                    "Lon": self._Lon
+                    },
+            "$push": {
+                "dataTime": dataTime
+            }
             })
-        self._mgo.mgo_coll.update_one({"_id" : id}, {"$set": {"end_forecast_time":forecast_time,
-        "Lat":self._Lat,"Lon": self._Lon,"typhoon_id":typhoon_id}}, upsert=True)
-        print("gfs 更新 到datatime成功")
+            
+            print("嵌套数组新增成功res",r)
 
     def save_typhoon_data(self):
         data = {
@@ -225,9 +272,7 @@ class HandleTyphoon:
                 self.insert_dataTime2typhoon(id)
 
     def query_gfs_typhoon(self):
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        year = reporttime_UTC.year
-        query = {"StormID": self._StormID,"Basin": self._Basin, "start_forecast_time": {"$gte":str(year)}}
+        query = {"StormID": self._StormID,"Basin": self._Basin, "year": self._YEAR}
         res = self._mgo.mgo_coll.find_one(query,{"dataTime": 0})
 
         if res:
@@ -267,24 +312,21 @@ class HandleTyphoon:
             return typhoon_id
         return None
 
-    def save_gfs_data(self,typhoon_id):
+    def save_gfs_data(self):
          # 修改时间
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
         data = {
             "Basin": self._Basin,
             "StormID": self._StormID,
             "Lat":self._Lat,
             "Lon": self._Lon,
-            "typhoon_id": typhoon_id
+            "year": self._YEAR
          }
         dataTime = self._row.to_dict()
         
-        dataTime['forecast_time'] = forecast_time
-        data['start_forecast_time'] = forecast_time
-        data['end_forecast_time'] = forecast_time
+        dataTime['forecast_time'] = self._forecast_time
+        data['start_forecast_time'] = self._forecast_time
+        data['end_forecast_time'] = self._forecast_time
         del dataTime['reporttime_UTC']
-        del dataTime['StormID']
         del dataTime['ModelName']
         data['dataTime'] = [dataTime]
         print("data= ",data)
