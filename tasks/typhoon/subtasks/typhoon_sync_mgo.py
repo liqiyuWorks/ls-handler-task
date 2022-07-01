@@ -28,31 +28,6 @@ class TyphoonSyncMgo(BaseModel):
         super(TyphoonSyncMgo, self).__init__(config)
         self.GLOBAL_ROWS_TYPHOON = int(os.getenv('GLOBAL_ROWS_TYPHOON', 0))
         self.GLOBAL_YEAR = int(os.getenv('GLOBAL_YEAR', 2022))
-
-    def history(self):
-        mgo_client, mgo_db = get_mgo()
-        config = {
-            "mgo_client": mgo_client,
-            "mgo_db": mgo_db,
-            'collection': MONGO_TYPHOON,
-            'uniq_idx': [
-                ('start_reporttime_UTC', pymongo.ASCENDING),
-                ('Lat', pymongo.ASCENDING),
-                ('Lon', pymongo.ASCENDING),
-                ('StormName', pymongo.ASCENDING),
-                ('StormID', pymongo.ASCENDING)
-            ]
-            }
-        mgo = MgoStore(config)  # 初始化
-        for index in range(1,22):
-            YEAR = "20{:02d}".format(index)
-            # YEAR = 2022
-            file_name = "tcvitals_2_{}.csv".format(YEAR)
-            df = pd.read_csv(INPUT_PATH + file_name)
-            for index, row in df.iterrows():
-                handle_typhoon = HandleTyphoon(mgo=mgo,YEAR=YEAR,row=row)
-                handle_typhoon.save_typhoon_data()
-                handle_typhoon.close()
    
     @decorate.exception_capture_close_datebase
     def run(self):

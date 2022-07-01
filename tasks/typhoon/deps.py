@@ -153,7 +153,7 @@ class HandleTyphoon:
     def query_typhoon(self):
         # query = {"StormID": self._StormID,"StormName": self._StormName,"YEAR":self._YEAR}
         query = {"StormID": self._StormID,"YEAR":self._YEAR}
-        res = list(self._mgo.mgo_coll.find(query))
+        res = self._mgo.mgo_coll.find_one(query,{"dataTime":0},sort=[('end_reporttime_UTC', -1)])
         return res
 
     def query_reporttime_UTC_typhoon(self):
@@ -167,16 +167,60 @@ class HandleTyphoon:
             dataTime['reporttime_UTC'] = dataTime['reporttime_UTC'] + ' 00:00:00'
         del dataTime['StormID']
         del dataTime['ModelName']
-        self._mgo.mgo_coll.update(
-            {"_id" : id},
+
+        aggregate_query = [{"$unwind":"$dataTime"},
+                            {
+                                "$match":{
+                                "_id": id,
+                                "dataTime.reporttime_UTC": dataTime['reporttime_UTC'],
+                                }
+                            },
+                            {
+                                "$project":{
+                                "dataTime" : 1
+                                }
+                            }]
+        res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+        if res:
+            logging.info("已有该时刻预测数据，准备更新....")
+            r = self._mgo.mgo_coll.update_one({"_id" : id, "dataTime.reporttime_UTC" : dataTime['reporttime_UTC']}, {"$set": {
+                "end_reporttime_UTC":dataTime['reporttime_UTC'],
+                "Lat":self._Lat,
+                "Lon": self._Lon,
+                "dataTime.$.Lat": self._row.get('Lat'),
+                "dataTime.$.Lon": self._row.get('Lon'),
+                "dataTime.$.MinP": self._row.get('MinP'),
+                "dataTime.$.MaxSP": self._row.get('MaxSP'),
+                "dataTime.$.R7_NE": self._row.get('R7_NE'),
+                "dataTime.$.R7_SE": self._row.get('R7_SE'),
+                "dataTime.$.R7_SW": self._row.get('R7_SW'),
+                "dataTime.$.R7_NW": self._row.get('R7_NW'),
+                "dataTime.$.R10_NE": self._row.get('R10_NE'),
+                "dataTime.$.R10_SE": self._row.get('R10_SE'),
+                "dataTime.$.R10_SW": self._row.get('R10_SW'),
+                "dataTime.$.R10_NW": self._row.get('R10_NW'),
+                "dataTime.$.R12_NE": self._row.get('R12_NE'),
+                "dataTime.$.R12_SE": self._row.get('R12_SE'),
+                "dataTime.$.R12_SW": self._row.get('R12_SW'),
+                "dataTime.$.R12_NW": self._row.get('R12_NW'),
+                "dataTime.$.speed": self._row.get('speed'),
+                "dataTime.$.direction": self._row.get('direction'),
+                }}, upsert=True)
+                
+        else:
+            r = self._mgo.mgo_coll.update(
+            {"_id" : id,},
             {
-                "$push":{
-                    "dataTime": dataTime
-                }
+            "$set": {
+                    "end_reporttime_UTC":dataTime['reporttime_UTC'],
+                    "Lat":self._Lat,
+                    "Lon": self._Lon
+                    },
+            "$push": {
+                "dataTime": dataTime
+            }
             })
-        self._mgo.mgo_coll.update_one({"_id" : id}, {"$set": {"end_reporttime_UTC":dataTime['reporttime_UTC'],
-        "Lat":self._Lat,"Lon": self._Lon}}, upsert=True)
-        print("插入到datatime成功")
+            print("嵌套数组新增成功res",r)
 
     def insert_update_gfs(self,id):
         dataTime = self._row.to_dict()
@@ -252,8 +296,8 @@ class HandleTyphoon:
         data['Lat'] = self._row['Lat']
         data['Lon'] = self._row['Lon']
 
-        tythoons = self.query_typhoon()
-        if tythoons == []:
+        tythoon = self.query_typhoon()
+        if not tythoon:
             dataTime = self._row.to_dict()
             if len(dataTime['reporttime_UTC']) != 19:
                 dataTime['reporttime_UTC'] = dataTime['reporttime_UTC'] + ' 00:00:00'
@@ -262,14 +306,9 @@ class HandleTyphoon:
             data['dataTime'] = [dataTime]
             self._mgo.set(None, data)
         else:
-            ## 考虑一种特殊情况：台风改名情况！！！！（首先去看前一个结束时间与该台风的新时间，最后重命名为最新的）
-            print(f"orig_typhoon_list={tythoons}")
-            if tythoons:
-                sorted_typhoons = sorted(tythoons, key=lambda x: x['end_reporttime_UTC'])
-                ## 判断这两个台风是不是同一个台风？？
-                orig_typhoon = sorted_typhoons[0]
-                id = orig_typhoon.get('_id')
-                self.insert_dataTime2typhoon(id)
+            ## 判断这两个台风是不是同一个台风？？
+            id = tythoon.get('_id')
+            self.insert_dataTime2typhoon(id)
 
     def query_gfs_typhoon(self):
         query = {"StormID": self._StormID,"Basin": self._Basin, "year": self._YEAR}
