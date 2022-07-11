@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os,json
+import logging
+import datetime
+import pymongo
+import requests
+import pandas as pd
+from pkg.public.models import BaseModel
+from tasks.typhoon.deps import HandleTyphoon,WzTyphoon
+import subprocess
+from pkg.public.decorator import decorate
+INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/温州台风网")
+
+
+class WZCurrSyncMgo(BaseModel):
+    def __init__(self):
+        config = {
+            'handle_db': 'mgo',
+            'collection': 'wz_curr_data',
+            'uniq_idx': [
+                ('stormid', pymongo.ASCENDING),
+                ('stormname', pymongo.ASCENDING),
+            ],
+            'idx_dic': {
+                    'typhoon_idx': [
+                        ('end_time', pymongo.ASCENDING)
+                    ],
+                }
+            }
+        super(WZCurrSyncMgo, self).__init__(config)
+        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2022")  
+
+    def history(self):
+        try:
+            res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep {self.HISTORY_YEAR}")
+            list_gfs = res.split('\n')
+            for dir in list_gfs:
+                for file in os.listdir(f"{INPUT_PATH}/{dir}"):
+                    file_path = f"{INPUT_PATH}/{dir}/{file}"
+                    try:
+                        with open(file_path, "r") as f:
+                            json_data = json.load(f)
+                    except Exception as e:
+                        logging.error(str(e))
+
+                    # 开始遍历改 时间点的 台风列表
+                    for typhoon in json_data:
+                        wz_typhoon = WzTyphoon(self.mgo, typhoon)
+                        res = wz_typhoon.query_wz_exist()
+                        if res:
+                            # 有的话，更新
+                            wz_typhoon.update_mgo(res.get('_id'))
+                        else:
+                            # 没有的话，增加
+                            wz_typhoon.save_mgo()
+
+        except Exception as e:
+            logging.error('run error {}'.format(e))
+        finally:
+            self.close()
+    
+    @decorate.exception_capture_close_datebase
+    def run(self):
+        date_now = datetime.datetime.now().strftime("%Y%m%d")
+        print(f'当前启动任务，入库时间== {date_now} ==')
+        res = requests.get(url="https://data.istrongcloud.com/v2/data/complex/currMerger.json")
+        if res.status_code == 200:
+            try:
+                json_data = json.loads(res.text)
+                print(json_data)
+            except Exception as e:
+                logging.error(str(e))
+            if json_data:
+                # 开始遍历改 时间点的 台风列表
+                for typhoon in json_data:
+                    wz_typhoon = WzTyphoon(self.mgo, typhoon)
+                    res = wz_typhoon.query_wz_exist()
+                    if res:
+                        # 有的话，更新
+                        wz_typhoon.update_mgo(res.get('_id'))
+                    else:
+                        # 没有的话，增加
+                        wz_typhoon.save_mgo()

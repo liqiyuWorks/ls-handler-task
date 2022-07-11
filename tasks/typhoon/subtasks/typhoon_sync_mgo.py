@@ -17,12 +17,11 @@ class TyphoonSyncMgo(BaseModel):
         config = {
             'collection': "typhoon_real_time_data",
             'uniq_idx': [
-                ('start_reporttime_UTC', pymongo.ASCENDING),
-                ('end_reporttime_UTC', pymongo.ASCENDING),
-                ('Lat', pymongo.ASCENDING),
-                ('Lon', pymongo.ASCENDING),
-                # ('StormName', pymongo.ASCENDING),
-                ('StormID', pymongo.ASCENDING)
+                ('start_reporttime', pymongo.ASCENDING),
+                ('end_reporttime', pymongo.ASCENDING),
+                ('lat', pymongo.ASCENDING),
+                ('lon', pymongo.ASCENDING),
+                ('stormid', pymongo.ASCENDING)
             ]
             }
         super(TyphoonSyncMgo, self).__init__(config)
@@ -48,7 +47,7 @@ class TyphoonSyncMgo(BaseModel):
             for index, row in df.iterrows():
                 if index < (self.GLOBAL_ROWS_TYPHOON-5):
                     continue
-                handle_typhoon = HandleTyphoon(mgo=self.mgo,YEAR=YEAR,row=row)
+                handle_typhoon = HandleTyphoon(mgo=self.mgo,year=YEAR,row=row)
                 handle_typhoon.save_typhoon_data()
                 handle_typhoon.close()
 

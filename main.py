@@ -34,7 +34,7 @@ def main():
     else:
         task_type = args[1]
 
-    if task_type == "list":
+    if task_type == "list" or task_type is None:
         sys.exit(-1)
 
     if SCHEDULER_FLAG:

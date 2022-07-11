@@ -1,375 +1,453 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
-import pymongo, os
+import os
 import logging
-from scipy.spatial import distance
-
-def is_none(s):
-    if s is None:
-        return True
-    flag = False
-    if isinstance(s, str):
-        if len(s.strip()) == 0:
-            flag = True
-        if s == '-':
-            flag = True
-    elif isinstance(s, list):
-        if len(s) == 0:
-            flag = True
-    elif isinstance(s, dict):
-        flag = True
-        for v in s.values():
-            if is_none(v):
-                continue
-            flag = False
-            break
-    return flag
-
-
-def get_mgo():
-    # 数据库源连接
-    mongo_host = os.getenv('MONGO_HOST', '119.3.248.125')
-    mongo_port = int(os.getenv('MONGO_PORT', '21617'))
-    mongo_db = os.getenv('MONGO_DB', 'cma')
-
-    if mongo_db is None:
-        return None, None
-    url = 'mongodb://{}:{}/'.format(mongo_host, mongo_port)
-    mgo_client = pymongo.MongoClient(url)
-
-    mgo_db = mgo_client[mongo_db]
-    mongo_user = os.getenv('MONGO_USER', 'reader')
-    mongo_password = os.getenv('MONGO_PASSWORD', 'Read1234')
-
-    if mongo_user is not None:
-        mgo_db.authenticate(mongo_user, mongo_password)
-    return mgo_client, mgo_db
-
-
-class MgoStore(object):
-    def __init__(self, config):
-        self.config = config
-        # 连接对象
-        self.mgo_client = config['mgo_client']
-        self.mgo_db = config['mgo_db']
-
-        # 字符串
-        self.collection = config['collection']
-        self.mgo_coll = self.mgo_db[self.collection]
-        # 唯一索引列
-        self.uniq_idx = config['uniq_idx']
-        # 常规索引名称和索引列 字典
-        self.idx_dic = config.get('idx_dic', {})
-
-        # 检查索引是否创建
-        index_dic = self.mgo_coll.index_information()
-        self.mgo_coll.create_index(self.uniq_idx,
-                                   unique=True,
-                                   name='{}_uniq_idx'.format(self.collection))
-        for idx_name, idx in self.idx_dic.items():
-            if idx_name in index_dic:
-                continue
-            self.mgo_coll.create_index(idx, name=idx_name)
-
-    def set(self, key, data, extra=None):
-        response = None
-        try:
-            query = {}
-            if is_none(key):
-                for field_tuple in self.uniq_idx:
-                    field = field_tuple[0]
-                    query[field] = data[field]
-            else:
-                query = key
-            if extra is not None and 'op' in extra:
-                op = extra['op']
-            else:
-                op = '$set'
-            res = self.mgo_coll.update_one(query, {op: data}, upsert=True)
-            if res.raw_result['updatedExisting']:
-                if res.raw_result['nModified'] > 0:
-                    logging.info('update {}'.format(data))
-                else:
-                    logging.info('nothing to update for key {}'.format(query))
-            elif 'upserted' in res.raw_result:
-                logging.info('insert {} {}'.format(res.raw_result['upserted'],
-                                                   data))
-            else:
-                logging.info('impossible update_one result {}'.format(
-                    res.raw_result))
-            response = res.raw_result
-        except pymongo.errors.DuplicateKeyError:
-            # 索引建对了，就不会走到这个分支
-            logging.info('duplicate key {}'.format(key))
-        except Exception as e:
-            logging.error('key {} data {}'.format(key, data))
-            logging.error(e)
-            return response
-        return response
-
-    def get(self, key, extra=None):
-        response = {}
-        try:
-            if isinstance(extra, dict) and 'out_fileds' in extra:
-                out_fields = extra['out_fields']
-            else:
-                out_fields = {'_id': 0}
-            res = self.mgo_coll.find_one(key, out_fields)
-            if res is not None:
-                response = res
-        except Exception as e:
-            print(e)
-            return response
-        return response
-
-    def close(self):
-        self.mgo_client.close()
 
 
 class HandleTyphoon:
     def __init__(self, **kwargs):
-        self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 100))
-        self.MONGO_TYPHOON = "typhoon_real_time_data"
         self._mgo = kwargs.get('mgo')
         self._row = kwargs.get('row')
-        self._Lat = self._row.get('Lat')
-        self._Lon = self._row.get('Lon')
-        self._Basin = self._row.get('Basin')
-        self._StormID = self._row.get('StormID')
-        self._YEAR = kwargs.get('YEAR')
-        self._reporttime_UTC = self._row.get('reporttime_UTC')
-        self._LeadTime= self._row.get('LeadTime')
-        if len(self._reporttime_UTC) != 19:
-            self._reporttime_UTC = self._reporttime_UTC + ' 00:00:00'
-        self._StormName = self._row.get('StormName')
-        # print("row=",self._row.to_dict())
+        self._row_dict = {k.lower(): v for k, v in self._row.to_dict().items()}
+        self._row_dict.update({"reporttime": self._row_dict.pop("reporttime_utc",None)})
+        self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
+        self.MONGO_TYPHOON = "typhoon_real_time_data"  # 实时数据库
+        self._lat = self._row_dict.get('lat')
+        self._lon = self._row_dict.get('lon')
+        self._basin = self._row_dict.get('basin')
+        self._stormid = self._row_dict.get('stormid')
+        self._year = int(kwargs.get('year',2022))
+        self._reporttime_utc = self._row_dict.get('reporttime')
+        self._leadtime = self._row_dict.get('leadtime')
+        if len(self._reporttime_utc) != 19:
+            self._reporttime_utc = self._reporttime_utc + ' 00:00:00'
+            self._row_dict['reporttime'] = self._reporttime_utc
+        self._stormname = self._row_dict.get('stormname')
 
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        self._forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
-        logging.info(f"{self._StormID}:{self._Basin} 预测时间={self._forecast_time}")
-
+        reporttime_utc = datetime.strptime(self._reporttime_utc,
+                                           '%Y-%m-%d %H:%M:%S')
+        self._forecast_time = (
+            reporttime_utc +
+            timedelta(hours=self._leadtime)).strftime('%Y-%m-%d %H:%M:%S')
+        logging.info(
+            f"{self._stormid}:{self._stormname}:{self._basin}-{self._forecast_time}"
+        )
 
     def query_typhoon(self):
-        # query = {"StormID": self._StormID,"StormName": self._StormName,"YEAR":self._YEAR}
-        query = {"StormID": self._StormID,"YEAR":self._YEAR}
-        res = self._mgo.mgo_coll.find_one(query,{"dataTime":0},sort=[('end_reporttime_UTC', -1)])
+        query = {"stormid": self._stormid, "year": self._year}
+        res = self._mgo.mgo_coll.find_one(query, {"datatime": 0},
+                                          sort=[('end_reporttime', -1)])
         return res
 
-    def query_reporttime_UTC_typhoon(self):
-        query = {"StormID": self._StormID,"StormName": self._StormName, "end_reporttime_UTC": self._reporttime_UTC}
-        res = self._mgo.mgo_coll.find_one(query)
-        return res
+    def insert_dataTime2typhoon(self, id):
+        datatime = self._row_dict
+        del datatime['stormid']
+        del datatime['modelname']
 
-    def insert_dataTime2typhoon(self,id):
-        dataTime = self._row.to_dict()
-        if len(dataTime['reporttime_UTC']) != 19:
-            dataTime['reporttime_UTC'] = dataTime['reporttime_UTC'] + ' 00:00:00'
-        del dataTime['StormID']
-        del dataTime['ModelName']
-
-        aggregate_query = [{"$unwind":"$dataTime"},
-                            {
-                                "$match":{
-                                "_id": id,
-                                "dataTime.reporttime_UTC": dataTime['reporttime_UTC'],
-                                }
-                            },
-                            {
-                                "$project":{
-                                "dataTime" : 1
-                                }
-                            }]
+        aggregate_query = [{
+            "$unwind": "$datatime"
+        }, {
+            "$match": {
+                "_id": id,
+                "datatime.reporttime": self._reporttime_utc,
+            }
+        }, {
+            "$project": {
+                "datatime": 1
+            }
+        }]
         res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
         if res:
             logging.info("已有该时刻预测数据，准备更新....")
-            r = self._mgo.mgo_coll.update_one({"_id" : id, "dataTime.reporttime_UTC" : dataTime['reporttime_UTC']}, {"$set": {
-                "end_reporttime_UTC":dataTime['reporttime_UTC'],
-                "Lat":self._Lat,
-                "Lon": self._Lon,
-                "dataTime.$.Lat": self._row.get('Lat'),
-                "dataTime.$.Lon": self._row.get('Lon'),
-                "dataTime.$.MinP": self._row.get('MinP'),
-                "dataTime.$.MaxSP": self._row.get('MaxSP'),
-                "dataTime.$.R7_NE": self._row.get('R7_NE'),
-                "dataTime.$.R7_SE": self._row.get('R7_SE'),
-                "dataTime.$.R7_SW": self._row.get('R7_SW'),
-                "dataTime.$.R7_NW": self._row.get('R7_NW'),
-                "dataTime.$.R10_NE": self._row.get('R10_NE'),
-                "dataTime.$.R10_SE": self._row.get('R10_SE'),
-                "dataTime.$.R10_SW": self._row.get('R10_SW'),
-                "dataTime.$.R10_NW": self._row.get('R10_NW'),
-                "dataTime.$.R12_NE": self._row.get('R12_NE'),
-                "dataTime.$.R12_SE": self._row.get('R12_SE'),
-                "dataTime.$.R12_SW": self._row.get('R12_SW'),
-                "dataTime.$.R12_NW": self._row.get('R12_NW'),
-                "dataTime.$.speed": self._row.get('speed'),
-                "dataTime.$.direction": self._row.get('direction'),
-                }}, upsert=True)
-                
-        else:
-            r = self._mgo.mgo_coll.update(
-            {"_id" : id,},
-            {
-            "$set": {
-                    "end_reporttime_UTC":dataTime['reporttime_UTC'],
-                    "Lat":self._Lat,
-                    "Lon": self._Lon
-                    },
-            "$push": {
-                "dataTime": dataTime
-            }
-            })
-            print("嵌套数组新增成功res",r)
+            r = self._mgo.mgo_coll.update_one(
+                {
+                    "_id": id,
+                    "datatime.reporttime": self._reporttime_utc
+                }, {
+                    "$set": {
+                        "end_reporttime": self._reporttime_utc,
+                        "stormname": datatime['stormname'],
+                        "lat": self._lat,
+                        "lon": self._lon,
+                        "datatime.$.stormname":
+                        self._row_dict.get('stormname'),
+                        "datatime.$.lat": self._row_dict.get('lat'),
+                        "datatime.$.lon": self._row_dict.get('lon'),
+                        "datatime.$.minp": self._row_dict.get('minp'),
+                        "datatime.$.maxsp": self._row_dict.get('maxsp'),
+                        "datatime.$.r7_ne": self._row_dict.get('r7_ne'),
+                        "datatime.$.r7_se": self._row_dict.get('r7_se'),
+                        "datatime.$.r7_sw": self._row_dict.get('r7_sw'),
+                        "datatime.$.r7_nw": self._row_dict.get('r7_nw'),
+                        "datatime.$.r10_ne": self._row_dict.get('r10_ne'),
+                        "datatime.$.r10_se": self._row_dict.get('r10_se'),
+                        "datatime.$.r10_sw": self._row_dict.get('r10_sw'),
+                        "datatime.$.r10_nw": self._row_dict.get('r10_nw'),
+                        "datatime.$.r12_ne": self._row_dict.get('r12_ne'),
+                        "datatime.$.r12_se": self._row_dict.get('r12_se'),
+                        "datatime.$.r12_sw": self._row_dict.get('r12_sw'),
+                        "datatime.$.r12_nw": self._row_dict.get('r12_nw'),
+                        "datatime.$.speed": self._row_dict.get('speed'),
+                        "datatime.$.direction":
+                        self._row_dict.get('direction'),
+                    }
+                },
+                upsert=True)
 
-    def insert_update_gfs(self,id):
-        dataTime = self._row.to_dict()
+        else:
+            del datatime['leadtime']
+            r = self._mgo.mgo_coll.update({
+                "_id": id,
+            }, {
+                "$set": {
+                    "end_reporttime": self._reporttime_utc,
+                    "lat": self._lat,
+                    "lon": self._lon,
+                    "stormname": self._stormname
+                },
+                "$push": {
+                    "datatime": datatime
+                }
+            })
+            print("嵌套数组新增成功res", r)
+
+    def insert_update_gfs(self, id):
+        dataTime = self._row_dict
         dataTime['forecast_time'] = self._forecast_time
-        del dataTime['reporttime_UTC']
-        del dataTime['ModelName']
+        del dataTime['reporttime_utc']
+        del dataTime['modelname']
 
-        aggregate_query = [{"$unwind":"$dataTime"},
-                            {
-                                "$match":{
-                                "_id": id,
-                                "dataTime.forecast_time": self._forecast_time,
-                                }
-                            },
-                            {
-                                "$project":{
-                                "dataTime" : 1
-                                }
-                            }]
+        aggregate_query = [{
+            "$unwind": "$datatime"
+        }, {
+            "$match": {
+                "_id": id,
+                "datatime.forecast_time": self._forecast_time,
+            }
+        }, {
+            "$project": {
+                "datatime": 1
+            }
+        }]
         res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
         if res:
             logging.info("已有该时刻预测数据，准备更新....")
-            r = self._mgo.mgo_coll.update_one({"_id" : id, "dataTime.forecast_time" : self._forecast_time}, {"$set": {
-                "end_forecast_time":self._forecast_time,
-                "Lat":self._Lat,
-                "Lon": self._Lon,
-                "dataTime.$.Lat": self._row.get('Lat'),
-                "dataTime.$.Lon": self._row.get('Lon'),
-                "dataTime.$.MinP": self._row.get('MinP'),
-                "dataTime.$.MaxSP": self._row.get('MaxSP'),
-                "dataTime.$.R7_NE": self._row.get('R7_NE'),
-                "dataTime.$.R7_SE": self._row.get('R7_SE'),
-                "dataTime.$.R7_SW": self._row.get('R7_SW'),
-                "dataTime.$.R7_NW": self._row.get('R7_NW'),
-                "dataTime.$.R10_NE": self._row.get('R10_NE'),
-                "dataTime.$.R10_SE": self._row.get('R10_SE'),
-                "dataTime.$.R10_SW": self._row.get('R10_SW'),
-                "dataTime.$.R10_NW": self._row.get('R10_NW'),
-                "dataTime.$.R12_NE": self._row.get('R12_NE'),
-                "dataTime.$.R12_SE": self._row.get('R12_SE'),
-                "dataTime.$.R12_SW": self._row.get('R12_SW'),
-                "dataTime.$.R12_NW": self._row.get('R12_NW'),
-                "dataTime.$.speed": self._row.get('speed'),
-                "dataTime.$.direction": self._row.get('direction'),
-                }}, upsert=True)
-                
+            r = self._mgo.mgo_coll.update_one(
+                {
+                    "_id": id,
+                    "datatime.forecast_time": self._forecast_time
+                }, {
+                    "$set": {
+                        "end_forecast_time": self._forecast_time,
+                        "lat": self._lat,
+                        "lon": self._lon,
+                        "datatime.$.lat": self._row_dict.get('lat'),
+                        "datatime.$.lon": self._row_dict.get('lon'),
+                        "datatime.$.minp": self._row_dict.get('minp'),
+                        "datatime.$.maxsp": self._row_dict.get('maxsp'),
+                        "datatime.$.r7_ne": self._row_dict.get('r7_ne'),
+                        "datatime.$.r7_se": self._row_dict.get('r7_se'),
+                        "datatime.$.r7_sw": self._row_dict.get('r7_sw'),
+                        "datatime.$.r7_nw": self._row_dict.get('r7_nw'),
+                        "datatime.$.r10_ne": self._row_dict.get('r10_ne'),
+                        "datatime.$.r10_se": self._row_dict.get('r10_se'),
+                        "datatime.$.r10_sw": self._row_dict.get('r10_sw'),
+                        "datatime.$.r10_nw": self._row_dict.get('r10_nw'),
+                        "datatime.$.r12_ne": self._row_dict.get('r12_ne'),
+                        "datatime.$.r12_se": self._row_dict.get('r12_se'),
+                        "datatime.$.r12_sw": self._row_dict.get('r12_sw'),
+                        "datatime.$.r12_nw": self._row_dict.get('r12_nw'),
+                        "datatime.$.speed": self._row_dict.get('speed'),
+                        "datatime.$.direction":
+                        self._row_dict.get('direction'),
+                    }
+                },
+                upsert=True)
+
         else:
-            r = self._mgo.mgo_coll.update(
-            {
-                "_id" : id,
-            },
-            {
-            "$set": {
-                    "end_forecast_time":self._forecast_time,
-                    "Lat":self._Lat,
-                    "Lon": self._Lon
-                    },
-            "$push": {
-                "dataTime": dataTime
-            }
+            r = self._mgo.mgo_coll.update({
+                "_id": id,
+            }, {
+                "$set": {
+                    "end_forecast_time": self._forecast_time,
+                    "lat": self._lat,
+                    "lon": self._lon
+                },
+                "$push": {
+                    "datatime": dataTime
+                }
             })
-            
-            print("嵌套数组新增成功res",r)
+
+            print("嵌套数组新增成功res", r)
+
+    def insert_gfs_reporttime(self, id):
+        datatime = self._row_dict
+        datatime['forecast_time'] = self._forecast_time
+        del datatime['reporttime']
+        del datatime['modelname']
+
+        aggregate_query = [{
+            "$unwind": f"$reporttime.{self._reporttime_utc}"
+        }, {
+            "$match": {
+                "_id":
+                id,
+                f"reporttime.{self._reporttime_utc}.forecast_time":
+                self._forecast_time,
+            }
+        }, {
+            "$project": {
+                f"reporttime.{self._reporttime_utc}": 1
+            }
+        }]
+        print(aggregate_query)
+        res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+        if res:
+            logging.info("已有该时刻预测数据，准备更新....")
+            r = self._mgo.mgo_coll.update_one(
+                {
+                    "_id":
+                    id,
+                    f"reporttime.{self._reporttime_utc}.forecast_time":
+                    self._forecast_time
+                }, {
+                    "$set": {
+                        "end_forecast_time":
+                        self._forecast_time,
+                        "newest_report_time":
+                        self._reporttime_utc,
+                        "lat":
+                        self._lat,
+                        "lon":
+                        self._lon,
+                        f"reporttime.{self._reporttime_utc}.$.lat":
+                        self._row_dict.get('lat'),
+                        f"reporttime.{self._reporttime_utc}.$.lon":
+                        self._row_dict.get('lon'),
+                        f"reporttime.{self._reporttime_utc}.$.minp":
+                        self._row_dict.get('minp'),
+                        f"reporttime.{self._reporttime_utc}.$.maxsp":
+                        self._row_dict.get('maxsp'),
+                        f"reporttime.{self._reporttime_utc}.$.r7_ne":
+                        self._row_dict.get('r7_ne'),
+                        f"reporttime.{self._reporttime_utc}.$.r7_se":
+                        self._row_dict.get('r7_se'),
+                        f"reporttime.{self._reporttime_utc}.$.r7_sw":
+                        self._row_dict.get('r7_sw'),
+                        f"reporttime.{self._reporttime_utc}.$.r7_nw":
+                        self._row_dict.get('r7_nw'),
+                        f"reporttime.{self._reporttime_utc}.$.r10_ne":
+                        self._row_dict.get('r10_ne'),
+                        f"reporttime.{self._reporttime_utc}.$.r10_se":
+                        self._row_dict.get('r10_se'),
+                        f"reporttime.{self._reporttime_utc}.$.r10_sw":
+                        self._row_dict.get('r10_sw'),
+                        f"reporttime.{self._reporttime_utc}.$.r10_nw":
+                        self._row_dict.get('r10_nw'),
+                        f"reporttime.{self._reporttime_utc}.$.r12_ne":
+                        self._row_dict.get('r12_ne'),
+                        f"reporttime.{self._reporttime_utc}.$.r12_se":
+                        self._row_dict.get('r12_se'),
+                        f"reporttime.{self._reporttime_utc}.$.r12_sw":
+                        self._row_dict.get('r12_sw'),
+                        f"reporttime.{self._reporttime_utc}.$.r12_nw":
+                        self._row_dict.get('r12_nw'),
+                        f"reporttime.{self._reporttime_utc}.$.speed":
+                        self._row_dict.get('speed'),
+                        f"reporttime.{self._reporttime_utc}.$.direction":
+                        self._row_dict.get('direction'),
+                    }
+                },
+                upsert=True)
+        else:
+            r = self._mgo.mgo_coll.update({
+                "_id": id,
+            }, {
+                "$set": {
+                    "end_forecast_time": self._forecast_time,
+                    "newest_report_time": self._reporttime_utc,
+                    "lat": self._lat,
+                    "lon": self._lon
+                },
+                "$push": {
+                    f"reporttime.{self._reporttime_utc}": datatime
+                }
+            })
+
+            print("嵌套数组新增成功res", r)
 
     def save_typhoon_data(self):
         data = {
-            "YEAR": self._YEAR,
-            "StormID": self._StormID,
-            "StormName": self._StormName,
+            "year": self._year,
+            "stormid": self._stormid,
+            "stormname": self._stormname,
         }
-        data['start_reporttime_UTC'] = self._reporttime_UTC
-        data['end_reporttime_UTC'] = self._reporttime_UTC
-        data['Lat'] = self._row['Lat']
-        data['Lon'] = self._row['Lon']
+        data['start_reporttime'] = self._reporttime_utc
+        data['end_reporttime'] = self._reporttime_utc
+        data['lat'] = self._row_dict['lat']
+        data['lon'] = self._row_dict['lon']
 
         tythoon = self.query_typhoon()
         if not tythoon:
-            dataTime = self._row.to_dict()
-            if len(dataTime['reporttime_UTC']) != 19:
-                dataTime['reporttime_UTC'] = dataTime['reporttime_UTC'] + ' 00:00:00'
-            del dataTime['StormID']
-            del dataTime['ModelName']
-            data['dataTime'] = [dataTime]
+            datatime = self._row_dict
+            del datatime['stormid']
+            del datatime['modelname']
+            del datatime['leadtime']
+            data['datatime'] = [datatime]
             self._mgo.set(None, data)
         else:
-            ## 判断这两个台风是不是同一个台风？？
             id = tythoon.get('_id')
             self.insert_dataTime2typhoon(id)
 
     def query_gfs_typhoon(self):
-        query = {"StormID": self._StormID,"Basin": self._Basin, "year": self._YEAR}
-        res = self._mgo.mgo_coll.find_one(query,{"dataTime": 0})
+        query = {
+            "stormid": self._stormid,
+            "basin": self._basin,
+            "year": self._year
+        }
+        res = self._mgo.mgo_coll.find_one(query, {"reporttime": 0})
 
         if res:
             id = res.get('_id')
-            self.insert_update_gfs(id)
-            print("数据库已存在该台风")
+            self.insert_gfs_reporttime(id)
             return False
         return True
 
-    def query_real_time_typhoon(self):
-        typhoon_id = None
-        reporttime_UTC = datetime.strptime(self._reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-        forecast_time = (reporttime_UTC + timedelta(hours=self._LeadTime)).strftime('%Y-%m-%d %H:%M:%S')
-        query = {"start_reporttime_UTC": {"$lte": forecast_time}}
-        res = self._mgo.mgo_db[self.MONGO_TYPHOON].find(query,sort=[('end_reporttime_UTC', -1)])
-
-        diffs = []
-        for item in res:
-            end_reporttime_UTC = item.get('end_reporttime_UTC')
-            end_reporttime_UTC = datetime.strptime(end_reporttime_UTC, '%Y-%m-%d %H:%M:%S')
-            if (reporttime_UTC + timedelta(hours=self._LeadTime) - end_reporttime_UTC).days > 3:
-                continue
-            dataTime = item.get('dataTime',[])
-            if len(dataTime) <= 1 or dataTime is None:
-                continue
-            id = item.get('_id')
-            lat = item.get('Lat')
-            lon = item.get('Lon')
-            a = (lat, lon)
-            temp_diff = distance.euclidean(a, (self._Lat, self._Lon))
-            if temp_diff <= self.default_distance:
-                diffs.append([temp_diff, id])
-        diffs = sorted(diffs, key=lambda x: x[0])
-        print("最短距离:",diffs)
-        if diffs:
-            typhoon_id = diffs[0][1]
-            return typhoon_id
-        return None
-
     def save_gfs_data(self):
-         # 修改时间
+        # 修改时间
         data = {
-            "Basin": self._Basin,
-            "StormID": self._StormID,
-            "Lat":self._Lat,
-            "Lon": self._Lon,
-            "year": self._YEAR
-         }
-        dataTime = self._row.to_dict()
-        
+            "basin": self._basin,
+            "stormid": self._stormid,
+            "lat": self._lat,
+            "lon": self._lon,
+            "year": self._year
+        }
+        dataTime = self._row_dict
+
         dataTime['forecast_time'] = self._forecast_time
         data['start_forecast_time'] = self._forecast_time
         data['end_forecast_time'] = self._forecast_time
-        del dataTime['reporttime_UTC']
-        del dataTime['ModelName']
-        data['dataTime'] = [dataTime]
-        print("data= ",data)
+        data['newest_report_time'] = self._reporttime_utc
+        del dataTime['reporttime']
+        del dataTime['modelname']
+        print("data= ", data)
         self._mgo.set(None, data)
-        
+
     def close(self):
         self._mgo.close()
+
+
+class WzTyphoon:
+    def __init__(self, mgo, typhoon):
+        self._mgo = mgo
+        self._insert_data = typhoon
+        self._insert_data.update(
+            {
+                "stormid": self._insert_data.pop("tfbh", None),
+                "stormname": self._insert_data.pop("ename", None),
+                "cn_stormname": self._insert_data.pop("name", None),
+                "lon": None,
+                "lat": None,
+            })
+        self._points = typhoon.get("points")
+        self._real_time = None
+        self._insert_data["realtime_data"] = []  # 实时数据
+        self._insert_data["forecast_data"] = {}  # 预测数据
+
+        self.handle_real_time()
+        # logging.info(self._insert_data)
+        
+
+    def handle_real_time(self):
+        for point in self._points:
+            if point.get("forecast"):
+                self.handle_forecast_data(point["forecast"])
+            
+            point.pop("forecast",None)
+            point.update({"lon": point.pop("lng")})
+            self._insert_data['lon']=point["lon"]
+            self._insert_data['lat']=point["lat"]
+            self._insert_data['end_time']=point["time"]
+            self._insert_data["realtime_data"].append(point)
+
+    def handle_forecast_data(self, forecasts):
+        for forecast in forecasts:
+            source,points = forecast['sets'],forecast['points']
+            # print(f"此时源是{source}，data={points}\n")
+            new_points = []
+            for point in points:
+                point.update({"lon": point.pop("lng")})
+                new_points.append(point)
+            self._insert_data["forecast_data"][source] = new_points
+
+    def query_wz_exist(self):
+        query = {"stormid": self._insert_data["stormid"], "stormname": self._insert_data['stormname']}
+        res = self._mgo.mgo_coll.find_one(query, {"realtime_data": 0, "forecast_data":0,"points":0,"land":0})
+        return res
+
+    def update_mgo(self, wz_id):
+        for point in self._insert_data["realtime_data"]:
+            aggregate_query = [{
+                "$unwind": "$realtime_data"
+            }, {
+                "$match": {
+                    "_id": wz_id,
+                    "realtime_data.time": point['time'],
+                }
+            }, {
+                "$project": {
+                    "realtime_data": 1,
+                    "end_time":1
+                }
+            }]
+            res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+
+            if res:
+                logging.info("已有该时刻预测数据，准备更新....")
+                r = self._mgo.mgo_coll.update_one(
+                    {
+                        "_id": wz_id,
+                        "realtime_data.time": point['time']
+                    }, {
+                        "$set": {
+                            "realtime_data.$.lat": point.get('lat'),
+                            "realtime_data.$.lon": point.get('lon'),
+                            "realtime_data.$.strong": point.get('strong'),
+                            "realtime_data.$.power": point.get('power'),
+                            "realtime_data.$.speed": point.get('speed'),
+                            "realtime_data.$.move_dir": point.get('move_dir'),
+                            "realtime_data.$.move_speed": point.get('move_speed'),
+                            "realtime_data.$.pressure": point.get('pressure'),
+                            "realtime_data.$.radius7": point.get('radius7'),
+                            "realtime_data.$.radius10": point.get('radius10'),
+                            "realtime_data.$.radius12": point.get('radius12'),
+                            "realtime_data.$.radius7_quad": point.get('radius7_quad'),
+                            "realtime_data.$.radius10_quad": point.get('radius10_quad'),
+                            "realtime_data.$.radius12_quad": point.get('radius12_quad'),
+                            "realtime_data.$.remark": point.get('remark'),
+                        }
+                    },
+                    upsert=True)
+
+            else:
+                r = self._mgo.mgo_coll.update({
+                    "_id": wz_id,
+                }, {
+                    "$set": {
+                        "end_time": point['time'],
+                        "lat": point.get('lat'),
+                        "lon": point.get('lon'),
+                    },
+                    "$push": {
+                        "realtime_data": point
+                    }
+                })
+
+                print("嵌套数组新增成功res", r)
+
+
+    def save_mgo(self):
+        '''如果数据库没有该条数据，则增加该条数据'''
+        self._insert_data.pop("points", None)
+        self._mgo.set(None, self._insert_data)

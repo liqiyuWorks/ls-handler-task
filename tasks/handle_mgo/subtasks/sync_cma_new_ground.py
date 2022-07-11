@@ -3,7 +3,7 @@
 from pkg.util.format import format_time
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
-from tasks.handle_mgo.deps import query_one_year,query_all
+from tasks.handle_mgo.deps import query_one_year,query_all,query_history_all
 import datetime
 import os
 import pymongo
@@ -19,21 +19,24 @@ class SyncCmaNewGround(BaseModel):
             }
         super(SyncCmaNewGround, self).__init__(config)
         self.HISTORY_YEAR = int(os.getenv('HISTORY_YEAR', 2021))
+        self._zhejiang_station = ["湖州市","嘉兴市","绍兴市", "杭州市", "金华市", "丽水市," "温州市", "衢州市"]
 
     @decorate.exception_capture_close_datebase
     def run(self):
         date_now = datetime.datetime.now()
         date_now = date_now + datetime.timedelta(hours=-9)
+        # date_now = date_now + datetime.timedelta(days=-12)
         year_now = date_now.year
         month_now = date_now.month
         day_now = date_now.day
         
-        citys = self.config['mgo_db']['nation_city'].find({})
+        citys = self.config['mgo_db']['nation_city'].find({"fcitynameShi":{"$in": self._zhejiang_station}})
         for city in citys:
             fcityname = city.get('fcityname')
             fcitynameShi = city.get('fcitynameShi')
             print('...开始查询城市: ',fcityname)
             mgo_res = query_all(self.config['mgo_db'], 'ground_data', fcityname,year_now,month_now,day_now)
+            # mgo_res = query_history_all(self.config['mgo_db'], 'ground_data', fcityname,year_now,month_now,day_now)
             mgo_list = list(mgo_res[:])
             for row in mgo_list:
                 Day = row['Day']
