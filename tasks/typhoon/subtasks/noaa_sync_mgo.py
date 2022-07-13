@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys, logging
-from tkinter.messagebox import NO
+import logging
 import pymongo
-import pandas as pd
 from pkg.util.spider import parse_url
+from pkg.util.format import time2time
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 from lxml import etree
@@ -57,7 +56,8 @@ class NoaaSyncMgo(BaseModel):
                 # item["Comments"] = line[151:].strip()
                 Date = item['Date']
                 Date = Date[4:7]
-                item['reporttime'] = item['Date'][:4] + '{:02d}'.format(month_abbr_list.index(Date)) + item['Date'][7:] + item['Time']
+                reporttime_str = item['Date'][:4] + '{:02d}'.format(month_abbr_list.index(Date)) + item['Date'][7:] + item['Time']
+                item['reporttime'] = time2time(reporttime_str, "%Y%m%d%H%M%S", "%Y-%m-%d %H:%M:%S")
                 item.pop('Date', None)
                 item.pop('Time', None)
                 yield item
@@ -81,8 +81,8 @@ class NoaaSyncMgo(BaseModel):
                         ## 查询 noaa 的数据
                         for item in self.handle_storm(item,Storm_url):
                             self.mgo.set(None, item)
-                        print('Noaa 的数据导入成功！')
+                        logging.info('Noaa 的数据导入成功！')
 
                         ## 查询 ssec 的数据
                         SsecSyncMgo(storm_id=item['stormid'], sea_area = item['sea_area']).run()
-                        print('Ssec 的数据导入成功！')
+                        logging.info('Ssec 的数据导入成功！')

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime, timedelta
+from time import sleep
+from pkg.util.format import time_CST2UTC
 import os
 import logging
 
@@ -10,7 +12,21 @@ class HandleTyphoon:
         self._mgo = kwargs.get('mgo')
         self._row = kwargs.get('row')
         self._row_dict = {k.lower(): v for k, v in self._row.to_dict().items()}
-        self._row_dict.update({"reporttime": self._row_dict.pop("reporttime_utc",None)})
+        self._row_dict.update({
+            "reporttime": self._row_dict.pop("reporttime_utc",None),
+            "r34_ne": self._row_dict.pop("r7_ne", None),
+            "r34_se": self._row_dict.pop("r7_se", None),
+            "r34_sw": self._row_dict.pop("r7_sw", None),
+            "r34_nw": self._row_dict.pop("r7_nw", None),
+            "r50_ne": self._row_dict.pop("r10_ne", None),
+            "r50_se": self._row_dict.pop("r10_se", None),
+            "r50_sw": self._row_dict.pop("r10_sw", None),
+            "r50_nw": self._row_dict.pop("r10_nw", None),
+            "r64_ne": self._row_dict.pop("r12_ne", None),
+            "r64_se": self._row_dict.pop("r12_se", None),
+            "r64_sw": self._row_dict.pop("r12_sw", None),
+            "r64_nw": self._row_dict.pop("r12_nw", None),
+            })
         self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
         self.MONGO_TYPHOON = "typhoon_real_time_data"  # 实时数据库
         self._lat = self._row_dict.get('lat')
@@ -70,27 +86,25 @@ class HandleTyphoon:
                         "stormname": datatime['stormname'],
                         "lat": self._lat,
                         "lon": self._lon,
-                        "datatime.$.stormname":
-                        self._row_dict.get('stormname'),
+                        "datatime.$.stormname": self._row_dict.get('stormname'),
                         "datatime.$.lat": self._row_dict.get('lat'),
                         "datatime.$.lon": self._row_dict.get('lon'),
                         "datatime.$.minp": self._row_dict.get('minp'),
                         "datatime.$.maxsp": self._row_dict.get('maxsp'),
-                        "datatime.$.r7_ne": self._row_dict.get('r7_ne'),
-                        "datatime.$.r7_se": self._row_dict.get('r7_se'),
-                        "datatime.$.r7_sw": self._row_dict.get('r7_sw'),
-                        "datatime.$.r7_nw": self._row_dict.get('r7_nw'),
-                        "datatime.$.r10_ne": self._row_dict.get('r10_ne'),
-                        "datatime.$.r10_se": self._row_dict.get('r10_se'),
-                        "datatime.$.r10_sw": self._row_dict.get('r10_sw'),
-                        "datatime.$.r10_nw": self._row_dict.get('r10_nw'),
-                        "datatime.$.r12_ne": self._row_dict.get('r12_ne'),
-                        "datatime.$.r12_se": self._row_dict.get('r12_se'),
-                        "datatime.$.r12_sw": self._row_dict.get('r12_sw'),
-                        "datatime.$.r12_nw": self._row_dict.get('r12_nw'),
+                        "datatime.$.r34_ne": self._row_dict.get("r34_ne", None),
+                        "datatime.$.r34_se": self._row_dict.get("r34_se", None),
+                        "datatime.$.r34_sw": self._row_dict.get("r34_sw", None),
+                        "datatime.$.r34_nw": self._row_dict.get("r34_nw", None),
+                        "datatime.$.r50_ne": self._row_dict.get("r50_ne", None),
+                        "datatime.$.r50_se": self._row_dict.get("r50_se", None),
+                        "datatime.$.r50_sw": self._row_dict.get("r50_sw", None),
+                        "datatime.$.r50_nw": self._row_dict.get("r50_nw", None),
+                        "datatime.$.r64_ne": self._row_dict.get("r64_ne", None),
+                        "datatime.$.r64_se": self._row_dict.get("r64_se", None),
+                        "datatime.$.r64_sw": self._row_dict.get("r64_sw", None),
+                        "datatime.$.r64_nw": self._row_dict.get("r64_nw", None),
                         "datatime.$.speed": self._row_dict.get('speed'),
-                        "datatime.$.direction":
-                        self._row_dict.get('direction'),
+                        "datatime.$.direction": self._row_dict.get('direction'),
                     }
                 },
                 upsert=True)
@@ -112,75 +126,6 @@ class HandleTyphoon:
             })
             print("嵌套数组新增成功res", r)
 
-    def insert_update_gfs(self, id):
-        dataTime = self._row_dict
-        dataTime['forecast_time'] = self._forecast_time
-        del dataTime['reporttime_utc']
-        del dataTime['modelname']
-
-        aggregate_query = [{
-            "$unwind": "$datatime"
-        }, {
-            "$match": {
-                "_id": id,
-                "datatime.forecast_time": self._forecast_time,
-            }
-        }, {
-            "$project": {
-                "datatime": 1
-            }
-        }]
-        res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
-        if res:
-            logging.info("已有该时刻预测数据，准备更新....")
-            r = self._mgo.mgo_coll.update_one(
-                {
-                    "_id": id,
-                    "datatime.forecast_time": self._forecast_time
-                }, {
-                    "$set": {
-                        "end_forecast_time": self._forecast_time,
-                        "lat": self._lat,
-                        "lon": self._lon,
-                        "datatime.$.lat": self._row_dict.get('lat'),
-                        "datatime.$.lon": self._row_dict.get('lon'),
-                        "datatime.$.minp": self._row_dict.get('minp'),
-                        "datatime.$.maxsp": self._row_dict.get('maxsp'),
-                        "datatime.$.r7_ne": self._row_dict.get('r7_ne'),
-                        "datatime.$.r7_se": self._row_dict.get('r7_se'),
-                        "datatime.$.r7_sw": self._row_dict.get('r7_sw'),
-                        "datatime.$.r7_nw": self._row_dict.get('r7_nw'),
-                        "datatime.$.r10_ne": self._row_dict.get('r10_ne'),
-                        "datatime.$.r10_se": self._row_dict.get('r10_se'),
-                        "datatime.$.r10_sw": self._row_dict.get('r10_sw'),
-                        "datatime.$.r10_nw": self._row_dict.get('r10_nw'),
-                        "datatime.$.r12_ne": self._row_dict.get('r12_ne'),
-                        "datatime.$.r12_se": self._row_dict.get('r12_se'),
-                        "datatime.$.r12_sw": self._row_dict.get('r12_sw'),
-                        "datatime.$.r12_nw": self._row_dict.get('r12_nw'),
-                        "datatime.$.speed": self._row_dict.get('speed'),
-                        "datatime.$.direction":
-                        self._row_dict.get('direction'),
-                    }
-                },
-                upsert=True)
-
-        else:
-            r = self._mgo.mgo_coll.update({
-                "_id": id,
-            }, {
-                "$set": {
-                    "end_forecast_time": self._forecast_time,
-                    "lat": self._lat,
-                    "lon": self._lon
-                },
-                "$push": {
-                    "datatime": dataTime
-                }
-            })
-
-            print("嵌套数组新增成功res", r)
-
     def insert_gfs_reporttime(self, id):
         datatime = self._row_dict
         datatime['forecast_time'] = self._forecast_time
@@ -198,7 +143,8 @@ class HandleTyphoon:
             }
         }, {
             "$project": {
-                f"reporttime.{self._reporttime_utc}": 1
+                # f"reporttime.{self._reporttime_utc}": 1
+                "_id":1
             }
         }]
         print(aggregate_query)
@@ -207,54 +153,31 @@ class HandleTyphoon:
             logging.info("已有该时刻预测数据，准备更新....")
             r = self._mgo.mgo_coll.update_one(
                 {
-                    "_id":
-                    id,
-                    f"reporttime.{self._reporttime_utc}.forecast_time":
-                    self._forecast_time
+                    "_id": id,
+                    f"reporttime.{self._reporttime_utc}.forecast_time": self._forecast_time
                 }, {
                     "$set": {
-                        "end_forecast_time":
-                        self._forecast_time,
-                        "newest_report_time":
-                        self._reporttime_utc,
-                        "lat":
-                        self._lat,
-                        "lon":
-                        self._lon,
-                        f"reporttime.{self._reporttime_utc}.$.lat":
-                        self._row_dict.get('lat'),
-                        f"reporttime.{self._reporttime_utc}.$.lon":
-                        self._row_dict.get('lon'),
-                        f"reporttime.{self._reporttime_utc}.$.minp":
-                        self._row_dict.get('minp'),
-                        f"reporttime.{self._reporttime_utc}.$.maxsp":
-                        self._row_dict.get('maxsp'),
-                        f"reporttime.{self._reporttime_utc}.$.r7_ne":
-                        self._row_dict.get('r7_ne'),
-                        f"reporttime.{self._reporttime_utc}.$.r7_se":
-                        self._row_dict.get('r7_se'),
-                        f"reporttime.{self._reporttime_utc}.$.r7_sw":
-                        self._row_dict.get('r7_sw'),
-                        f"reporttime.{self._reporttime_utc}.$.r7_nw":
-                        self._row_dict.get('r7_nw'),
-                        f"reporttime.{self._reporttime_utc}.$.r10_ne":
-                        self._row_dict.get('r10_ne'),
-                        f"reporttime.{self._reporttime_utc}.$.r10_se":
-                        self._row_dict.get('r10_se'),
-                        f"reporttime.{self._reporttime_utc}.$.r10_sw":
-                        self._row_dict.get('r10_sw'),
-                        f"reporttime.{self._reporttime_utc}.$.r10_nw":
-                        self._row_dict.get('r10_nw'),
-                        f"reporttime.{self._reporttime_utc}.$.r12_ne":
-                        self._row_dict.get('r12_ne'),
-                        f"reporttime.{self._reporttime_utc}.$.r12_se":
-                        self._row_dict.get('r12_se'),
-                        f"reporttime.{self._reporttime_utc}.$.r12_sw":
-                        self._row_dict.get('r12_sw'),
-                        f"reporttime.{self._reporttime_utc}.$.r12_nw":
-                        self._row_dict.get('r12_nw'),
-                        f"reporttime.{self._reporttime_utc}.$.speed":
-                        self._row_dict.get('speed'),
+                        "end_forecast_time": self._forecast_time,
+                        "newest_report_time": self._reporttime_utc,
+                        "lat": self._lat,
+                        "lon": self._lon,
+                        f"reporttime.{self._reporttime_utc}.$.lat": self._row_dict.get('lat'),
+                        f"reporttime.{self._reporttime_utc}.$.lon": self._row_dict.get('lon'),
+                        f"reporttime.{self._reporttime_utc}.$.minp": self._row_dict.get('minp'),
+                        f"reporttime.{self._reporttime_utc}.$.maxsp": self._row_dict.get('maxsp'),
+                        f"reporttime.{self._reporttime_utc}.$.r34_ne": self._row_dict.get("r34_ne", None),
+                        f"reporttime.{self._reporttime_utc}.$.r34_se": self._row_dict.get("r34_se", None),
+                        f"reporttime.{self._reporttime_utc}.$.r34_sw": self._row_dict.get("r34_sw", None),
+                        f"reporttime.{self._reporttime_utc}.$.r34_nw": self._row_dict.get("r34_nw", None),
+                        f"reporttime.{self._reporttime_utc}.$.r50_ne": self._row_dict.get("r50_ne", None),
+                        f"reporttime.{self._reporttime_utc}.$.r50_se": self._row_dict.get("r50_se", None),
+                        f"reporttime.{self._reporttime_utc}.$.r50_sw": self._row_dict.get("r50_sw", None),
+                        f"reporttime.{self._reporttime_utc}.$.r50_nw": self._row_dict.get("r50_nw", None),
+                        f"reporttime.{self._reporttime_utc}.$.r64_ne": self._row_dict.get("r64_ne", None),
+                        f"reporttime.{self._reporttime_utc}.$.r64_se": self._row_dict.get("r64_se", None),
+                        f"reporttime.{self._reporttime_utc}.$.r64_sw": self._row_dict.get("r64_sw", None),
+                        f"reporttime.{self._reporttime_utc}.$.r64_nw": self._row_dict.get("r64_nw", None),
+                        f"reporttime.{self._reporttime_utc}.$.speed": self._row_dict.get('speed'),
                         f"reporttime.{self._reporttime_utc}.$.direction":
                         self._row_dict.get('direction'),
                     }
@@ -331,7 +254,6 @@ class HandleTyphoon:
         data['newest_report_time'] = self._reporttime_utc
         del dataTime['reporttime']
         del dataTime['modelname']
-        print("data= ", data)
         self._mgo.set(None, data)
 
     def close(self):
@@ -345,15 +267,16 @@ class WzTyphoon:
         self._insert_data.update(
             {
                 "stormid": self._insert_data.pop("tfbh", None),
-                "stormname": self._insert_data.pop("ename", None),
+                "stormname": str(self._insert_data.pop("ename", None)).upper(),
                 "cn_stormname": self._insert_data.pop("name", None),
                 "lon": None,
                 "lat": None,
             })
         self._points = typhoon.get("points")
-        self._real_time = None
+        self._insert_data["begin_time"] = str(typhoon.get('begin_time')).replace("T", ' ') # 实时数据
         self._insert_data["realtime_data"] = []  # 实时数据
         self._insert_data["forecast_data"] = {}  # 预测数据
+        self._forecast_sources = []
 
         self.handle_real_time()
         # logging.info(self._insert_data)
@@ -361,23 +284,46 @@ class WzTyphoon:
 
     def handle_real_time(self):
         for point in self._points:
+            end_time = time_CST2UTC(str(point.pop("time").replace("T", ' ')))
+            point.update({
+                "lon": point.pop("lng"),
+                "reporttime": end_time,
+                "r34_ne": point['radius7_quad']['ne'],
+                "r34_se": point['radius7_quad']['se'],
+                "r34_sw": point['radius7_quad']['sw'],
+                "r34_nw": point['radius7_quad']['nw'],
+                "r50_ne": point['radius10_quad']['ne'],
+                "r50_se": point['radius10_quad']['se'],
+                "r50_sw": point['radius10_quad']['sw'],
+                "r50_nw": point['radius10_quad']['nw'],
+                "r64_ne": point['radius12_quad']['ne'],
+                "r64_se": point['radius12_quad']['se'],
+                "r64_sw": point['radius12_quad']['sw'],
+                "r64_nw": point['radius12_quad']['nw'],
+            })
+            point.pop("radius7_quad", None)
+            point.pop("radius10_quad", None)
+            point.pop("radius12_quad", None)
             if point.get("forecast"):
                 self.handle_forecast_data(point["forecast"])
             
             point.pop("forecast",None)
-            point.update({"lon": point.pop("lng")})
             self._insert_data['lon']=point["lon"]
             self._insert_data['lat']=point["lat"]
-            self._insert_data['end_time']=point["time"]
+            self._insert_data['end_time']=end_time
             self._insert_data["realtime_data"].append(point)
 
     def handle_forecast_data(self, forecasts):
         for forecast in forecasts:
             source,points = forecast['sets'],forecast['points']
+            self._forecast_sources.append(source)
             # print(f"此时源是{source}，data={points}\n")
             new_points = []
             for point in points:
-                point.update({"lon": point.pop("lng")})
+                point.update({
+                    "lon": point.pop("lng"),
+                    "forecast_time": time_CST2UTC(str(point.pop("time").replace("T", ' ')))
+                    })
                 new_points.append(point)
             self._insert_data["forecast_data"][source] = new_points
 
@@ -386,14 +332,14 @@ class WzTyphoon:
         res = self._mgo.mgo_coll.find_one(query, {"realtime_data": 0, "forecast_data":0,"points":0,"land":0})
         return res
 
-    def update_mgo(self, wz_id):
+    def update_real_time_mgo(self, wz_id):
         for point in self._insert_data["realtime_data"]:
             aggregate_query = [{
                 "$unwind": "$realtime_data"
             }, {
                 "$match": {
                     "_id": wz_id,
-                    "realtime_data.time": point['time'],
+                    "realtime_data.reporttime": point['reporttime'],
                 }
             }, {
                 "$project": {
@@ -404,11 +350,11 @@ class WzTyphoon:
             res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
 
             if res:
-                logging.info("已有该时刻预测数据，准备更新....")
+                logging.info("实测-已有该时刻数据....")
                 r = self._mgo.mgo_coll.update_one(
                     {
                         "_id": wz_id,
-                        "realtime_data.time": point['time']
+                        "realtime_data.reporttime": point['reporttime']
                     }, {
                         "$set": {
                             "realtime_data.$.lat": point.get('lat'),
@@ -422,20 +368,28 @@ class WzTyphoon:
                             "realtime_data.$.radius7": point.get('radius7'),
                             "realtime_data.$.radius10": point.get('radius10'),
                             "realtime_data.$.radius12": point.get('radius12'),
-                            "realtime_data.$.radius7_quad": point.get('radius7_quad'),
-                            "realtime_data.$.radius10_quad": point.get('radius10_quad'),
-                            "realtime_data.$.radius12_quad": point.get('radius12_quad'),
+                            "realtime_data.$.r34_ne": point.get("r34_ne"),
+                            "realtime_data.$.r34_se": point.get("r34_se"),
+                            "realtime_data.$.r34_sw": point.get("r34_sw"),
+                            "realtime_data.$.r34_nw": point.get("r34_nw"),
+                            "realtime_data.$.r50_ne": point.get("r50_ne"),
+                            "realtime_data.$.r50_se": point.get("r50_se"),
+                            "realtime_data.$.r50_sw": point.get("r50_sw"),
+                            "realtime_data.$.r50_nw": point.get("r50_nw"),
+                            "realtime_data.$.r64_ne": point.get("r64_ne"),
+                            "realtime_data.$.r64_se": point.get("r64_se"),
+                            "realtime_data.$.r64_sw": point.get("r64_sw"),
+                            "realtime_data.$.r64_nw": point.get("r64_nw"),
                             "realtime_data.$.remark": point.get('remark'),
                         }
                     },
                     upsert=True)
-
             else:
                 r = self._mgo.mgo_coll.update({
                     "_id": wz_id,
                 }, {
                     "$set": {
-                        "end_time": point['time'],
+                        "end_time": point['reporttime'],
                         "lat": point.get('lat'),
                         "lon": point.get('lon'),
                     },
@@ -443,11 +397,67 @@ class WzTyphoon:
                         "realtime_data": point
                     }
                 })
+                print("实测-嵌套新增成功: ", r)
 
-                print("嵌套数组新增成功res", r)
+    def update_forecast_mgo(self,wz_id):
+        for source, points in self._insert_data["forecast_data"].items():
+            for point in points:
+                aggregate_query = [{
+                    "$unwind": f"$forecast_data.{source}"
+                }, {
+                    "$match": {
+                        "_id": wz_id,
+                        f"forecast_data.{source}.forecast_time": point['forecast_time'],
+                    }
+                }, {
+                    "$project": {
+                        "_id":1
+                    }
+                }]
+                res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+
+                if res:
+                    logging.info("预测-已有该时刻数据...")
+                    r = self._mgo.mgo_coll.update_one(
+                        {
+                            "_id": wz_id,
+                            f"forecast_data.{source}.forecast_time": point['forecast_time']
+                        }, {
+                            "$set": {
+                                "forecast_sources": self._forecast_sources,
+                                f"forecast_data.{source}.$.lat": point.get('lat'),
+                                f"forecast_data.{source}.$.lon": point.get('lon'),
+                                f"forecast_data.{source}.$.strong": point.get('strong'),
+                                f"forecast_data.{source}.$.power": point.get('power'),
+                                f"forecast_data.{source}.$.speed": point.get('speed'),
+                                f"forecast_data.{source}.$.move_dir": point.get('move_dir'),
+                                f"forecast_data.{source}.$.move_speed": point.get('move_speed'),
+                                f"forecast_data.{source}.$.pressure": point.get('pressure'),
+                                f"forecast_data.{source}.$.radius7": point.get('radius7'),
+                                f"forecast_data.{source}.$.radius10": point.get('radius10'),
+                                f"forecast_data.{source}.$.remark": point.get('remark'),
+                            }
+                        },
+                        upsert=True)
+                else:
+                    r = self._mgo.mgo_coll.update({
+                        "_id": wz_id,
+                    }, {
+                        "$set": {
+                            "forecast_sources": self._forecast_sources,
+                            "end_time": point['forecast_time'],
+                            "lat": point.get('lat'),
+                            "lon": point.get('lon'),
+                        },
+                        "$push": {
+                            f"forecast_data.{source}": point
+                        }
+                    })
+                    print("预测-嵌套新增成功: ", r)
 
 
     def save_mgo(self):
         '''如果数据库没有该条数据，则增加该条数据'''
         self._insert_data.pop("points", None)
+        self._insert_data["forecast_sources"] = self._forecast_sources
         self._mgo.set(None, self._insert_data)

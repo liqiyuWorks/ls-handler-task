@@ -86,17 +86,19 @@ class MgoStore(object):
             else:
                 op = '$set'
             res = self.mgo_coll.update_one(query, {op: data}, upsert=True)
-            if res.raw_result['updatedExisting']:
-                if res.raw_result['nModified'] > 0:
-                    logging.info('update {}'.format(data))
-                # else:
-                #     logging.info('nothing to update for key {}'.format(query))
-            elif 'upserted' in res.raw_result:
-                logging.info('insert {} {}'.format(res.raw_result['upserted'],
-                                                   data))
-            else:
-                logging.info('impossible update_one result {}'.format(
-                    res.raw_result))
+            # if res.raw_result['updatedExisting']:
+            #     if res.raw_result['nModified'] > 0:
+            #         logging.info('update {}'.format(data))
+            #     # else:
+            #     #     logging.info('nothing to update for key {}'.format(query))
+            # elif 'upserted' in res.raw_result:
+            #     logging.info('insert {} {}'.format(res.raw_result['upserted'],
+            #                                        data))
+            # else:
+            #     logging.info('impossible update_one result {}'.format(
+            #         res.raw_result))
+            if 'upserted' in res.raw_result:
+                logging.info('insert {} {}'.format(res.raw_result['upserted'],data))
             response = res.raw_result
         except pymongo.errors.DuplicateKeyError:
             # 索引建对了，就不会走到这个分支

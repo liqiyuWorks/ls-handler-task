@@ -75,7 +75,7 @@ class GfsSyncMgo(BaseModel):
                 try:
                     df = pd.read_csv(gfs_file)
                 except EmptyDataError as e:
-                    pass  
+                    continue  
                 else:
                     for index, row in df.iterrows():
                         handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row,year=YEAR)

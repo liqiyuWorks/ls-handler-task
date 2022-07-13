@@ -29,15 +29,18 @@ class WZCurrSyncMgo(BaseModel):
                 }
             }
         super(WZCurrSyncMgo, self).__init__(config)
-        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2022")  
+        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "202207")  
 
     def history(self):
         try:
             res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep {self.HISTORY_YEAR}")
             list_gfs = res.split('\n')
+            print(list_gfs)
             for dir in list_gfs:
+                logging.info(f"目前的目录是:{dir}")
                 for file in os.listdir(f"{INPUT_PATH}/{dir}"):
                     file_path = f"{INPUT_PATH}/{dir}/{file}"
+                    logging.info(f"目前的文件是:{file_path}")
                     try:
                         with open(file_path, "r") as f:
                             json_data = json.load(f)
@@ -50,7 +53,8 @@ class WZCurrSyncMgo(BaseModel):
                         res = wz_typhoon.query_wz_exist()
                         if res:
                             # 有的话，更新
-                            wz_typhoon.update_mgo(res.get('_id'))
+                            wz_typhoon.update_real_time_mgo(res.get('_id'))
+                            wz_typhoon.update_forecast_mgo(res.get('_id'))
                         else:
                             # 没有的话，增加
                             wz_typhoon.save_mgo()
@@ -78,7 +82,8 @@ class WZCurrSyncMgo(BaseModel):
                     res = wz_typhoon.query_wz_exist()
                     if res:
                         # 有的话，更新
-                        wz_typhoon.update_mgo(res.get('_id'))
+                        wz_typhoon.update_real_time_mgo(res.get('_id'))
+                        wz_typhoon.update_forecast_mgo(res.get('_id'))
                     else:
                         # 没有的话，增加
                         wz_typhoon.save_mgo()
