@@ -17,7 +17,7 @@ class WZCurrSyncMgo(BaseModel):
     def __init__(self):
         config = {
             'handle_db': 'mgo',
-            'collection': 'wz_curr_data',
+            'collection': 'wztfw_data',
             'uniq_idx': [
                 ('stormid', pymongo.ASCENDING),
                 ('stormname', pymongo.ASCENDING),

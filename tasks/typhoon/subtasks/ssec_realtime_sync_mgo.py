@@ -30,7 +30,7 @@ class SsecSyncMgo:
         real_time_config = {
             "mgo_client": mgo_client,
             "mgo_db": mgo_db,
-            'collection': 'ssec_real_time_data',
+            'collection': 'ssec_realtime_data',
             'uniq_idx': [('reporttime', pymongo.ASCENDING),
                          ('stormid', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)]
@@ -71,7 +71,7 @@ class SsecSyncMgo:
                 # item["EstRMW"] = line[99:106].strip()
                 # item["MW_Score"] = line[106:112].strip()
                 item["lat"] = float(line[112:119].strip())
-                item["lon"] = float(line[120:128].strip())
+                item["lon"] = float(line[120:128].strip())*(-1)
                 # item["Fix_Mthd"] = line[128:136].strip()
                 # item["Sat"] = line[135:142].strip()
                 # item["VZA"] = line[142:150].strip()
@@ -92,7 +92,7 @@ class SsecSyncMgo:
         # item['source'] = group[0]
         # item['Sensor'] = group[1]
         item['lat'] = float(group[2])
-        item['lon'] = float(group[3])
+        item['lon'] = float(group[3])*(-1)
         item['maxsp'] = float(group[4])  # MaxSP=Vmax
         # item['ARCHER_lat'] = group[5]
         # item['ARCHER_lon'] = group[6]
@@ -158,7 +158,7 @@ class SsecSyncMgo:
                 item["r64_sw"] = float(line[104:110].strip())    # maxsp = vmax
                 item["r64_nw"] = float(line[110:116].strip())    # maxsp = vmax
                 item["lat"] = float(line[118:124].strip())    # maxsp = vmax
-                item["lon"] = float(line[124:131].strip())    # maxSP = Vmax
+                item["lon"] = float(line[124:131].strip())*(-1)    # maxSP = Vmax
 
 
                 Date = item['Date']

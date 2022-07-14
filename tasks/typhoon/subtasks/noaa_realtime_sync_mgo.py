@@ -7,7 +7,7 @@ from pkg.util.format import time2time
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 from lxml import etree
-from tasks.typhoon.subtasks.ssec_sync_mgo import SsecSyncMgo
+from tasks.typhoon.subtasks.ssec_realtime_sync_mgo import SsecSyncMgo
 
 month_abbr_list = [
     '', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'
@@ -17,7 +17,7 @@ month_abbr_list = [
 class NoaaSyncMgo(BaseModel):
     def __init__(self):
         config = {
-            'collection': 'noaa_data',
+            'collection': 'noaa_realtime_data',
             'uniq_idx': [('reporttime', pymongo.ASCENDING),
                          ('stormid', pymongo.ASCENDING)]
         }
@@ -49,7 +49,7 @@ class NoaaSyncMgo(BaseModel):
                 # item["EstRMW"] = line[100:107].strip()
                 # item["MW_Score"] = line[107:113].strip()
                 item["lat"] = float(line[113:121].strip())
-                item["lon"] = float(line[121:129].strip())
+                item["lon"] = float(line[121:129].strip())*(-1)
                 # item["Fix_Mthd"] = line[129:136].strip()
                 # item["Sat"] = line[137:145].strip()
                 # item["VZA"] = line[145:151].strip()

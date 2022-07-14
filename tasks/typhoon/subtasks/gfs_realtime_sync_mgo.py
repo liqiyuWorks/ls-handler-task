@@ -12,10 +12,10 @@ from tasks.typhoon.deps import HandleTyphoon
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/")
 
 
-class TyphoonSyncMgo(BaseModel):
+class GfsRealtimeSyncMgo(BaseModel):
     def __init__(self):
         config = {
-            'collection': "typhoon_real_time_data",
+            'collection': "gfs_realtime_data",
             'uniq_idx': [
                 ('start_reporttime', pymongo.ASCENDING),
                 ('end_reporttime', pymongo.ASCENDING),
@@ -24,7 +24,7 @@ class TyphoonSyncMgo(BaseModel):
                 ('stormid', pymongo.ASCENDING)
             ]
             }
-        super(TyphoonSyncMgo, self).__init__(config)
+        super(GfsRealtimeSyncMgo, self).__init__(config)
         self.GLOBAL_ROWS_TYPHOON = int(os.getenv('GLOBAL_ROWS_TYPHOON', 0))
         self.GLOBAL_YEAR = int(os.getenv('GLOBAL_YEAR', 2022))
    
@@ -48,7 +48,7 @@ class TyphoonSyncMgo(BaseModel):
                 if index < (self.GLOBAL_ROWS_TYPHOON-5):
                     continue
                 handle_typhoon = HandleTyphoon(mgo=self.mgo,year=YEAR,row=row)
-                handle_typhoon.save_typhoon_data()
+                handle_typhoon.save_realtime_data()
                 handle_typhoon.close()
 
         self.GLOBAL_ROWS_TYPHOON = temp_rows_typhoon

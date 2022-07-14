@@ -6,6 +6,8 @@ from pkg.util.format import time_CST2UTC
 import os
 import logging
 
+COEFFICIENT_KT_MS = 0.51444  # 统一kt
+NAUTICAL_MILE_KM = 1.852    # 统一nautical mile
 
 class HandleTyphoon:
     def __init__(self, **kwargs):
@@ -14,21 +16,24 @@ class HandleTyphoon:
         self._row_dict = {k.lower(): v for k, v in self._row.to_dict().items()}
         self._row_dict.update({
             "reporttime": self._row_dict.pop("reporttime_utc",None),
-            "r34_ne": self._row_dict.pop("r7_ne", None),
-            "r34_se": self._row_dict.pop("r7_se", None),
-            "r34_sw": self._row_dict.pop("r7_sw", None),
-            "r34_nw": self._row_dict.pop("r7_nw", None),
-            "r50_ne": self._row_dict.pop("r10_ne", None),
-            "r50_se": self._row_dict.pop("r10_se", None),
-            "r50_sw": self._row_dict.pop("r10_sw", None),
-            "r50_nw": self._row_dict.pop("r10_nw", None),
-            "r64_ne": self._row_dict.pop("r12_ne", None),
-            "r64_se": self._row_dict.pop("r12_se", None),
-            "r64_sw": self._row_dict.pop("r12_sw", None),
-            "r64_nw": self._row_dict.pop("r12_nw", None),
+            # 统一单位
+            "r34_ne": round(float(self._row_dict.pop("r7_ne", 0))/NAUTICAL_MILE_KM,2),
+            "r34_se": round(float(self._row_dict.pop("r7_se", 0))/NAUTICAL_MILE_KM,2),
+            "r34_sw": round(float(self._row_dict.pop("r7_sw", 0))/NAUTICAL_MILE_KM,2),
+            "r34_nw": round(float(self._row_dict.pop("r7_nw", 0))/NAUTICAL_MILE_KM,2),
+            "r50_ne": round(float(self._row_dict.pop("r10_ne", 0))/NAUTICAL_MILE_KM,2),
+            "r50_se": round(float(self._row_dict.pop("r10_se", 0))/NAUTICAL_MILE_KM,2),
+            "r50_sw": round(float(self._row_dict.pop("r10_sw", 0))/NAUTICAL_MILE_KM,2),
+            "r50_nw": round(float(self._row_dict.pop("r10_nw", 0))/NAUTICAL_MILE_KM,2),
+            "r64_ne": round(float(self._row_dict.pop("r12_ne", 0))/NAUTICAL_MILE_KM,2),
+            "r64_se": round(float(self._row_dict.pop("r12_se", 0))/NAUTICAL_MILE_KM,2),
+            "r64_sw": round(float(self._row_dict.pop("r12_sw", 0))/NAUTICAL_MILE_KM,2),
+            "r64_nw": round(float(self._row_dict.pop("r12_nw", 0))/NAUTICAL_MILE_KM,2),
+            "maxsp": round(float(self._row_dict.pop("maxsp", 0))/COEFFICIENT_KT_MS,0),
+            "speed": round(float(self._row_dict.pop("speed", 0))/COEFFICIENT_KT_MS,0),
+            "direction": round(float(self._row_dict.pop("speed", 0)),0),
             })
         self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
-        self.MONGO_TYPHOON = "typhoon_real_time_data"  # 实时数据库
         self._lat = self._row_dict.get('lat')
         self._lon = self._row_dict.get('lon')
         self._basin = self._row_dict.get('basin')
@@ -50,13 +55,13 @@ class HandleTyphoon:
             f"{self._stormid}:{self._stormname}:{self._basin}-{self._forecast_time}"
         )
 
-    def query_typhoon(self):
+    def query_realtime_typhoon(self):
         query = {"stormid": self._stormid, "year": self._year}
         res = self._mgo.mgo_coll.find_one(query, {"datatime": 0},
                                           sort=[('end_reporttime', -1)])
         return res
 
-    def insert_dataTime2typhoon(self, id):
+    def insert_realtime_datatime(self, id):
         datatime = self._row_dict
         del datatime['stormid']
         del datatime['modelname']
@@ -75,7 +80,7 @@ class HandleTyphoon:
         }]
         res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
         if res:
-            logging.info("已有该时刻预测数据，准备更新....")
+            logging.info("已有该时刻实测数据，准备更新....")
             r = self._mgo.mgo_coll.update_one(
                 {
                     "_id": id,
@@ -124,9 +129,9 @@ class HandleTyphoon:
                     "datatime": datatime
                 }
             })
-            print("嵌套数组新增成功res", r)
+            print("实测数据嵌套新增成功res", r)
 
-    def insert_gfs_reporttime(self, id):
+    def insert_forecast_reporttime(self, id):
         datatime = self._row_dict
         datatime['forecast_time'] = self._forecast_time
         del datatime['reporttime']
@@ -198,9 +203,9 @@ class HandleTyphoon:
                 }
             })
 
-            print("嵌套数组新增成功res", r)
+            print("预测嵌套新增成功res", r)
 
-    def save_typhoon_data(self):
+    def save_realtime_data(self):
         data = {
             "year": self._year,
             "stormid": self._stormid,
@@ -211,7 +216,7 @@ class HandleTyphoon:
         data['lat'] = self._row_dict['lat']
         data['lon'] = self._row_dict['lon']
 
-        tythoon = self.query_typhoon()
+        tythoon = self.query_realtime_typhoon()
         if not tythoon:
             datatime = self._row_dict
             del datatime['stormid']
@@ -221,7 +226,7 @@ class HandleTyphoon:
             self._mgo.set(None, data)
         else:
             id = tythoon.get('_id')
-            self.insert_dataTime2typhoon(id)
+            self.insert_realtime_datatime(id)
 
     def query_gfs_typhoon(self):
         query = {
@@ -233,11 +238,11 @@ class HandleTyphoon:
 
         if res:
             id = res.get('_id')
-            self.insert_gfs_reporttime(id)
+            self.insert_forecast_reporttime(id)
             return False
         return True
 
-    def save_gfs_data(self):
+    def save_forecast_data(self):
         # 修改时间
         data = {
             "basin": self._basin,
@@ -424,7 +429,6 @@ class WzTyphoon:
                             f"forecast_data.{source}.forecast_time": point['forecast_time']
                         }, {
                             "$set": {
-                                "forecast_sources": self._forecast_sources,
                                 f"forecast_data.{source}.$.lat": point.get('lat'),
                                 f"forecast_data.{source}.$.lon": point.get('lon'),
                                 f"forecast_data.{source}.$.strong": point.get('strong'),

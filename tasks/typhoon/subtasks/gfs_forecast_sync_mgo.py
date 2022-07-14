@@ -13,11 +13,11 @@ from pkg.public.decorator import decorate
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/gfs/")
 
 
-class GfsSyncMgo(BaseModel):
+class GfsForecastSyncMgo(BaseModel):
     def __init__(self):
         config = {
             'handle_db': 'mgo',
-            'collection': 'gfs_data',
+            'collection': 'gfs_forecast_data',
             'uniq_idx': [
                 ('start_forecast_time', pymongo.ASCENDING),
                 ('end_forecast_time', pymongo.ASCENDING),
@@ -31,7 +31,7 @@ class GfsSyncMgo(BaseModel):
                     ],
                 }
             }
-        super(GfsSyncMgo, self).__init__(config)
+        super(GfsForecastSyncMgo, self).__init__(config)
         self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2022")  
 
     def history(self):
@@ -53,7 +53,7 @@ class GfsSyncMgo(BaseModel):
                     handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row,year=self.HISTORY_YEAR)
                     flag = handle_typhoon.query_gfs_typhoon()
                     if flag:
-                        handle_typhoon.save_gfs_data()
+                        handle_typhoon.save_forecast_data()
 
         except Exception as e:
             logging.error('run error {}'.format(e))
@@ -64,7 +64,7 @@ class GfsSyncMgo(BaseModel):
     def run(self):
         date_now = datetime.datetime.now().strftime("%Y%m%d")
         print(f'当前启动任务，入库时间== {date_now} ==')
-        # date_now = "20220706"
+        date_now = "20220706"
         YEAR = date_now[:4]
         res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep gfs_{date_now}")
         if res:
@@ -81,4 +81,4 @@ class GfsSyncMgo(BaseModel):
                         handle_typhoon = HandleTyphoon(mgo=self.mgo,row=row,year=YEAR)
                         flag = handle_typhoon.query_gfs_typhoon()
                         if flag:
-                            handle_typhoon.save_gfs_data()
+                            handle_typhoon.save_forecast_data()
