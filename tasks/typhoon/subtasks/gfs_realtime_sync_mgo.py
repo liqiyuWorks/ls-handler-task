@@ -8,7 +8,7 @@ import pandas as pd
 import subprocess
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
-from tasks.typhoon.deps import HandleTyphoon
+from tasks.typhoon.deps import HandleGFSTyphoon
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/")
 
 
@@ -47,7 +47,7 @@ class GfsRealtimeSyncMgo(BaseModel):
             for index, row in df.iterrows():
                 if index < (self.GLOBAL_ROWS_TYPHOON-5):
                     continue
-                handle_typhoon = HandleTyphoon(mgo=self.mgo,year=YEAR,row=row)
+                handle_typhoon = HandleGFSTyphoon(mgo=self.mgo,year=YEAR,row=row)
                 handle_typhoon.save_realtime_data()
                 handle_typhoon.close()
 

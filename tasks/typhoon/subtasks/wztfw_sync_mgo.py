@@ -7,7 +7,7 @@ import pymongo
 import requests
 import pandas as pd
 from pkg.public.models import BaseModel
-from tasks.typhoon.deps import HandleTyphoon,WzTyphoon
+from tasks.typhoon.deps import HandleGFSTyphoon,WzTyphoon
 import subprocess
 from pkg.public.decorator import decorate
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/温州台风网")

@@ -9,7 +9,7 @@ import logging
 COEFFICIENT_KT_MS = 0.51444  # 统一kt
 NAUTICAL_MILE_KM = 1.852    # 统一nautical mile
 
-class HandleTyphoon:
+class HandleGFSTyphoon:
     def __init__(self, **kwargs):
         self._mgo = kwargs.get('mgo')
         self._row = kwargs.get('row')
@@ -31,7 +31,7 @@ class HandleTyphoon:
             "r64_nw": round(float(self._row_dict.pop("r12_nw", 0))/NAUTICAL_MILE_KM,2),
             "maxsp": round(float(self._row_dict.pop("maxsp", 0))/COEFFICIENT_KT_MS,0),
             "speed": round(float(self._row_dict.pop("speed", 0))/COEFFICIENT_KT_MS,0),
-            "direction": round(float(self._row_dict.pop("speed", 0)),0),
+            "direction": round(float(self._row_dict.pop("direction", 0)),0),
             })
         self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
         self._lat = self._row_dict.get('lat')

@@ -82,6 +82,7 @@ class SsecSyncMgo:
                 item['reporttime'] = time2time(reporttime_str, "%Y%m%d%H%M%S", "%Y-%m-%d %H:%M:%S")
                 item.pop('Date')
                 item.pop('Time')
+                
                 self.real_time_mgo.set(None, item)
 
     def get_group1(self,item, data):
@@ -141,9 +142,9 @@ class SsecSyncMgo:
             for line in rows[2:-2]:
                 item["Date"] = line[:10].strip()
                 item["Time"] = line[10:17].strip()
-                item["spd"] = line[18:23].strip()
-                item["dir"] = line[24:28].strip()
-                item["vmax"] = float(line[28:34].strip())   # minp = mslp
+                item["speed"] = round(float(line[17:23].strip()),0)
+                item["direction"] = round(float(line[24:28].strip()),0)
+                item["maxsp"] = float(line[28:34].strip())   # minp = mslp
                 item["rmw"] = float(line[35:40].strip())    # maxsp = vmax
                 item["r34_ne"] = float(line[44:49].strip())    # maxsp = vmax
                 item["r34_se"] = float(line[50:55].strip())    # maxsp = vmax
@@ -157,8 +158,8 @@ class SsecSyncMgo:
                 item["r64_se"] = float(line[98:104].strip())    # maxsp = vmax
                 item["r64_sw"] = float(line[104:110].strip())    # maxsp = vmax
                 item["r64_nw"] = float(line[110:116].strip())    # maxsp = vmax
-                item["lat"] = float(line[118:124].strip())    # maxsp = vmax
-                item["lon"] = float(line[124:131].strip())*(-1)    # maxSP = Vmax
+                # item["lat"] = float(line[118:124].strip())    # maxsp = vmax
+                # item["lon"] = float(line[124:131].strip())*(-1)    # maxSP = Vmax
 
 
                 Date = item['Date']
@@ -168,6 +169,7 @@ class SsecSyncMgo:
                 
                 item.pop('Date')
                 item.pop('Time')
+                # logging.info(f'{item["reporttime"]}:{item["lon"]}-{item["lat"]}')
                 self.real_time_mgo.set(None, item)
 
     def close(self):
