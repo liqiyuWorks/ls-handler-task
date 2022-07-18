@@ -345,24 +345,24 @@ class SsecSyncMgo:
         # 爬取 ssec 的实时数据
         try:
             self.handle_listing_storm(self.listing_index)
+            logging.info(f'ssec {self.storm_id} - 实时数据列表 数据导入成功！') 
         except Exception as e:
             logging.error('run error {}'.format(e))
-        logging.info(f'ssec {self.storm_id} - 实时数据列表 数据导入成功！') 
-        
-
-        # 爬取 ssec 的 风圈数据
-        try:
-            self.handle_wind_storm(self.real_time_wind_index)
-        except Exception as e:
-            logging.error('ssec:handle_wind_storm error {}'.format(e))
-        logging.info(f'ssec {self.storm_id} - 实时数据详情 数据导入成功！') 
+        else:
+            # 爬取 ssec 的 风圈数据
+            try:
+                self.handle_wind_storm(self.real_time_wind_index)
+                logging.info(f'ssec {self.storm_id} - 实时数据详情 数据导入成功！') 
+            except Exception as e:
+                logging.error('ssec:handle_wind_storm error {}'.format(e))
 
         # 爬取 ssec 的 archer数据
         try:
             self.handle_archer_storm(self.archer_index)
+            logging.info(f'Ssec {self.storm_id} - archer 数据导入成功！') 
         except Exception as e:
             logging.error('ssec:handle_archer_storm error {}'.format(e))
-        logging.info(f'Ssec {self.storm_id} - archer 数据导入成功！') 
+        
         self.close()
                 
         

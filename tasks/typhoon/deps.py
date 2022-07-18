@@ -327,6 +327,9 @@ class WzTyphoon:
             })
             point.pop("move_speed", None)
             point.pop("move_dir", None)
+            point.pop("radius7", None)
+            point.pop("radius10", None)
+            point.pop("radius12", None)
             point.pop("radius7_quad", None)
             point.pop("radius10_quad", None)
             point.pop("radius12_quad", None)
@@ -368,6 +371,8 @@ class WzTyphoon:
                     "radius50": round(float(point.get('radius10',0))/NAUTICAL_MILE_KM,2),
                     "forecast_time": time_CST2UTC(str(point.pop("time").replace("T", ' ')))
                     })
+                point.pop("radius7", None)
+                point.pop("radius10", None)
                 point.pop("move_speed", None)
                 point.pop("move_dir", None)
                 new_points.append(point)
@@ -411,9 +416,9 @@ class WzTyphoon:
                             "realtime_data.$.direction": point.get('direction'),
                             "realtime_data.$.maxsp": point.get('maxsp'),
                             "realtime_data.$.minp": point.get('minp'),
-                            "realtime_data.$.radius7": point.get('radius7'),
-                            "realtime_data.$.radius10": point.get('radius10'),
-                            "realtime_data.$.radius12": point.get('radius12'),
+                            "realtime_data.$.radius34": point.get('radius34'),
+                            "realtime_data.$.radius50": point.get('radius50'),
+                            "realtime_data.$.radius64": point.get('radius64'),
                             "realtime_data.$.r34_ne": point.get("r34_ne"),
                             "realtime_data.$.r34_se": point.get("r34_se"),
                             "realtime_data.$.r34_sw": point.get("r34_sw"),
@@ -478,8 +483,8 @@ class WzTyphoon:
                                 f"forecast_data.{source}.$.direction": point.get('direction'),
                                 f"forecast_data.{source}.$.maxsp": point.get('maxsp'),
                                 f"forecast_data.{source}.$.minp": point.get('minp'),
-                                f"forecast_data.{source}.$.radius7": point.get('radius7'),
-                                f"forecast_data.{source}.$.radius10": point.get('radius10'),
+                                f"forecast_data.{source}.$.radius34": point.get('radius34'),
+                                f"forecast_data.{source}.$.radius50": point.get('radius50'),
                                 f"forecast_data.{source}.$.remark": point.get('remark'),
                             }
                         },
