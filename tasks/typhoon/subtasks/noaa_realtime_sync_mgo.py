@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import logging
+from copy import deepcopy
 import pymongo
 from pkg.util.spider import parse_url
 from pkg.util.format import time2time
@@ -18,8 +19,10 @@ class NoaaSyncMgo(BaseModel):
     def __init__(self):
         config = {
             'collection': 'noaa_realtime_data',
-            'uniq_idx': [('reporttime', pymongo.ASCENDING),
-                         ('stormid', pymongo.ASCENDING)]
+            'uniq_idx': [('stormid', pymongo.ASCENDING),
+                         ('year', pymongo.ASCENDING),
+                         ('sea_area', pymongo.ASCENDING)
+                         ]
         }
         super(NoaaSyncMgo, self).__init__(config)
         self.url_index = "https://www.ssd.noaa.gov/PS/TROP/adt.html"
@@ -31,7 +34,7 @@ class NoaaSyncMgo(BaseModel):
             for line in rows[4:-1]:
                 item["Date"] = line[:10].strip()
                 item["Time"] = line[10:17].strip()
-                logging.info(f'{item["Date"]}:{item["Time"]}')
+                # logging.info(f'{item["Date"]}:{item["Time"]}')
                 # item["CI"] = line[17:22].strip()
                 item["minp"] = float(line[22:29].strip())   # MinP = MSLP
                 item["maxsp"] = float(line[29:35].strip())  # MaxSP = Vmax
@@ -62,6 +65,82 @@ class NoaaSyncMgo(BaseModel):
                 item.pop('Time', None)
                 yield item
 
+    def insert_noaa_datatime(self,id,item):
+        datatime = deepcopy(item)
+        aggregate_query = [{
+            "$unwind": "$datatime"
+        }, {
+            "$match": {
+                "_id": id,
+                "datatime.reporttime": item['reporttime'],
+            }
+        }, {
+            "$project": {
+                "datatime": 1
+            }
+        }]
+        res = list(self.mgo.mgo_coll.aggregate(aggregate_query))
+        if res:
+            # logging.info("已有该时刻实测数据，准备更新....")
+            r = self.mgo.mgo_coll.update_one(
+                {
+                    "_id": id,
+                    "datatime.reporttime": item['reporttime']
+                }, {
+                    "$set": {
+                        "end_reporttime": item['reporttime'],
+                        "lat": item['lat'],
+                        "lon": item['lon'],
+                        "datatime.$.lat": item.get('lat'),
+                        "datatime.$.lon": item.get('lon'),
+                        "datatime.$.minp": item.get('minp'),
+                        "datatime.$.maxsp": item.get('maxsp'),
+                    }
+                },
+                upsert=True)
+
+        else:
+            datatime.pop("sea_area")
+            datatime.pop("stormid")
+            datatime.pop("year")
+            r = self.mgo.mgo_coll.update({
+                "_id": id,
+            }, {
+                "$set": {
+                    "end_reporttime": item['reporttime'],
+                    "lat": item['lat'],
+                    "lon": item['lon'],
+                    "year": item['year']
+                },
+                "$push": {
+                    "datatime": datatime
+                }
+            })
+            print("noaa realtime 嵌套新增成功res", r)
+
+    def save_noaa(self, item):
+        item['year'] =  str(item['reporttime'])[:4]
+        data = {
+            "stormid": item['stormid'],
+            "end_reporttime": item['reporttime'],
+            "lat": item['lat'],
+            "lon": item['lon'],
+            "year": item['year'],
+            "sea_area": item['sea_area'],
+        }
+
+        query = {"stormid": item['stormid'], "year": item['year'], "sea_area": item['sea_area']}
+        tythoon = self.mgo.mgo_coll.find_one(query, {"datatime": 0})
+        if not tythoon:
+            item.pop("sea_area")
+            item.pop("stormid")
+            item.pop("year")
+            data['datatime'] = [item]
+            self.mgo.set(None, data)
+        else:
+            id = tythoon.get('_id')
+            self.insert_noaa_datatime(id,item)
+
     @decorate.exception_capture_close_datebase
     def run(self):
         r = parse_url(self.url_index)
@@ -77,15 +156,19 @@ class NoaaSyncMgo(BaseModel):
                         a_list = i.xpath('./a')
                         if a_list:
                             item = {}
-                            item['sea_area'] = ocean_names_list[index].xpath('./div/text()')[0]
-                            item['stormid']= i.xpath("./a[1]/strong/text()")[0]
                             Storm_url= i.xpath("./a[1]/@href")[0]
+                            sea_area = ocean_names_list[index].xpath('./div/text()')[0]
+                            stormid = i.xpath("./a[1]/strong/text()")[0]
                             print(Storm_url)
+                            # Storm_urls = ["http://www.ssd.noaa.gov/PS/TROP/DATA/2022/adt/text/06E-list.txt","http://www.ssd.noaa.gov/PS/TROP/DATA/2022/adt/text/05E-list.txt"]
+                            # stormid = Storm_url[-12:-9]
                             # 查询 noaa 的数据
                             for item in self.handle_storm(item,Storm_url):
-                                self.mgo.set(None, item)
-                            logging.info('Noaa 的数据导入成功！')
+                                item['sea_area'] = sea_area
+                                item['stormid'] = stormid
+                                self.save_noaa(item) 
+                            logging.info(f'Noaa {stormid} 的数据导入成功！')
 
                             ## 查询 ssec 的数据
-                            SsecSyncMgo(storm_id=item['stormid'], sea_area = item['sea_area']).run()
-                            logging.info('Ssec 的数据导入成功！')
+                            SsecSyncMgo(storm_id=stormid, sea_area=sea_area).run()
+                            # logging.info('Ssec 的数据导入成功！')

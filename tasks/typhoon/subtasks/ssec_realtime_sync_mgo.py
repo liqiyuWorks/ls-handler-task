@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os, sys, logging
+from copy import deepcopy
 from pkg.util.format import time2time
 import pymongo
 import pandas as pd
@@ -31,7 +32,7 @@ class SsecSyncMgo:
             "mgo_client": mgo_client,
             "mgo_db": mgo_db,
             'collection': 'ssec_realtime_data',
-            'uniq_idx': [('reporttime', pymongo.ASCENDING),
+            'uniq_idx': [('year', pymongo.ASCENDING),
                          ('stormid', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)]
         }
@@ -39,7 +40,7 @@ class SsecSyncMgo:
             "mgo_client": mgo_client,
             "mgo_db": mgo_db,
             'collection': 'ssec_archer_data',
-            'uniq_idx': [('reporttime', pymongo.ASCENDING),
+            'uniq_idx': [('year', pymongo.ASCENDING),
                          ('stormid', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)]
         }
@@ -47,11 +48,11 @@ class SsecSyncMgo:
         self.archer_mgo = MgoStore(archer_config)  # 初始化
 
     def handle_listing_storm(self, Storm_url):
-        item = {"stormid": self.storm_id, "sea_area": self.sea_area}
         r = parse_url(Storm_url)
         if r.status_code == 200:
             rows = str(r.text).split('\n')
             for line in rows[5:-4]:
+                item = {"stormid": self.storm_id, "sea_area": self.sea_area}
                 item["Date"] = line[:10].strip()
                 item["Time"] = line[10:17].strip()
                 # item["CI"] = line[16:21].strip()
@@ -82,8 +83,170 @@ class SsecSyncMgo:
                 item['reporttime'] = time2time(reporttime_str, "%Y%m%d%H%M%S", "%Y-%m-%d %H:%M:%S")
                 item.pop('Date')
                 item.pop('Time')
+                self.save_ssec_list_mgo(item)
                 
-                self.real_time_mgo.set(None, item)
+
+    def save_ssec_list_mgo(self, item):
+        item['year'] =  str(item['reporttime'])[:4]
+        data = {
+            "stormid": item['stormid'],
+            "end_reporttime": item['reporttime'],
+            "lat": item['lat'],
+            "lon": item['lon'],
+            "year": item['year'],
+            "sea_area": item['sea_area'],
+        }
+
+        query = {"stormid": item['stormid'], "year": item['year'], "sea_area": item['sea_area']}
+        tythoon = self.real_time_mgo.mgo_coll.find_one(query, {"datatime": 0})
+        if not tythoon:
+            item.pop("sea_area")
+            item.pop("stormid")
+            item.pop("year")
+            data['datatime'] = [item]
+            self.real_time_mgo.set(None, data)
+        else:
+            id = tythoon.get('_id')
+            self.insert_ssec_datatime(id,item)
+
+    def insert_ssec_datatime(self,id, item):
+        datatime = deepcopy(item)
+        aggregate_query = [{
+            "$unwind": "$datatime"
+        }, {
+            "$match": {
+                "_id": id,
+                "datatime.reporttime": item['reporttime'],
+            }
+        }, {
+            "$project": {
+                "datatime": 1
+            }
+        }]
+        res = list(self.real_time_mgo.mgo_coll.aggregate(aggregate_query))
+        if res:
+            # logging.info("已有ssec该时刻实测数据，准备更新....")
+            r = self.real_time_mgo.mgo_coll.update_one(
+                {
+                    "_id": id,
+                    "datatime.reporttime": item['reporttime']
+                }, {
+                    "$set": {
+                        # "datatime.$.lat": item.get('lat'),
+                        # "datatime.$.lon": item.get('lon'),
+                        # "datatime.$.minp": item.get('minp'),
+                        # "datatime.$.maxsp": item.get('maxsp'),
+                        "datatime.$.r34_ne": item.get("r34_ne", None),
+                        "datatime.$.r34_se": item.get("r34_se", None),
+                        "datatime.$.r34_sw": item.get("r34_sw", None),
+                        "datatime.$.r34_nw": item.get("r34_nw", None),
+                        "datatime.$.r50_ne": item.get("r50_ne", None),
+                        "datatime.$.r50_se": item.get("r50_se", None),
+                        "datatime.$.r50_sw": item.get("r50_sw", None),
+                        "datatime.$.r50_nw": item.get("r50_nw", None),
+                        "datatime.$.r64_ne": item.get("r64_ne", None),
+                        "datatime.$.r64_se": item.get("r64_se", None),
+                        "datatime.$.r64_sw": item.get("r64_sw", None),
+                        "datatime.$.r64_nw": item.get("r64_nw", None),
+                        "datatime.$.speed": item.get('speed'),
+                        "datatime.$.direction": item.get('direction'),
+                        "datatime.$.rmw": item.get('rmw'),
+                    }
+                },
+                upsert=True)
+
+        else:
+            datatime.pop("sea_area")
+            datatime.pop("stormid")
+            datatime.pop("year")
+            r = self.real_time_mgo.mgo_coll.update({
+                "_id": id,
+            }, {
+                "$set": {
+                    "end_reporttime": item['reporttime'],
+                    "lat": item['lat'],
+                    "lon": item['lon'],
+                    "year": item['year']
+                },
+                "$push": {
+                    "datatime": datatime
+                }
+            })
+            print("ssec realtme 嵌套新增成功res", r)
+
+
+    def save_ssec_archer_mgo(self, item):
+        item['year'] =  str(item['reporttime'])[:4]
+        data = {
+            "stormid": item['stormid'],
+            "end_reporttime": item['reporttime'],
+            "lat": item['lat'],
+            "lon": item['lon'],
+            "year": item['year'],
+            "sea_area": item['sea_area'],
+        }
+
+        query = {"stormid": item['stormid'], "year": item['year'], "sea_area": item['sea_area']}
+        tythoon = self.archer_mgo.mgo_coll.find_one(query, {"datatime": 0})
+        if not tythoon:
+            item.pop("sea_area")
+            item.pop("stormid")
+            item.pop("year")
+            data['datatime'] = [item]
+            self.archer_mgo.set(None, data)
+        else:
+            id = tythoon.get('_id')
+            self.insert_ssec_archer_datatime(id,item)
+
+    def insert_ssec_archer_datatime(self,id, item):
+        datatime = deepcopy(item)
+        aggregate_query = [{
+            "$unwind": "$datatime"
+        }, {
+            "$match": {
+                "_id": id,
+                "datatime.reporttime": item['reporttime'],
+            }
+        }, {
+            "$project": {
+                "datatime": 1
+            }
+        }]
+        res = list(self.archer_mgo.mgo_coll.aggregate(aggregate_query))
+        if res:
+            # logging.info("已有ssec该时刻实测数据，准备更新....")
+            r = self.archer_mgo.mgo_coll.update_one(
+                {
+                    "_id": id,
+                    "datatime.reporttime": item['reporttime']
+                }, {
+                    "$set": {
+                        "datatime.$.lat": item.get('lat'),
+                        "datatime.$.lon": item.get('lon'),
+                        "datatime.$.maxsp": item.get('maxsp'),
+                        "datatime.$.eyewall_radius": item.get('eyewall_radius')
+                    }
+                },
+                upsert=True)
+
+        else:
+            datatime.pop("sea_area")
+            datatime.pop("stormid")
+            datatime.pop("year")
+            r = self.archer_mgo.mgo_coll.update({
+                "_id": id,
+            }, {
+                "$set": {
+                    "end_reporttime": item['reporttime'],
+                    "lat": item['lat'],
+                    "lon": item['lon'],
+                    "year": item['year']
+                },
+                "$push": {
+                    "datatime": datatime
+                }
+            })
+            print("ssec archer 嵌套新增成功res", r)
 
     def get_group1(self,item, data):
         group = str(data[2])
@@ -132,14 +295,14 @@ class SsecSyncMgo:
                 item['eyewall_radius'] = data[3]
                 item = self.get_group1(item, data)
                 # item = self.get_group2(item, data)
-                self.archer_mgo.set(None, item)
+                self.save_ssec_archer_mgo(item)
 
     def handle_wind_storm(self,Storm_url):
-        item = {"stormid": self.storm_id, "sea_area": self.sea_area}
         r = parse_url(Storm_url)
         if r.status_code == 200:
             rows = str(r.text).split('\n')
             for line in rows[2:-2]:
+                item = {"stormid": self.storm_id, "sea_area": self.sea_area}
                 item["Date"] = line[:10].strip()
                 item["Time"] = line[10:17].strip()
                 item["speed"] = round(float(line[17:23].strip()),0)
@@ -160,17 +323,19 @@ class SsecSyncMgo:
                 item["r64_nw"] = float(line[110:116].strip())    # maxsp = vmax
                 # item["lat"] = float(line[118:124].strip())    # maxsp = vmax
                 # item["lon"] = float(line[124:131].strip())*(-1)    # maxSP = Vmax
-
-
                 Date = item['Date']
                 Date = Date[4:7]
                 reporttime_str = item['Date'][:4] + '{:02d}'.format(month_abbr_list.index(Date)) + item['Date'][7:] + item['Time']
                 item['reporttime'] = time2time(reporttime_str, "%Y%m%d%H%M%S", "%Y-%m-%d %H:%M:%S")
+                item['year'] =  str(item['reporttime'])[:4]
                 
                 item.pop('Date')
                 item.pop('Time')
                 # logging.info(f'{item["reporttime"]}:{item["lon"]}-{item["lat"]}')
-                self.real_time_mgo.set(None, item)
+                query = {"stormid": item['stormid'], "year": item['year'], "sea_area": item['sea_area']}
+                tythoon_id = self.real_time_mgo.mgo_coll.find_one(query, {"_id": 1})
+                if tythoon_id:
+                    self.insert_ssec_datatime(tythoon_id['_id'], item)
 
     def close(self):
         self.real_time_mgo.close()
@@ -182,20 +347,22 @@ class SsecSyncMgo:
             self.handle_listing_storm(self.listing_index)
         except Exception as e:
             logging.error('run error {}'.format(e))
-        logging.info('ssec:handle_listing_storm 数据导入成功！') 
+        logging.info(f'ssec {self.storm_id} - 实时数据列表 数据导入成功！') 
+        
 
         # 爬取 ssec 的 风圈数据
         try:
             self.handle_wind_storm(self.real_time_wind_index)
         except Exception as e:
             logging.error('ssec:handle_wind_storm error {}'.format(e))
+        logging.info(f'ssec {self.storm_id} - 实时数据详情 数据导入成功！') 
 
         # 爬取 ssec 的 archer数据
         try:
             self.handle_archer_storm(self.archer_index)
         except Exception as e:
             logging.error('ssec:handle_archer_storm error {}'.format(e))
-        logging.info('Ssec - archer 数据导入成功！') 
+        logging.info(f'Ssec {self.storm_id} - archer 数据导入成功！') 
         self.close()
                 
         

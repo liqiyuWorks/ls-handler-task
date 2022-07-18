@@ -282,30 +282,51 @@ class WzTyphoon:
         self._insert_data["realtime_data"] = []  # 实时数据
         self._insert_data["forecast_data"] = {}  # 预测数据
         self._forecast_sources = []
-
         self.handle_real_time()
-        # logging.info(self._insert_data)
         
 
     def handle_real_time(self):
         for point in self._points:
+            new_point = {}
+            for k,v in point.items():
+                if v is not None:
+                    new_point[k] = v
+                    if isinstance(v, dict):
+                        new_sub = {}
+                        for sk,sv in v.items():
+                            if sv is not None:
+                                new_sub[sk] = sv
+                        new_point[k] = new_sub
+
+            point = new_point
             end_time = time_CST2UTC(str(point.pop("time").replace("T", ' ')))
             point.update({
                 "lon": point.pop("lng"),
                 "reporttime": end_time,
-                "r34_ne": point['radius7_quad']['ne'],
-                "r34_se": point['radius7_quad']['se'],
-                "r34_sw": point['radius7_quad']['sw'],
-                "r34_nw": point['radius7_quad']['nw'],
-                "r50_ne": point['radius10_quad']['ne'],
-                "r50_se": point['radius10_quad']['se'],
-                "r50_sw": point['radius10_quad']['sw'],
-                "r50_nw": point['radius10_quad']['nw'],
-                "r64_ne": point['radius12_quad']['ne'],
-                "r64_se": point['radius12_quad']['se'],
-                "r64_sw": point['radius12_quad']['sw'],
-                "r64_nw": point['radius12_quad']['nw'],
+                "minp": point.get('pressure',0),
+                "maxsp": round(float(point.get("speed",0))/COEFFICIENT_KT_MS,0),
+                "speed": round(float(point.get('move_speed',0))/COEFFICIENT_KT_MS,0),
+                "direction": point.get('move_dir',0),
+
+                "radius34": round(float(point.get('radius7',0))/NAUTICAL_MILE_KM,2),
+                "radius50": round(float(point.get('radius10',0))/NAUTICAL_MILE_KM,2),
+                "radius64": round(float(point.get('radius12',0))/NAUTICAL_MILE_KM,2),
+
+                "r34_ne": round(float(point.get('radius7_quad',{}).get('ne',0))/NAUTICAL_MILE_KM,2),
+                "r34_se": round(float(point.get('radius7_quad',{}).get('se',0))/NAUTICAL_MILE_KM,2),
+                "r34_sw": round(float(point.get('radius7_quad',{}).get('sw',0))/NAUTICAL_MILE_KM,2),
+                "r34_nw": round(float(point.get('radius7_quad',{}).get('nw',0))/NAUTICAL_MILE_KM,2),
+                "r50_ne": round(float(point.get('radius10_quad',{}).get('ne',0))/NAUTICAL_MILE_KM,2),
+                "r50_se": round(float(point.get('radius10_quad',{}).get('se',0))/NAUTICAL_MILE_KM,2),
+                "r50_sw": round(float(point.get('radius10_quad',{}).get('sw',0))/NAUTICAL_MILE_KM,2),
+                "r50_nw": round(float(point.get('radius10_quad',{}).get('nw',0))/NAUTICAL_MILE_KM,2),
+                "r64_ne": round(float(point.get('radius12_quad',{}).get('ne',0))/NAUTICAL_MILE_KM,2),
+                "r64_se": round(float(point.get('radius12_quad',{}).get('se',0))/NAUTICAL_MILE_KM,2),
+                "r64_sw": round(float(point.get('radius12_quad',{}).get('sw',0))/NAUTICAL_MILE_KM,2),
+                "r64_nw": round(float(point.get('radius12_quad',{}).get('nw',0))/NAUTICAL_MILE_KM,2),
             })
+            point.pop("move_speed", None)
+            point.pop("move_dir", None)
             point.pop("radius7_quad", None)
             point.pop("radius10_quad", None)
             point.pop("radius12_quad", None)
@@ -325,10 +346,30 @@ class WzTyphoon:
             # print(f"此时源是{source}，data={points}\n")
             new_points = []
             for point in points:
+                new_point = {}
+                for k,v in point.items():
+                    if v is not None:
+                        new_point[k] = v
+                        if isinstance(v, dict):
+                            new_sub = {}
+                            for sk,sv in v.items():
+                                if sv is not None:
+                                    new_sub[sk] = sv
+                            new_point[k] = new_sub
+
+                point = new_point
                 point.update({
                     "lon": point.pop("lng"),
+                    "minp": point.get('pressure',0),
+                    "maxsp": round(float(point.get("speed",0))/COEFFICIENT_KT_MS,0),
+                    "speed": round(float(point.get('move_speed',0))/COEFFICIENT_KT_MS,0),
+                    "direction": point.get('move_dir',0),
+                    "radius34": round(float(point.get('radius7',0))/NAUTICAL_MILE_KM,2),
+                    "radius50": round(float(point.get('radius10',0))/NAUTICAL_MILE_KM,2),
                     "forecast_time": time_CST2UTC(str(point.pop("time").replace("T", ' ')))
                     })
+                point.pop("move_speed", None)
+                point.pop("move_dir", None)
                 new_points.append(point)
             self._insert_data["forecast_data"][source] = new_points
 
@@ -355,7 +396,7 @@ class WzTyphoon:
             res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
 
             if res:
-                logging.info("实测-已有该时刻数据....")
+                # logging.info("实测-已有该时刻数据....")
                 r = self._mgo.mgo_coll.update_one(
                     {
                         "_id": wz_id,
@@ -367,9 +408,9 @@ class WzTyphoon:
                             "realtime_data.$.strong": point.get('strong'),
                             "realtime_data.$.power": point.get('power'),
                             "realtime_data.$.speed": point.get('speed'),
-                            "realtime_data.$.move_dir": point.get('move_dir'),
-                            "realtime_data.$.move_speed": point.get('move_speed'),
-                            "realtime_data.$.pressure": point.get('pressure'),
+                            "realtime_data.$.direction": point.get('direction'),
+                            "realtime_data.$.maxsp": point.get('maxsp'),
+                            "realtime_data.$.minp": point.get('minp'),
                             "realtime_data.$.radius7": point.get('radius7'),
                             "realtime_data.$.radius10": point.get('radius10'),
                             "realtime_data.$.radius12": point.get('radius12'),
@@ -402,7 +443,7 @@ class WzTyphoon:
                         "realtime_data": point
                     }
                 })
-                print("实测-嵌套新增成功: ", r)
+                print("wztfw实测-嵌套新增成功: ", r)
 
     def update_forecast_mgo(self,wz_id):
         for source, points in self._insert_data["forecast_data"].items():
@@ -422,7 +463,7 @@ class WzTyphoon:
                 res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
 
                 if res:
-                    logging.info("预测-已有该时刻数据...")
+                    # logging.info("预测-已有该时刻数据...")
                     r = self._mgo.mgo_coll.update_one(
                         {
                             "_id": wz_id,
@@ -434,9 +475,9 @@ class WzTyphoon:
                                 f"forecast_data.{source}.$.strong": point.get('strong'),
                                 f"forecast_data.{source}.$.power": point.get('power'),
                                 f"forecast_data.{source}.$.speed": point.get('speed'),
-                                f"forecast_data.{source}.$.move_dir": point.get('move_dir'),
-                                f"forecast_data.{source}.$.move_speed": point.get('move_speed'),
-                                f"forecast_data.{source}.$.pressure": point.get('pressure'),
+                                f"forecast_data.{source}.$.direction": point.get('direction'),
+                                f"forecast_data.{source}.$.maxsp": point.get('maxsp'),
+                                f"forecast_data.{source}.$.minp": point.get('minp'),
                                 f"forecast_data.{source}.$.radius7": point.get('radius7'),
                                 f"forecast_data.{source}.$.radius10": point.get('radius10'),
                                 f"forecast_data.{source}.$.remark": point.get('remark'),
