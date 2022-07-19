@@ -34,7 +34,8 @@ class SsecSyncMgo:
             'collection': 'ssec_realtime_data',
             'uniq_idx': [('year', pymongo.ASCENDING),
                          ('stormid', pymongo.ASCENDING),
-                         ('sea_area', pymongo.ASCENDING)]
+                         ('sea_area', pymongo.ASCENDING)],
+            "idx_dic": {'embedded_idx': [('datatime.reporttime', pymongo.ASCENDING)]}  # 建立嵌套时间的索引
         }
         archer_config = {
             "mgo_client": mgo_client,
@@ -42,7 +43,8 @@ class SsecSyncMgo:
             'collection': 'ssec_archer_data',
             'uniq_idx': [('year', pymongo.ASCENDING),
                          ('stormid', pymongo.ASCENDING),
-                         ('sea_area', pymongo.ASCENDING)]
+                         ('sea_area', pymongo.ASCENDING)],
+            "idx_dic": {'embedded_idx': [('datatime.reporttime', pymongo.ASCENDING)]}  # 建立嵌套时间的索引
         }
         self.real_time_mgo = MgoStore(real_time_config)  # 初始化
         self.archer_mgo = MgoStore(archer_config)  # 初始化

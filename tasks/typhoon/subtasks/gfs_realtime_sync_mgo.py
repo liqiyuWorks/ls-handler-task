@@ -22,7 +22,8 @@ class GfsRealtimeSyncMgo(BaseModel):
                 ('lat', pymongo.ASCENDING),
                 ('lon', pymongo.ASCENDING),
                 ('stormid', pymongo.ASCENDING)
-            ]
+            ],
+            "idx_dic": {'embedded_idx': [('datatime.reporttime', pymongo.ASCENDING)]}  # 建立嵌套时间的索引
             }
         super(GfsRealtimeSyncMgo, self).__init__(config)
         self.GLOBAL_ROWS_TYPHOON = int(os.getenv('GLOBAL_ROWS_TYPHOON', 0))

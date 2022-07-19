@@ -23,8 +23,11 @@ class WZCurrSyncMgo(BaseModel):
                 ('stormname', pymongo.ASCENDING),
             ],
             'idx_dic': {
-                    'typhoon_idx': [
-                        ('end_time', pymongo.ASCENDING)
+                    'embedded_realtime_data_idx': [
+                        ('realtime_data.reporttime', pymongo.ASCENDING)
+                    ],
+                    'embedded_forecast_data_idx': [
+                        ('forecast_data.forecast_time', pymongo.ASCENDING)
                     ],
                 }
             }

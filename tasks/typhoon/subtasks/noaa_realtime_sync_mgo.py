@@ -22,7 +22,8 @@ class NoaaSyncMgo(BaseModel):
             'uniq_idx': [('stormid', pymongo.ASCENDING),
                          ('year', pymongo.ASCENDING),
                          ('sea_area', pymongo.ASCENDING)
-                         ]
+                         ],
+            "idx_dic": {'embedded_idx': [('datatime.reporttime', pymongo.ASCENDING)]}  # 建立嵌套时间的索引
         }
         super(NoaaSyncMgo, self).__init__(config)
         self.url_index = "https://www.ssd.noaa.gov/PS/TROP/adt.html"
@@ -171,4 +172,3 @@ class NoaaSyncMgo(BaseModel):
 
                             ## 查询 ssec 的数据
                             SsecSyncMgo(storm_id=stormid, sea_area=sea_area).run()
-                            # logging.info('Ssec 的数据导入成功！')
