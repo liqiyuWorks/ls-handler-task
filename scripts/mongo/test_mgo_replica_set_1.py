@@ -14,17 +14,18 @@ def get_mgo():
     dburl = f'mongodb://{mongo_host}:{mongo_port},{_59mongo_host}:{mongo_port}/?replicaSet=rs&readPreference=secondaryPreferred&connectTimeoutMS=300000'
 
     database = mongo_db
-    connection = pymongo.MongoClient(dburl)
-    db=connection[database]
-    db.authenticate(mongo_user,mongo_password)
-    tmp_collect = db['test']
+    mgo_client = pymongo.MongoClient(dburl)
+    mgo_db=mgo_client[database]
+    # if mongo_user is not None:
+    #     mgo_db.authenticate(mongo_user, mongo_password)
+    tmp_collect = mgo_db['test']
     print(tmp_collect.find_one({}))
     print("开始插入")
     count = 0
     while count < 100:
-        db['test'].insert({"name": 1})
+        mgo_db['test'].insert({"name": 1})
         time.sleep(2)
 
-    connection.close()
+    mgo_client.close()
 
 get_mgo()
