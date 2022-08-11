@@ -23,7 +23,8 @@ def get_mgo():
     print("开始插入")
     count = 0
     while count < 100:
-        mgo_db['test'].insert({"name": 1})
+        mgo_db['test'].insert({"name": count})
+        print(f"插入{count}成功...")
         time.sleep(2)
 
     mgo_client.close()
