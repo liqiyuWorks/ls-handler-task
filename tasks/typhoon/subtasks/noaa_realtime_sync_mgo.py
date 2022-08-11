@@ -160,7 +160,7 @@ class NoaaSyncMgo(BaseModel):
                             Storm_url= i.xpath("./a[1]/@href")[0]
                             sea_area = ocean_names_list[index].xpath('./div/text()')[0]
                             stormid = i.xpath("./a[1]/strong/text()")[0]
-                            print(Storm_url)
+                            # print(Storm_url)
                             # Storm_urls = ["http://www.ssd.noaa.gov/PS/TROP/DATA/2022/adt/text/06E-list.txt","http://www.ssd.noaa.gov/PS/TROP/DATA/2022/adt/text/05E-list.txt"]
                             # stormid = Storm_url[-12:-9]
                             # 查询 noaa 的数据

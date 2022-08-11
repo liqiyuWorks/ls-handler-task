@@ -20,7 +20,7 @@ class WZCurrSyncMgo(BaseModel):
             'collection': 'wztfw_data',
             'uniq_idx': [
                 ('stormid', pymongo.ASCENDING),
-                ('stormname', pymongo.ASCENDING),
+                # ('stormname', pymongo.ASCENDING),
             ],
             'idx_dic': {
                     'embedded_realtime_data_idx': [
@@ -55,6 +55,7 @@ class WZCurrSyncMgo(BaseModel):
                         wz_typhoon = WzTyphoon(self.mgo, typhoon)
                         res = wz_typhoon.query_wz_exist()
                         if res:
+                            
                             # 有的话，更新
                             wz_typhoon.update_real_time_mgo(res.get('_id'))
                             wz_typhoon.update_forecast_mgo(res.get('_id'))

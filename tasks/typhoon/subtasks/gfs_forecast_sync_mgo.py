@@ -61,7 +61,7 @@ class GfsForecastSyncMgo(BaseModel):
     
     @decorate.exception_capture_close_datebase
     def run(self):
-        date_now = datetime.datetime.now().strftime("%Y%m%d")
+        date_now = (datetime.datetime.now() + datetime.timedelta(hours=-8)).strftime("%Y%m%d")
         print(f'当前启动任务，入库时间== {date_now} ==')
         # date_now = "20220706"
         YEAR = date_now[:4]

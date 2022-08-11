@@ -21,7 +21,7 @@ month_abbr_list = [
 ]
 
 class SsecSyncMgo:
-    def __init__(self, storm_id="05W",sea_area="05W"):
+    def __init__(self, storm_id="06W",sea_area="06W"):
         self.storm_id = storm_id
         self.sea_area = sea_area
         self.listing_index = "https://tropic.ssec.wisc.edu/real-time/adt/{}-list.txt".format(self.storm_id)
@@ -48,6 +48,7 @@ class SsecSyncMgo:
         }
         self.real_time_mgo = MgoStore(real_time_config)  # 初始化
         self.archer_mgo = MgoStore(archer_config)  # 初始化
+        logging.info(self.real_time_wind_index)
 
     def handle_listing_storm(self, Storm_url):
         r = parse_url(Storm_url)
@@ -74,7 +75,8 @@ class SsecSyncMgo:
                 # item["EstRMW"] = line[99:106].strip()
                 # item["MW_Score"] = line[106:112].strip()
                 item["lat"] = float(line[112:119].strip())
-                item["lon"] = float(line[120:128].strip())*(-1)
+                print(f"前-{line[119:128]}， 后-{float(line[119:128].strip())*(-1)}",)
+                item["lon"] = float(line[119:128].strip())*(-1)
                 # item["Fix_Mthd"] = line[128:136].strip()
                 # item["Sat"] = line[135:142].strip()
                 # item["VZA"] = line[142:150].strip()

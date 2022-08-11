@@ -277,6 +277,8 @@ class WzTyphoon:
                 "lon": None,
                 "lat": None,
             })
+        self.stormname = self._insert_data["stormname"]
+        self.cn_stormname = self._insert_data["cn_stormname"]
         self._points = typhoon.get("points")
         self._insert_data["begin_time"] = str(typhoon.get('begin_time')).replace("T", ' ') # 实时数据
         self._insert_data["realtime_data"] = []  # 实时数据
@@ -334,7 +336,7 @@ class WzTyphoon:
             point.pop("radius10_quad", None)
             point.pop("radius12_quad", None)
             if point.get("forecast"):
-                self.handle_forecast_data(point["forecast"])
+                self.handle_forecast_data(point["reporttime"],point["forecast"])
             
             point.pop("forecast",None)
             self._insert_data['lon']=point["lon"]
@@ -342,11 +344,10 @@ class WzTyphoon:
             self._insert_data['end_time']=end_time
             self._insert_data["realtime_data"].append(point)
 
-    def handle_forecast_data(self, forecasts):
+    def handle_forecast_data(self, reporttime, forecasts):
         for forecast in forecasts:
-            source,points = forecast['sets'],forecast['points']
+            source, points = forecast['sets'],forecast['points']
             self._forecast_sources.append(source)
-            # print(f"此时源是{source}，data={points}\n")
             new_points = []
             for point in points:
                 new_point = {}
@@ -376,10 +377,11 @@ class WzTyphoon:
                 point.pop("move_speed", None)
                 point.pop("move_dir", None)
                 new_points.append(point)
-            self._insert_data["forecast_data"][source] = new_points
+            self._insert_data["forecast_data"].setdefault(source, {}).setdefault(reporttime, new_points)
+
 
     def query_wz_exist(self):
-        query = {"stormid": self._insert_data["stormid"], "stormname": self._insert_data['stormname']}
+        query = {"stormid": self._insert_data["stormid"]}
         res = self._mgo.mgo_coll.find_one(query, {"realtime_data": 0, "forecast_data":0,"points":0,"land":0})
         return res
 
@@ -440,6 +442,8 @@ class WzTyphoon:
                     "_id": wz_id,
                 }, {
                     "$set": {
+                        "stormname": self.stormname,
+                        "cn_stormname": self.cn_stormname,
                         "end_time": point['reporttime'],
                         "lat": point.get('lat'),
                         "lon": point.get('lon'),
@@ -451,59 +455,74 @@ class WzTyphoon:
                 print("wztfw实测-嵌套新增成功: ", r)
 
     def update_forecast_mgo(self,wz_id):
-        for source, points in self._insert_data["forecast_data"].items():
-            for point in points:
-                aggregate_query = [{
-                    "$unwind": f"$forecast_data.{source}"
-                }, {
-                    "$match": {
-                        "_id": wz_id,
-                        f"forecast_data.{source}.forecast_time": point['forecast_time'],
-                    }
-                }, {
-                    "$project": {
-                        "_id":1
-                    }
-                }]
-                res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+        for source, reporttime_points in self._insert_data["forecast_data"].items():
+            for reporttime, points in reporttime_points.items():
+                # aggregate_query = [{
+                #         "$unwind": f"$forecast_data.{source}.{reporttime}"
+                #     }, {
+                #         "$match": {
+                #             "_id": wz_id,
+                #             f"forecast_data.{source}.{reporttime}": point['forecast_time'],
+                #         }
+                #     }, {
+                #         "$project": {
+                #             "_id":1
+                #         }
+                #     }]
+                # res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
 
-                if res:
-                    # logging.info("预测-已有该时刻数据...")
-                    r = self._mgo.mgo_coll.update_one(
-                        {
+                for point in points:
+                    aggregate_query = [{
+                        "$unwind": f"$forecast_data.{source}.{reporttime}"
+                    }, {
+                        "$match": {
                             "_id": wz_id,
-                            f"forecast_data.{source}.forecast_time": point['forecast_time']
+                            f"forecast_data.{source}.{reporttime}.forecast_time": point['forecast_time'],
+                        }
+                    }, {
+                        "$project": {
+                            "_id":1
+                        }
+                    }]
+                    res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
+
+                    if res:
+                        # logging.info("预测-已有该时刻数据...")
+                        r = self._mgo.mgo_coll.update_one(
+                            {
+                                "_id": wz_id,
+                                f"forecast_data.{source}.{reporttime}.forecast_time": point['forecast_time']
+                            }, {
+                                "$set": {
+                                    f"forecast_data.{source}.{reporttime}.$.lat": point.get('lat'),
+                                    f"forecast_data.{source}.{reporttime}.$.lon": point.get('lon'),
+                                    f"forecast_data.{source}.{reporttime}.$.strong": point.get('strong'),
+                                    f"forecast_data.{source}.{reporttime}.$.power": point.get('power'),
+                                    f"forecast_data.{source}.{reporttime}.$.speed": point.get('speed'),
+                                    f"forecast_data.{source}.{reporttime}.$.direction": point.get('direction'),
+                                    f"forecast_data.{source}.{reporttime}.$.maxsp": point.get('maxsp'),
+                                    f"forecast_data.{source}.{reporttime}.$.minp": point.get('minp'),
+                                    f"forecast_data.{source}.{reporttime}.$.radius34": point.get('radius34'),
+                                    f"forecast_data.{source}.{reporttime}.$.radius50": point.get('radius50'),
+                                    f"forecast_data.{source}.{reporttime}.$.remark": point.get('remark'),
+                                }
+                            },
+                            upsert=True)
+                    else:
+                        r = self._mgo.mgo_coll.update({
+                            "_id": wz_id,
                         }, {
                             "$set": {
-                                f"forecast_data.{source}.$.lat": point.get('lat'),
-                                f"forecast_data.{source}.$.lon": point.get('lon'),
-                                f"forecast_data.{source}.$.strong": point.get('strong'),
-                                f"forecast_data.{source}.$.power": point.get('power'),
-                                f"forecast_data.{source}.$.speed": point.get('speed'),
-                                f"forecast_data.{source}.$.direction": point.get('direction'),
-                                f"forecast_data.{source}.$.maxsp": point.get('maxsp'),
-                                f"forecast_data.{source}.$.minp": point.get('minp'),
-                                f"forecast_data.{source}.$.radius34": point.get('radius34'),
-                                f"forecast_data.{source}.$.radius50": point.get('radius50'),
-                                f"forecast_data.{source}.$.remark": point.get('remark'),
+                                "forecast_sources": self._forecast_sources,
+                                "end_time": point['forecast_time'],
+                                "lat": point.get('lat'),
+                                "lon": point.get('lon'),
+                            },
+                            "$push": {
+                                f"forecast_data.{source}.{reporttime}": point
                             }
-                        },
-                        upsert=True)
-                else:
-                    r = self._mgo.mgo_coll.update({
-                        "_id": wz_id,
-                    }, {
-                        "$set": {
-                            "forecast_sources": self._forecast_sources,
-                            "end_time": point['forecast_time'],
-                            "lat": point.get('lat'),
-                            "lon": point.get('lon'),
-                        },
-                        "$push": {
-                            f"forecast_data.{source}": point
-                        }
-                    })
-                    print("预测-嵌套新增成功: ", r)
+                        })
+                        print("预测-嵌套新增成功: ", r)
 
 
     def save_mgo(self):
