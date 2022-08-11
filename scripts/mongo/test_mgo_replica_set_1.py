@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os, pymongo
-import urllib.parse
+import time
 
 def get_mgo():
     # 数据库源连接
@@ -11,15 +11,20 @@ def get_mgo():
     mongo_db = os.getenv('MONGO_DB', 'base_data')
     mongo_user = os.getenv('MONGO_USER', 'root')
     mongo_password = os.getenv('MONGO_PASSWORD', 'Jiufang1234')
-    # mgo_client = pymongo.MongoReplicaSetClient(f"{mongo_host}:21617,{_59mongo_host}:21617", replicaSet="rs",read_preference=pymongo.ReadPreference.SECONDARY,authSource='base_data')
-    mgo_client = pymongo.MongoClient(f"{mongo_host}:21617,{_59mongo_host}:21617", replicaSet="rs")
-    print(mgo_client.test_database)
-    return mgo_client
+    dburl = f'mongodb://{mongo_host}:{mongo_port},{_59mongo_host}:{mongo_port}/?replicaSet=rs&readPreference=secondaryPreferred&connectTimeoutMS=300000'
 
+    database = mongo_db
+    connection = pymongo.MongoClient(dburl)
+    db=connection[database]
+    db.authenticate(mongo_user,mongo_password)
+    tmp_collect = db['test']
+    print(tmp_collect.find_one({}))
+    print("开始插入")
+    count = 0
+    while count < 100:
+        db['test'].insert({"name": 1})
+        time.sleep(2)
 
-mgo_client = get_mgo()
-mgo_db = mgo_client['base_data']
-print(mgo_client, mgo_db)
-data = mgo_db['users'].find({})
-for d in data:
-    print(d)
+    connection.close()
+
+get_mgo()
