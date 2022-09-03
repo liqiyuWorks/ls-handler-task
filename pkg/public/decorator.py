@@ -4,6 +4,7 @@ import os
 import logging
 import traceback
 from apscheduler.schedulers.blocking import BlockingScheduler
+from pkg.public.wechat_push import WechatPush
 RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
 
 class BaseDecorate:
@@ -21,6 +22,8 @@ class BaseDecorate:
             try:
                 func(self, *args, **kwargs)
             except Exception as e:
+                notify_user = WechatPush()
+                notify_user.notify(msg=f"""报错: {self.__class__.__name__}\n详情: {e}""")
                 logging.error('run error {}'.format(e))
                 logging.error(traceback.format_exc())
             finally:

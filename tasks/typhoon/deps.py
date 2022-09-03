@@ -337,6 +337,8 @@ class WzTyphoon:
             point.pop("radius12_quad", None)
             if point.get("forecast"):
                 self.handle_forecast_data(point["reporttime"],point["forecast"])
+                self._newest_report_time = point["reporttime"]
+                self._insert_data.update({"newest_report_time":self._newest_report_time})
             
             point.pop("forecast",None)
             self._insert_data['lon']=point["lon"]
@@ -457,20 +459,6 @@ class WzTyphoon:
     def update_forecast_mgo(self,wz_id):
         for source, reporttime_points in self._insert_data["forecast_data"].items():
             for reporttime, points in reporttime_points.items():
-                # aggregate_query = [{
-                #         "$unwind": f"$forecast_data.{source}.{reporttime}"
-                #     }, {
-                #         "$match": {
-                #             "_id": wz_id,
-                #             f"forecast_data.{source}.{reporttime}": point['forecast_time'],
-                #         }
-                #     }, {
-                #         "$project": {
-                #             "_id":1
-                #         }
-                #     }]
-                # res = list(self._mgo.mgo_coll.aggregate(aggregate_query))
-
                 for point in points:
                     aggregate_query = [{
                         "$unwind": f"$forecast_data.{source}.{reporttime}"
@@ -494,6 +482,7 @@ class WzTyphoon:
                                 f"forecast_data.{source}.{reporttime}.forecast_time": point['forecast_time']
                             }, {
                                 "$set": {
+                                    "newest_report_time": self._newest_report_time,
                                     f"forecast_data.{source}.{reporttime}.$.lat": point.get('lat'),
                                     f"forecast_data.{source}.{reporttime}.$.lon": point.get('lon'),
                                     f"forecast_data.{source}.{reporttime}.$.strong": point.get('strong'),
@@ -514,6 +503,7 @@ class WzTyphoon:
                         }, {
                             "$set": {
                                 "forecast_sources": self._forecast_sources,
+                                "newest_report_time": self._newest_report_time,
                                 "end_time": point['forecast_time'],
                                 "lat": point.get('lat'),
                                 "lon": point.get('lon'),

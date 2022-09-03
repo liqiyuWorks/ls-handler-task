@@ -7,7 +7,7 @@ RUN mkdir -p /app/log
 ENV app /app
 ADD . ${app}
 WORKDIR ${app}
-# RUN pip3 install --upgrade pip -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
-RUN pip3 install -r requirements.txt -i http://mirrors.aliyun.com/pypi/simple/ --trusted-host mirrors.aliyun.com
+RUN pip install --upgrade pip -i http://pypi.doubanio.com/simple/  --trusted-host pypi.doubanio.com
+RUN pip install -r requirements.txt -i http://pypi.doubanio.com/simple/  --trusted-host pypi.doubanio.com
 
 CMD ["python3", "main.py"]

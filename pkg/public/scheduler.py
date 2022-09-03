@@ -6,8 +6,8 @@ import os
 RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
 
 class CustomScheduler:
-    def __init__(self, obj):
-        self.obj = obj()
+    def __init__(self, obj, **kwargs):
+        self.obj = obj(**kwargs)
         self.sched = BlockingScheduler()
 
     def get_scheduler_param(self, scheduler_mode):

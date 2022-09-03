@@ -15,7 +15,7 @@ INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/
 class GfsRealtimeSyncMgo(BaseModel):
     def __init__(self):
         config = {
-            'collection': "gfs_realtime_data_V1",
+            'collection': "gfs_realtime_data",
             'uniq_idx': [
                 ('start_reporttime', pymongo.ASCENDING),
                 ('end_reporttime', pymongo.ASCENDING),

@@ -29,15 +29,15 @@ def is_none(s):
 def get_mgo():
     # 数据库源连接
     mongo_host = os.getenv('MONGO_HOST')
-    mongo_replica_set_url = os.getenv('MONGO_REPLICA_SET_URL')  # 124.70.86.179:21617,121.36.28.59:21617  --- 可连接集群
-    mongo_port = int(os.getenv('MONGO_PORT'))
+    mongo_replica_set_url = os.getenv('MONGO_REPLICA_SET_URL')  # MONGO_REPLICA_SET_URL=124.70.86.179:21617,121.36.28.59:21617  --- 可连接集群
+    mongo_port = int(os.getenv('MONGO_PORT',0))
     mongo_db = os.getenv('MONGO_DB')
     mongo_user = os.getenv('MONGO_USER')
     mongo_password = os.getenv('MONGO_PASSWORD')
 
     if mongo_db is None:
         return None, None
-    if mongo_host and mongo_db:
+    if mongo_host and mongo_port:
         url = 'mongodb://{}:{}/'.format(mongo_host, mongo_port)
     
     if mongo_replica_set_url:

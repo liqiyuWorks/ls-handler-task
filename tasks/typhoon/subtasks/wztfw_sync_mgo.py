@@ -38,10 +38,13 @@ class WZCurrSyncMgo(BaseModel):
         try:
             res = subprocess.getoutput(f"ls -a {INPUT_PATH} |grep {self.HISTORY_YEAR}")
             list_gfs = res.split('\n')
+            list_gfs.sort(reverse=False)
             print(list_gfs)
             for dir in list_gfs:
                 logging.info(f"目前的目录是:{dir}")
-                for file in os.listdir(f"{INPUT_PATH}/{dir}"):
+                files_list = os.listdir(f"{INPUT_PATH}/{dir}")
+                files_list.sort(reverse=False)
+                for file in files_list:
                     file_path = f"{INPUT_PATH}/{dir}/{file}"
                     logging.info(f"目前的文件是:{file_path}")
                     try:

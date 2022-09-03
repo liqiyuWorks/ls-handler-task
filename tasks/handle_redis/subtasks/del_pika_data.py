@@ -7,11 +7,12 @@ from pkg.public.decorator import decorate
 import datetime
 import numpy as np
 
-class DelPikaGfs(BaseModel):
-    def __init__(self):
+class DelPikaData(BaseModel):
+    def __init__(self, rds_key):
         config = {"rds": True,"handle_db":"rds"}
-        super(DelPikaGfs, self).__init__(config)
-        self.days = int(os.getenv('DAYS', 5))
+        super(DelPikaData, self).__init__(config)
+        self.days = int(os.getenv('DAYS', 7))
+        self.rds_key = rds_key
         if self.days:
             self._hours = self.days * 2 * 24   # 过去 -7 ~ -14 天
         else:
@@ -32,10 +33,7 @@ class DelPikaGfs(BaseModel):
         
         for i in range(1440):
             for j in range(721):
-                key = f"gfs|{i}|{j}"
+                key = f"{self.rds_key}|{i}|{j}"
                 res = self.rds.rds.hdel(key, *time_range)
-                logging.info(f"{key} delete {res} nums ")
-            #     break
-
-            # break
+        logging.info(f"{self.rds_key} - {key} delete {res} nums ")
             
