@@ -10,6 +10,7 @@ from pkg.public.models import BaseModel
 from tasks.typhoon.deps import HandleGFSTyphoon,WzTyphoon
 import subprocess
 from pkg.public.decorator import decorate
+from pkg.util.spider import parse_url
 INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/温州台风网")
 
 
@@ -75,11 +76,10 @@ class WZCurrSyncMgo(BaseModel):
     def run(self):
         date_now = datetime.datetime.now().strftime("%Y%m%d")
         print(f'当前启动任务，入库时间== {date_now} ==')
-        res = requests.get(url="https://data.istrongcloud.com/v2/data/complex/currMerger.json")
+        res = parse_url(url="https://data.istrongcloud.com/v2/data/complex/currMerger.json")
         if res.status_code == 200:
             try:
                 json_data = json.loads(res.text)
-                print(json_data)
             except Exception as e:
                 logging.error(str(e))
             if json_data:
@@ -94,3 +94,5 @@ class WZCurrSyncMgo(BaseModel):
                     else:
                         # 没有的话，增加
                         wz_typhoon.save_mgo()
+        else:
+            raise ValueError(f">> 请求失败, code:{res.status_code}")

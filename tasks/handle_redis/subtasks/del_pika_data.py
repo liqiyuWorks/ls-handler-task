@@ -13,6 +13,12 @@ class DelPikaData(BaseModel):
         super(DelPikaData, self).__init__(config)
         self.days = int(os.getenv('DAYS', 7))
         self.rds_key = rds_key
+        if self.rds_key in ["gfs"]:
+            self.lon_nums = 1440
+            self.lat_nums = 721
+        elif self.rds_key in ["cams|pl", "cams|sfc"]:
+            self.lon_nums = 900
+            self.lat_nums = 451
         if self.days:
             self._hours = self.days * 2 * 24   # 过去 -7 ~ -14 天
         else:
@@ -29,10 +35,10 @@ class DelPikaData(BaseModel):
     def run(self):
         today = datetime.datetime.now().strftime("%Y%m%d00")
         time_range = self.get_times(today, self.hours_offset_from_zero)
-        print(time_range)
+        # print(time_range)
         
-        for i in range(1440):
-            for j in range(721):
+        for i in range(self.lon_nums):
+            for j in range(self.lat_nums):
                 key = f"{self.rds_key}|{i}|{j}"
                 res = self.rds.rds.hdel(key, *time_range)
         logging.info(f"{self.rds_key} - {key} delete {res} nums ")

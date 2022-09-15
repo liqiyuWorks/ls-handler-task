@@ -1,0 +1,15 @@
+*/__pycache__
+log
+.env.sh
+*/*/__pycache__
+.vscode
+input
+output
+tasks/*/*/__pycache__
+env
+pkg/.DS_Store
+tasks/.DS_Store
+.DS_Store
+tasks/liqiyuWorks
+scripts/mongo/test.txt
+scripts

@@ -75,7 +75,7 @@ class SsecSyncMgo:
                 # item["EstRMW"] = line[99:106].strip()
                 # item["MW_Score"] = line[106:112].strip()
                 item["lat"] = float(line[112:119].strip())
-                print(f"前-{line[119:128]}， 后-{float(line[119:128].strip())*(-1)}",)
+                # print(f"前-{line[119:128]}， 后-{float(line[119:128].strip())*(-1)}",)
                 item["lon"] = float(line[119:128].strip())*(-1)
                 # item["Fix_Mthd"] = line[128:136].strip()
                 # item["Sat"] = line[135:142].strip()

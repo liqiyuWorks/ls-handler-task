@@ -302,6 +302,7 @@ class WzTyphoon:
 
             point = new_point
             end_time = time_CST2UTC(str(point.pop("time").replace("T", ' ')))
+            # print(f">>> 当前时间是 {end_time}")
             point.update({
                 "lon": point.pop("lng"),
                 "reporttime": end_time,
@@ -504,9 +505,9 @@ class WzTyphoon:
                             "$set": {
                                 "forecast_sources": self._forecast_sources,
                                 "newest_report_time": self._newest_report_time,
-                                "end_time": point['forecast_time'],
-                                "lat": point.get('lat'),
-                                "lon": point.get('lon'),
+                                # "end_time": point['forecast_time'],
+                                # "lat": point.get('lat'),
+                                # "lon": point.get('lon'),
                             },
                             "$push": {
                                 f"forecast_data.{source}.{reporttime}": point
