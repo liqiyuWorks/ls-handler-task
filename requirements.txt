@@ -1,7 +1,6 @@
 pymongo~=3.11.3
 requests~=2.25.1
 APScheduler~=3.7.0
-playwright~=1.10.0
 redis~=3.5.3
 lxml~=4.6.3
 pandas~=1.2.5

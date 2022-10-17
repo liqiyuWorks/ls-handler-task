@@ -3,8 +3,6 @@
 from apscheduler.schedulers.blocking import BlockingScheduler
 import os
 
-RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
-
 class CustomScheduler:
     def __init__(self, obj, **kwargs):
         self.obj = obj(**kwargs)
@@ -42,11 +40,8 @@ class CustomScheduler:
         self.sched.add_job(self.obj.run, scheduler_mode, **dic)
 
     def run(self):
-        if RUN_ONCE:
-            self.obj.run()
-        else:
-            self.add_job()
-            self.sched.start()
+        self.add_job()
+        self.sched.start()
 
 
 

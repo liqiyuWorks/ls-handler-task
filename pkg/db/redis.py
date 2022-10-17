@@ -41,6 +41,9 @@ class RdsQueue:
             logging.error(traceback.format_exc())
         return result
 
+    def close(self):
+        self.rds.close()
+
 
 
 # 采用redis队列

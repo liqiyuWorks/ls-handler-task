@@ -3,6 +3,7 @@
 import os
 import time
 import datetime
+import pytz
 
 def format_time(india_time_str, india_format='%Y-%m-%d %H:%M:%S'):
     india_dt = datetime.datetime.strptime(india_time_str, india_format)
@@ -34,4 +35,12 @@ def time2UTCstamp(date, format_string="%Y%m%d%H"):
 def check_create_path(file):
     file_path = os.path.dirname(file)
     if not os.path.exists(file_path):
-        os.makedirs(file_path, 0o775)
+        os.makedirs(file_path,0o777)
+
+
+def unix_time(dt,india_format='%Y-%m-%d %H:%M:%S'):
+    # 转换成时间数组
+    ts = datetime.datetime.strptime(dt, india_format)
+    ts = ts+datetime.timedelta(hours=+8)
+    # 转换成时间戳
+    return int(time.mktime(ts.timetuple()))
