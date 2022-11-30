@@ -40,10 +40,7 @@ HEADERS = {
 def parse_url(url):
     '''发起请求'''
     time.sleep(1)
-    try:
-        random_agent = USER_AGENTS[randint(0, len(USER_AGENTS)-1)]
-        HEADERS["User-Agent"] = random_agent
-        res = requests.get(url,timeout=30)
-        return res
-    except Exception as e:
-        print('出现问题={}'.format(e))
+    random_agent = USER_AGENTS[randint(0, len(USER_AGENTS)-1)]
+    HEADERS["User-Agent"] = random_agent
+    res = requests.get(url,timeout=30)
+    return res

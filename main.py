@@ -14,6 +14,7 @@ from pkg.public.scheduler import CustomScheduler
 LOG_FILE = "./log/run.log"
 QUEUE_PREFIX = os.getenv('QUEUE_PREFIX', "handler")
 RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
+IS_OPEN_RDS= int(os.getenv('IS_OPEN_RDS', 1))
 
 def init_log():
     logger = logging.getLogger()
@@ -89,8 +90,9 @@ def main():
                 # 加入 分布式 redis读取任务的 线程
                 multi_handler.run_handler(CustomScheduler(TASK_DICT[task_type]).run)  # 加入 定时器
 
-            multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT,task_type)
-            multi_handler.close()
+            if IS_OPEN_RDS:
+                multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT,task_type)
+                multi_handler.close()
         else:
             logging.info('还未实现相关功能！')
     

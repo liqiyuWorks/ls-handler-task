@@ -35,7 +35,7 @@ class DelPikaData(BaseModel):
     def run(self):
         today = datetime.datetime.now().strftime("%Y%m%d00")
         time_range = self.get_times(today, self.hours_offset_from_zero)
-        # print(time_range)
+        print(f"{self.rds_key}")
         
         for i in range(self.lon_nums):
             for j in range(self.lat_nums):

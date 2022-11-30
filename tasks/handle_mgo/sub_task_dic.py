@@ -7,8 +7,8 @@ from pkg.public.scheduler import CustomScheduler
 
 def get_task_dic():
     task_dict = {
-        "sync_mashan_hourly_data": (lambda: CustomScheduler(SyncMashanHourlyData).run(),'同步马山逐小时数据到mongo'),
-        "sync_cma_new_ground": (lambda: CustomScheduler(SyncCmaNewGround).run(),'环保: 协助戴铭拉平new_ground表'),
-        "sync_history_cma_new_ground": (lambda:SyncCmaNewGround().history(),'环保: 协助戴铭同步历史年的数据到new_ground表(需传HISTORY_YEAR)')
+        "sync_mashan_hourly_data": (lambda: SyncMashanHourlyData(),'同步马山逐小时数据到mongo'),
+        "sync_cma_new_ground": (lambda: SyncCmaNewGround(),'环保: 协助戴铭拉平new_ground表'),
+        # "sync_history_cma_new_ground": (SyncCmaNewGround().history,'环保: 协助戴铭同步历史年的数据到new_ground表(需传HISTORY_YEAR)')
     }
     return task_dict

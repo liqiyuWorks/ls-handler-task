@@ -280,7 +280,7 @@ class WzTyphoon:
         self.stormname = self._insert_data["stormname"]
         self.cn_stormname = self._insert_data["cn_stormname"]
         self._points = typhoon.get("points")
-        self._insert_data["begin_time"] = str(typhoon.get('begin_time')).replace("T", ' ') # 实时数据
+        self._insert_data["begin_time"] = time_CST2UTC(str(typhoon.get('begin_time')).replace("T", ' ')) # 实时数据
         self._insert_data["realtime_data"] = []  # 实时数据
         self._insert_data["forecast_data"] = {}  # 预测数据
         self._forecast_sources = []
