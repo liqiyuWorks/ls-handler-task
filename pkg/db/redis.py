@@ -17,7 +17,7 @@ class RdsQueue:
             logging.info('rds connect ok, {}'.format(self.rds))
         else:
             self.rds = None
-            logging.info('rds connect failed...')
+            # logging.info('rds connect failed...')
         
 
     # data 为dict或者list类型， 需要json序列化

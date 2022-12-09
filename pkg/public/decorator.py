@@ -6,6 +6,7 @@ import traceback
 from apscheduler.schedulers.blocking import BlockingScheduler
 from pkg.public.wechat_push import WechatPush
 RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
+RELEASE_MODE = int(os.getenv('RELEASE_MODE', 0))
 
 class BaseDecorate:
     def exception_capture(self,func):
@@ -24,12 +25,14 @@ class BaseDecorate:
             try:
                 func(self, *args, **kwargs)
             except Exception as e:
-                if str(self.__class__.__name__) not in ["NoaaSyncMgo"]:
-                    notify_user = WechatPush()
-                    notify_user.notify(msg=f"""报错: {self.__class__.__name__}\n详情: {str(e)}""")
-                logging.error('run error {}'.format(e))
-                logging.error(traceback.format_exc())
+                if RELEASE_MODE:
+                    if str(self.__class__.__name__) not in ["NoaaSyncMgo"]:
+                        notify_user = WechatPush()
+                        notify_user.notify(msg=f"""报错: {self.__class__.__name__}\n详情: {str(e)}""")
+                    logging.error('run error {}'.format(e))
+                    logging.error(traceback.format_exc())
             finally:
+                print("\n ===输出结束=== ")
                 self.close()
 
         return wrapper

@@ -95,7 +95,8 @@ def main():
 
             if IS_OPEN_RDS:
                 multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT,task_type)
-                multi_handler.close()
+            # 等待结束
+            multi_handler.close()
         else:
             logging.info('还未实现相关功能！')
     
