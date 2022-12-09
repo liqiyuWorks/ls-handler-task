@@ -29,7 +29,7 @@ def get_task_dic():
             if key in task_dic:
                 logging.error('duplicate tasc_dic key {}'.format(key))
             else:
-                print(' ** TASK_TYPE = {} \t\t| Desc:"{}"'.format(key, value[1]))
+                print(' ** TASK_TYPE = {:30s} \t\t| Desc:"{}"'.format(key, value[1]))
                 task_dic[key] = value[0]
         
     print(' ===任务列表=== \n')

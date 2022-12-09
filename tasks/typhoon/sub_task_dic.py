@@ -19,7 +19,7 @@ def get_task_dic():
         "gfs_forecast_sync_mgo": (lambda: GfsForecastSyncMgo(),'同步GFS预报的数据到mgo'),
         "spider_currMerger2json": (lambda: SpiderCurrmergerJson(), "下载台风数据，生成json"),
         "wztfw_sync_mgo": (lambda: WZCurrSyncMgo(), "同步温州台风实时和预报数据！"),
-        "match_typhoon_gfs_forecast": (lambda: MatchTyphoonGfsForecast(), "定时更新台风库实时台风的预报台风编号"),
+        "match_typhoon_gfs_forecast": (lambda: MatchTyphoonGfsForecast(), "定匹配新台风库实时台风的预报台风编号"),
         
         "history_wztfw_sync_mgo": (lambda: WZCurrSyncMgo().history(), "一次性同步温州台风实时和预报数据(需传HISTORY_YEAR)"),
         "history_gfs_forecast_sync_mgo": (lambda: GfsForecastSyncMgo().history(),'一次性导入GFS的历史数据(需传HISTORY_YEAR)'),
