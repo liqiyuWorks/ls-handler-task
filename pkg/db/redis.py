@@ -9,11 +9,16 @@ import traceback
 
 class RdsQueue:
     def __init__(self):
-        host = os.getenv('REDIS_HOST', '127.0.0.1')
+        host = os.getenv('REDIS_HOST', None)
         port = int(os.getenv('REDIS_PORT', '6379'))
-        password = os.getenv('REDIS_PASSWORD', '')
-        self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True)
-        logging.info('rds connect ok, {}'.format(self.rds))
+        password = os.getenv('REDIS_PASSWORD', None)
+        if host:
+            self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True)
+            logging.info('rds connect ok, {}'.format(self.rds))
+        else:
+            self.rds = None
+            logging.info('rds connect failed...')
+        
 
     # data 为dict或者list类型， 需要json序列化
     def push(self, queue_name, data, extra=None):

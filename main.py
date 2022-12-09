@@ -30,34 +30,35 @@ def init_log():
 def rds_distributed_sys(task_dict,task_type):
     # print(f"任务列表: {task_dict}")
     rds = RdsQueue()
-    try:
-        while True:
-            try:
-                # 从队列获取任务'
-                task_rds_key = f"{QUEUE_PREFIX}_{task_type}"
-                # print(f"> {task_rds_key}")
-                task = rds.pop(task_rds_key)
-                if task is None:
-                    time.sleep(1)
-                    continue
-                logging.info(task)
-            except Exception as e:
-                logging.error(e)
-                logging.error(traceback.format_exc())
-                break
+    if rds.rds:
+        try:
+            while True:
+                try:
+                    # 从队列获取任务'
+                    task_rds_key = f"{QUEUE_PREFIX}_{task_type}"
+                    # print(f"> {task_rds_key}")
+                    task = rds.pop(task_rds_key)
+                    if task is None:
+                        time.sleep(1)
+                        continue
+                    logging.info(task)
+                except Exception as e:
+                    logging.error(e)
+                    logging.error(traceback.format_exc())
+                    break
 
-            run_task_type = task.get('task_type')
-            if task_dict.get(run_task_type):
-                print(f">> start rds function {run_task_type} <<")
-                task_dict[run_task_type]().run()
-                print(f">> end rds function {run_task_type} <<")
-            else:
-                logging.info('还未实现相关功能！')
-    except Exception as e:
-        print("出现错误：",str(e))
-    finally:
-        rds.close()
-        print("close rds ok!")
+                run_task_type = task.get('task_type')
+                if task_dict.get(run_task_type):
+                    print(f">> start rds function {run_task_type} <<")
+                    task_dict[run_task_type]().run()
+                    print(f">> end rds function {run_task_type} <<")
+                else:
+                    logging.info('还未实现相关功能！')
+        except Exception as e:
+            print("出现错误：",str(e))
+        finally:
+            rds.close()
+            print("close rds ok!")
 
 def main():
     TASK_DICT = get_task_dic()
