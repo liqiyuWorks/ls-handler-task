@@ -47,7 +47,9 @@ class RdsQueue:
         return result
 
     def close(self):
-        self.rds.close()
+        if self.rds:
+            self.rds.close()
+            logging.info('close loop rds RdsQueue engine ok!')
 
 
 

@@ -12,7 +12,11 @@ class BaseModel:
         if config:
             if config.get('handle_db','mgo') == 'mgo':
                 self.config = config
-                self.mgo = self.get_mgo()
+                if config.get("collection"):
+                    self.mgo = self.get_mgo_store()
+                else:
+                    # 自由mongo模式...
+                    self.mgo_client, self.mgo_db = get_mgo()
             if config.get('rds'):
                 self.rds = self.get_task_rds()
 
@@ -23,15 +27,16 @@ class BaseModel:
         return RdsTaskQueue(redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True))
                 
             
-    def get_mgo(self):
-        mgo_client, mgo_db = get_mgo()
-        self.config['mgo_client'] = mgo_client
-        self.config['mgo_db'] = mgo_db
+    def get_mgo_store(self):
+        self.mgo_client, self.mgo_db = get_mgo()
+        self.config['mgo_client'] = self.mgo_client
+        self.config['mgo_db'] = self.mgo_db
         return MgoStore(self.config)  # 初始化
 
     def close(self):
-        if hasattr(self,'mgo'):
-            self.mgo.close()
+        if hasattr(self,'mgo_client'):
+            if self.mgo_client:
+                self.mgo_client.close()
             logging.info('close mgo databases ok!')
 
         if hasattr(self,'rds'):

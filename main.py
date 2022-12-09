@@ -58,7 +58,9 @@ def rds_distributed_sys(task_dict,task_type):
             print("出现错误：",str(e))
         finally:
             rds.close()
-            print("close rds ok!")
+            logging.info("close rds ok!")
+    else:
+        logging.info("Thread redis end!")
 
 def main():
     TASK_DICT = get_task_dic()
