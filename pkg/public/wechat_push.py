@@ -4,6 +4,7 @@ from enum import Enum
 
 class PrefixEnums(Enum):
     default = "九方-李琦玉专属报警"
+    gold="黄金变动"
 
 
 class WechatPush:

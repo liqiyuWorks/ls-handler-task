@@ -6,7 +6,7 @@ from tasks.irrigation.subtasks.caiyun_nc2mgo import CaiyunNcMgo
 
 def get_task_dic():
     task_dict = {
-        "zktj_sync_mgo": (lambda: CustomScheduler(ZktjNcMgo).run(),'同步zktj的数据到mongo'),
-        "caiyun_sync_mgo": (lambda: CustomScheduler(CaiyunNcMgo).run(),'同步彩云数据到mongo'),
+        "zktj_sync_mgo": (lambda: CustomScheduler(ZktjNcMgo).run(),'数据同步=> zktj的数据到mongo'),
+        "caiyun_sync_mgo": (lambda: CustomScheduler(CaiyunNcMgo).run(),'数据同步=> 彩云数据到mongo'),
     }
     return task_dict

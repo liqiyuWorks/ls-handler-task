@@ -15,7 +15,7 @@ def get_current_dirs(path):
     return dirs
 
 def get_task_dic():
-    print('\n ===任务列表=== ')
+    print("任务列表".center(100, '='))
     task_dic = {}
     base_path =  os.path.dirname(os.path.abspath(__file__))
     dirs_list = get_current_dirs(base_path)
@@ -29,8 +29,9 @@ def get_task_dic():
             if key in task_dic:
                 logging.error('duplicate tasc_dic key {}'.format(key))
             else:
-                print(' ** TASK_TYPE = {:30s} \t\t| Desc:"{}"'.format(key, value[1]))
+                print(' ** TASK_TYPE={:30s} \t\t| Desc: "{}"'.format(key, value[1]))
                 task_dic[key] = value[0]
         
-    print(' ===任务列表=== \n')
+    # print(' ===任务列表=== \n')
+    print("任务列表".center(100, '=')+"\n")
     return task_dic

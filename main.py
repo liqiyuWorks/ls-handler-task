@@ -10,6 +10,7 @@ from pkg.db.redis import RdsQueue
 from pkg.public.thread import MultiThread
 from tasks.task_dic import get_task_dic
 from pkg.public.scheduler import CustomScheduler
+import json
 
 LOG_FILE = "./log/run.log"
 QUEUE_PREFIX = os.getenv('QUEUE_PREFIX', "handler")
@@ -41,17 +42,23 @@ def rds_distributed_sys(task_dict,task_type):
                     if task is None:
                         time.sleep(1)
                         continue
-                    logging.info(task)
                 except Exception as e:
                     logging.error(e)
                     logging.error(traceback.format_exc())
                     break
+                
+                if isinstance(task,str):
+                    try:
+                        task = json.loads(task)
+                    except Exception as e:
+                        task = {"task_type":task_type}
+                logging.info(task)
 
-                run_task_type = task.get('task_type')
+                run_task_type = task.get('task_type', task_type)
                 if task_dict.get(run_task_type):
-                    print(f">> start rds function {run_task_type} <<")
+                    print(f"\n @@@*** START RDS FUNCTION {run_task_type} *** ")
                     task_dict[run_task_type]().run()
-                    print(f">> end rds function {run_task_type} <<")
+                    print(f" @@@*** END RDS FUNCTION {run_task_type} *** \n")
                 else:
                     logging.info('还未实现相关功能！')
         except Exception as e:
@@ -88,7 +95,11 @@ def main():
         if TASK_DICT.get(task_type):
             multi_handler = MultiThread()
             if RUN_ONCE:
-                TASK_DICT[task_type]().run()
+                try:
+                    TASK_DICT[task_type]().run()
+                except Exception as e:
+                    logging.info('当前运行的是 非RUN function...')
+                    # TASK_DICT[task_type]()
             else:
                 # 加入 分布式 redis读取任务的 线程
                 multi_handler.run_handler(CustomScheduler(TASK_DICT[task_type]).run)  # 加入 定时器

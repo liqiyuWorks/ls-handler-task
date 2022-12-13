@@ -1,0 +1,9 @@
+# 数据库压测
+-
+  title: 查询台风最新预测信息及历史信息
+  request:
+    method: GET
+    host: https://typapi.niowx.com
+    path: /api/typhoon/forecast/newest
+  assert_expression: 200
+

@@ -7,7 +7,7 @@ from pkg.public.scheduler import CustomScheduler
 
 def get_task_dic():
     task_dict = {
-        "clean_bosch_caiyun_png": (lambda:CleanBoschCaiyunPng(),'定时生成GFS的处理文件发送到nc2redis'),
-        "heu_typhoon2json": (lambda: HeuGenTyphoonJson(),'定时生成哈工程所需的台风json文件'),
+        "clean_bosch_caiyun_png": (lambda:CleanBoschCaiyunPng(),'定时任务=> 删除给博世生成的彩云图片'),
+        "heu_typhoon2json": (lambda: HeuGenTyphoonJson(),'定时任务=> 生成哈工程台风json文件'),
     }
     return task_dict

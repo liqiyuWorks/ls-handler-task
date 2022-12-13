@@ -1,0 +1,9 @@
+# 数据库压测
+-
+  title: 查询台风推演路线（为航运避台）
+  request:
+    method: GET
+    host: https://typapi.niowx.com
+    path: /api/typhoon/current/deduce
+  assert_expression: 200
+

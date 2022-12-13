@@ -1,0 +1,16 @@
+# 数据库压测
+-
+  feature: 提供 ship meteo
+  story: 测试
+  title: get wwc
+  request:
+    method: POST
+    host: http://121.36.28.59:21630
+    path: /ship/meteo/wwc
+    data: 
+      ts: 1669852800000
+      lon: 125.41
+      lat: 33.2
+      azimuth: 20
+  assert_expression: 1
+

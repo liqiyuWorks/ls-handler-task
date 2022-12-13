@@ -13,3 +13,5 @@ tasks/.DS_Store
 tasks/liqiyuWorks
 scripts/mongo/test.txt
 scripts
+tasks/testapi/test_cases/*/__pycache__
+assets

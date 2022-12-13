@@ -15,9 +15,9 @@ export MONGO_PASSWORD=xxx
 export MONGO_USER=xxx
 export SCHEDULER_MODE=cron
 export CRON_HOUR=1
-export SCHEDULER_FLAG=1
 export INTERVAL_START_TIME="2022-05-05 10:50:00"
 export RUN_ONCE=1
+export IS_OPEN_RDS=0
 ```
 
 ## 3. 运行任务（两种方法）

@@ -23,9 +23,11 @@ class HeuGenTyphoonJson(BaseModel):
         res = parse_url(url="http://124.70.86.179:21612/api/typhoon/query")
         if res.status_code == 200:
             data = res.json().get("data")
+            print(data)
             for typhoon_name, typhoon_info in data.items():
                 typhoon_info['base_info']['begintime'] = unix_time(typhoon_info['base_info']['begintime'])
                 typhoon_info['history_sets']['source'] = "jiufang"
+                print(typhoon_info['base_info']['year'])
                 typhoon_info['base_info']['year'] = int(typhoon_info['base_info']['year'])
 
                 for i in typhoon_info['history_sets']['history_point']:
