@@ -1,7 +1,7 @@
 '''
 Author: lisheng
 Date: 2022-12-07 21:20:23
-LastEditTime: 2022-12-13 12:27:29
+LastEditTime: 2022-12-13 15:25:54
 LastEditors: lisheng
 Description: 用于错误信息的推送
 FilePath: /ls-handler-task/tasks/testapi/conftest.py
@@ -23,6 +23,6 @@ def pytest_terminal_summary(terminalreporter, exitstatus, config):
         for i in faild_object:
             logging.error(f">> 获取失败用例集对象名称location: {i.location}")
             notify_user = WechatPush()
-            a = str(i.location[0]).split("/")[3:]
+            a = str(i.location[0]).split("/")[-2:]
             msg = f"""报错: {a[0]}/{a[1]}:{i.location[1]}\n详情: {i.location[2]}"""
             notify_user.notify(msg=msg)

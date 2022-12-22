@@ -14,7 +14,7 @@ class RdsQueue:
         password = os.getenv('REDIS_PASSWORD', None)
         if host:
             self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True)
-            logging.info('rds connect ok, {}'.format(self.rds))
+            print('=> {} connected'.format(self.rds))
         else:
             self.rds = None
             # logging.info('rds connect failed...')
@@ -49,7 +49,7 @@ class RdsQueue:
     def close(self):
         if self.rds:
             self.rds.close()
-            logging.info('close loop rds RdsQueue engine ok!')
+            logging.info('close RdsQueue engine ok!')
 
 
 
