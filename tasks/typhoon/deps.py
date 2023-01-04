@@ -56,7 +56,8 @@ class HandleGFSTyphoon:
         )
 
     def query_realtime_typhoon(self):
-        query = {"stormid": self._stormid, "year": self._year}
+        # query = {"stormid": self._stormid, "year": self._year}
+        query = {"stormid": self._stormid}
         res = self._mgo.mgo_coll.find_one(query, {"datatime": 0},
                                           sort=[('end_reporttime', -1)])
         return res

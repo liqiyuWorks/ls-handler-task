@@ -63,86 +63,95 @@ def format_time(india_time_str, india_format='%Y%m%d%H%M',hours=8):
   
   
 def read_gfs_nc(input_path):
-    nc_obj = Dataset(input_path)
-    file_list = input_path.split(".")
-    date_str = file_list[0].split("/")[-2]
-    delta_hour = int(file_list[-2].replace("f",""))
-    print(f"> 文件时间: {date_str} => {delta_hour}")
-    since_time = datetime.strptime(date_str,"%Y%m%d%H")
-    latitude_li=(nc_obj.variables['lat_0'][:])
-    longitude_li=(nc_obj.variables['lon_0'][:])
-    
-
-    values_array = []
-    for value_name in ["PRES_P0_L1_GLL0"]:
-        value_li = np.array(nc_obj[value_name][:])
-        missing_value = get_default_value(nc_obj, value_name)
-        values_dict = {'value_name': value_name, 'value_li': value_li, 'missing_value': missing_value}
-        values_array.append(values_dict)
-
-    # 转换成时间数组
-    dt = since_time + timedelta(hours=delta_hour)
-    utc_time = dt + timedelta(hours=+8)
-    timestamp = int(time.mktime(utc_time.timetuple())) * 1000
-    # print(f"{since_time}, {delta_hour},{dt} => {timestamp}")
-    
-    array = []
-    for lat_index in range(0, len(latitude_li)):
-        for lon_index in range(0, len(longitude_li)):
-            for value_dict in values_array:
-                value_name = value_dict['value_name']
-                value = float(value_dict['value_li'][lat_index][lon_index])
-                missing_value = value_dict['missing_value']
-                if value == missing_value:
-                    continue
-                array.append(round(value,2))
-    
-    data = {
-        "ts": timestamp,
-        "data": {"array":array, "latLgh": len(latitude_li), "lonLgh":len(longitude_li)}
-    }
-    return data
-    
-def read_mfwam25_nc(input_path, since_time = datetime.strptime("1950010100","%Y%m%d%H")):
-    nc_obj = Dataset(input_path)
-    file_list = input_path.split(".")
-    time_li=(nc_obj.variables['time'][:])
-    latitude_li=(nc_obj.variables['latitude'][:])
-    longitude_li=(nc_obj.variables['longitude'][:])
-    
-
-    values_array = []
-    for value_name in ["VHM0"]:
-        value_li = np.array(nc_obj[value_name][:])
-        missing_value = get_default_value(nc_obj, value_name)
-        values_dict = {'value_name': value_name, 'value_li': value_li, 'missing_value': missing_value}
-        values_array.append(values_dict)
-    
-    array = []
-    for time_index in range(0, len(time_li)):
-        delta_hour = int(time_li[time_index])
+    try:
+        with Dataset(input_path) as nc_obj:
+            file_list = input_path.split(".")
+            date_str = file_list[0].split("/")[-2]
+            delta_hour = int(file_list[-2].replace("f",""))
+            # print(f"> 文件时间: {date_str} => {delta_hour}")
+            since_time = datetime.strptime(date_str,"%Y%m%d%H")
+            latitude_li=(nc_obj.variables['lat_0'][:])
+            longitude_li=(nc_obj.variables['lon_0'][:])
+            values_array = []
+            for value_name in ["PRES_P0_L1_GLL0"]:
+                try:
+                    value_li = np.array(nc_obj[value_name][:])
+                except Exception as e:
+                    logging.error(f"=> Gfs not find {value_name}(pressure) in {input_path}")
+                    return None
+                missing_value = get_default_value(nc_obj, value_name)
+                values_dict = {'value_name': value_name, 'value_li': value_li, 'missing_value': missing_value}
+                values_array.append(values_dict)
+    except Exception as e:
+        logging.error(f"=> gfs 没有该文件：{input_path}")
+        return None
+    else:
+        # 转换成时间数组
         dt = since_time + timedelta(hours=delta_hour)
-        utc_time = dt + timedelta(hours=+8)
-        timestamp = int(time.mktime(utc_time.timetuple())) * 1000
-        print(f"{since_time}, {delta_hour},{dt} => {timestamp}")
+        # utc_time = dt + timedelta(hours=+8)
+        # timestamp = int(time.mktime(utc_time.timetuple())) * 1000
+        # print(f"{since_time}, {delta_hour} => {dt}")
+        
+        array = []
         for lat_index in range(0, len(latitude_li)):
             for lon_index in range(0, len(longitude_li)):
                 for value_dict in values_array:
                     value_name = value_dict['value_name']
-                    value = float(value_dict['value_li'][time_index][lat_index][lon_index])
+                    value = float(value_dict['value_li'][lat_index][lon_index])
                     missing_value = value_dict['missing_value']
                     if value == missing_value:
                         continue
                     array.append(round(value,2))
+        
         data = {
-            "ts": timestamp,
-            "data": {"array": array, "latLgh": len(latitude_li), "lonLgh":len(longitude_li)}
+            "dt": dt.strftime("%Y-%m-%d %H:00:00"),
+            # "ts": timestamp,
+            "data": {"array":array, "latLgh": len(latitude_li), "lonLgh":len(longitude_li)}
         }
-        yield data
-    # data = {
-    #     "ts": timestamp,
-    #     "data": {"array":array, "latLgh": len(latitude_li), "lonLgh":len(longitude_li)}
-    # }
-    # return data
+        return data
+    
+def read_mfwam25_nc(input_path, since_time = datetime.strptime("1950010100","%Y%m%d%H")):
+    try:
+        with Dataset(input_path) as nc_obj:
+            time_li=(nc_obj.variables['time'][:])
+            latitude_li=(nc_obj.variables['latitude'][:])
+            longitude_li=(nc_obj.variables['longitude'][:])
+
+            values_array = []
+            for value_name in ["VHM0"]:
+                try:
+                    value_li = np.array(nc_obj[value_name][:])
+                except Exception as e:
+                    logging.error(f"=> Mfwam25 not find {value_name} in {input_path}")
+                    yield None
+                missing_value = get_default_value(nc_obj, value_name)
+                values_dict = {'value_name': value_name, 'value_li': value_li, 'missing_value': missing_value}
+                values_array.append(values_dict)
+    except Exception as e:
+        logging.error(f"=> mfwam25 没有该文件：{input_path}")
+        yield None
+    else:
+        array = []
+        for time_index in range(0, len(time_li)):
+            delta_hour = int(time_li[time_index])
+            dt = since_time + timedelta(hours=delta_hour)
+            # utc_time = dt + timedelta(hours=+8)
+            # timestamp = int(time.mktime(utc_time.timetuple())) * 1000
+            # print(f"{since_time}, {delta_hour} => {dt}")
+            for lat_index in range(0, len(latitude_li)):
+                for lon_index in range(0, len(longitude_li)):
+                    for value_dict in values_array:
+                        value_name = value_dict['value_name']
+                        value = float(value_dict['value_li'][time_index][lat_index][lon_index])
+                        missing_value = value_dict['missing_value']
+                        if value == missing_value:
+                            continue
+                        array.append(round(value,2))
+            data = {
+                "dt": dt.strftime("%Y-%m-%d %H:00:00"),
+                # "ts": timestamp,
+                "data": {"array": array, "latLgh": len(latitude_li), "lonLgh":len(longitude_li)}
+            }
+            yield data
 
 

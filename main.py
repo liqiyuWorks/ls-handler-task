@@ -49,8 +49,9 @@ def rds_distributed_sys(task_dict,task_type):
                         task = {"task_type":f"{QUEUE_PREFIX}_{task_type}"}
                 logging.info(task)
 
-                run_task_type = task.get('task_type', task_type)
-                run_task_type = run_task_type.replace("handler_","")
+                # run_task_type = task.get('task_type', task_type)
+                # run_task_type = run_task_type.replace("handler_","")
+                run_task_type = task_type
                 if task_dict.get(run_task_type):
                     print(f"\n @@@*** START CONSUMER {run_task_type} *** ")
                     task_dict[run_task_type]().run(task)

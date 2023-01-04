@@ -13,6 +13,7 @@ class TestShip:
         url = host + path
         response = request_handler(method, url)
         assert response['code'] == casinfo["assert_expression"]
+        # assert response['code'] == 1
         
     @pytest.mark.parametrize('casinfo', read_yaml_test_cases('tasks/testapi/test_cases/ship/cfg_typhoon_deduce.yaml'))
     def test_typhoon_current_deduce(self, casinfo):
