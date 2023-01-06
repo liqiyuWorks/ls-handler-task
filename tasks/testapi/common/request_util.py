@@ -1,7 +1,7 @@
 '''
 Author: lisheng
 Date: 2022-11-01 21:34:01
-LastEditTime: 2023-01-04 09:54:23
+LastEditTime: 2023-01-04 15:58:51
 LastEditors: lisheng
 Description: 
 FilePath: /ls-handler-task/tasks/testapi/common/request_util.py
@@ -56,9 +56,9 @@ def request_handler(method, url, data={}, headers={}):
             headers = {}
         method = method.upper()
         if method == "GET" or method == "DELETE":
-            return requests.request(method=method, url=url, params=data, timeout=5).json()
+            return requests.request(method=method, url=url, params=data).json()
         elif method == "POST" or method == "PUT":
-                return requests.request(method=method, url=url, headers=headers, json=data, timeout=5).json()
+                return requests.request(method=method, url=url, headers=headers, json=data).json()
         else:
             logging.debug(f"=====大兄弟===暂不支持{method}呢====你快点补充吧====")
             return None

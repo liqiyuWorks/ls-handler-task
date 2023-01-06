@@ -99,10 +99,11 @@ def read_gfs_nc(input_path):
                     value_name = value_dict['value_name']
                     value = float(value_dict['value_li'][lat_index][lon_index])
                     missing_value = value_dict['missing_value']
-                    if value == missing_value:
-                        continue
+                    # if value == missing_value:
+                    #     continue
                     array.append(round(value,2))
         
+        print(">>> array 长度", len(array),len(latitude_li), len(longitude_li))
         data = {
             "dt": dt.strftime("%Y-%m-%d %H:00:00"),
             # "ts": timestamp,
@@ -131,8 +132,9 @@ def read_mfwam25_nc(input_path, since_time = datetime.strptime("1950010100","%Y%
         logging.error(f"=> mfwam25 没有该文件：{input_path}")
         yield None
     else:
-        array = []
+        
         for time_index in range(0, len(time_li)):
+            array = []
             delta_hour = int(time_li[time_index])
             dt = since_time + timedelta(hours=delta_hour)
             # utc_time = dt + timedelta(hours=+8)
@@ -144,9 +146,10 @@ def read_mfwam25_nc(input_path, since_time = datetime.strptime("1950010100","%Y%
                         value_name = value_dict['value_name']
                         value = float(value_dict['value_li'][time_index][lat_index][lon_index])
                         missing_value = value_dict['missing_value']
-                        if value == missing_value:
-                            continue
+                        # if value == missing_value:
+                        #     continue
                         array.append(round(value,2))
+            print(">>> array 长度", len(array),len(latitude_li), len(longitude_li))
             data = {
                 "dt": dt.strftime("%Y-%m-%d %H:00:00"),
                 # "ts": timestamp,

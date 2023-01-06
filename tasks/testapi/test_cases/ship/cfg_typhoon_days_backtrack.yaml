@@ -4,6 +4,8 @@
   request:
     method: GET
     host: http://121.36.28.59:21615
-    path: /api/typhoon/forecast/newest
+    path: /api/typhoon/days/backtrack
+    params: 
+      days: 1
   assert_expression: 200
 
