@@ -21,7 +21,8 @@ class GfsRealtimeSyncMgo(BaseModel):
                 ('end_reporttime', pymongo.ASCENDING),
                 ('lat', pymongo.ASCENDING),
                 ('lon', pymongo.ASCENDING),
-                ('stormid', pymongo.ASCENDING)
+                ('stormid', pymongo.ASCENDING),
+                ('year', pymongo.ASCENDING)
             ],
             "idx_dic": {'embedded_idx': [('datatime.reporttime', pymongo.ASCENDING)]}  # 建立嵌套时间的索引
             }

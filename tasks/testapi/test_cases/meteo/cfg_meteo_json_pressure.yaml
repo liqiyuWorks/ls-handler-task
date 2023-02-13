@@ -1,0 +1,9 @@
+# 数据库压测
+-
+  title: 查询海平⾯⽓压线json数组
+  request:
+    method: GET
+    host: http://121.36.28.59:21630
+    path: /meteo/json/pressure
+  assert_expression: 1
+

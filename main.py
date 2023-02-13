@@ -96,8 +96,9 @@ def main():
             multi_handler = MultiThread(handlers)
             multi_handler.run()
             # 加入 分布式 redis读取任务的 线程
-            for task_type in task_type_list:
-                multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT, task_type)
+            if IS_OPEN_RDS:
+                for task_type in task_type_list:
+                    multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT, task_type)
             multi_handler.close()
         else:
             if TASK_DICT.get(task_type):

@@ -21,7 +21,7 @@ month_abbr_list = [
 ]
 
 class SsecSyncMgo:
-    def __init__(self, storm_id="06W",sea_area="06W"):
+    def __init__(self, storm_id="07P",sea_area="07P"):
         self.storm_id = storm_id
         self.sea_area = sea_area
         self.listing_index = "https://tropic.ssec.wisc.edu/real-time/adt/{}-list.txt".format(self.storm_id)
@@ -55,6 +55,7 @@ class SsecSyncMgo:
         if r.status_code == 200:
             rows = str(r.text).split('\n')
             for line in rows[5:-4]:
+                print("line",line)
                 item = {"stormid": self.storm_id, "sea_area": self.sea_area}
                 item["Date"] = line[:10].strip()
                 item["Time"] = line[10:17].strip()
@@ -76,7 +77,8 @@ class SsecSyncMgo:
                 # item["MW_Score"] = line[106:112].strip()
                 item["lat"] = float(line[112:119].strip())
                 # print(f"前-{line[119:128]}， 后-{float(line[119:128].strip())*(-1)}",)
-                item["lon"] = float(line[119:128].strip())*(-1)
+                lon_str = line[119:128].strip().split(" ")[-1]
+                item["lon"] = float(lon_str)*(-1)
                 # item["Fix_Mthd"] = line[128:136].strip()
                 # item["Sat"] = line[135:142].strip()
                 # item["VZA"] = line[142:150].strip()
@@ -361,11 +363,11 @@ class SsecSyncMgo:
                 logging.error('ssec:handle_wind_storm error {}'.format(e))
 
         # 爬取 ssec 的 archer数据
-        try:
-            self.handle_archer_storm(self.archer_index)
-            logging.info(f'Ssec {self.storm_id} - archer 数据导入成功！') 
-        except Exception as e:
-            logging.error('ssec:handle_archer_storm error {}'.format(e))
+        # try:
+        #     self.handle_archer_storm(self.archer_index)
+        #     logging.info(f'Ssec {self.storm_id} - archer 数据导入成功！') 
+        # except Exception as e:
+        #     logging.error('ssec:handle_archer_storm error {}'.format(e))
         
         self.close()
                 

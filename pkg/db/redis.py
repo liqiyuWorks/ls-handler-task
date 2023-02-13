@@ -7,13 +7,14 @@ import logging
 import logging.handlers
 import traceback
 
+
 class RdsQueue:
     def __init__(self):
         host = os.getenv('REDIS_HOST', None)
         port = int(os.getenv('REDIS_PORT', '6379'))
         password = os.getenv('REDIS_PASSWORD', None)
         if host:
-            self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True)
+            self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True, health_check_interval=30)
             print('=> {} connected'.format(self.rds))
         else:
             self.rds = None

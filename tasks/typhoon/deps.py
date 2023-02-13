@@ -38,13 +38,15 @@ class HandleGFSTyphoon:
         self._lon = self._row_dict.get('lon')
         self._basin = self._row_dict.get('basin')
         self._stormid = self._row_dict.get('stormid')
-        self._year = int(kwargs.get('year',2022))
+        
         self._reporttime_utc = self._row_dict.get('reporttime')
         self._leadtime = self._row_dict.get('leadtime')
         if len(self._reporttime_utc) != 19:
             self._reporttime_utc = self._reporttime_utc + ' 00:00:00'
             self._row_dict['reporttime'] = self._reporttime_utc
         self._stormname = self._row_dict.get('stormname')
+        # self._year = int(kwargs.get('year',2022))
+        self._year = int(self._reporttime_utc[:4])
 
         reporttime_utc = datetime.strptime(self._reporttime_utc,
                                            '%Y-%m-%d %H:%M:%S')
@@ -56,8 +58,8 @@ class HandleGFSTyphoon:
         )
 
     def query_realtime_typhoon(self):
-        # query = {"stormid": self._stormid, "year": self._year}
-        query = {"stormid": self._stormid}
+        query = {"stormid": self._stormid, "year": self._year}
+        # query = {"stormid": self._stormid}
         res = self._mgo.mgo_coll.find_one(query, {"datatime": 0},
                                           sort=[('end_reporttime', -1)])
         return res
