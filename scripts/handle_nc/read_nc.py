@@ -13,12 +13,13 @@ def get_default_value(nc_obj, value_name):
 def read_gfs_nc(input_path):
     with Dataset(input_path) as nc_obj:
         # print(f"> 文件时间: {date_str} => {delta_hour}")
-        print(nc_obj)
         latitude_li=(nc_obj.variables['lat_0'][:])
         longitude_li=(nc_obj.variables['lon_0'][:])
         values_array = []
-        # for value_name in ["PRES_P0_L1_GLL0"]:
-        for value_name in ["Pressure_reduced_to_MSL_msl"]:
+        print(nc_obj.variables['UGRD_P0_L103_GLL0'])
+        print(nc_obj.variables['PRMSL_P0_L101_GLL0'])
+        print(nc_obj.variables['UGRD_P0_L103_GLL0'].ncattrs())
+        for value_name in ["UGRD_P0_L103_GLL0"]:
             try:
                 value_li = np.array(nc_obj[value_name][:])
             except Exception as e:
@@ -42,7 +43,7 @@ def read_gfs_nc(input_path):
  
  
 if __name__ == '__main__':
-    input_path = "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-work/NC文件/GFS/gfs_2022080118.f159.nc"
+    input_path = "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-work/NC文件/GFS/2022121518/gfs.t18z.pgrb2.0p25.f360.nc"
     # input_path = "/Users/jiufangkeji/Desktop/gfs.t18z.pgrb2.0p25.f006.nc"
     read_gfs_nc(input_path)
 

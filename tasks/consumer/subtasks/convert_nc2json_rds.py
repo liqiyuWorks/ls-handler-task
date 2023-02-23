@@ -4,7 +4,7 @@ import os
 import json
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
-from tasks.consumer.deps import read_gfs_nc, read_mfwam25_nc, sync_redis
+from tasks.consumer.deps import read_gfs_press_nc, read_mfwam25_seawaveheight_nc, sync_redis
 
 obs_config = {
     "obs_ak": os.getenv('OBS_AK', 'JKRANSLTIOLXCZLBECVX'),
@@ -27,7 +27,7 @@ class ConvertGFSnc2jsonRds(BaseModel):
         input_file = task.get("input_file")
         print(input_file)
         if input_file:
-            data = read_gfs_nc(input_file)
+            data = read_gfs_press_nc(input_file)
             if data:
                 # 上传到redis
                 date = data["dt"]
@@ -47,7 +47,7 @@ class ConvertMFWAMnc2jsonRds(BaseModel):
     def run(self, task={}):
         input_file = task.get("input_file")
         if input_file:
-            for data in read_mfwam25_nc(input_file):
+            for data in read_mfwam25_seawaveheight_nc(input_file):
                 if data:
                     # 上传到redis
                     date = data["dt"]

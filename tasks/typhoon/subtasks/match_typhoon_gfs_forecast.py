@@ -15,7 +15,7 @@ class MatchTyphoonGfsForecast(BaseModel):
     DEFAULT_MIN_DUP_DISTANCE = int(os.getenv("DEFAULT_MIN_DUP_DISTANCE",2))
     DEFAULT_MIN_FOR_DISTANCE = int(os.getenv("DEFAULT_MIN_FOR_DISTANCE",10))
     DEFAULT_MIN_HIS_DISTANCE = int(os.getenv("DEFAULT_MIN_HIS_DISTANCE",30))
-    GFS_DELAY_DAYS = 3
+    GFS_DELAY_DAYS = 1
     def __init__(self, config=None):
         config = {'handle_db': 'mgo'}
         super().__init__(config)
@@ -142,6 +142,7 @@ class MatchTyphoonGfsForecast(BaseModel):
             year = int(typhoon.get('year', 0))
             ori_lon = typhoon.get('lon')
             ori_lat = typhoon.get('lat')
+            print(ori_lon, ori_lat)
             stormname = None
             if realtimesource == "中国":
                 if len(stormid) > 4:
@@ -177,8 +178,9 @@ class MatchTyphoonGfsForecast(BaseModel):
 
             # gfs 查询gfs符合时间段的所有的台风
             start_reporttime = (datetime.datetime.strptime(start_reporttime, "%Y-%m-%d %H:%M:%S") + datetime.timedelta(days=-self.GFS_DELAY_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
+            end_reporttime = (datetime.datetime.strptime(end_reporttime, "%Y-%m-%d %H:%M:%S") + datetime.timedelta(days=self.GFS_DELAY_DAYS)).strftime("%Y-%m-%d %H:%M:%S")
             gfs_query = {"newest_report_time": {'$gte': start_reporttime, "$lte": end_reporttime}}
-            # print(">>> gfs_query",gfs_query)
+            # print(">>> gfs_query", gfs_query)
             if self.mgo_db:
                 gfs_res = list(self.mgo_db["gfs_forecast_data"].find(gfs_query, {"reporttime": 0}))
             else:
@@ -225,6 +227,7 @@ class MatchTyphoonGfsForecast(BaseModel):
 
                 if distance_calc_list:
                     new_distance_calc_list = sorted(distance_calc_list, key=lambda x: x['diff'])
+                    # print(new_distance_calc_list[0])
                     diff = new_distance_calc_list[0].get('diff')
                     gfs_stormid = new_distance_calc_list[0].get('stormid')
                     gfs_basin = new_distance_calc_list[0].get('basin')
