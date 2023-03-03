@@ -34,7 +34,7 @@ def get_preday_files(file_path, filter_re):
 def main():
     parser = argparse.ArgumentParser(formatter_class=lambda prog: argparse.RawTextHelpFormatter(prog, width=200),
                                      description="""example:
-  python3 generator.py -q gfs --file_path ./data
+  gen_file2http.py --file_type smoc --file_path /hpcdata/test/smoc/20230302/
 """)
     parser.add_argument("--file_path", help="input path", required=True)
     parser.add_argument("--file_type", help="gfs", required=True, default="gfs")
