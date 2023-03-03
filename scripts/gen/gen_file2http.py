@@ -1,5 +1,3 @@
-# python generator.py -q local_nc2redis:gfs --file_path /Users/jiufangkeji/Desktop/NC文件/GFS/gfs_2022080118.f159.nc
-# python3 generator.py -q nc2redis:gfs --file_path /hpcdata/data_service/forecast/GFS/2022090106 --redis_host 124.70.86.179 --redis_port 21606 --redis_password Rds123
 import argparse
 import os.path
 import json
