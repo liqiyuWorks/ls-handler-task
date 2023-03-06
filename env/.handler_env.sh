@@ -1,0 +1,12 @@
+export MONGO_HOST=119.3.248.125
+export MONGO_PORT=21617
+export MONGO_DB=wuxi
+export MONGO_PASSWORD=Hello1234
+export MONGO_USER=mgo
+export REDIS_HOST=119.3.248.125
+export REDIS_PORT=21600
+export REDIS_PASSWORD=Rds123
+export SCHEDULER_MODE=interval
+export INTERVAL_HOUR=1
+export SCHEDULER_FLAG=0
+export RUN_ONCE=1

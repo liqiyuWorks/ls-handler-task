@@ -1,0 +1,3 @@
+export SCHEDULER_FLAG=1
+export RUN_ONCE=1
+export TASK_TYPE=clean_bosch_caiyun_png

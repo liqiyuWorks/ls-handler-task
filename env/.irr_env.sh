@@ -1,0 +1,10 @@
+export MONGO_HOST=119.3.248.125
+export MONGO_PORT=21617
+export MONGO_DB=bosch
+export MONGO_PASSWORD=Hello1234
+export MONGO_USER=mgo
+export SCHEDULER_MODE=inteval
+export INTERVAL_HOUR=1
+export SCHEDULER_FLAG=1
+export RUN_ONCE=1
+export TASK_TYPE=caiyun_sync_mgo

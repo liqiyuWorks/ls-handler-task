@@ -1,0 +1,9 @@
+export REDIS_HOST=124.70.86.179
+export REDIS_PORT=21600
+export REDIS_PASSWORD=Rds123
+export REDIS_TASK_HOST=124.70.86.179
+export REDIS_TASK_PORT=21605
+export REDIS_TASK_PASSWORD=Rds123
+export IS_CONSUMER=1
+# export TASK_TYPE=convert_gfs_nc2json_rds,convert_mfwam25_nc2json_rds
+export TASK_TYPE=convert_gfs_wind_nc2json_obs
