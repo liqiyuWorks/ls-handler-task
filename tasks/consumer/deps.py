@@ -129,8 +129,8 @@ def read_gfs_wind_nc(input_path):
 
             # for value_name in ["UGRD_P0_L103_GLL0","VGRD_P0_L103_GLL0"]:
             try:
-                value_u_li = np.array(nc_obj["UGRD_P0_L103_GLL0"][0])
-                value_v_li = np.array(nc_obj["VGRD_P0_L103_GLL0"][0])
+                value_u_li = np.array(nc_obj["UGRD_P0_L103_GLL0"][:])
+                value_v_li = np.array(nc_obj["VGRD_P0_L103_GLL0"][:])
             except Exception:
                 logging.error(
                     f"=> Gfs not find (wind) in {input_path}")
@@ -152,9 +152,9 @@ def read_gfs_wind_nc(input_path):
         for lat_index in range(0, len(latitude_li)):
             for lon_index in range(0, len(longitude_li)):
                 value_u = float(values_dict["wind_u"]
-                                ["value_li"][lat_index][lon_index])
+                                ["value_li"][0][lat_index][lon_index])
                 value_v = float(values_dict["wind_v"]
-                                ["value_li"][lat_index][lon_index])
+                                ["value_li"][0][lat_index][lon_index])
                 array_u.append(round(value_u, 2))
                 array_v.append(round(value_v, 2))
 
@@ -249,6 +249,7 @@ def read_mfwam25_seawaveheight_nc(input_path, since_time=datetime.strptime("1950
 
 
 def read_era5_wind_nc(input_path):
+    values_dict = {}
     try:
         with Dataset(input_path) as nc_obj:
             file_list = input_path.split(".")
@@ -258,40 +259,44 @@ def read_era5_wind_nc(input_path):
             since_time = datetime.strptime(date_str, "%Y%m%d%H")
             latitude_li = (nc_obj.variables['lat_0'][:])
             longitude_li = (nc_obj.variables['lon_0'][:])
-            values_array = []
-            for value_name in ["UGRD_P0_L103_GLL0"]:
-                try:
-                    value_li = np.array(nc_obj[value_name][0])
-                except Exception as e:
-                    logging.error(
-                        f"=> Gfs not find {value_name}(wind) in {input_path}")
-                    return None
-                missing_value = get_default_value(nc_obj, value_name)
-                values_dict = {'value_name': value_name,
-                               'value_li': value_li, 'missing_value': missing_value}
-                values_array.append(values_dict)
+
+            try:
+                value_u_li = np.array(nc_obj["u10"][0])
+                value_v_li = np.array(nc_obj["v10"][0])
+            except Exception:
+                logging.error(
+                    f"=> Gfs not find (wind) in {input_path}")
+                return None
+            u_missing_value = get_default_value(nc_obj, "u10")
+            v_missing_value = get_default_value(nc_obj, "v10")
+            values_dict["wind_u"] = {
+                'value_li': value_u_li, 'missing_value': u_missing_value}
+            values_dict["wind_v"] = {
+                'value_li': value_v_li, 'missing_value': v_missing_value}
     except Exception:
         logging.error(f"=> gfs 没有该文件：{input_path}")
         return None
     else:
         # 转换成时间数组
+        array_u = []
+        array_v = []
         dt = since_time + timedelta(hours=delta_hour)
-
-        array = []
         for lat_index in range(0, len(latitude_li)):
             for lon_index in range(0, len(longitude_li)):
-                for value_dict in values_array:
-                    value_name = value_dict['value_name']
-                    value = float(value_dict['value_li'][lat_index][lon_index])
-                    missing_value = value_dict['missing_value']
-                    # if value == missing_value:
-                    #     continue
-                    array.append(round(value, 2))
+                value_u = float(values_dict["wind_u"]
+                                ["value_li"][lat_index][lon_index])
+                value_v = float(values_dict["wind_v"]
+                                ["value_li"][lat_index][lon_index])
+                array_u.append(round(value_u, 2))
+                array_v.append(round(value_v, 2))
 
-        print(">>> array 长度", len(array), len(latitude_li), len(longitude_li))
+        print(">>> array_u 长度", len(array_u), len(
+            latitude_li), len(longitude_li))
+        print(">>> array_v 长度", len(array_v), len(
+            latitude_li), len(longitude_li))
         data = {
             "dt": dt.strftime("%Y%m%d%H"),
-            "data": {
+            "wind_u": {
                 "header": {
                     "nx": 1440,
                     "ny": 721,
@@ -304,7 +309,22 @@ def read_era5_wind_nc(input_path):
                     "parameterCategory": 2,
                     "parameterNumber": 2
                 },
-                "data": array
+                "data": array_u
+            },
+            "wind_v": {
+                "header": {
+                    "nx": 1440,
+                    "ny": 721,
+                    "lo1": -180,
+                    "la1": 90,
+                    "lo2": 179.75,
+                    "la2": -90,
+                    "dx": 0.25,
+                    "dy": 0.25,
+                    "parameterCategory": 2,
+                    "parameterNumber": 3
+                },
+                "data": array_v
             }
         }
         return data

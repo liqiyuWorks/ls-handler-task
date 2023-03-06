@@ -174,7 +174,7 @@ class ConvertGFSWindnc2jsonObs:
 class ConvertEra5Windnc2jsonObs:
     def __init__(self):
         self._this_time = None
-        self._header = {
+        self._header_u = {
             "nx": 1440,
             "ny": 721,
             "lo1": -180,
@@ -185,6 +185,18 @@ class ConvertEra5Windnc2jsonObs:
             "dy": 0.25,
             "parameterCategory": 2,
             "parameterNumber": 2
+        }
+        self._header_v = {
+            "nx": 1440,
+            "ny": 721,
+            "lo1": -180,
+            "la1": 90,
+            "lo2": 179.75,
+            "la2": -90,
+            "dx": 0.25,
+            "dy": 0.25,
+            "parameterCategory": 2,
+            "parameterNumber": 3
         }
 
     def upload_obs(self, date, data):
@@ -213,7 +225,7 @@ class ConvertEra5Windnc2jsonObs:
             if os.path.exists(file):
                 os.remove(file)
 
-    def upload_era5_wind_3h_obs(self, input_file):
+    def upload_era5_wind_obs(self, input_file):
         print(input_file)
         if input_file:
             data = read_era5_wind_nc(input_file)
@@ -225,4 +237,4 @@ class ConvertEra5Windnc2jsonObs:
     @decorate.exception_capture
     def run(self, task={}):
         input_file = task.get("input_file")
-        self.upload_era5_wind_3h_obs(input_file)
+        self.upload_era5_wind_obs(input_file)

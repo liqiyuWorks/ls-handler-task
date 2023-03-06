@@ -1,5 +1,5 @@
 from netCDF4 import Dataset
-from datetime import datetime
+from datetime import datetime, timedelta
 import numpy as np
 
 def get_default_value(nc_obj, value_name):
@@ -40,11 +40,37 @@ def read_gfs_nc(input_path):
                     array.append(round(value,2))
         
         print(">>> array 长度", len(array),len(latitude_li), len(longitude_li))
+        
+        
+def read_era5_nc(input_path):
+    since_time=datetime.strptime("1900010100", "%Y%m%d%H")
+    with Dataset(input_path) as nc_obj:
+        # print(f"> 文件时间: {date_str} => {delta_hour}")
+        latitude_li=(nc_obj.variables['latitude'][:])
+        longitude_li=(nc_obj.variables['longitude'][:])
+        time_li=(nc_obj.variables['time'][:])
+        # print(nc_obj.variables['u10'])
+        try:
+            u10_li = np.array(nc_obj["u10"][:])
+            v10_li = np.array(nc_obj["v10"][:])
+        except Exception as e:
+            return None
+        values_dict = {'u10_li': u10_li, 'v10_li': v10_li}
+        array = []
+        for ts_index in range(0, len(time_li)):
+            delta_hour = int(time_li[ts_index])
+            dt = since_time + timedelta(hours=delta_hour)
+            for lat_index in range(0, len(latitude_li)):
+                for lon_index in range(0, len(longitude_li)):
+                    u10 = float(values_dict['u10_li'][ts_index][lat_index][lon_index])
+                    array.append(round(u10,2))
+                    
+            print(f">>> {dt}  {len(array)}  {len(latitude_li)}, {len(longitude_li)}")
  
  
 if __name__ == '__main__':
-    input_path = "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-work/NC文件/GFS/2022121518/gfs.t18z.pgrb2.0p25.f360.nc"
-    # input_path = "/Users/jiufangkeji/Desktop/gfs.t18z.pgrb2.0p25.f006.nc"
-    read_gfs_nc(input_path)
+    # input_path = "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-work/NC文件/GFS/2022121518/gfs.t18z.pgrb2.0p25.f360.nc"
+    input_path = "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-work/NC文件/ERA5/era5_2021/ERA5.20211231.nc"
+    read_era5_nc(input_path)
 
      
