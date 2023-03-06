@@ -9,6 +9,29 @@ from datetime import datetime, timedelta
 import time
 
 
+def array360to180json(sourceData):
+    resultData = []
+    try:
+        for i in range(0, 721):
+            for j in range(0, 1440):
+                resultIndex = i * 1440 + j
+                sourceIndex = i * 1440 + j
+                _j = j - 720
+                if (_j < 0):
+                    _j += 1440
+                sourceIndex = i * 1440 + _j
+                temp = sourceData[sourceIndex]
+                # if temp is None:
+                #     resultData[resultIndex] = None
+                # else:
+                # print(resultIndex, sourceIndex, i, _j)
+                # resultData[resultIndex] = temp
+                resultData.append(temp)
+        return resultData
+    except Exception as e:
+        print("error", e)
+
+
 class ObsStore(object):
     def __init__(self, config):
         self.config = config
@@ -157,6 +180,10 @@ def read_gfs_wind_nc(input_path):
                                 ["value_li"][0][lat_index][lon_index])
                 array_u.append(round(value_u, 2))
                 array_v.append(round(value_v, 2))
+                
+                
+        array_u = array360to180json(array_u)
+        array_v = array360to180json(array_v)
 
         print(">>> array_u 长度", len(array_u), len(
             latitude_li), len(longitude_li))
@@ -168,9 +195,9 @@ def read_gfs_wind_nc(input_path):
                 "header": {
                     "nx": 1440,
                     "ny": 721,
-                    "lo1": -180,
+                    "lo1": 0,
                     "la1": 90,
-                    "lo2": 179.75,
+                    "lo2": 359.75,
                     "la2": -90,
                     "dx": 0.25,
                     "dy": 0.25,
@@ -183,9 +210,9 @@ def read_gfs_wind_nc(input_path):
                 "header": {
                     "nx": 1440,
                     "ny": 721,
-                    "lo1": -180,
+                    "lo1": 0,
                     "la1": 90,
-                    "lo2": 179.75,
+                    "lo2": 359.75,
                     "la2": -90,
                     "dx": 0.25,
                     "dy": 0.25,
@@ -300,9 +327,9 @@ def read_era5_wind_nc(input_path):
                 "header": {
                     "nx": 1440,
                     "ny": 721,
-                    "lo1": -180,
+                    "lo1": 0,
                     "la1": 90,
-                    "lo2": 179.75,
+                    "lo2": 359.75,
                     "la2": -90,
                     "dx": 0.25,
                     "dy": 0.25,
@@ -315,9 +342,9 @@ def read_era5_wind_nc(input_path):
                 "header": {
                     "nx": 1440,
                     "ny": 721,
-                    "lo1": -180,
+                    "lo1": 0,
                     "la1": 90,
-                    "lo2": 179.75,
+                    "lo2": 359.75,
                     "la2": -90,
                     "dx": 0.25,
                     "dy": 0.25,
