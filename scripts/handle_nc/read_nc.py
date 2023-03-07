@@ -79,6 +79,7 @@ def read_era5_nc(input_path):
 if __name__ == '__main__':
     # input_path = "/Users/jiufangkeji/Documents/JiufangCodes/jiufang-work/NC文件/GFS/2022121518/gfs.t18z.pgrb2.0p25.f360.nc"
     input_path = "/hpcdata/test/grib2nc/gfs/atmos/2023030600/gfs.t00z.pgrb2.0p25.f015.nc"
+    # ssh 测试 代码
     read_gfs_nc(input_path)
 
      
