@@ -9,23 +9,43 @@ from datetime import datetime, timedelta
 import time
 
 
+HEADER_U = {
+    "nx": 1440,
+    "ny": 721,
+    "lo1": -180,
+    "la1": 90,
+    "lo2": 179.75,
+    "la2": -90,
+    "dx": 0.25,
+    "dy": 0.25,
+    "parameterCategory": 2,
+    "parameterNumber": 2
+}
+HEADER_V = {
+    "nx": 1440,
+    "ny": 721,
+    "lo1": -180,
+    "la1": 90,
+    "lo2": 179.75,
+    "la2": -90,
+    "dx": 0.25,
+    "dy": 0.25,
+    "parameterCategory": 2,
+    "parameterNumber": 3
+}
+
+
 def array360to180json(sourceData):
     resultData = []
     try:
         for i in range(0, 721):
             for j in range(0, 1440):
-                resultIndex = i * 1440 + j
                 sourceIndex = i * 1440 + j
                 _j = j - 720
                 if (_j < 0):
                     _j += 1440
                 sourceIndex = i * 1440 + _j
                 temp = sourceData[sourceIndex]
-                # if temp is None:
-                #     resultData[resultIndex] = None
-                # else:
-                # print(resultIndex, sourceIndex, i, _j)
-                # resultData[resultIndex] = temp
                 resultData.append(temp)
         return resultData
     except Exception as e:
@@ -180,8 +200,7 @@ def read_gfs_wind_nc(input_path):
                                 ["value_li"][0][lat_index][lon_index])
                 array_u.append(round(value_u, 2))
                 array_v.append(round(value_v, 2))
-                
-                
+
         array_u = array360to180json(array_u)
         array_v = array360to180json(array_v)
 
@@ -195,9 +214,9 @@ def read_gfs_wind_nc(input_path):
                 "header": {
                     "nx": 1440,
                     "ny": 721,
-                    "lo1": 0,
+                    "lo1": -180,
                     "la1": 90,
-                    "lo2": 359.75,
+                    "lo2": 179.75,
                     "la2": -90,
                     "dx": 0.25,
                     "dy": 0.25,
@@ -210,9 +229,9 @@ def read_gfs_wind_nc(input_path):
                 "header": {
                     "nx": 1440,
                     "ny": 721,
-                    "lo1": 0,
+                    "lo1": -180,
                     "la1": 90,
-                    "lo2": 359.75,
+                    "lo2": 179.75,
                     "la2": -90,
                     "dx": 0.25,
                     "dy": 0.25,
@@ -275,86 +294,51 @@ def read_mfwam25_seawaveheight_nc(input_path, since_time=datetime.strptime("1950
             yield data
 
 
-def read_era5_wind_nc(input_path):
-    values_dict = {}
+def read_era5_wind_nc(input_path, since_time=datetime.strptime("1900010100", "%Y%m%d%H")):
+    u_value_li = []
+    v_value_li = []
     try:
         with Dataset(input_path) as nc_obj:
-            file_list = input_path.split(".")
-            date_str = file_list[0].split("/")[-2]
-            delta_hour = int(file_list[-2].replace("f", ""))
-            # print(f"> 文件时间: {date_str} => {delta_hour}")
-            since_time = datetime.strptime(date_str, "%Y%m%d%H")
-            latitude_li = (nc_obj.variables['lat_0'][:])
-            longitude_li = (nc_obj.variables['lon_0'][:])
+            time_li = (nc_obj.variables['time'][:])
+            latitude_li = (nc_obj.variables['latitude'][:])
+            longitude_li = (nc_obj.variables['longitude'][:])
 
             try:
-                value_u_li = np.array(nc_obj["u10"][0])
-                value_v_li = np.array(nc_obj["v10"][0])
-            except Exception:
+                u_value_li = np.array(nc_obj["u10"][:])
+                v_value_li = np.array(nc_obj["v10"][:])
+            except Exception as e:
                 logging.error(
-                    f"=> Gfs not find (wind) in {input_path}")
-                return None
-            u_missing_value = get_default_value(nc_obj, "u10")
-            v_missing_value = get_default_value(nc_obj, "v10")
-            values_dict["wind_u"] = {
-                'value_li': value_u_li, 'missing_value': u_missing_value}
-            values_dict["wind_v"] = {
-                'value_li': value_v_li, 'missing_value': v_missing_value}
-    except Exception:
-        logging.error(f"=> gfs 没有该文件：{input_path}")
-        return None
+                    f"=> Mfwam25 not find in {input_path}")
+                yield None
+    except Exception as e:
+        logging.error(f"=> mfwam25 没有该文件：{input_path}")
+        yield None
     else:
-        # 转换成时间数组
-        array_u = []
-        array_v = []
-        dt = since_time + timedelta(hours=delta_hour)
-        for lat_index in range(0, len(latitude_li)):
-            for lon_index in range(0, len(longitude_li)):
-                value_u = float(values_dict["wind_u"]
-                                ["value_li"][lat_index][lon_index])
-                value_v = float(values_dict["wind_v"]
-                                ["value_li"][lat_index][lon_index])
-                array_u.append(round(value_u, 2))
-                array_v.append(round(value_v, 2))
-
-        print(">>> array_u 长度", len(array_u), len(
-            latitude_li), len(longitude_li))
-        print(">>> array_v 长度", len(array_v), len(
-            latitude_li), len(longitude_li))
-        data = {
-            "dt": dt.strftime("%Y%m%d%H"),
-            "wind_u": {
-                "header": {
-                    "nx": 1440,
-                    "ny": 721,
-                    "lo1": 0,
-                    "la1": 90,
-                    "lo2": 359.75,
-                    "la2": -90,
-                    "dx": 0.25,
-                    "dy": 0.25,
-                    "parameterCategory": 2,
-                    "parameterNumber": 2
-                },
-                "data": array_u
-            },
-            "wind_v": {
-                "header": {
-                    "nx": 1440,
-                    "ny": 721,
-                    "lo1": 0,
-                    "la1": 90,
-                    "lo2": 359.75,
-                    "la2": -90,
-                    "dx": 0.25,
-                    "dy": 0.25,
-                    "parameterCategory": 2,
-                    "parameterNumber": 3
-                },
-                "data": array_v
+        for time_index in range(0, len(time_li)):
+            u_array = []
+            v_array = []
+            delta_hour = int(time_li[time_index])
+            dt = since_time + timedelta(hours=delta_hour)
+            for lat_index in range(0, len(latitude_li)):
+                for lon_index in range(0, len(longitude_li)):
+                    u_value = float(
+                        u_value_li[time_index][lat_index][lon_index])
+                    v_value = float(
+                        v_value_li[time_index][lat_index][lon_index])
+                    u_array.append(round(u_value, 2))
+                    v_array.append(round(v_value, 2))
+            u_array = array360to180json(u_array)
+            v_array = array360to180json(v_array)
+            # print(">>> u_array 长度", len(u_array),
+            #       len(latitude_li), len(longitude_li))
+            # print(">>> v_array 长度", len(v_array),
+            #       len(latitude_li), len(longitude_li))
+            data = {
+                "dt": dt.strftime("%Y%m%d%H"),
+                "wind_u": u_array,
+                "wind_v": v_array
             }
-        }
-        return data
+            yield data
 
 
 def sync_redis(rds, date, elem, value):

@@ -228,11 +228,13 @@ class ConvertEra5Windnc2jsonObs:
     def upload_era5_wind_obs(self, input_file):
         print(input_file)
         if input_file:
-            data = read_era5_wind_nc(input_file)
-            if data:
-                self._this_time = data["dt"]
-                self._3h_data = np.array(data["data"]["data"])
-                self.upload_obs(self._this_time, data["data"])
+            for data in read_era5_wind_nc(input_file):
+                if data:
+                    self._this_time = data["dt"]
+                    wind_u = {"header": self._header_u, "data": data["wind_u"]}
+                    wind_v = {"header": self._header_v, "data": data["wind_v"]}
+                    data = [wind_u, wind_v]
+                    self.upload_obs(self._this_time, data)
 
     @decorate.exception_capture
     def run(self, task={}):

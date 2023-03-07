@@ -56,8 +56,9 @@ def read_era5_nc(input_path):
         except Exception as e:
             return None
         values_dict = {'u10_li': u10_li, 'v10_li': v10_li}
-        array = []
+        
         for ts_index in range(0, len(time_li)):
+            array = []
             delta_hour = int(time_li[ts_index])
             dt = since_time + timedelta(hours=delta_hour)
             for lat_index in range(0, len(latitude_li)):
@@ -66,6 +67,9 @@ def read_era5_nc(input_path):
                     array.append(round(u10,2))
                     
             print(f">>> {dt}  {len(array)}  {len(latitude_li)}, {len(longitude_li)}")
+            # break
+                    
+        
  
  
 if __name__ == '__main__':
