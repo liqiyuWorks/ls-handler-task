@@ -81,5 +81,3 @@ if __name__ == '__main__':
     input_path = "/hpcdata/test/grib2nc/gfs/atmos/2023030600/gfs.t00z.pgrb2.0p25.f015.nc"
     # read_gfs_nc(input_path)
     read_era5_nc(input_path)
-
-     
