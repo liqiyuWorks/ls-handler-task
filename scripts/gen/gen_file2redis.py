@@ -1,4 +1,5 @@
-# python3 generator.py -q handler_convert_gfs_wind_nc2json_obs --file_path /hpcdata/test/grib2nc/gfs/atmos/2023021918 --redis_host 192.168.0.200 --redis_port 21604 --redis_password Rds123
+# python3 gen_file2redis.py -q handler_convert_gfs_wind_nc2json_obs --file_path /hpcdata/test/grib2nc/gfs/atmos/2023021918 --redis_host 192.168.0.200 --redis_port 21604 --redis_password Rds123
+# python3 gen_file2redis.py -q handler_convert_era5_wind_nc2json_obs --file_path /data2/history_data/ERA5/data/2022 --redis_host 139.9.115.225 --redis_port 21604 --redis_password Rds123
 import argparse
 import os.path
 
