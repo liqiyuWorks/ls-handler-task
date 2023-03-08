@@ -340,6 +340,50 @@ def read_era5_wind_nc(input_path, since_time=datetime.strptime("1900010100", "%Y
             }
             yield data
 
+def read_era5_hour_wind_nc(input_path, since_time=datetime.strptime("1900010100", "%Y%m%d%H")):
+    u_value_li = []
+    v_value_li = []
+    try:
+        with Dataset(input_path) as nc_obj:
+            time = (nc_obj.variables['time'][0])
+            latitude_li = (nc_obj.variables['latitude'][:])
+            longitude_li = (nc_obj.variables['longitude'][:])
+
+            try:
+                u_value_li = np.array(nc_obj["WIND_U10"][:])
+                v_value_li = np.array(nc_obj["WIND_V10"][:])
+            except Exception as e:
+                logging.error(
+                    f"=> Era5 not find in {input_path}")
+                return None
+    except Exception as e:
+        logging.error(f"=> Era5 没有该文件：{input_path}")
+        return None
+    else:
+        u_array = []
+        v_array = []
+        dt = since_time + timedelta(hours=int(time))
+        for lat_index in range(0, len(latitude_li)):
+            for lon_index in range(0, len(longitude_li)):
+                u_value = float(
+                    u_value_li[0][lat_index][lon_index])
+                v_value = float(
+                    v_value_li[0][lat_index][lon_index])
+                u_array.append(round(u_value, 2))
+                v_array.append(round(v_value, 2))
+        u_array = array360to180json(u_array)
+        v_array = array360to180json(v_array)
+        # print(">>> u_array 长度", len(u_array),
+        #       len(latitude_li), len(longitude_li))
+        # print(">>> v_array 长度", len(v_array),
+        #       len(latitude_li), len(longitude_li))
+        data = {
+            "dt": dt.strftime("%Y%m%d%H"),
+            "wind_u": u_array,
+            "wind_v": v_array
+        }
+        return data
+
 
 def sync_redis(rds, date, elem, value):
     try:

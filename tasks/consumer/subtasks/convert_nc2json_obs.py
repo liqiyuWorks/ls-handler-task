@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-from tasks.consumer.deps import read_gfs_wind_nc, check_create_path, ObsStore, read_era5_wind_nc
+from tasks.consumer.deps import read_gfs_wind_nc, check_create_path, ObsStore, read_era5_wind_nc,read_era5_hour_wind_nc
 import logging
 import requests
 import datetime
@@ -235,8 +235,24 @@ class ConvertEra5Windnc2jsonObs:
                     wind_v = {"header": self._header_v, "data": data["wind_v"]}
                     data = [wind_u, wind_v]
                     self.upload_obs(self._this_time, data)
+                    
+    def upload_era5_hour_wind_obs(self, input_file):
+        print(input_file)
+        if input_file:
+            data = read_era5_hour_wind_nc(input_file)
+            if data:
+                self._this_time = data["dt"]
+                wind_u = {"header": self._header_u, "data": data["wind_u"]}
+                wind_v = {"header": self._header_v, "data": data["wind_v"]}
+                data = [wind_u, wind_v]
+                self.upload_obs(self._this_time, data)
+
+    @decorate.exception_capture
+    def run_57(self, task={}):
+        input_file = task.get("input_file")
+        self.upload_era5_wind_obs(input_file)
 
     @decorate.exception_capture
     def run(self, task={}):
         input_file = task.get("input_file")
-        self.upload_era5_wind_obs(input_file)
+        self.upload_era5_hour_wind_obs(input_file)
