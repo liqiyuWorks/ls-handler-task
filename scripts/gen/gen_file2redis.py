@@ -1,4 +1,4 @@
-# python3 gen_file2redis.py -q handler_convert_gfs_wind_nc2json_obs --file_path /data2/data_service/api/gfs/2023010100 --file_re "202301" --redis_host 139.9.115.225 --redis_port 21604 --redis_password Rds123
+# python3 gen_file2redis.py -q handler_convert_gfs_wind_nc2json_obs --file_path /data2/data_service/api/gfs --file_re "202301" --redis_host 139.9.115.225 --redis_port 21604 --redis_password Rds123
 # python3 gen_file2redis.py -q handler_convert_era5_wind_nc2json_obs --file_path /hpcdata/data_service/history/ERA5/0p25/20220718/ --file_re "202207" --redis_host 192.168.0.200 --redis_port 21604 --redis_password Rds123
 import argparse
 import os.path
@@ -11,7 +11,7 @@ import subprocess
 def get_dir_files(file_path, filter_re):
     if filter_re == "*":
         filter_re = ""
-    cmd = '/usr/bin/ls {} |grep "{}"'.format(file_path, filter_re)
+    cmd = 'ls {} |grep "{}"'.format(file_path, filter_re)
     print('cmd {}'.format(cmd))
     res_dir_list = subprocess.getstatusoutput(cmd)
     if res_dir_list[1]:
