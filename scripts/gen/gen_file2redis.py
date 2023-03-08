@@ -1,11 +1,34 @@
-# python3 gen_file2redis.py -q handler_convert_gfs_wind_nc2json_obs --file_path /hpcdata/test/grib2nc/gfs/atmos/2023021918 --redis_host 192.168.0.200 --redis_port 21604 --redis_password Rds123
-# python3 gen_file2redis.py -q handler_convert_era5_wind_nc2json_obs --file_path /data2/history_data/ERA5/data/2022 --redis_host 139.9.115.225 --redis_port 21604 --redis_password Rds123
+# python3 gen_file2redis.py -q handler_convert_gfs_wind_nc2json_obs --file_path /data2/data_service/api/gfs/2023010100 --file_re "202301" --redis_host 139.9.115.225 --redis_port 21604 --redis_password Rds123
+# python3 gen_file2redis.py -q handler_convert_era5_wind_nc2json_obs --file_path /hpcdata/data_service/history/ERA5/0p25/20220718/ --file_re "202207" --redis_host 192.168.0.200 --redis_port 21604 --redis_password Rds123
 import argparse
 import os.path
 
 import redis
 import json
 import subprocess
+
+
+def get_dir_files(file_path, filter_re):
+    if filter_re == "*":
+        filter_re = ""
+    cmd = '/usr/bin/ls {} |grep "{}"'.format(file_path, filter_re)
+    print('cmd {}'.format(cmd))
+    res_dir_list = subprocess.getstatusoutput(cmd)
+    if res_dir_list[1]:
+        print('execute {} result {}'.format(cmd, res_dir_list))
+        res_dir_list = res_dir_list[1].split('\n')
+    else:
+        res_dir_list = []
+    files_list = []
+    for dir in res_dir_list:
+        if not os.path.isdir(os.path.join(file_path, dir)):
+            files_list.append(os.path.join(file_path, dir))
+        else:
+            for root, dirs, files in os.walk(os.path.join(file_path, dir)):
+                for file in files:
+                    path = os.path.join(root, file)
+                    files_list.append(path)
+    return files_list
 
 
 def get_files(file_path, filter_re):
@@ -51,8 +74,12 @@ def main():
     if args.cur_year == "yes":
         files = get_preday_files(args.file_path, args.file_re)
     else:
-        files = get_files(args.file_path, args.file_re)
+        if(os.path.isdir(args.file_path)):
+            files = get_dir_files(args.file_path, args.file_re)
+        else:
+            files = get_files(args.file_path, args.file_re)
     sorted_files = sorted(files)
+    print(sorted_files)
     for file in sorted_files:
         task = {
             'task_type': args.queue,
