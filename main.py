@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import os, sys
+import os
+import sys
 import getopt
 import time
 import logging
 import logging.handlers
-import traceback
 from pkg.db.redis import RdsQueue
 from pkg.public.thread import MultiThread
 from tasks.task_dic import get_task_dic
@@ -15,21 +15,25 @@ import json
 LOG_FILE = "./log/run.log"
 QUEUE_PREFIX = os.getenv('QUEUE_PREFIX', "handler")
 IS_CONSUMER = int(os.getenv('IS_CONSUMER', 0))
-RUN_ONCE= int(os.getenv('RUN_ONCE', 0))
-IS_OPEN_RDS= int(os.getenv('IS_OPEN_RDS', 1))
+RUN_ONCE = int(os.getenv('RUN_ONCE', 0))
+IS_OPEN_RDS = int(os.getenv('IS_OPEN_RDS', 1))
+
 
 def init_log():
     logger = logging.getLogger()
-    formatter = logging.Formatter('%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s')
     sh = logging.StreamHandler()  # 往屏幕上输出
     sh.setFormatter(formatter)  # 设置屏幕上显示的格式
-    th = logging.handlers.TimedRotatingFileHandler(LOG_FILE, when='H', interval=1, backupCount=40)
+    th = logging.handlers.TimedRotatingFileHandler(
+        LOG_FILE, when='H', interval=1, backupCount=40)
     th.setFormatter(formatter)
     logger.addHandler(sh)
     logger.addHandler(th)
     logger.setLevel(logging.INFO)
- 
-def rds_distributed_sys(task_dict,task_type):
+
+
+def rds_distributed_sys(task_dict, task_type):
     # print(f"任务列表: {task_dict}")
     rds = RdsQueue()
     if rds.rds:
@@ -41,12 +45,12 @@ def rds_distributed_sys(task_dict,task_type):
                 if task is None:
                     time.sleep(1)
                     continue
-                
-                if isinstance(task,str):
+
+                if isinstance(task, str):
                     try:
                         task = json.loads(task)
                     except Exception as e:
-                        task = {"task_type":f"{QUEUE_PREFIX}_{task_type}"}
+                        task = {"task_type": f"{QUEUE_PREFIX}_{task_type}"}
                 logging.info(task)
 
                 # run_task_type = task.get('task_type', task_type)
@@ -59,9 +63,10 @@ def rds_distributed_sys(task_dict,task_type):
                 else:
                     logging.info('还未实现相关功能！')
             except Exception as e:
-                print("出现错误 => ",str(e))              
+                print("出现错误 => ", str(e))
     else:
         logging.info("Thread redis end...!")
+
 
 def main():
     TASK_DICT = get_task_dic()
@@ -73,8 +78,7 @@ def main():
 
     if task_type == "list" or task_type is None:
         sys.exit(-1)
-        
-        
+
     if IS_CONSUMER:
         if "," in task_type:
             task_type_list = task_type.split(",")
@@ -82,11 +86,12 @@ def main():
             multi_handler = MultiThread()
             for task_type in task_type_list:
                 logging.info(f">> current consume func is {task_type}")
-                multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT, task_type)
+                multi_handler.run_arg_handler(
+                    rds_distributed_sys, TASK_DICT, task_type)
             multi_handler.close()
         else:
             # 仅开启 redis 循环消费
-            rds_distributed_sys(TASK_DICT,task_type)
+            rds_distributed_sys(TASK_DICT, task_type)
     else:
         if "," in task_type:
             task_type_list = task_type.split(",")
@@ -98,7 +103,8 @@ def main():
             # 加入 分布式 redis读取任务的 线程
             if IS_OPEN_RDS:
                 for task_type in task_type_list:
-                    multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT, task_type)
+                    multi_handler.run_arg_handler(
+                        rds_distributed_sys, TASK_DICT, task_type)
             multi_handler.close()
         else:
             if TASK_DICT.get(task_type):
@@ -110,19 +116,18 @@ def main():
                         logging.info(f'当前运行的是非run()的函数,eg: history()...')
                 else:
                     # 加入 分布式 redis读取任务的 线程
-                    multi_handler.run_handler(CustomScheduler(TASK_DICT[task_type]).run)  # 加入 定时器
+                    multi_handler.run_handler(CustomScheduler(
+                        TASK_DICT[task_type]).run)  # 加入 定时器
 
                 if IS_OPEN_RDS:
-                    multi_handler.run_arg_handler(rds_distributed_sys, TASK_DICT,task_type)
+                    multi_handler.run_arg_handler(
+                        rds_distributed_sys, TASK_DICT, task_type)
                 # 等待结束
                 multi_handler.close()
             else:
                 logging.info('还未实现相关功能！')
-        
+
 
 if __name__ == '__main__':
     init_log()
     main()
-    
-
-    
