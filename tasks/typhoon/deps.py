@@ -450,6 +450,7 @@ class WzTyphoon:
                     "$set": {
                         "stormname": self.stormname,
                         "cn_stormname": self.cn_stormname,
+                        "begin_time": self._insert_data["begin_time"],
                         "end_time": point['reporttime'],
                         "lat": point.get('lat'),
                         "lon": point.get('lon'),
