@@ -3,7 +3,7 @@ import json
 from enum import Enum
 
 class PrefixEnums(Enum):
-    default = "九方-李琦玉专属报警"
+    default = "JF"
     gold="黄金变动"
 
 
@@ -15,9 +15,10 @@ class WechatPush:
 
     def notify(self,  prefix=PrefixEnums.default.value,msg="test"):
         try:
-            prefix_pre=f"『{prefix}』\n"
+            prefix_pre=f"[{prefix}] "
             conn = http.client.HTTPSConnection(host=self.server, port=self.port)
-            rqbody = json.dumps(dict(token=self.token, msg=prefix_pre+msg))
+            msg=prefix_pre+msg
+            rqbody = json.dumps(dict(token=self.token, msg=msg))
             conn.request(method="POST", url="/to/", body=rqbody)
             resp = conn.getresponse()
             rs = json.loads(resp.read().decode("utf8"))

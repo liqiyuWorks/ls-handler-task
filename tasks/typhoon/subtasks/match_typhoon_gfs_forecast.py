@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
-from scipy.spatial import distance
+from pkg.util.format import distance
 import datetime
 import pytz
 import copy
@@ -74,8 +74,8 @@ class MatchTyphoonGfsForecast(BaseModel):
                 for i in wztfw_res:
                     if i.get("stormname") != stormname:
                         try:
-                            diff = distance.euclidean((i['realtime_data'][0]['lat'], i['realtime_data'][0]['lon']),
-                                                      (wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon']))
+                            diff =distance(i['realtime_data'][0]['lat'], i['realtime_data'][0]['lon'],
+                                                      wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon'])
                             if diff > self.DEFAULT_MIN_DUP_DISTANCE:
                                 wz["realtimesource"] = "中国"
                                 new_typhoon.append(wz)
@@ -87,8 +87,8 @@ class MatchTyphoonGfsForecast(BaseModel):
                 # 外循环gfs - 去除GFS中与温州台风网相同的台风
                 for i in gfs_res:
                     # print(f"i['stormid']={i['stormid']},i['stormname']={i['stormname']},stormname={stormname}")
-                    diff = distance.euclidean((i['datatime'][0]['lat'], i['datatime'][0]['lon']),
-                                              (wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon']))
+                    diff =distance(i['datatime'][0]['lat'], i['datatime'][0]['lon'],
+                                              wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon'])
                     
                     if i.get("stormname") == stormname:
                         wz["stormid"] = i["stormid"]
@@ -101,8 +101,8 @@ class MatchTyphoonGfsForecast(BaseModel):
                             new_gfs_res.remove(i)
                             
                 for i in new_ssec:
-                    diff = distance.euclidean((i['datatime'][0]['lat'], i['datatime'][0]['lon']),
-                                              (wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon']))
+                    diff =distance(i['datatime'][0]['lat'], i['datatime'][0]['lon'],
+                                              wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon'])
                     
                     if i.get("stormname") == stormname:
                         wz["stormid"] = i["stormid"]
@@ -219,7 +219,7 @@ class MatchTyphoonGfsForecast(BaseModel):
                         new_item['_id'] = gfs_id
                         new_item['stormid'] = first_reporttime_item['stormid']
                         new_item['basin'] = first_reporttime_item['basin']
-                        diff = distance.euclidean((ori_lon, ori_lat),(first_reporttime_item['lon'], first_reporttime_item['lat']))
+                        diff = distance(ori_lon, ori_lat,first_reporttime_item['lon'], first_reporttime_item['lat'])
                         new_item['diff'] = diff
                         new_item['newest_report_time'] = newest_report_time
                         new_item["embedded"] = res
@@ -257,8 +257,8 @@ class MatchTyphoonGfsForecast(BaseModel):
             if stormname != "TD":
                 # 外循环gfs-去除GFS中与温州台风网相同的台风
                 for i in gfs_res:
-                    diff = distance.euclidean((i['datatime'][0]['lat'], i['datatime'][0]['lon']),
-                                              (wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon']))
+                    diff = distance(i['datatime'][0]['lat'], i['datatime'][0]['lon'],
+                                              wz['realtime_data'][0]['lat'], wz['realtime_data'][0]['lon'])
                     if diff < self.DEFAULT_MIN_DUP_DISTANCE or i.get("stormname") == stormname:
                         wz["stormid"] = i["stormid"]
                         wz["year"] = i["year"]
@@ -338,7 +338,7 @@ class MatchTyphoonGfsForecast(BaseModel):
                         new_item['_id'] = gfs_id
                         new_item['stormid'] = first_reporttime_item['stormid']
                         new_item['basin'] = first_reporttime_item['basin']
-                        diff = distance.euclidean((ori_lon, ori_lat), (first_reporttime_item['lon'], first_reporttime_item['lat']))
+                        diff = distance(ori_lon, ori_lat, first_reporttime_item['lon'], first_reporttime_item['lat'])
                         new_item['diff'] = diff
                         new_item['newest_report_time'] = newest_report_time
                         # 获取所有的嵌入式文档中最符合的起报时间数据map

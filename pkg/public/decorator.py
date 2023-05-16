@@ -16,8 +16,8 @@ class BaseDecorate:
                 func(self, *args, **kwargs)
             except Exception as e:
                 notify_user = WechatPush()
-                notify_user.notify(
-                    msg=f"""报错: {self.__class__.__name__}\n详情: {str(e)}""")
+                msg=f"""报错: {self.__class__.__name__} 详情: {str(e)}"""
+                notify_user.notify(msg=msg)
                 logging.error('run error {}'.format(e))
                 logging.error(traceback.format_exc())
         return wrapper
@@ -31,7 +31,7 @@ class BaseDecorate:
                     if str(self.__class__.__name__) not in ["NoaaSyncMgo"]:
                         notify_user = WechatPush()
                         notify_user.notify(
-                            msg=f"""报错: {self.__class__.__name__}\n详情: {str(e)}""")
+                            msg=f"""报错: {self.__class__.__name__} 详情: {str(e)}""")
                     logging.error('run error {}'.format(e))
                     logging.error(traceback.format_exc())
             finally:
