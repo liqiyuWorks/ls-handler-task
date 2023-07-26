@@ -8,6 +8,11 @@ import logging
 
 COEFFICIENT_KT_MS = 0.51444  # 统一kt
 NAUTICAL_MILE_KM = 1.852    # 统一nautical mile
+# 1kts=1.85 km/h
+# speed是 km/h => kts = speed/NAUTICAL_MILE_KM
+# max_speed m/s => kt = max_speed/COEFFICIENT_KT_MS
+
+### 将错就错  温州台风网  speed是 km/h => kts = speed/COEFFICIENT_KT_MS
 
 class HandleGFSTyphoon:
     def __init__(self, **kwargs):
@@ -310,8 +315,8 @@ class WzTyphoon:
                 "lon": point.pop("lng"),
                 "reporttime": end_time,
                 "minp": point.get('pressure',0),
-                "maxsp": round(float(point.get("speed",0))/COEFFICIENT_KT_MS,0),
-                "speed": round(float(point.get('move_speed',0))/COEFFICIENT_KT_MS,0),
+                "maxsp": round(float(point.get("speed",0))/COEFFICIENT_KT_MS,0),  # 最大速度18
+                "speed": round(float(point.get('move_speed',0))/COEFFICIENT_KT_MS,0),   # 移动速度8公里/h
                 "direction": point.get('move_dir',0),
 
                 "radius34": round(float(point.get('radius7',0))/NAUTICAL_MILE_KM,2),
