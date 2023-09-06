@@ -75,7 +75,7 @@ class DownCaiyunRadar(BaseModel):
         # 遍历res json\
         for rar in radar_list[-self.step:]:
             png_url = rar.get("url")
-            reporttime_name = rar.get("name")
+            reporttime_name = rar.get("name").lower()
             # 分别保存
             response = requests.get(png_url)
             year = reporttime_name[:4]
@@ -83,9 +83,9 @@ class DownCaiyunRadar(BaseModel):
             day = reporttime_name[6:8]
             save_file_path = self._file_path + \
                 f"/{year}/{mon}/{day}/" + reporttime_name
-            obs_key = f"radar/{year}/{mon}/{day}/" + reporttime_name
+            # obs_key = f"radar/{year}/{mon}/{day}/" + reporttime_name
             rds_newest_time = self.rds.rds.get(self._rds_key)
             now_time = str(reporttime_name)[:-4]
             if self.check_duplicate(rds_newest_time, now_time):
                 self.save_local(save_file_path, response)
-                self.upload_obs(save_file_path, obs_key)
+                # self.upload_obs(save_file_path, obs_key)

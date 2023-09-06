@@ -71,7 +71,7 @@ class DownZjwaterCloudImagery(BaseModel):
         # 遍历res json\
         for rar in radar_list[-self.step:]:
             png_url = rar.get("url")
-            reporttime_name = rar.get("name")
+            reporttime_name = rar.get("name").lower()
             # 分别保存
             response = requests.get(png_url)
             year = reporttime_name[:4]
