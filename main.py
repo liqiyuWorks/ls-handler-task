@@ -113,7 +113,7 @@ def main():
                     try:
                         TASK_DICT[task_type]().run()
                     except Exception as e:
-                        logging.info(f'当前运行的是非run()的函数,eg: history()...')
+                        logging.info(f'当前运行的是非run()的函数,eg: history()...{e}')
                 else:
                     # 加入 分布式 redis读取任务的 线程
                     multi_handler.run_handler(CustomScheduler(

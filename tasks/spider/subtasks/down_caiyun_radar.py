@@ -4,25 +4,8 @@ import time
 import os
 import requests
 from pkg.util.file import check_create_path
-from pkg.public.obs import ObsStore
 from pkg.public.decorator import decorate
 from pkg.public.models import BaseModel
-
-
-obs_config = {
-    "obs_ak":
-    os.getenv('OBS_AK', 'XJQLMEECPKMP9V7FFJAI'),
-    "obs_sk":
-    os.getenv('OBS_SK', 'AefBvozcNZwoUi5XeGkRcUeI8GerIdFPCasxVsaW'),
-    "obs_server":
-    os.getenv('OBS_SERVER', 'https://obs.cn-north-4.myhuaweicloud.com'),
-    "obs_bucket":
-    os.getenv('OBS_BUCKET', 'nine-confidential'),
-    "obs_root":
-    os.getenv('OBS_ROOT', 'resources'),
-    "obs_domain":
-    os.getenv('OBS_DOMAIN', 'https://cfdt.ninecosmos.cn'),
-}
 
 
 class DownCaiyunRadar(BaseModel):
@@ -32,20 +15,10 @@ class DownCaiyunRadar(BaseModel):
     def __init__(self) -> None:
         config = {"rds": True, "handle_db": "rds"}
         super(DownCaiyunRadar, self).__init__(config)
-        # print("rds", self.rds.rds.set(
-        #     "wztfw_radar_newest_reporttime", "202309051305"))
-        # print("rds", self.rds.rds.set(
-        #     "wztfw_cloud_newest_reporttime", "202309051240"))
         self._file_path = os.getenv(
             "FILE_PATH", "/Users/jiufangkeji/Documents/JiufangCodes/ls-handler-task")
         self.step = int(os.getenv("STEP", 3))
         self._rds_key = "wztfw_radar_newest_reporttime"
-
-    def upload_obs(self, save_file_path, obs_key):
-        obs_data = {"file_name": save_file_path, "obs_key": obs_key}
-        obs_store = ObsStore(obs_config)
-        url = obs_store.set(obs_data)
-        print('==>上传OBS成功，url={}'.format(url))
 
     def save_local(self, save_file_path, res):
         check_create_path(save_file_path)

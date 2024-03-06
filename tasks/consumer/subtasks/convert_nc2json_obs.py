@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import os
 import json
-from tasks.consumer.deps import read_gfs_wind_nc, check_create_path, ObsStore, read_era5_wind_nc,read_era5_hour_wind_nc
+from tasks.consumer.deps import read_gfs_wind_nc, check_create_path, ObsStore, read_era5_wind_nc, read_era5_hour_wind_nc
 import logging
 import requests
 import datetime
@@ -164,7 +164,7 @@ class ConvertGFSWindnc2jsonObs:
         input_file = task.get("input_file")
         self.upload_gfs_wind_3h_obs(input_file)
         self.get_last_3h_data()  # 获取上个时刻的数据
-        if type(self._last_3h_data) == list and len(self._last_3h_data) ==2:
+        if type(self._last_3h_data) == list and len(self._last_3h_data) == 2:
             self.interpolation_1h_2h()  # 插值缺失2h的数据
         else:
             self.upload_obs(self._1h_time, self._3h_data)
@@ -235,7 +235,7 @@ class ConvertEra5Windnc2jsonObs:
                     wind_v = {"header": self._header_v, "data": data["wind_v"]}
                     data = [wind_u, wind_v]
                     self.upload_obs(self._this_time, data)
-                    
+
     def upload_era5_hour_wind_obs(self, input_file):
         print(input_file)
         if input_file:
