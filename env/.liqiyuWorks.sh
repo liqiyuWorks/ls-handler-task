@@ -6,4 +6,4 @@ export MONGO_PASSWORD=Hello1234
 export MONGO_USER=liqiyu
 export RUN_ONCE=1
 export IS_OPEN_RDS=0
-export TASK_TYPE=weibo_spider
+export TASK_TYPE=spider_weiyun_ship_owners

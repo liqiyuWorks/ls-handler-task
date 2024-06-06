@@ -8,9 +8,6 @@ import pymongo
 import requests
 from pkg.public.models import BaseModel
 
-
-import json
-
 import requests
 
 
@@ -39,19 +36,19 @@ def tranlate(source, direction="auto2zh"):
     return json.loads(response.text)["target"]
 
 
-class SpiderMarinelink(BaseModel):
-    Marinelink_URL = "https://www.marinelink.com/"
+class SpiderMaritimeExecutive(BaseModel):
+    Marinelink_URL = "https://www.maritime-executive.com/"
 
     def __init__(self):
         config = {
             'handle_db': 'mgo',
-            'collection': 'marinelink_papers',
+            'collection': 'maritime_executive_papers',
             'uniq_idx': [
                 ('aid', pymongo.ASCENDING),
                 # ('date', pymongo.ASCENDING),
             ]
         }
-        super(SpiderMarinelink, self).__init__(config)
+        super(SpiderMaritimeExecutive, self).__init__(config)
 
     def query_article(self, url):
         # print(f'链接地址：{url}')
@@ -80,22 +77,21 @@ class SpiderMarinelink(BaseModel):
         item = {}
         for link in links:
             href = link.get('href')  # 获取链接地址
-            if "/news/" not in href or "maritime" in href:
-                continue
-            link_text = link.text_content()  # 获取链接文本
-            # print(f'链接文本：{link_text}')
-            aid = str(href).split("/")[-1]
-            url = self.Marinelink_URL+href
-            eng_text_list, zh_text_list = self.query_article(url=url)
-            item = {
-                "aid": aid,
-                "eng_link_text": link_text,
-                "zh_link_text": tranlate(link_text, "auto2zh"),
-                "date": dataTime,
-                "eng_text_list": eng_text_list,
-                "zh_text_list": zh_text_list,
-            }
+            # if "/news/" not in href or "maritime" in href:
+            #     continue
+            # link_text = link.text_content()  # 获取链接文本
+            # # print(f'链接文本：{link_text}')
+            # aid = str(href).split("/")[-1]
+            # url = self.Marinelink_URL+href
+            # eng_text_list, zh_text_list = self.query_article(url=url)
+            # item = {
+            #     "aid": aid,
+            #     "eng_link_text": link_text,
+            #     "zh_link_text": tranlate(link_text, "auto2zh"),
+            #     "date": dataTime,
+            #     "eng_text_list": eng_text_list,
+            #     "zh_text_list": zh_text_list,
+            # }
 
-            self.mgo.set(None, item)
-            print(aid, " - ", dataTime, "success")
-            # break
+            # self.mgo.set(None, item)
+            # print(aid, " - ", dataTime, "success")

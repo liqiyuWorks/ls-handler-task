@@ -11,7 +11,7 @@ from pkg.public.models import BaseModel
 
 class SpiderEtsPrices(BaseModel):
     # ETS_PRICE_URL = "https://flo.uri.sh/visualisation/12603037/embed?auto=1"
-    ETS_PRICE_URL = "https://new-carbon-price-viewer-fdc966f57ddd.herokuapp.com/_dash-layout"
+    ETS_PRICE_URL = "http://new-carbon-price-viewer-fdc966f57ddd.herokuapp.com/_dash-layout"
 
     def __init__(self):
         config = {
@@ -48,7 +48,7 @@ class SpiderEtsPrices(BaseModel):
     def run(self):
         dataTime = (datetime.datetime.now() -
                     datetime.timedelta(days=10)).strftime("%Y-%m-%d")
-        res = requests.get(url=self.ETS_PRICE_URL)
+        res = requests.get(url=self.ETS_PRICE_URL, timeout=60)
         if res.status_code == 200:
             data = res.json().get("props", {}).get("children", [])[1].get(
                 "props", {}).get("children", [])[1].get("props", {}).get(
@@ -56,7 +56,6 @@ class SpiderEtsPrices(BaseModel):
 
             days = data[0].get("x")
             prices = data[0].get("y")
-            print(dataTime)
             for day, value in zip(days, prices):
                 if day < dataTime:
                     continue

@@ -10,3 +10,7 @@ env
 pkg/.DS_Store
 tasks/.DS_Store
 .DS_Store
+gfs
+.pytest_cache
+assets
+zscripts
