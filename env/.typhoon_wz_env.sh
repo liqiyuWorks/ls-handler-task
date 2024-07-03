@@ -12,3 +12,5 @@ export INTERVAL_START_TIME="2022-05-05 00:10:00"
 export TASK_TYPE=wztfw_sync_mgo
 export IS_OPEN_RDS=0
 # export HISTORY_YEAR=2022
+export INPUT_PATH=/Users/jiufangkeji/Documents/JiufangCodes/ls-handler-task/input/
+export GLOBAL_ROWS_TYPHOON=1

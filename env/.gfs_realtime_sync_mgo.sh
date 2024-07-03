@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 export MONGO_HOST=121.36.28.59
 export MONGO_PORT=21617
-export MONGO_DB=typhoon_v1   # 测试库
+export MONGO_DB=typhoon   # 测试库
 export MONGO_PASSWORD=Hello1234
 export MONGO_USER=mgo
 export SCHEDULER_MODE=interval

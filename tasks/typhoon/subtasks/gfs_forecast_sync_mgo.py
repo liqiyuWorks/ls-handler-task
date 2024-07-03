@@ -10,7 +10,7 @@ from pkg.public.models import BaseModel
 from tasks.typhoon.deps import HandleGFSTyphoon
 import subprocess
 from pkg.public.decorator import decorate
-INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/input/gfs/")
+INPUT_PATH = os.getenv('INPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/ls-handler-task/gfs/")
 
 
 class GfsForecastSyncMgo(BaseModel):
@@ -38,7 +38,7 @@ class GfsForecastSyncMgo(BaseModel):
                 }
             }
         super(GfsForecastSyncMgo, self).__init__(config)
-        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2022")  
+        self.HISTORY_YEAR = os.getenv('HISTORY_YEAR', "2024")  
 
     def history(self):
         try:
