@@ -38,6 +38,7 @@ class HandleGFSTyphoon:
             "speed": round(float(self._row_dict.pop("speed", 0))/COEFFICIENT_KT_MS,0),
             "direction": round(float(self._row_dict.pop("direction", 0)),0),
             })
+        print(self._row_dict)
         self.default_distance = int(os.getenv('DEFAULT_DISTANCE', 50))
         self._lat = self._row_dict.get('lat')
         self._lon = self._row_dict.get('lon')
