@@ -53,6 +53,7 @@ class SpiderEtsPrices(BaseModel):
             data = res.json().get("props", {}).get("children", [])[1].get(
                 "props", {}).get("children", [])[1].get("props", {}).get(
                     "children", [])[0].get("props", {}).get("figure").get("data", [])
+            print(data)
 
             days = data[0].get("x")
             prices = data[0].get("y")
