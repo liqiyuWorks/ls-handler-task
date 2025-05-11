@@ -1,1 +1,0 @@
-nohup python3 -u main.py calculate_vessel_performance > handler_calculate_vessel_performance.log 2>&1 &
