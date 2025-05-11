@@ -20,6 +20,15 @@ class BaseModel:
             if config.get('rds'):
                 self.rds = self.get_task_rds()
 
+            if config.get('cache_rds'):
+                self.cache_rds = self.get_cache_rds()
+
+    def get_cache_rds(self):
+        host = os.getenv('CACHE_REDIS_HOST', '127.0.0.1')
+        port = int(os.getenv('CACHE_REDIS_PORT', '6379'))
+        password = os.getenv('CACHE_REDIS_PASSWORD', None)
+        return redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True, health_check_interval=30)
+
     def get_task_rds(self):
         host = os.getenv('REDIS_TASK_HOST', '127.0.0.1')
         port = int(os.getenv('REDIS_TASK_PORT', '6379'))
@@ -41,6 +50,10 @@ class BaseModel:
         if hasattr(self, 'rds'):
             self.rds.close()
             logging.info('close rds databases ok!')
+            
+        if hasattr(self, 'cache_rds'):
+            self.cache_rds.close()
+            logging.info('close cache_rds databases ok!')
 
     def history(self):
         pass

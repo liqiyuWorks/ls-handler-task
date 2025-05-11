@@ -6,22 +6,41 @@ import json
 import logging
 import logging.handlers
 import traceback
+from redis.connection import ConnectionPool
 
 
 class RdsQueue:
+    _pool = None  # 类变量，共享连接池
+
     def __init__(self):
+
         host = os.getenv('REDIS_HOST', None)
         port = int(os.getenv('REDIS_PORT', '6379'))
         password = os.getenv('REDIS_PASSWORD', None)
         if host:
-            self.rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True, health_check_interval=30)
-            print('=> {} connected'.format(self.rds))
+            if RdsQueue._pool is None:
+                # 初始化全局连接池（仅第一次实例化时执行）
+                RdsQueue._pool = ConnectionPool(
+                    host=host,
+                    port=port,
+                    db=0,
+                    password=password,
+                    max_connections=10,  # 根据实际情况调整
+                    decode_responses=True,
+                    health_check_interval=30
+                )
+            self.rds = redis.Redis(connection_pool=RdsQueue._pool)
+
+            # old
+            # self.rds = redis.Redis(host=host, port=port, db=0, password=password,
+            #                        decode_responses=True, health_check_interval=30)
+            logging.info('=> {} connected'.format(self.rds))
         else:
             self.rds = None
-            # logging.info('rds connect failed...')
-        
+            logging.info('rds connect failed...')
 
     # data 为dict或者list类型， 需要json序列化
+
     def push(self, queue_name, data, extra=None):
         result = None
         try:
@@ -47,11 +66,15 @@ class RdsQueue:
             logging.error(traceback.format_exc())
         return result
 
+    @classmethod
+    def close_pool(cls):
+        if cls._pool:
+            cls._pool.disconnect()
+            logging.info('close RdsQueue engine ok!')
+
     def close(self):
         if self.rds:
             self.rds.close()
-            logging.info('close RdsQueue engine ok!')
-
 
 
 # 采用redis队列
@@ -90,5 +113,3 @@ class RdsTaskQueue:
             self.rds.close()
         except Exception as e:
             logging.error(e)
-
-        

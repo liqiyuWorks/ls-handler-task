@@ -35,7 +35,7 @@ class BaseDecorate:
                     logging.error('run error {}'.format(e))
                     logging.error(traceback.format_exc())
             finally:
-                print("\n ===输出结束=== ")
+                # print("\n ===输出结束=== ")
                 self.close()
 
         return wrapper

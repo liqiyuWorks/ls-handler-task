@@ -37,33 +37,41 @@ def rds_distributed_sys(task_dict, task_type):
     # print(f"任务列表: {task_dict}")
     rds = RdsQueue()
     if rds.rds:
-        while True:
-            try:
-                # 从队列获取任务'
-                task_rds_key = f"{QUEUE_PREFIX}_{task_type}"
-                task = rds.pop(task_rds_key)
-                if task is None:
-                    time.sleep(1)
-                    continue
+        try:
+            while True:
+                try:
+                    # 从队列获取任务'
+                    task_rds_key = f"{QUEUE_PREFIX}_{task_type}"
+                    task = rds.pop(task_rds_key)
+                    if task is None:
+                        time.sleep(1)
+                        continue
 
-                if isinstance(task, str):
-                    try:
-                        task = json.loads(task)
-                    except Exception as e:
-                        task = {"task_type": f"{QUEUE_PREFIX}_{task_type}"}
-                logging.info(task)
+                    if isinstance(task, str):
+                        try:
+                            task = json.loads(task)
+                        except Exception as e:
+                            task = {"task_type": f"{QUEUE_PREFIX}_{task_type}"}
+                    logging.info(task)
 
-                # run_task_type = task.get('task_type', task_type)
-                # run_task_type = run_task_type.replace("handler_","")
-                run_task_type = task_type
-                if task_dict.get(run_task_type):
-                    print(f"\n @@@*** START CONSUMER {run_task_type} *** ")
-                    task_dict[run_task_type]().run(task)
-                    print(f" @@@*** END CONSUMER {run_task_type} *** \n")
-                else:
-                    logging.info('还未实现相关功能！')
-            except Exception as e:
-                print("出现错误 => ", str(e))
+                    # run_task_type = task.get('task_type', task_type)
+                    # run_task_type = run_task_type.replace("handler_","")
+                    run_task_type = task_type
+                    if task_dict.get(run_task_type):
+                        print(f"\n @@@*** START CONSUMER {run_task_type} *** ")
+                        task_dict[run_task_type]().run(task, rds.rds)
+                        print(f" @@@*** END CONSUMER {run_task_type} *** \n")
+                    else:
+                        logging.info('还未实现相关功能！')
+                except Exception as e:
+                    print("出现错误 => ", str(e))
+        except Exception as e:
+            logging.error(f'循环报错，已退出，错误原因是:{e}')
+        finally:
+            RdsQueue.close_pool()
+            logging.info("已关闭redis消费队列连接池")
+            
+
     else:
         logging.info("Thread redis end...!")
 

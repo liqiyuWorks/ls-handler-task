@@ -5,6 +5,7 @@ import logging
 import logging.handlers
 import pymongo
 
+
 def is_none(s):
     if s is None:
         return True
@@ -26,11 +27,13 @@ def is_none(s):
             break
     return flag
 
+
 def get_mgo():
     # 数据库源连接
     mongo_host = os.getenv('MONGO_HOST')
-    mongo_replica_set_url = os.getenv('MONGO_REPLICA_SET_URL')  # MONGO_REPLICA_SET_URL=124.70.86.179:21617,121.36.28.59:21617  --- 可连接集群
-    mongo_port = int(os.getenv('MONGO_PORT',0))
+    # MONGO_REPLICA_SET_URL=124.70.86.179:21617,121.36.28.59:21617  --- 可连接集群
+    mongo_replica_set_url = os.getenv('MONGO_REPLICA_SET_URL')
+    mongo_port = int(os.getenv('MONGO_PORT', 0))
     mongo_db = os.getenv('MONGO_DB')
     mongo_user = os.getenv('MONGO_USER')
     mongo_password = os.getenv('MONGO_PASSWORD')
@@ -39,14 +42,13 @@ def get_mgo():
         return None, None
     if mongo_host and mongo_port:
         url = 'mongodb://{}:{}/'.format(mongo_host, mongo_port)
-    
+
     if mongo_replica_set_url:
         url = f"mongodb://{mongo_replica_set_url}/?replicaSet=rs&readPreference=secondaryPreferred&connectTimeoutMS=300000"
 
     mgo_client = pymongo.MongoClient(url)
 
     mgo_db = mgo_client[mongo_db]
-    
 
     if mongo_user is not None:
         mgo_db.authenticate(mongo_user, mongo_password)
@@ -104,8 +106,9 @@ class MgoStore(object):
             # else:
             #     logging.info('impossible update_one result {}'.format(
             #         res.raw_result))
-            if 'upserted' in res.raw_result:
-                logging.info('insert {} {}'.format(res.raw_result['upserted'],data))
+            # if 'upserted' in res.raw_result:
+            #     logging.info('insert {}'.format(
+            #         res.raw_result['upserted']))
             response = res.raw_result
         except pymongo.errors.DuplicateKeyError:
             # 索引建对了，就不会走到这个分支
