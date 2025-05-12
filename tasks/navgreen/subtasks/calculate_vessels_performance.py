@@ -195,7 +195,8 @@ class CalculateVesselPerformance(BaseModel):
                         print("error:", e)
                 else:
                     print("字典包含其他键")
-                    avg_speed = process_data.get("avg_good_weather_speed")
+                    avg_good_weather_speed = process_data.get(
+                        "avg_good_weather_speed")
                     avg_ballast_speed = process_data.get("avg_ballast_speed")
                     avg_laden_speed = process_data.get("avg_laden_speed")
 
@@ -211,15 +212,13 @@ class CalculateVesselPerformance(BaseModel):
                     avg_ballast_fuel = None
                     avg_laden_fuel = None
                     avg_fuel = None
-                    if avg_laden_speed:
+                    if avg_good_weather_speed:
                         avg_laden_fuel = round(predict_heavy_oil(
-                            1, avg_laden_speed, sailing_time, load_weight*0.6, ship_draft, length, width, height, ship_year), 2)
-                    print(avg_laden_speed, sailing_time, load_weight,
+                            1, avg_good_weather_speed, sailing_time, load_weight, ship_draft, length, width, height, ship_year), 2)
+                    print(avg_good_weather_speed, sailing_time, load_weight,
                           ship_draft, length, width, height, ship_year)
-
-                    if avg_ballast_speed:
-                        avg_ballast_fuel = round(predict_heavy_oil(-1, avg_ballast_speed, sailing_time,
-                                                                   load_weight*0.4, ballast_draft, length, width, height, ship_year), 2)
+                    avg_ballast_fuel = round(predict_heavy_oil(-1, avg_good_weather_speed, sailing_time,
+                                                               load_weight, ship_draft, length, width, height, ship_year), 2)
 
                     if avg_laden_fuel and avg_ballast_fuel:
                         avg_fuel = round(
