@@ -17,6 +17,28 @@ import numpy as np
 warnings.filterwarnings('ignore')  # 关闭所有Python警告
 
 
+def request_mmsi_detail(mmsi):
+    url = "https://api.navgreen.cn/api/performance/vessel/speed"
+
+    querystring = {"mmsi": mmsi, "version": "v1"}
+
+    payload = ""
+    headers = {
+        "accept": "application/json",
+        "token": "NAVGREEN_ADMIN_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjE1MDAxNTMsInVzZXJuYW1lIjoiaml1ZmFuZyIsImFjY2Vzc19rZXkiOiJMUzhBOUVGMTk2NDFGQkI1Q0Q4QUI3RUZFMjVGMUE3NSIsInNlY3JldF9rZXkiOiJMUzQzQkMzRUIzNkMyMzNDRDI0QTYwN0EzRkVDQUIxOCJ9.8zYU58Mxfiu-GDpOEGva1iGzxA0Dyexw1FoGfrdIrtc",
+        "Accept-Encoding": "gzip, deflate, br",
+        "User-Agent": "PostmanRuntime-ApipostRuntime/1.1.0",
+        "Connection": "keep-alive",
+        "Cache-Control": "no-cache",
+        "Host": "api.navgreen.cn"
+    }
+
+    response = requests.request(
+        "GET", url, headers=headers, params=querystring)
+
+    return response.json().get("data", [])
+
+
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, np.float32):
@@ -163,49 +185,58 @@ class CalculateVesselPerformance(BaseModel):
                 version = "v1"
                 sailing_time = 24
                 mmsi = process_data.get("mmsi")
+                print(list(process_data.keys()))
+                if list(process_data.keys()) == ['mmsi']:
+                    print("字典仅包含 mmsi 键")
+                    try:
+                        res = request_mmsi_detail(mmsi)
+                        print(res)
+                    except Exception as e:
+                        print("error:", e)
+                else:
+                    print("字典包含其他键")
+                    avg_speed = process_data.get("avg_good_weather_speed")
+                    avg_ballast_speed = process_data.get("avg_ballast_speed")
+                    avg_laden_speed = process_data.get("avg_laden_speed")
 
-                # 获取详情
-                avg_speed = process_data.get("avg_good_weather_speed")
-                avg_ballast_speed = process_data.get("avg_ballast_speed")
-                avg_laden_speed = process_data.get("avg_laden_speed")
+                    load_weight = process_data.get("load_weight")
+                    ship_draft = process_data.get("ship_draft")
+                    ballast_draft = process_data.get("ballast_draft")
 
-                load_weight = process_data.get("load_weight")
-                ship_draft = process_data.get("ship_draft")
-                ballast_draft = process_data.get("ballast_draft")
+                    length = process_data.get("length")
+                    width = process_data.get("width")
+                    height = process_data.get("height")
+                    ship_year = process_data.get("ship_year")
 
-                length = process_data.get("length")
-                width = process_data.get("width")
-                height = process_data.get("height")
-                ship_year = process_data.get("ship_year")
+                    avg_ballast_fuel = None
+                    avg_laden_fuel = None
+                    avg_fuel = None
+                    if avg_laden_speed:
+                        avg_laden_fuel = round(predict_heavy_oil(
+                            1, avg_laden_speed, sailing_time, load_weight, ship_draft, length, width, height, ship_year), 2)
+                    print(avg_laden_speed, sailing_time, load_weight,
+                          ship_draft, length, width, height, ship_year)
 
-                avg_ballast_fuel = None
-                avg_laden_fuel = None
-                avg_fuel = None
-                if avg_laden_speed:
-                    avg_laden_fuel = round(predict_heavy_oil(
-                        1, avg_laden_speed, sailing_time, load_weight, ship_draft, length, width, height, ship_year), 2)
-                print(avg_laden_speed, sailing_time, load_weight,
-                      ship_draft, length, width, height, ship_year)
+                    if avg_ballast_speed:
+                        avg_ballast_fuel = round(predict_heavy_oil(-1, avg_ballast_speed, sailing_time,
+                                                                   0, ballast_draft, length, width, height, ship_year), 2)
 
-                if avg_ballast_speed:
-                    avg_ballast_fuel = round(predict_heavy_oil(-1, avg_ballast_speed, sailing_time,
-                                                               0, ballast_draft, length, width, height, ship_year), 2)
+                    if avg_laden_fuel and avg_ballast_fuel:
+                        avg_fuel = round(
+                            (avg_laden_fuel+avg_ballast_fuel)/2, 2)
 
-                if avg_laden_fuel and avg_ballast_fuel:
-                    avg_fuel = round((avg_laden_fuel+avg_ballast_fuel)/2, 2)
+                    process_data["avg_fuel"] = avg_fuel
+                    process_data["avg_laden_fuel"] = avg_laden_fuel
+                    process_data["avg_ballast_fuel"] = avg_ballast_fuel
+                    print("满载油耗", avg_laden_fuel)
+                    print("空载油耗", avg_ballast_fuel)
+                    print("平均油耗", avg_fuel)
 
-                process_data["avg_fuel"] = avg_fuel
-                process_data["avg_laden_fuel"] = avg_laden_fuel
-                process_data["avg_ballast_fuel"] = avg_ballast_fuel
-                print("满载油耗", avg_laden_fuel)
-                print("空载油耗", avg_ballast_fuel)
-                print("平均油耗", avg_fuel)
-
-                # 更新cache_rds的数据
-                cache_rds.hset(
-                    f"vessels_performance_{version}|{year_month}",  f"{mmsi}", json.dumps(process_data, cls=NumpyEncoder))
-                print(
-                    "已更新", f"vessels_performance_{version}|{year_month} - {mmsi}", "成功")
+                    # 更新cache_rds的数据
+                    cache_rds.hset(
+                        f"vessels_performance_{version}|{year_month}",  f"{mmsi}", json.dumps(process_data, cls=NumpyEncoder))
+                    print(
+                        "已更新", f"vessels_performance_{version}|{year_month} - {mmsi}", "成功")
 
         except Exception as e:
             print("error:", e)
