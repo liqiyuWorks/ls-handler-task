@@ -213,13 +213,13 @@ class CalculateVesselPerformance(BaseModel):
                     avg_fuel = None
                     if avg_laden_speed:
                         avg_laden_fuel = round(predict_heavy_oil(
-                            1, avg_laden_speed, sailing_time, load_weight, ship_draft, length, width, height, ship_year), 2)
+                            1, avg_laden_speed, sailing_time, load_weight*0.6, ship_draft, length, width, height, ship_year), 2)
                     print(avg_laden_speed, sailing_time, load_weight,
                           ship_draft, length, width, height, ship_year)
 
                     if avg_ballast_speed:
                         avg_ballast_fuel = round(predict_heavy_oil(-1, avg_ballast_speed, sailing_time,
-                                                                   0, ballast_draft, length, width, height, ship_year), 2)
+                                                                   load_weight*0.4, ballast_draft, length, width, height, ship_year), 2)
 
                     if avg_laden_fuel and avg_ballast_fuel:
                         avg_fuel = round(
