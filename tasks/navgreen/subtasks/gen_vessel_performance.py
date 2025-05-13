@@ -3,8 +3,9 @@
 from pkg.public.decorator import decorate
 import pymongo
 import requests
-import time
+import json
 from pkg.public.models import BaseModel
+import time
 
 
 def get_check_svc_token(cache_rds):
@@ -72,6 +73,42 @@ class GenVesselPerformance(BaseModel):
                             {"mmsi": vessel["mmsi"]},
                             {"$set": {"perf_updated": 1}}
                         )
+                time.sleep(1)
+
+        except Exception as e:
+            print("error:", e)
+
+
+class GenVesselPerformanceFromRDS(BaseModel):
+
+    def __init__(self):
+        config = {
+            "cache_rds": True,
+        }
+
+        super(GenVesselPerformanceFromRDS, self).__init__(config)
+
+    @decorate.exception_capture_close_datebase
+    def run(self):
+        try:
+            # 从rds hget 所有的字段
+            vessels = self.cache_rds.hgetall("vessels_performance_v1|202505")
+
+            for vessel_key, vessel_data in vessels.items():
+                try:
+                    vessel = json.loads(vessel_data)
+                    print(vessel)
+                    # 入计算油耗队列
+                    task = {
+                        'task_type': "handler_calculate_vessel_performance",
+                        'process_data': vessel
+                    }
+                    self.cache_rds.rpush(
+                        "handler_calculate_vessel_performance", json.dumps(task))
+                    print(f"已推送mmsi={vessel.get('mmsi')}的船舶进入油耗计算队列")
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing vessel data: {e}")
+                    continue
 
         except Exception as e:
             print("error:", e)
