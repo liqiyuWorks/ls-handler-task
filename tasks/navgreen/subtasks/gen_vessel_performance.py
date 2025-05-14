@@ -55,7 +55,7 @@ class GenVesselPerformance(BaseModel):
     def run(self):
         try:
             vessels = self.mgo_db["hifleet_vessels"].find(
-                {"vesselTypeNameCn": "干散货", "mmsi": {"$exists": True}, "perf_updated": {"$ne": 1}}, {"mmsi": 1, '_id': 0})
+                {"vesselTypeNameCn": "干散货", "mmsi": {"$exists": True}, "perf_updated": {"$ne": 1}, "request_hi_weather": {"$ne": 0}}, {"mmsi": 1, '_id': 0})
 
             # print("total num", len(list(vessels)))
             for vessel in vessels:
@@ -73,6 +73,12 @@ class GenVesselPerformance(BaseModel):
                             {"mmsi": vessel["mmsi"]},
                             {"$set": {"perf_updated": 1}}
                         )
+                    else:
+                        self.mgo_db["hifleet_vessels"].update_one(
+                            {"mmsi": vessel["mmsi"]},
+                            {"$set": {"request_hi_weather": 0}}
+                        )
+
                 time.sleep(1)
 
         except Exception as e:
