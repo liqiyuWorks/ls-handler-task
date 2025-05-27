@@ -118,3 +118,52 @@ class GenVesselPerformanceFromRDS(BaseModel):
 
         except Exception as e:
             print("error:", e)
+
+
+class GenVesselVPFromMGO(BaseModel):
+
+    def __init__(self):
+        config = {
+            'handle_db': 'mgo',
+            "cache_rds": True,
+            'collection': 'hifleet_vessels',
+            'uniq_idx': [
+                ('imo', pymongo.ASCENDING),
+                ('mmsi', pymongo.ASCENDING),
+            ]
+        }
+
+        super(GenVesselPerformance, self).__init__(config)
+
+    @decorate.exception_capture_close_datebase
+    def run(self):
+        try:
+            vessels = self.mgo_db["hifleet_vessels"].find(
+                {"vesselTypeNameCn": {"$in": ["杂货船", "干散货"]}, "mmsi": {"$exists": True}}, {"mmsi": 1, '_id': 0})
+
+            # print("total num", len(list(vessels)))
+            for vessel in vessels:
+                print(vessel)
+                # 请求我的接口
+                try:
+                    res = request_mmsi_detail(vessel["mmsi"])
+                    print(res)
+                except Exception as e:
+                    print("error:", e)
+                else:
+                    # 更新船舶perf_updated字段为1
+                    if res:
+                        self.mgo_db["hifleet_vessels"].update_one(
+                            {"mmsi": vessel["mmsi"]},
+                            {"$set": {"perf_updated": 1}}
+                        )
+                    else:
+                        self.mgo_db["hifleet_vessels"].update_one(
+                            {"mmsi": vessel["mmsi"]},
+                            {"$set": {"request_hi_weather": 0}}
+                        )
+
+                time.sleep(1)
+
+        except Exception as e:
+            print("error:", e)
