@@ -40,7 +40,7 @@ def request_mmsi_detail(mmsi):
 
 def request_mmsi_performance(mmsi):
     try:
-        url = "https://api.navgreen.cn/api/performance/vessel/v2/overview"
+        url = "https://api.navgreen.cn/api/analyze/v2/speed"
 
         querystring = {"mmsi": mmsi}
 
