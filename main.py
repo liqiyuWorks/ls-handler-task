@@ -11,6 +11,7 @@ from pkg.public.thread import MultiThread
 from tasks.task_dic import get_task_dic
 from pkg.public.scheduler import CustomScheduler
 import json
+import traceback
 
 LOG_FILE = "./log/run.log"
 QUEUE_PREFIX = os.getenv('QUEUE_PREFIX', "handler")
@@ -122,6 +123,7 @@ def main():
                         TASK_DICT[task_type]().run()
                     except Exception as e:
                         logging.info(f'当前运行的是非run()的函数,eg: history()...{e}')
+                        traceback.print_exc()
                 else:
                     # 加入 分布式 redis读取任务的 线程
                     multi_handler.run_handler(CustomScheduler(

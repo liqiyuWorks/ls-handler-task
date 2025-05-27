@@ -6,7 +6,7 @@ export MONGO_PASSWORD=Hello1234
 export MONGO_USER=liqiyu
 
 export CACHE_REDIS_HOST=124.70.86.179
-export CACHE_REDIS_PORT=21600
+export CACHE_REDIS_PORT=21605
 export CACHE_REDIS_PASSWORD=Rds123
 
 export TASK_TYPE=gen_vessel_performance

@@ -6,6 +6,8 @@ import requests
 import json
 from pkg.public.models import BaseModel
 import time
+import traceback
+from datetime import datetime
 
 
 def get_check_svc_token(cache_rds):
@@ -32,6 +34,31 @@ def request_mmsi_detail(mmsi):
 
     response = requests.request(
         "GET", url, headers=headers, params=querystring)
+
+    return response.json().get("data", [])
+
+
+def request_mmsi_performance(mmsi):
+    try:
+        url = "https://api.navgreen.cn/api/performance/vessel/v2/overview"
+
+        querystring = {"mmsi": mmsi}
+
+        payload = ""
+        headers = {
+            "accept": "application/json",
+            "token": "NAVGREEN_ADMIN_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjE1MDAxNTMsInVzZXJuYW1lIjoiaml1ZmFuZyIsImFjY2Vzc19rZXkiOiJMUzhBOUVGMTk2NDFGQkI1Q0Q4QUI3RUZFMjVGMUE3NSIsInNlY3JldF9rZXkiOiJMUzQzQkMzRUIzNkMyMzNDRDI0QTYwN0EzRkVDQUIxOCJ9.8zYU58Mxfiu-GDpOEGva1iGzxA0Dyexw1FoGfrdIrtc",
+            "Accept-Encoding": "gzip, deflate, br",
+            "User-Agent": "PostmanRuntime-ApipostRuntime/1.1.0",
+            "Connection": "keep-alive",
+            "Cache-Control": "no-cache",
+            "Host": "api.navgreen.cn"
+        }
+
+        response = requests.request(
+            "GET", url, headers=headers, params=querystring)
+    except Exception as e:
+        traceback.print_exc()
 
     return response.json().get("data", [])
 
@@ -132,8 +159,7 @@ class GenVesselVPFromMGO(BaseModel):
                 ('mmsi', pymongo.ASCENDING),
             ]
         }
-
-        super(GenVesselPerformance, self).__init__(config)
+        super(GenVesselVPFromMGO, self).__init__(config)
 
     @decorate.exception_capture_close_datebase
     def run(self):
@@ -141,29 +167,24 @@ class GenVesselVPFromMGO(BaseModel):
             vessels = self.mgo_db["hifleet_vessels"].find(
                 {"vesselTypeNameCn": {"$in": ["杂货船", "干散货"]}, "mmsi": {"$exists": True}}, {"mmsi": 1, '_id': 0})
 
-            # print("total num", len(list(vessels)))
             for vessel in vessels:
+                # 从缓存里去重
                 print(vessel)
-                # 请求我的接口
+                year_month = datetime.now().strftime("%Y%m")
+                vessel_data = self.cache_rds.hget(
+                    f"vessels_performance_v2|{year_month}", vessel["mmsi"])
+                if vessel_data:
+                    res = json.loads(vessel_data)
+                    if res.get("avg_fuel") and res.get("avg_good_weather_speed"):
+                        print(f"mmsi={vessel['mmsi']} 已计算过")
+                        continue
                 try:
-                    res = request_mmsi_detail(vessel["mmsi"])
-                    print(res)
+                    res = request_mmsi_performance(vessel["mmsi"])
+                    print(f"mmsi={vessel['mmsi']} 计算成功")
                 except Exception as e:
-                    print("error:", e)
-                else:
-                    # 更新船舶perf_updated字段为1
-                    if res:
-                        self.mgo_db["hifleet_vessels"].update_one(
-                            {"mmsi": vessel["mmsi"]},
-                            {"$set": {"perf_updated": 1}}
-                        )
-                    else:
-                        self.mgo_db["hifleet_vessels"].update_one(
-                            {"mmsi": vessel["mmsi"]},
-                            {"$set": {"request_hi_weather": 0}}
-                        )
+                    traceback.print_exc()
 
-                time.sleep(1)
+                time.sleep(3)
 
         except Exception as e:
-            print("error:", e)
+            traceback.print_exc()
