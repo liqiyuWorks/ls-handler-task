@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import requests
+from pkg.public.decorator import decorate
 import json
 from pkg.public.models import BaseModel
 from keras.models import load_model
@@ -244,8 +245,6 @@ class CalculateVesselPerformance(BaseModel):
 class CalculateVesselPerformanceCK(BaseModel):
     def __init__(self):
         pass
-
-        # @decorate.exception_capture_close_datebase
 
     def run(self, task, cache_rds):
         try:

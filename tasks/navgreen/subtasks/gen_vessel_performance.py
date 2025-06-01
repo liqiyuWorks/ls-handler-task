@@ -164,17 +164,20 @@ class GenVesselVPFromMGO(BaseModel):
     @decorate.exception_capture_close_datebase
     def run(self):
         try:
-            vessels = self.mgo_db["hifleet_vessels"].find(
-                {"vesselTypeNameCn": {"$in": ["杂货船", "干散货"]}, "mmsi": {"$exists": True}}, {"mmsi": 1, '_id': 0})
 
+            vessels = self.mgo_db["hifleet_vessels"].find({"vesselTypeNameCn": {
+                                                          "$in": ["杂货船", "干散货"]}, "mmsi": {"$exists": True}}, {"mmsi": 1, '_id': 0})
+
+            total_num = vessels.count()
+            num = 0
             for vessel in vessels:
-                # 从缓存里去重
-                print(vessel)
+                num += 1
                 year_month = datetime.now().strftime("%Y%m")
                 vessel_data = self.cache_rds.hget(
                     f"vessels_performance_v2|{year_month}", vessel["mmsi"])
                 if vessel_data:
                     res = json.loads(vessel_data)
+                    continue
                     if res.get("avg_fuel") and res.get("avg_good_weather_speed"):
                         print(f"mmsi={vessel['mmsi']} 已计算过")
                         continue
@@ -183,8 +186,8 @@ class GenVesselVPFromMGO(BaseModel):
                     print(f"mmsi={vessel['mmsi']} 计算成功")
                 except Exception as e:
                     traceback.print_exc()
-
-                time.sleep(3)
+                print(f"已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
+                time.sleep(2)
 
         except Exception as e:
             traceback.print_exc()

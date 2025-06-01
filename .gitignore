@@ -20,3 +20,5 @@ gfs
 gfs
 tiles
 zscripts
+*.xlsx
+*.csv
