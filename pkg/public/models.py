@@ -5,6 +5,7 @@ import os
 import redis
 from pkg.db.mongo import get_mgo, MgoStore
 from pkg.db.redis import RdsTaskQueue
+from pkg.db.clickhouse import ClickHouseClient
 
 
 class BaseModel:
@@ -22,6 +23,9 @@ class BaseModel:
 
             if config.get('cache_rds'):
                 self.cache_rds = self.get_cache_rds()
+
+            if config.get('ck_client'):
+                self.ck_client = ClickHouseClient()
 
     def get_cache_rds(self):
         host = os.getenv('CACHE_REDIS_HOST', '127.0.0.1')
@@ -50,10 +54,14 @@ class BaseModel:
         if hasattr(self, 'rds'):
             self.rds.close()
             logging.info('close rds databases ok!')
-            
+
         if hasattr(self, 'cache_rds'):
             self.cache_rds.close()
             logging.info('close cache_rds databases ok!')
+
+        if hasattr(self, 'ck_client'):
+            self.ck_client.close()
+            logging.info('close ck_client databases ok!')
 
     def history(self):
         pass

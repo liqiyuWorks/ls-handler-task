@@ -7,6 +7,7 @@ output
 tasks/*/*/__pycache__
 pkg/.DS_Store
 tasks/.DS_Store
+tasks/testapi
 .DS_Store
 # tasks/liqiyuWorks
 scripts/mongo/test.txt

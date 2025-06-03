@@ -71,7 +71,6 @@ def rds_distributed_sys(task_dict, task_type):
         finally:
             RdsQueue.close_pool()
             logging.info("已关闭redis消费队列连接池")
-            
 
     else:
         logging.info("Thread redis end...!")

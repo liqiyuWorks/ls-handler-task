@@ -14,6 +14,6 @@ def get_task_dic():
         "gen_vessel_performance_hifleet": (lambda: GenVesselPerformance(), 'Navgreen：生产者 => 从 mgo 获取船舶档案，后台计算船舶性能（油耗）'),
         "gen_vessel_performance_from_rds": (lambda: GenVesselPerformanceFromRDS(), 'Navgreen：生产者 => 从缓存 rds 后台计算船舶性能（油耗）'),
         "gen_ck_vp_from_mgo": (lambda: GenVesselVPFromMGO(), '****Navgreen：每月 1 号生产一次 => 从 mgo 获取船舶档案，后台根据 CK计算船舶性能（油耗）'),
-        "calc_vessel_performance_details": (lambda: CalcVesselPerformanceDetails(), '后台计算船舶性能详情'),
+        "calc_vessel_performance_details": (lambda: CalcVesselPerformanceDetails(), '****Navgreen：后台计算船舶性能详情'),
     }
     return task_dict

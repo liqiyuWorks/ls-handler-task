@@ -1,16 +1,10 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-import pymongo
-from pkg.public.decorator import decorate
-from pkg.public.models import BaseModel
 import requests
 from datetime import datetime, timedelta
 from datetime import timezone
+from clickhouse_driver import Client
 from pkg.public.convert import convert_era5_wave_point, convert_era5_wind_point, convert_era5_flow_point
 import math
 import traceback
-import os
-import time
 
 
 def request_mmsi_details(mmsi):
@@ -73,40 +67,21 @@ def deal_list(data, DESIGN_DRAFT, DESIGN_SPEED):
     empty_count = 0
     full_total = 0.0
     full_count = 0
-
-    sog_empty_downstream_true = []  # 新增：空载顺流航速列表
-    sog_empty_downstream_false = []  # 新增：空载逆流航速列表
-    sog_full_downstream_true = []  # 新增：满载顺流航速列表
-    sog_full_downstream_false = []  # 新增：满载逆流航速列表
-    sog_downstream_true = []  # 新增：顺流航速列表
-    sog_downstream_false = []  # 新增：逆流航速列表
+    
+    is_sailing_downstream_true = []
+    is_sailing_downstream_false = []
 
     for item in filtered:
         try:
             # 单次字典遍历提取所有字段（减少字典访问次数）
-            draft = item.get("draught")
-            speed = item.get("sog")
-            hdg = item.get("hdg")
-            if draft is None or speed is None or hdg is None:
-                continue
-            draft = float(draft)
-            speed = float(speed)
-            hdg = float(hdg)
-            u_flow = item.get("u_flow")
-            v_flow = item.get("v_flow")
-            if u_flow is not None and v_flow is not None:
-                if is_sailing_downstream(u_flow, v_flow, hdg):
-                    sog_downstream_true.append(speed)  # 新增
-                    if draft < EMPTY_LOAD:
-                        sog_empty_downstream_true.append(speed)
-                    elif draft > FULL_LOAD:
-                        sog_full_downstream_true.append(speed)
-                else:
-                    sog_downstream_false.append(speed)  # 新增
-                    if draft < EMPTY_LOAD:
-                        sog_empty_downstream_false.append(speed)
-                    elif draft > FULL_LOAD:
-                        sog_full_downstream_false.append(speed)
+            draft = float(item["draught"])  # 获取吃水值
+            speed = float(item["sog"])
+            hdg = float(item["hdg"])
+            if is_sailing_downstream(
+                item["u_wind"], item["v_wind"], hdg):
+                is_sailing_downstream_true.append(item)
+            else:
+                is_sailing_downstream_false.append(item)
 
             # 根据吃水比例分类统计
             if draft < EMPTY_LOAD:
@@ -127,37 +102,71 @@ def deal_list(data, DESIGN_DRAFT, DESIGN_SPEED):
     avg_good_weather_speed = round((empty_total + full_total) / (
         empty_count + full_count), 2) if (empty_count + full_count) else 0.0
 
-    # 新增：计算顺流/逆流的平均航速
-    avg_downstream_speed = round(sum(
-        sog_downstream_true) / len(sog_downstream_true), 2) if sog_downstream_true else 0.0
-    avg_non_downstream_speed = round(sum(
-        sog_downstream_false) / len(sog_downstream_false), 2) if sog_downstream_false else 0.0
-
     performance = {
         "avg_good_weather_speed": avg_good_weather_speed,
-        "avg_downstream_speed": avg_downstream_speed,
-        "avg_non_downstream_speed": avg_non_downstream_speed,
+        # "avg_ballast_speed": avg_empty_speed,  # 空载平均速度
+        # "avg_laden_speed": avg_full_speed,    # 满载平均速度
+        # "empty_load_count": empty_count,          # 空载数据计数
+        # "full_load_count": full_count             # 满载数据计数
     }
 
-    print("空载数：", empty_count, "，满载数：", full_count, "，顺流数：", len(
-        sog_downstream_true), "，逆流数：", len(sog_downstream_false))
+    print("空载水深是", EMPTY_LOAD, "，空载匹配个数是", empty_count, "，满载匹配个数是", full_count)
     if empty_count:
         performance["avg_ballast_speed"] = avg_empty_speed
-        # 新增：空载顺流/逆流平均航速
-        performance["avg_ballast_downstream_speed"] = round(sum(
-            sog_empty_downstream_true) / len(sog_empty_downstream_true), 2) if sog_empty_downstream_true else 0.0
-        performance["avg_ballast_non_downstream_speed"] = round(sum(
-            sog_empty_downstream_false) / len(sog_empty_downstream_false), 2) if sog_empty_downstream_false else 0.0
 
     if full_count:
         performance["avg_laden_speed"] = avg_full_speed
-        # 新增：满载顺流/逆流平均航速
-        performance["avg_laden_downstream_speed"] = round(sum(
-            sog_full_downstream_true) / len(sog_full_downstream_true), 2) if sog_full_downstream_true else 0.0
-        performance["avg_laden_non_downstream_speed"] = round(sum(
-            sog_full_downstream_false) / len(sog_full_downstream_false), 2) if sog_full_downstream_false else 0.0
 
     return performance
+
+
+class ClickHouseClient:
+    def __init__(self, host='123.249.97.59', port=21663, user='default',
+                 password='shipping_history123', database='shipping_history'):
+        self.host = host
+        self.port = port
+        self.user = user
+        self.password = password
+        self.database = database
+        self.client = None
+        self.connect()
+
+    def connect(self):
+        """建立数据库连接"""
+        try:
+            self.client = Client(
+                host=self.host,
+                port=self.port,
+                user=self.user,
+                database=self.database,
+                password=self.password,
+                send_receive_timeout=5
+            )
+            print("> ClickHouse client connected successfully")
+        except Exception as e:
+            print(f"Error connecting to ClickHouse: {e}")
+            raise
+
+    def query(self, sql):
+        """执行 SQL 查询
+
+        Args:
+            sql (str): SQL 查询语句
+
+        Returns:
+            list: 查询结果
+        """
+        try:
+            return self.client.execute(sql)
+        except Exception as e:
+            print(f"Error executing query: {e}")
+            raise
+
+    def close(self):
+        """关闭数据库连接"""
+        if self.client:
+            self.client.disconnect()
+            print("> ClickHouse client disconnected")
 
 
 def get_vessel_track(mmsi, start_time, end_time):
@@ -610,102 +619,37 @@ def is_sailing_downstream(u, v, ship_angle):
     return min_angle_diff <= 45
 
 
-class CalcVesselPerformanceDetails(BaseModel):
-    def __init__(self):
-        self.vessel_types = os.getenv('VESSEL_TYPES', ["杂货船", "干散货"])
-        config = {
-            'ck_client': True,
-            'handle_db': 'mgo',
-            "cache_rds": True,
-            'collection': 'vessels_performance_details',
-            'uniq_idx': [
-                ('mmsi', pymongo.ASCENDING),
-            ]
-        }
+# 使用示例
+if __name__ == "__main__":
+    mmsi = "414281000"
+    details = request_mmsi_details(mmsi)
+    draught, desgin_speed = details.get(
+        "data")[0]["draught"], details.get("data")[0]["speed"]
+    end_time = datetime.now()
+    start_time = end_time - timedelta(days=90)  # 3个月 = 90天
+    start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
+    end_time = end_time.strftime("%Y-%m-%d %H:%M:%S")
+    print(start_time, end_time)
+    track_data = get_vessel_track(mmsi, start_time, end_time)
 
-        super(CalcVesselPerformanceDetails, self).__init__(config)
-
-    def get_current_performance(self, mmsi, start_time, end_time):
-        details = request_mmsi_details(mmsi)
-        # 修正：details为list，增加健壮性检查
-        if not details or not isinstance(details, list) or not details[0]:
-            return None
-        draught = details[0].get("draught")
-        desgin_speed = details[0].get("speed")
-        track_data = get_vessel_track(mmsi, start_time, end_time)
+    ck_client = ClickHouseClient()
+    try:
         track_wave_data = fetch_era5_wave_for_track(
-            track_data, self.ck_client)  # era5 wave
+            track_data, ck_client)  # era5 wave
         track_wind_data = fetch_era5_wind_for_track(
-            track_data, self.ck_client)  # era5 wind
+            track_data, ck_client)  # era5 wind
         track_flow_data = fetch_era5_flow_for_track(
-            track_data, self.ck_client)  # era5 flow
+            track_data, ck_client)  # era5 flow
         merged_track_data = merge_track_data(
             track_data, track_wave_data, track_wind_data, track_flow_data)
         merged_track_data = format_history_dates(merged_track_data)
         filtered_track_data = filter_fields(merged_track_data)
         filtered_track_data = enrich_wind_info(filtered_track_data)
         filtered_track_data = enrich_flow_info(filtered_track_data)
+        print(filtered_track_data[0])
         # 处理数据
-        if draught is None or desgin_speed is None:
-            return None
         performance = deal_list(filtered_track_data, draught, desgin_speed)
-        return performance
+        print(performance)
 
-    @decorate.exception_capture_close_datebase
-    def run(self):
-        # 健壮性检查：确保MongoDB连接和集合可用
-        if not self.mgo_db:
-            print("MongoDB连接未初始化")
-            return
-        try:
-            _ = self.mgo_db["vessels_performance_details"]
-        except Exception as e:
-            print("MongoDB集合不存在或不可用", e)
-            return
-        try:
-            # 计算船舶分别在过去的12个月里面，每个月的平均速度
-            vessels = self.mgo_db["hifleet_vessels"].find({"vesselTypeNameCn": {
-                "$in": self.vessel_types},
-                "mmsi": {"$exists": True}
-            },
-                {"mmsi": 1, '_id': 0})
-
-            total_num = vessels.count()
-            num = 0
-            for mmsi in vessels:
-                num += 1
-                mmsi = mmsi["mmsi"]
-                if self.mgo_db["vessels_performance_details"].find_one({"mmsi": mmsi,
-                                                                        "perf_calculated": 1
-                                                                        }
-                                                                       ):
-                    continue
-                end_time = datetime.now()
-                start_time = end_time - timedelta(days=180)  # 3个月 = 90天
-                start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
-                end_time = end_time.strftime("%Y-%m-%d %H:%M:%S")
-                print(start_time, end_time)
-                # 1、计算当前的航速性能（最近季度-每月更新）
-                current_performance = self.get_current_performance(
-                    mmsi, start_time, end_time)
-
-                # 计算2024年的性能数据
-                # start_time_2024 = datetime(
-                #     2024, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
-                # end_time_2024 = datetime(
-                #     2024, 12, 31, 23, 59, 59).strftime("%Y-%m-%d %H:%M:%S")
-                # perf_2024 = self.get_current_performance(
-                #     mmsi, start_time_2024, end_time_2024)
-
-                self.mgo_db["vessels_performance_details"].update_one(
-                    {"mmsi": mmsi}, {"$set": {"current_performance": current_performance,
-                                              "perf_calculated": 1,
-                                              #   "perf_2024": perf_2024
-                                              }}, upsert=True)
-                print(
-                    f"性能：{current_performance}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
-                # time.sleep(0.5)
-
-        except Exception as e:
-            traceback.print_exc()
-            print("error:", e)
+    finally:
+        ck_client.close()
