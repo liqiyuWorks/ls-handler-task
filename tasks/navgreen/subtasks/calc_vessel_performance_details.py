@@ -668,22 +668,23 @@ class CalcVesselPerformanceDetails(BaseModel):
             print("MongoDB集合不存在或不可用", e)
             return
         try:
-            # 计算船舶分别在过去的12个月里面，每个月的平均速度
-            vessels = self.mgo_db["hifleet_vessels"].find({"vesselTypeNameCn": {
-                "$in": self.vessel_types},
-                "mmsi": {"$exists": True}
-            },
-                {
-                "mmsi": 1,
-                "draught": 1,
-                "speed": 1,
-                "buildYear": 1,
-                "length": 1,
-                "width": 1,
-                "height": 1,
-                "dwt": 1,
-                '_id': 0
-            })
+            query_sql = {"mmsi": {"$exists": True}}
+            if self.vessel_types:
+                query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
+
+                # 计算船舶分别在过去的12个月里面，每个月的平均速度
+            vessels = self.mgo_db["hifleet_vessels"].find(query_sql,
+                                                          {
+                                                              "mmsi": 1,
+                                                              "draught": 1,
+                                                              "speed": 1,
+                                                              "buildYear": 1,
+                                                              "length": 1,
+                                                              "width": 1,
+                                                              "height": 1,
+                                                              "dwt": 1,
+                                                              '_id': 0
+                                                          })
 
             total_num = vessels.count()
             num = 0
@@ -702,8 +703,14 @@ class CalcVesselPerformanceDetails(BaseModel):
                     query_sql = {"mmsi": mmsi}
                     query_sql["perf_calculated"] = 1
                     query_sql["current_performance"] = {"$ne": None}
-                    if self.mgo_db["vessels_performance_details"].find_one(query_sql):
-                        continue
+                    res = self.mgo_db["vessels_performance_details"].find_one(
+                        query_sql)
+                    if res:
+                        current_performance = res.get("current_performance")
+                        print(current_performance)
+                        ## 是否有油耗的数据
+                        if current_performance.get("avg_fuel"):
+                            continue
 
                 end_time = datetime.now()
                 start_time = end_time - timedelta(days=180)  # 3个月 = 90天
