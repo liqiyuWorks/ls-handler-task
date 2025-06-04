@@ -613,7 +613,9 @@ def is_sailing_downstream(u, v, ship_angle):
 
 class CalcVesselPerformanceDetails(BaseModel):
     def __init__(self):
-        self.vessel_types = os.getenv('VESSEL_TYPES', ["杂货船", "干散货"])
+        self.QUERY_SQL_DUPLICATE = os.getenv('QUERY_SQL_DUPLICATE', True)
+        self.vessel_types = os.getenv('VESSEL_TYPES', "杂货船,干散货")
+        self.vessel_types = self.vessel_types.split(",")
         config = {
             'ck_client': True,
             'handle_db': 'mgo',
@@ -695,12 +697,14 @@ class CalcVesselPerformanceDetails(BaseModel):
                 height = vessel["height"]
                 load_weight = vessel["dwt"]
 
-                query_sql = {"mmsi": mmsi,
-                             "perf_calculated": 1,
-                             "current_performance": {"$ne": None}
-                             }
-                if self.mgo_db["vessels_performance_details"].find_one(query_sql):
-                    continue
+                if self.QUERY_SQL_DUPLICATE:
+                    # 默认走这个去重逻辑
+                    query_sql = {"mmsi": mmsi}
+                    query_sql["perf_calculated"] = 1
+                    query_sql["current_performance"] = {"$ne": None}
+                    if self.mgo_db["vessels_performance_details"].find_one(query_sql):
+                        continue
+
                 end_time = datetime.now()
                 start_time = end_time - timedelta(days=180)  # 3个月 = 90天
                 start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -740,9 +744,9 @@ class CalcVesselPerformanceDetails(BaseModel):
 
                 self.mgo_db["vessels_performance_details"].update_one(
                     {"mmsi": mmsi}, {"$set": {"current_performance": current_performance,
-                                                "perf_calculated": 1,
-                                                #   "perf_2024": perf_2024
-                                                }}, upsert=True)
+                                              "perf_calculated": 1,
+                                              #   "perf_2024": perf_2024
+                                              }}, upsert=True)
 
                 # 入计算油耗队列
                 task = {
@@ -760,3 +764,5 @@ class CalcVesselPerformanceDetails(BaseModel):
         except Exception as e:
             traceback.print_exc()
             print("error:", e)
+        finally:
+            print("运行结束")
