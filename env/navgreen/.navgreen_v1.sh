@@ -12,6 +12,7 @@ export CACHE_REDIS_PASSWORD=Rds123
 export REDIS_HOST=124.70.86.179
 export REDIS_PORT=21600
 export REDIS_PASSWORD=Rds123
+export SELECTED_DIRECTORY=navgreen
 # export TASK_TYPE=calculate_vessel_performance
 export IS_CONSUMER=0
 export RUN_ONCE=1

@@ -23,3 +23,5 @@ export TASK_TYPE=calc_vessel_performance_details
 export IS_CONSUMER=0
 export RUN_ONCE=1
 export IS_OPEN_RDS=0
+
+export SELECTED_DIRECTORY=navgreen

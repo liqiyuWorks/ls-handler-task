@@ -15,5 +15,6 @@ export REDIS_PORT=21605
 export REDIS_PASSWORD=Rds123
 export IS_CONSUMER=1
 export TASK_TYPE=calculate_vessel_performance
+export SELECTED_DIRECTORY=navgreen
 # export RUN_ONCE=1
 # export IS_OPEN_RDS=0

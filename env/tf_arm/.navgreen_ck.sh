@@ -15,3 +15,5 @@ export REDIS_PASSWORD=Rds123
 export IS_CONSUMER=1
 export TASK_TYPE=calculate_vessel_performance
 export RUN_ONCE=0
+
+export SELECTED_DIRECTORY=tf_arm

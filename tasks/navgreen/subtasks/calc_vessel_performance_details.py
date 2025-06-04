@@ -11,6 +11,7 @@ import math
 import traceback
 import os
 import time
+import json
 
 
 def request_mmsi_details(mmsi):
@@ -625,14 +626,15 @@ class CalcVesselPerformanceDetails(BaseModel):
 
         super(CalcVesselPerformanceDetails, self).__init__(config)
 
-    def get_current_performance(self, mmsi, start_time, end_time):
-        details = request_mmsi_details(mmsi)
+    def get_current_performance(self, vessel, start_time, end_time):
+        mmsi = vessel["mmsi"]
+        draught = vessel.get("draught")
+        desgin_speed = vessel.get("speed")
         # print(details)
         # 修正：details为list，增加健壮性检查
-        if not details or not isinstance(details, list) or not details[0]:
+        if not draught or not desgin_speed:
             return None
-        draught = details[0].get("draught")
-        desgin_speed = details[0].get("speed")
+
         track_data = get_vessel_track(mmsi, start_time, end_time)
         track_wave_data = fetch_era5_wave_for_track(
             track_data, self.ck_client)  # era5 wave
@@ -669,13 +671,30 @@ class CalcVesselPerformanceDetails(BaseModel):
                 "$in": self.vessel_types},
                 "mmsi": {"$exists": True}
             },
-                {"mmsi": 1, '_id': 0})
+                {
+                "mmsi": 1,
+                "draught": 1,
+                "speed": 1,
+                "buildYear": 1,
+                "length": 1,
+                "width": 1,
+                "height": 1,
+                "dwt": 1,
+                '_id': 0
+            })
 
             total_num = vessels.count()
             num = 0
-            for mmsi in vessels:
+            for vessel in vessels:
                 num += 1
-                mmsi = mmsi["mmsi"]
+                mmsi = vessel["mmsi"]
+                draught = vessel["draught"]
+                buildYear = vessel["buildYear"]
+                length = vessel["length"]
+                width = vessel["width"]
+                height = vessel["height"]
+                load_weight = vessel["dwt"]
+
                 query_sql = {"mmsi": mmsi,
                              "perf_calculated": 1,
                              "current_performance": {"$ne": None}
@@ -690,12 +709,26 @@ class CalcVesselPerformanceDetails(BaseModel):
                 # 1、计算当前的航速性能（最近季度-每月更新）
                 try:
                     current_performance = self.get_current_performance(
-                        mmsi, start_time, end_time)
+                        vessel, start_time, end_time)
                 except Exception as e:
                     traceback.print_exc()
                     print("error:", e)
                     time.sleep(10)
                     continue
+
+                if current_performance:
+                    current_performance["mmsi"] = mmsi
+                    current_performance["load_weight"] = load_weight
+                    current_performance["ship_draft"] = draught
+                    current_performance["ballast_draft"] = round(
+                        current_performance["ship_draft"]*0.7, 2)
+                    current_performance["length"] = length
+                    current_performance["width"] = width
+                    current_performance["height"] = height
+                    current_performance["ship_year"] = buildYear
+                    if current_performance["ship_year"]:
+                        current_performance["ship_year"] = int(
+                            datetime.now().year) - int(current_performance["ship_year"])
 
                 # 计算2024年的性能数据
                 # start_time_2024 = datetime(
@@ -707,12 +740,22 @@ class CalcVesselPerformanceDetails(BaseModel):
 
                 self.mgo_db["vessels_performance_details"].update_one(
                     {"mmsi": mmsi}, {"$set": {"current_performance": current_performance,
-                                              "perf_calculated": 1,
-                                              #   "perf_2024": perf_2024
-                                              }}, upsert=True)
+                                                "perf_calculated": 1,
+                                                #   "perf_2024": perf_2024
+                                                }}, upsert=True)
+
+                # 入计算油耗队列
+                task = {
+                    'task_type': "handler_calculate_vessel_performance_ck",
+                    'process_data': current_performance
+                }
+                if current_performance:
+                    self.cache_rds.rpush(
+                        "handler_calculate_vessel_performance_ck", json.dumps(task))
+                    print(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
                 print(
                     f"性能：{current_performance}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
-                time.sleep(0.5)
+                time.sleep(0.1)
 
         except Exception as e:
             traceback.print_exc()
