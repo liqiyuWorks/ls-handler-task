@@ -35,7 +35,7 @@ def request_mmsi_details(mmsi):
     except Exception as e:
         traceback.print_exc()
 
-    return response.json().get("data", [])
+    return response.json().get("data", {}).get("data", [])
 
 
 def is_valid_type(s):
@@ -627,6 +627,7 @@ class CalcVesselPerformanceDetails(BaseModel):
 
     def get_current_performance(self, mmsi, start_time, end_time):
         details = request_mmsi_details(mmsi)
+        # print(details)
         # 修正：details为list，增加健壮性检查
         if not details or not isinstance(details, list) or not details[0]:
             return None
@@ -675,10 +676,11 @@ class CalcVesselPerformanceDetails(BaseModel):
             for mmsi in vessels:
                 num += 1
                 mmsi = mmsi["mmsi"]
-                if self.mgo_db["vessels_performance_details"].find_one({"mmsi": mmsi,
-                                                                        "perf_calculated": 1
-                                                                        }
-                                                                       ):
+                query_sql = {"mmsi": mmsi,
+                             "perf_calculated": 1,
+                             "current_performance": {"$ne": None}
+                             }
+                if self.mgo_db["vessels_performance_details"].find_one(query_sql):
                     continue
                 end_time = datetime.now()
                 start_time = end_time - timedelta(days=180)  # 3个月 = 90天
@@ -686,8 +688,14 @@ class CalcVesselPerformanceDetails(BaseModel):
                 end_time = end_time.strftime("%Y-%m-%d %H:%M:%S")
                 print(start_time, end_time)
                 # 1、计算当前的航速性能（最近季度-每月更新）
-                current_performance = self.get_current_performance(
-                    mmsi, start_time, end_time)
+                try:
+                    current_performance = self.get_current_performance(
+                        mmsi, start_time, end_time)
+                except Exception as e:
+                    traceback.print_exc()
+                    print("error:", e)
+                    time.sleep(10)
+                    continue
 
                 # 计算2024年的性能数据
                 # start_time_2024 = datetime(
@@ -704,7 +712,7 @@ class CalcVesselPerformanceDetails(BaseModel):
                                               }}, upsert=True)
                 print(
                     f"性能：{current_performance}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
-                # time.sleep(0.5)
+                time.sleep(0.5)
 
         except Exception as e:
             traceback.print_exc()
