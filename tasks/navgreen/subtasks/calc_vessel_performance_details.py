@@ -47,7 +47,7 @@ def is_valid_type(s):
         return False
 
 
-def deal_list(data, DESIGN_DRAFT, DESIGN_SPEED):
+def deal_good_perf_list(data, DESIGN_DRAFT, DESIGN_SPEED):
     """
     处理船舶数据列表，计算符合条件的平均船速（优化版）
     新增功能：根据吃水(draft)区分空载(<60%)和满载(>80%)船速
@@ -65,6 +65,120 @@ def deal_list(data, DESIGN_DRAFT, DESIGN_SPEED):
         and is_valid_type(d.get("sog"))
         and is_valid_type(d.get("draught"))  # 新增吃水有效性检查
         and int(d.get("wind_level", 5)) <= 4
+        and float(d.get("wave_height", 1.26)) <= 1.25
+        and float(d.get("sog", 0.0)) >= DESIGN_SPEED*0.5
+    )
+
+    # 第二阶段：分别统计空载和满载数据
+    empty_total = 0.0
+    empty_count = 0
+    full_total = 0.0
+    full_count = 0
+
+    sog_empty_downstream_true = []  # 新增：空载顺流航速列表
+    sog_empty_downstream_false = []  # 新增：空载逆流航速列表
+    sog_full_downstream_true = []  # 新增：满载顺流航速列表
+    sog_full_downstream_false = []  # 新增：满载逆流航速列表
+    sog_downstream_true = []  # 新增：顺流航速列表
+    sog_downstream_false = []  # 新增：逆流航速列表
+
+    for item in filtered:
+        try:
+            # 单次字典遍历提取所有字段（减少字典访问次数）
+            draft = item.get("draught")
+            speed = item.get("sog")
+            hdg = item.get("hdg")
+            if draft is None or speed is None or hdg is None:
+                continue
+            draft = float(draft)
+            speed = float(speed)
+            hdg = float(hdg)
+            u_flow = item.get("u_flow")
+            v_flow = item.get("v_flow")
+            if u_flow is not None and v_flow is not None:
+                if is_sailing_downstream(u_flow, v_flow, hdg):
+                    sog_downstream_true.append(speed)  # 新增
+                    if draft < EMPTY_LOAD:
+                        sog_empty_downstream_true.append(speed)
+                    elif draft > FULL_LOAD:
+                        sog_full_downstream_true.append(speed)
+                else:
+                    sog_downstream_false.append(speed)  # 新增
+                    if draft < EMPTY_LOAD:
+                        sog_empty_downstream_false.append(speed)
+                    elif draft > FULL_LOAD:
+                        sog_full_downstream_false.append(speed)
+
+            # 根据吃水比例分类统计
+            if draft < EMPTY_LOAD:
+                empty_total += speed
+                empty_count += 1
+            elif draft > FULL_LOAD:
+                full_total += speed
+                full_count += 1
+
+        except (ValueError, KeyError) as e:
+            print(f"数据异常跳过: {e}")
+            continue
+
+    # 计算各类平均速度
+    avg_empty_speed = round(empty_total / empty_count,
+                            2) if empty_count else 0.0
+    avg_full_speed = round(full_total / full_count, 2) if full_count else 0.0
+    avg_good_weather_speed = round((empty_total + full_total) / (
+        empty_count + full_count), 2) if (empty_count + full_count) else 0.0
+
+    # 新增：计算顺流/逆流的平均航速
+    avg_downstream_speed = round(sum(
+        sog_downstream_true) / len(sog_downstream_true), 2) if sog_downstream_true else 0.0
+    avg_non_downstream_speed = round(sum(
+        sog_downstream_false) / len(sog_downstream_false), 2) if sog_downstream_false else 0.0
+
+    performance = {
+        "avg_good_weather_speed": avg_good_weather_speed,
+        "avg_downstream_speed": avg_downstream_speed,
+        "avg_non_downstream_speed": avg_non_downstream_speed,
+    }
+
+    print("空载数：", empty_count, "，满载数：", full_count, "，顺流数：", len(
+        sog_downstream_true), "，逆流数：", len(sog_downstream_false))
+    if empty_count:
+        performance["avg_ballast_speed"] = avg_empty_speed
+        # 新增：空载顺流/逆流平均航速
+        performance["avg_ballast_downstream_speed"] = round(sum(
+            sog_empty_downstream_true) / len(sog_empty_downstream_true), 2) if sog_empty_downstream_true else 0.0
+        performance["avg_ballast_non_downstream_speed"] = round(sum(
+            sog_empty_downstream_false) / len(sog_empty_downstream_false), 2) if sog_empty_downstream_false else 0.0
+
+    if full_count:
+        performance["avg_laden_speed"] = avg_full_speed
+        # 新增：满载顺流/逆流平均航速
+        performance["avg_laden_downstream_speed"] = round(sum(
+            sog_full_downstream_true) / len(sog_full_downstream_true), 2) if sog_full_downstream_true else 0.0
+        performance["avg_laden_non_downstream_speed"] = round(sum(
+            sog_full_downstream_false) / len(sog_full_downstream_false), 2) if sog_full_downstream_false else 0.0
+
+    return performance
+
+
+def deal_bad_perf_list(data, DESIGN_DRAFT, DESIGN_SPEED):
+    """
+    处理船舶数据列表，计算符合条件的平均船速（优化版）
+    新增功能：根据吃水(draft)区分空载(<60%)和满载(>80%)船速
+    """
+    # 设计吃水深度阈值
+    EMPTY_LOAD = DESIGN_DRAFT*0.7  # 60%
+    FULL_LOAD = DESIGN_DRAFT*0.8   # 80%
+
+    # 第一阶段：强化初步筛选（过滤无效值并预转换类型）
+    filtered = (
+        d for d in data
+        if is_valid_type(d.get("wind_level"))
+        and is_valid_type(d.get("wave_height"))
+        and is_valid_type(d.get("hdg"))
+        and is_valid_type(d.get("sog"))
+        and is_valid_type(d.get("draught"))  # 新增吃水有效性检查
+        and int(d.get("wind_level", 5)) > 4
         and float(d.get("wave_height", 1.26)) <= 1.25
         and float(d.get("sog", 0.0)) >= DESIGN_SPEED*0.5
     )
@@ -653,8 +767,11 @@ class CalcVesselPerformanceDetails(BaseModel):
         # 处理数据
         if draught is None or desgin_speed is None:
             return None
-        performance = deal_list(filtered_track_data, draught, desgin_speed)
-        return performance
+        good_performance = deal_good_perf_list(
+            filtered_track_data, draught, desgin_speed)
+        # bad_performance = deal_bad_perf_list(
+        #     filtered_track_data, draught, desgin_speed)
+        return good_performance
 
     @decorate.exception_capture_close_datebase
     def run(self):
@@ -708,7 +825,7 @@ class CalcVesselPerformanceDetails(BaseModel):
                     if res:
                         current_performance = res.get("current_performance")
                         print(current_performance)
-                        ## 是否有油耗的数据
+                        # 是否有油耗的数据
                         if current_performance.get("avg_fuel"):
                             continue
 
