@@ -727,7 +727,7 @@ def is_sailing_downstream(u, v, ship_angle):
 
 class CalcVesselPerformanceDetails(BaseModel):
     def __init__(self):
-        self.QUERY_SQL_DUPLICATE = os.getenv('QUERY_SQL_DUPLICATE', True)
+        self.QUERY_SQL_DUPLICATE = os.getenv('QUERY_SQL_DUPLICATE', False)
         self.vessel_types = os.getenv('VESSEL_TYPES', "杂货船,干散货")
         self.vessel_types = self.vessel_types.split(",")
         config = {
@@ -869,6 +869,7 @@ class CalcVesselPerformanceDetails(BaseModel):
                 self.mgo_db["vessels_performance_details"].update_one(
                     {"mmsi": mmsi}, {"$set": {"current_performance": current_performance,
                                               "perf_calculated": 1,
+                                              "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                               #   "perf_2024": perf_2024
                                               }}, upsert=True)
 
