@@ -41,7 +41,7 @@ class SpiderHifleetVessels(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
     def __init__(self):
-        self.PAGE_START = int(os.getenv('PAGE_START', 1))
+        self.PAGE_START = int(os.getenv('PAGE_START', 58))
         self.PAGE_END = int(os.getenv('PAGE_END', 70))
         config = {
             'handle_db': 'mgo',
@@ -121,20 +121,24 @@ class SpiderHifleetVessels(BaseModel):
                 response = requests.request(
                     "POST", self.HIFLEET_VESSELS_LIST_URL, json=self.payload, headers=self.headers)
                 if response.status_code == 200:
-                    data = response.json().get("data")
-                    for item in data:
-                        existing_record = self.mgo_db["hifleet_vessels"].find_one(
-                            {"mmsi": int(item.get("mmsi"))})
-                        if not existing_record:
-                            print(item)
-                            item["mmsi"] = int(item["mmsi"])
-                            self.mgo.set(None, item)
-                            print(f"插入新记录: mmsi={item.get('mmsi')}")
-                        else:
-                            print(f"已存在，不插入，mmsi={item.get('mmsi')}")
-                        # else:
-                        #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
-                        #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
+                    data = response.json().get("data", [])
+                    if data == [] or data == None:
+                        print("读取完成，运行结束...")
+                        break
+                    else:
+                        for item in data:
+                            existing_record = self.mgo_db["hifleet_vessels"].find_one(
+                                {"mmsi": int(item.get("mmsi"))})
+                            if not existing_record:
+                                print(item)
+                                item["mmsi"] = int(item["mmsi"])
+                                self.mgo.set(None, item)
+                                print(f"插入新记录: mmsi={item.get('mmsi')}")
+                            else:
+                                print(f"已存在，不插入，mmsi={item.get('mmsi')}")
+                            # else:
+                            #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
+                            #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
 
             time.sleep(10)
 
