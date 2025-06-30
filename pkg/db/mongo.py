@@ -4,7 +4,7 @@ import os
 import logging
 import logging.handlers
 import pymongo
-
+import datetime
 
 def is_none(s):
     if s is None:
@@ -94,6 +94,11 @@ class MgoStore(object):
                 op = extra['op']
             else:
                 op = '$set'
+            
+            
+            if data:
+                data['updated_at'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
             res = self.mgo_coll.update_one(query, {op: data}, upsert=True)
             # if res.raw_result['updatedExisting']:
             #     if res.raw_result['nModified'] > 0:

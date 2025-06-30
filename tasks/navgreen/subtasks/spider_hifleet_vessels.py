@@ -3,8 +3,11 @@
 from pkg.public.decorator import decorate
 import pymongo
 import requests
-import time
+import datetime
 from pkg.public.models import BaseModel
+import traceback
+import time
+import os
 
 
 def get_check_svc_token(cache_rds):
@@ -38,6 +41,8 @@ class SpiderHifleetVessels(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
     def __init__(self):
+        self.PAGE_START = int(os.getenv('PAGE_START', 1))
+        self.PAGE_END = int(os.getenv('PAGE_END', 70))
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -50,6 +55,7 @@ class SpiderHifleetVessels(BaseModel):
         self.payload = {
             "offset": 1,
             "limit": 2000,
+            # "limit": 20,
             "_v": "5.3.588",
             "params": {
                 "shipname": "",
@@ -90,27 +96,47 @@ class SpiderHifleetVessels(BaseModel):
         }
         super(SpiderHifleetVessels, self).__init__(config)
 
+    def update_hifleet_vessels(self, token, mmsi):
+        try:
+            # 调用 svc 查询 海科 request_svc_detail
+            res = request_svc_detail(token, [mmsi])
+            if res:
+                self.mgo.set(None, res[0])
+                print("更新数据", mmsi, "ok")
+            else:
+                print("更新数据", mmsi, "error")
+        except Exception as e:
+            traceback.print_exc()
+            print("error:", res, e)
+
     @decorate.exception_capture_close_datebase
     def run(self):
-        token = get_check_svc_token(self.cache_rds)
+        # token = get_check_svc_token(self.cache_rds)
         try:
-            # dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
-            print(token)
-            # for index in range(1, 70):
-            #     print(f"## 开始插入第 {index} 页的数据")
-            #     self.payload["offset"] = index
-            #     response = requests.request(
-            #         "POST", self.HIFLEET_VESSELS_LIST_URL, json=self.payload, headers=self.headers)
-            #     if response.status_code == 200:
-            #         data = response.json().get("data")
+            dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
+            print(dataTime)
+            for index in range(self.PAGE_START, self.PAGE_END):
+                print(f"## 开始插入第 {index} 页的数据")
+                self.payload["offset"] = index
+                response = requests.request(
+                    "POST", self.HIFLEET_VESSELS_LIST_URL, json=self.payload, headers=self.headers)
+                if response.status_code == 200:
+                    data = response.json().get("data")
+                    for item in data:
+                        existing_record = self.mgo_db["hifleet_vessels"].find_one(
+                            {"mmsi": int(item.get("mmsi"))})
+                        if not existing_record:
+                            print(item)
+                            item["mmsi"] = int(item["mmsi"])
+                            self.mgo.set(None, item)
+                            print(f"插入新记录: mmsi={item.get('mmsi')}")
+                        else:
+                            print(f"已存在，不插入，mmsi={item.get('mmsi')}")
+                        # else:
+                        #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
+                        #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
 
-            #     mmsi_list = [item['mmsi'] for item in data]
-            #     mmsi_list = list(dict.fromkeys(mmsi_list))
-
-            #     # 调用 svc 查询 海科 request_svc_detail
-            #     res = request_svc_detail(token, mmsi_list)
-            #     for item in res:
-            #         self.mgo.set(None, item)
+            time.sleep(10)
 
         except Exception as e:
             print("error:", e)
