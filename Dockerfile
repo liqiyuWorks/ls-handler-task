@@ -6,7 +6,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 ENV RELEASE_MODE=1
 
 RUN mkdir -p /app/log
-ENV app /app
+ENV app=/app
 ADD . ${app}
 WORKDIR ${app}
 

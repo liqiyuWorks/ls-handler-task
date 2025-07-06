@@ -41,7 +41,7 @@ class SpiderHifleetVessels(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
     def __init__(self):
-        self.PAGE_START = int(os.getenv('PAGE_START', 58))
+        self.PAGE_START = int(os.getenv('PAGE_START', 1))
         self.PAGE_END = int(os.getenv('PAGE_END', 70))
         config = {
             'handle_db': 'mgo',
