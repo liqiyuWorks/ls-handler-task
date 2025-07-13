@@ -730,10 +730,6 @@ class CalcVesselPerformanceDetails(BaseModel):
         self.QUERY_SQL_DUPLICATE = os.getenv('QUERY_SQL_DUPLICATE', False)
         self.vessel_types = os.getenv('VESSEL_TYPES', "液体散货,特种船") # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
 
-
-
-
-
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
         else:
