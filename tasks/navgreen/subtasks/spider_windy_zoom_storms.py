@@ -2,11 +2,13 @@
 # -*- coding: utf-8 -*-
 from pkg.public.decorator import decorate
 import requests
-import datetime
+from datetime import datetime
 from pkg.public.models import BaseModel
 import traceback
 from pkg.public.logger import logger
 import json
+from typing import Dict, List, Any
+from collections import defaultdict
 
 
 def get_newest_token(cache_redis):
@@ -97,9 +99,132 @@ class SpiderWindyZoomStorms(BaseModel):
 
         return response.json()
 
+    def get_zoom_storms_list(self, date):
+        url = f"https://zoom.earth/data/storms"
+        querystring = {"date": date, "to": "12"}
+
+        payload = ""
+        headers = {
+            "Host": "zoom.earth",
+            "Cookie": "_tea_utm_cache_10000007=undefined",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+            "sec-ch-ua-mobile": "?0",
+            "accept": "*/*",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-dest": "empty",
+            "referer": "https://zoom.earth/",
+            "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+            "priority": "u=1, i",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive"
+        }
+
+        response = requests.request(
+            "GET", url, data=payload, headers=headers, params=querystring)
+        return response.json()
+
+    def get_zoom_storms_track(self, storm_name):
+        url = f"https://zoom.earth/data/storms"
+        querystring = {"id": storm_name, "lang": "zh"}
+
+        payload = ""
+        headers = {
+            "Host": "zoom.earth",
+            "Cookie": "_tea_utm_cache_10000007=undefined",
+            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36",
+            "sec-ch-ua-mobile": "?0",
+            "accept": "*/*",
+            "sec-fetch-site": "same-origin",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-dest": "empty",
+            "referer": "https://zoom.earth/",
+            "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+            "priority": "u=1, i",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive"
+        }
+
+        response = requests.request(
+            "GET", url, data=payload, headers=headers, params=querystring)
+
+        return response.json()
+
+    def convert_zoom_to_windy_format(self, zoom_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert Zoom.Earth typhoon data format to Windy format
+
+        Args:
+            zoom_data (dict): Typhoon data in Zoom.Earth format
+
+        Returns:
+            dict: Typhoon data in Windy format
+        """
+        # Extract basic info
+        typhoon_data = {
+            'id': zoom_data['id'],
+            'name': zoom_data['name'],
+            'lat': None,  # Will be updated with latest position
+            'lon': None,  # Will be updated with latest position
+            'strength': 1,  # Default value as it's not directly mappable
+            'windSpeed': None,  # Will be updated with latest wind speed
+            'history': [],
+            'forecast': []
+        }
+
+        result = {
+            'data': [typhoon_data],
+            'fresh_time': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+        }
+
+        # Process track points
+        current_time = None
+        # Group forecast points by reference time
+        forecast_points = defaultdict(list)
+
+        for point in zoom_data['track']:
+            # Extract common fields
+            point_data = {
+                'lat': point['coordinates'][1],  # Zoom uses [lon, lat]
+                'lon': point['coordinates'][0],
+                'windSpeed': point['wind'] * 0.514444,  # Convert knots to m/s
+                'pressure': point['pressure'] if point['pressure'] else None,
+                'time': point['date']
+            }
+
+            # Update latest position if this is the most recent non-forecast point
+            if not point['forecast'] and (current_time is None or point['date'] > current_time):
+                current_time = point['date']
+                typhoon_data['lat'] = point_data['lat']
+                typhoon_data['lon'] = point_data['lon']
+                typhoon_data['windSpeed'] = point_data['windSpeed']
+
+            # Add to appropriate list
+            if point['forecast']:
+                # Group forecast points by their reference time (current_time)
+                forecast_points[current_time].append(point_data)
+            else:
+                typhoon_data['history'].append(point_data)
+
+        # Convert forecast points into the required format
+        if forecast_points:
+            for reftime, points in forecast_points.items():
+                forecast_entry = {
+                    'reftime': reftime,
+                    'modelIdentifier': 'JTWC',  # Using JTWC as the model identifier
+                    'records': sorted(points, key=lambda x: x['time'])
+                }
+                typhoon_data['forecast'].append(forecast_entry)
+
+        # Sort history by time in descending order (newest first)
+        typhoon_data['history'].sort(key=lambda x: x['time'], reverse=True)
+
+        return result.get("data", [])[0]
+
     @decorate.exception_capture_close_datebase
     def run(self):
-        dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        dataTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        date_utc = datetime.utcnow().strftime("%Y-%m-%dT00:00Z")
+        print(f"date_utc={date_utc}")
         try:
             windy_token = get_check_token_expired(self.cache_rds)
             data = []
@@ -109,15 +234,46 @@ class SpiderWindyZoomStorms(BaseModel):
                 track = self.get_windy_storm_track(windy_token, id)
                 data.append(track)
 
-            windy_current_storms = {
-                "data": data,
-                "fresh_time": dataTime
-            }
-            logger.info(f"fresh ok, windy_current_storms={windy_current_storms}")
 
-            # 设置缓存
-            self.cache_rds.set("windy_current_storms",
-                               json.dumps(windy_current_storms))
+            # 获取 zoom 的气旋和台风数据
+            try:
+                zoom_storms_list = self.get_zoom_storms_list(date_utc)
+                print(f"zoom_storms_list={zoom_storms_list}")
+                zoom_storms_list = zoom_storms_list.get("storms", [])
+                for storm in zoom_storms_list:
+                    print(f"storm={storm}")
+
+                    # 如果 storm 的值 分割-，取前一部分，然后看是否存在storms里，全部用小写对比
+                    storm_id_prefix = storm.split(
+                        '-')[0].lower() if isinstance(storm, str) else ""
+                    # storms 是 windy 的 storms 列表
+                    exists_in_storms = any(
+                        (s.get("id", "").split('-')[0].lower() == storm_id_prefix)
+                        for s in storms if isinstance(s.get("id", ""), str)
+                    )
+                    print(
+                        f"storm_id_prefix={storm_id_prefix}, exists_in_storms={exists_in_storms}")
+                    if exists_in_storms:
+                        continue
+
+                    track = self.get_zoom_storms_track(storm)
+                    # print(f"track={track}")
+                    zoom_data = self.convert_zoom_to_windy_format(track)
+                    if not zoom_data.get("forecast"):
+                        continue
+                    # print(f"zoom_data={zoom_data}")
+                    data.append(zoom_data)
+                # print(f"data={data}")
+            except Exception as e:
+                traceback.print_exc()
+            finally:
+                # 设置缓存
+                windy_current_storms = {
+                    "data": data,
+                    "fresh_time": dataTime
+                }
+                self.cache_rds.set("windy_current_storms",
+                                json.dumps(windy_current_storms))
 
         except Exception as e:
             traceback.print_exc()
