@@ -223,19 +223,19 @@ class SpiderWindyZoomStorms(BaseModel):
     def classify_typhoon(self, wind_speed):
         """根据风速（单位：米/秒）返回台风等级"""
         if wind_speed < 10.8:
-            return "未达热带低压标准"
+            return "<热带低压"
         elif 10.8 <= wind_speed < 17.2:
-            return "热带低压 (TD)"
+            return "热带低压"
         elif 17.2 <= wind_speed < 24.5:  # 热带风暴范围
-            return "热带风暴 (TS)"
+            return "热带风暴"
         elif 24.5 <= wind_speed < 32.7:
-            return "强热带风暴 (STS)"
+            return "强热带风暴"
         elif 32.7 <= wind_speed < 41.5:
-            return "台风 (TY)"
+            return "台风"
         elif 41.5 <= wind_speed < 51.0:
-            return "强台风 (STY)"
+            return "强台风"
         else:
-            return "超强台风 (Super TY)"
+            return "超强台风"
 
     @decorate.exception_capture_close_datebase
     def run(self):
