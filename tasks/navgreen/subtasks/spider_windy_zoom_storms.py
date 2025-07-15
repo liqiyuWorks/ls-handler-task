@@ -220,6 +220,23 @@ class SpiderWindyZoomStorms(BaseModel):
 
         return result.get("data", [])[0]
 
+    def classify_typhoon(self, wind_speed):
+        """根据风速（单位：米/秒）返回台风等级"""
+        if wind_speed < 10.8:
+            return "未达热带低压标准"
+        elif 10.8 <= wind_speed < 17.2:
+            return "热带低压 (TD)"
+        elif 17.2 <= wind_speed < 24.5:  # 热带风暴范围
+            return "热带风暴 (TS)"
+        elif 24.5 <= wind_speed < 32.7:
+            return "强热带风暴 (STS)"
+        elif 32.7 <= wind_speed < 41.5:
+            return "台风 (TY)"
+        elif 41.5 <= wind_speed < 51.0:
+            return "强台风 (STY)"
+        else:
+            return "超强台风 (Super TY)"
+
     @decorate.exception_capture_close_datebase
     def run(self):
         dataTime = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -232,8 +249,13 @@ class SpiderWindyZoomStorms(BaseModel):
             for storm in storms:
                 id = storm.get("id")
                 track = self.get_windy_storm_track(windy_token, id)
+                wind_speed = storm.get("windSpeed")
+                if wind_speed:
+                    typhoon_level = self.classify_typhoon(wind_speed)
+                    print(f"typhoon_level={typhoon_level}")
+                    track["strength"] = typhoon_level
+                
                 data.append(track)
-
 
             # 获取 zoom 的气旋和台风数据
             try:
@@ -241,26 +263,37 @@ class SpiderWindyZoomStorms(BaseModel):
                 print(f"zoom_storms_list={zoom_storms_list}")
                 zoom_storms_list = zoom_storms_list.get("storms", [])
                 for storm in zoom_storms_list:
-                    print(f"storm={storm}")
-
+                    # print(f"storm={storm}")
                     # 如果 storm 的值 分割-，取前一部分，然后看是否存在storms里，全部用小写对比
                     storm_id_prefix = storm.split(
                         '-')[0].lower() if isinstance(storm, str) else ""
                     # storms 是 windy 的 storms 列表
                     exists_in_storms = any(
-                        (s.get("id", "").split('-')[0].lower() == storm_id_prefix)
+                        (s.get("id", "").split('-')
+                         [0].lower() == storm_id_prefix)
                         for s in storms if isinstance(s.get("id", ""), str)
                     )
                     print(
                         f"storm_id_prefix={storm_id_prefix}, exists_in_storms={exists_in_storms}")
                     if exists_in_storms:
+                        # 修改 data 里面id 为 storm_id_prefix，然后修改 id 为 storm
+                        for d in data:
+                            if d.get("id", "").split('-')[0].lower() == storm_id_prefix:
+                                d["id"] = storm
+
                         continue
 
                     track = self.get_zoom_storms_track(storm)
                     # print(f"track={track}")
                     zoom_data = self.convert_zoom_to_windy_format(track)
-                    if not zoom_data.get("forecast"):
-                        continue
+                    wind_speed = zoom_data.get("windSpeed")
+                    if wind_speed:
+                        typhoon_level = self.classify_typhoon(wind_speed)
+                        print(f"typhoon_level={typhoon_level}")
+                        zoom_data["strength"] = typhoon_level
+
+                    # if not zoom_data.get("forecast"):
+                    #     continue
                     # print(f"zoom_data={zoom_data}")
                     data.append(zoom_data)
                 # print(f"data={data}")
@@ -273,7 +306,7 @@ class SpiderWindyZoomStorms(BaseModel):
                     "fresh_time": dataTime
                 }
                 self.cache_rds.set("windy_current_storms",
-                                json.dumps(windy_current_storms))
+                                   json.dumps(windy_current_storms))
 
         except Exception as e:
             traceback.print_exc()
