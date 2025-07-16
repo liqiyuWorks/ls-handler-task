@@ -47,8 +47,21 @@ def get_check_token_expired(cache_redis):
     token2 = cache_redis.hget("windy", "jackleelisheng@gmail")
     if not token2:
         # 获取新的token
-        token2 = get_newest_token(cache_redis)
-        print(f"get new token from windy success!,token2={token2}")
+        # token2 = get_newest_token(cache_redis)
+        ## 调用远程接口，获取新的token
+        try:
+            response = requests.get(
+                "https://api.navgreen.cn/api/mete/forecast/storms/v1",
+                headers={"accept": "application/json"}
+            )
+            if response.status_code == 200:
+                token2 = cache_redis.hget("windy", "jackleelisheng@gmail")
+            else:
+                logger.error(f"Failed to get token from navgreen api, status_code={response.status_code}")
+        except Exception as e:
+            logger.error(f"Exception occurred while getting token from navgreen api: {e}")
+            token2 = None
+        print(f"重新获取成功，token2={token2}")
     else:
         print(f"get token from cache success!,token2={token2}")
         token2 = token2
@@ -121,7 +134,7 @@ class SpiderWindyZoomStorms(BaseModel):
         }
 
         response = requests.request(
-            "GET", url, data=payload, headers=headers, params=querystring)
+            "GET", url, data=payload, headers=headers, params=querystring, timeout=30)
         return response.json()
 
     def get_zoom_storms_track(self, storm_name):
@@ -146,7 +159,7 @@ class SpiderWindyZoomStorms(BaseModel):
         }
 
         response = requests.request(
-            "GET", url, data=payload, headers=headers, params=querystring)
+            "GET", url, data=payload, headers=headers, params=querystring, timeout=30)
 
         return response.json()
 
@@ -300,6 +313,10 @@ class SpiderWindyZoomStorms(BaseModel):
             except Exception as e:
                 traceback.print_exc()
             finally:
+                ## 进行排序
+                # 优先排序 forecast 不为空的台风，其次按 id 倒序
+                # 优先展示有forecast的台风，然后有forecast的台风按风速大小排序
+                data.sort(key=lambda x: (not x.get("forecast"), -(x.get("windSpeed") or 0)))
                 # 设置缓存
                 windy_current_storms = {
                     "data": data,
