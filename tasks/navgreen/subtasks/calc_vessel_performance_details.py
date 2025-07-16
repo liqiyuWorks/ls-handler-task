@@ -4,6 +4,8 @@ import pymongo
 from pkg.public.decorator import decorate
 from pkg.public.models import BaseModel
 import requests
+from requests.adapters import HTTPAdapter, Retry
+from requests.exceptions import ChunkedEncodingError
 from datetime import datetime, timedelta
 from datetime import timezone
 from pkg.public.convert import convert_era5_wave_point, convert_era5_wind_point, convert_era5_flow_point
@@ -16,7 +18,7 @@ import json
 
 def request_mmsi_details(mmsi):
     try:
-        url = "https://api.navgreen.cn/api/vessel/details"
+        url = os.getenv("VESSEL_DETAILS_URL", "https://api.navgreen.cn/api/vessel/details")
 
         querystring = {"mmsi": mmsi}
 
@@ -275,7 +277,7 @@ def deal_bad_perf_list(data, DESIGN_DRAFT, DESIGN_SPEED):
     return performance
 
 
-def get_vessel_track(mmsi, start_time, end_time):
+def get_vessel_track(mmsi, start_time, end_time, max_retries=3):
     """
     根据船舶 mmsi 和时间，读取船舶的航行轨迹
 
@@ -301,56 +303,74 @@ def get_vessel_track(mmsi, start_time, end_time):
         "token": "NAVGREEN_ADMIN_eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE2NjE1MDAxNTMsInVzZXJuYW1lIjoiaml1ZmFuZyIsImFjY2Vzc19rZXkiOiJMUzhBOUVGMTk2NDFGQkI1Q0Q4QUI3RUZFMjVGMUE3NSIsInNlY3JldF9rZXkiOiJMUzQzQkMzRUIzNkMyMzNDRDI0QTYwN0EzRkVDQUIxOCJ9.8zYU58Mxfiu-GDpOEGva1iGzxA0Dyexw1FoGfrdIrtc"
     }
 
-    response = requests.get(url, params=params, headers=headers)
-    track_data = response.json().get("data", {}).get("data", [])
-    # 1. 解析postime为datetime，假定为北京时间
-    for point in track_data:
-        point["postime_dt"] = datetime.strptime(
-            point.get("postime"), "%Y-%m-%d %H:%M:%S")
-        # 假定原始时间为北京时间（UTC+8）
-        point["postime_dt"] = point["postime_dt"].replace(
-            tzinfo=timezone(timedelta(hours=8)))
-    # 2. 按时间排序
-    track_data.sort(key=lambda x: x["postime_dt"])
-    # 3. 以1小时为间隔重采样
-    resampled = []
-    last_time = None
-    for point in track_data:
-        if last_time is None or (point["postime_dt"] - last_time).total_seconds() >= 3600:
-            resampled.append(point)
-            last_time = point["postime_dt"]
-    # 4. 对齐到最近的3小时整点，并去重
-    aligned = {}
-    for point in resampled:
-        dt_utc = point["postime_dt"].astimezone(timezone.utc)
-        # 计算最近的3小时整点
-        hour = round(dt_utc.hour / 3) * 3
-        if hour == 24:
-            dt_utc = dt_utc.replace(hour=0) + timedelta(days=1)
-            hour = 0
-        aligned_time = dt_utc.replace(
-            hour=hour, minute=0, second=0, microsecond=0)
-        key = aligned_time.strftime("%Y-%m-%d %H:%M:%S")
-        if key not in aligned:
-            aligned[key] = {
-                "lon": point.get("lon"),
-                "lat": point.get("lat"),
-                "sog": point.get("sog"),
-                "cog": point.get("cog"),
-                "hdg": point.get("hdg"),
-                "draught": point.get("draught"),
-                "postime": key
-            }
-    track_data = list(aligned.values())
-    track_data.sort(key=lambda x: x["postime"])  # 按时间排序
-    # 修复hdg为None
-    for point in track_data:
-        if point.get("hdg") is None:
-            if point.get("cog") is not None:
-                point["hdg"] = point["cog"]
-            else:
-                point["hdg"] = 0
-    return track_data
+    session = requests.Session()
+    retries = Retry(total=max_retries, backoff_factor=1, status_forcelist=[502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+
+    for attempt in range(max_retries):
+        try:
+            response = session.get(url, params=params, headers=headers, timeout=20)
+            response.raise_for_status()
+            track_data = response.json().get("data", {}).get("data", [])
+            # 1. 解析postime为datetime，假定为北京时间
+            for point in track_data:
+                point["postime_dt"] = datetime.strptime(
+                    point.get("postime"), "%Y-%m-%d %H:%M:%S")
+                # 假定原始时间为北京时间（UTC+8）
+                point["postime_dt"] = point["postime_dt"].replace(
+                    tzinfo=timezone(timedelta(hours=8)))
+            # 2. 按时间排序
+            track_data.sort(key=lambda x: x["postime_dt"])
+            # 3. 以1小时为间隔重采样
+            resampled = []
+            last_time = None
+            for point in track_data:
+                if last_time is None or (point["postime_dt"] - last_time).total_seconds() >= 3600:
+                    resampled.append(point)
+                    last_time = point["postime_dt"]
+            # 4. 对齐到最近的3小时整点，并去重
+            aligned = {}
+            for point in resampled:
+                dt_utc = point["postime_dt"].astimezone(timezone.utc)
+                # 计算最近的3小时整点
+                hour = round(dt_utc.hour / 3) * 3
+                if hour == 24:
+                    dt_utc = dt_utc.replace(hour=0) + timedelta(days=1)
+                    hour = 0
+                aligned_time = dt_utc.replace(
+                    hour=hour, minute=0, second=0, microsecond=0)
+                key = aligned_time.strftime("%Y-%m-%d %H:%M:%S")
+                if key not in aligned:
+                    aligned[key] = {
+                        "lon": point.get("lon"),
+                        "lat": point.get("lat"),
+                        "sog": point.get("sog"),
+                        "cog": point.get("cog"),
+                        "hdg": point.get("hdg"),
+                        "draught": point.get("draught"),
+                        "postime": key
+                    }
+            track_data = list(aligned.values())
+            track_data.sort(key=lambda x: x["postime"])  # 按时间排序
+            # 修复hdg为None
+            for point in track_data:
+                if point.get("hdg") is None:
+                    if point.get("cog") is not None:
+                        point["hdg"] = point["cog"]
+                    else:
+                        point["hdg"] = 0
+            return track_data
+        except ChunkedEncodingError as e:
+            print(f"ChunkedEncodingError, retrying {attempt+1}/{max_retries} ...")
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2)
+        except Exception as e:
+            print(f"Error in get_vessel_track: {e}")
+            if attempt == max_retries - 1:
+                raise
+            time.sleep(2)
+    return []
 
 
 def handle_track_point_weather(i, ck_client):
@@ -834,7 +854,7 @@ class CalcVesselPerformanceDetails(BaseModel):
                             continue
 
                 end_time = datetime.now()
-                start_time = end_time - timedelta(days=180)  # 3个月 = 90天
+                start_time = end_time - timedelta(days=90)  # 3个月 = 90天
                 start_time = start_time.strftime("%Y-%m-%d %H:%M:%S")
                 end_time = end_time.strftime("%Y-%m-%d %H:%M:%S")
                 print(start_time, end_time)
