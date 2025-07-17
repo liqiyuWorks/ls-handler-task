@@ -1,10 +1,10 @@
 @@ -1,18 +0,0 @@
 #!/usr/bin/env bash
-export MONGO_HOST=121.36.28.59
-export MONGO_PORT=21617
-export MONGO_DB=liqiyuWorks
-export MONGO_PASSWORD=Hello1234
-export MONGO_USER=liqiyu
+export MONGO_HOST=58.241.41.78
+export MONGO_PORT=27017
+export MONGO_DB=navgreen
+export MONGO_PASSWORD=Navgreen#0817
+export MONGO_USER=navgreen
 
 export CACHE_REDIS_HOST=124.70.86.179
 export CACHE_REDIS_PORT=21605
