@@ -40,7 +40,7 @@ def request_voc_detail(token, imo_list):
 
     }
 
-    payload = {"lrnoList": imo_list[1:], "mmsiList": []}
+    payload = {"lrnoList": imo_list, "mmsiList": []}
     response = requests.request("POST", url, json=payload, headers=headers)
     return response.json().get("data", [])
 
@@ -48,7 +48,7 @@ def request_voc_detail(token, imo_list):
 class SpiderVesselsLloydInfo(BaseModel):
     def __init__(self):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 10))
-        # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
+        # "客船,干散货-ok,杂货船-ok,液体散货,特种船,集装箱"]
         self.batch_size = int(os.getenv('BATCH_SIZE', 10))
         self.vessel_types = os.getenv('VESSEL_TYPES', "杂货船")
         if self.vessel_types:
