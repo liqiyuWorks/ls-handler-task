@@ -31,8 +31,8 @@ class SpiderVesselFinderVessels(BaseModel):
             "cache_rds": True,
             'collection': 'vessel_finder_vessels',
             'uniq_idx': [
-                ('imo', pymongo.ASCENDING)
-                # ('mmsi', pymongo.ASCENDING),
+                ('imo', pymongo.ASCENDING),
+                ('mmsi', pymongo.ASCENDING),
             ]
         }
         super(SpiderVesselFinderVessels, self).__init__(config)
@@ -60,55 +60,63 @@ class SpiderVesselFinderVessels(BaseModel):
         vessels = []
         try:
             for page_num in range(self.page_start, self.page_end + 1):
-                url = self.VESSEL_LIST_URL_BASE.format(page=page_num)
-                print(f"Crawling page: {url}")
-                page.goto(url, timeout=60000)
-                page.wait_for_selector("table tbody tr", timeout=60000)
-                rows = page.query_selector_all("table tbody tr")
-                for row in rows:
-                    tds = row.query_selector_all("td")
-                    # 采集所有可见字段，按实际页面顺序调整字段名
-                    a_tag = tds[0].query_selector("a") if len(tds) > 0 else None
-                    name = ""
-                    vtype = ""
-                    imo = ""
-                    mmsi = ""
-                    href = ""
-                    ship_img = ""
-                    if a_tag:
-                        # 船名
-                        name_lines = a_tag.inner_text().split('\n')
-                        name = name_lines[0].strip() if len(name_lines) > 0 else ""
-                        vtype = name_lines[1].strip() if len(name_lines) > 1 else ""
-                        href = a_tag.get_attribute("href") or ""
-                        # IMO/MMSI
-                        img_tag = a_tag.query_selector("div img")
-                        if img_tag:
-                            ship_img = img_tag.get_attribute("data-src") or img_tag.get_attribute("src") or ""
-                            src = ship_img
-                            ship_img = src or ""
-                            match = re.search(r'/ship-photo/(\d+)-(\d+)-', src) if src else None
-                            if match:
-                                imo = match.group(1)
-                                mmsi = match.group(2)
-                        if not imo and href:
-                            match = re.search(r'/details/(\d+)', href)
-                            if match:
-                                imo = match.group(1)
-                    vessel = {
-                        "name": name,
-                        "type": vtype,
-                        "imo": imo,
-                        "mmsi": mmsi,
-                        "built": tds[1].inner_text().strip() if len(tds) > 1 else "",
-                        "gt": tds[2].inner_text().strip() if len(tds) > 2 else "",
-                        "dwt": tds[3].inner_text().strip() if len(tds) > 3 else "",
-                        "size": tds[4].inner_text().strip() if len(tds) > 4 else "",
-                        "ship_img": ship_img,
-                        "href": href,
-                    }
-                    print(vessel)
-                    # self.save_to_db(vessel)
+                try:
+                    url = self.VESSEL_LIST_URL_BASE.format(page=page_num)
+                    print(f"Crawling page: {url}")
+                    page.goto(url, timeout=60000)
+                    page.wait_for_selector("table tbody tr", timeout=60000)
+                    page.wait_for_timeout(10)  # 等待新页面加载
+                    rows = page.query_selector_all("table tbody tr")
+                    for row in rows:
+                        tds = row.query_selector_all("td")
+                        # 采集所有可见字段，按实际页面顺序调整字段名
+                        a_tag = tds[0].query_selector("a") if len(tds) > 0 else None
+                        name = ""
+                        vtype = ""
+                        imo = ""
+                        mmsi = ""
+                        href = ""
+                        ship_img = ""
+                        if a_tag:
+                            # 船名
+                            name_lines = a_tag.inner_text().split('\n')
+                            name = name_lines[0].strip() if len(name_lines) > 0 else ""
+                            vtype = name_lines[1].strip() if len(name_lines) > 1 else ""
+                            href = a_tag.get_attribute("href") or ""
+                            # IMO/MMSI
+                            img_tag = a_tag.query_selector("div img")
+                            if img_tag:
+                                ship_img = img_tag.get_attribute("data-src") or img_tag.get_attribute("src") or ""
+                                src = ship_img
+                                ship_img = src or ""
+                                match = re.search(r'/ship-photo/(\d+)-(\d+)-', src) if src else None
+                                if match:
+                                    imo = match.group(1)
+                                    mmsi = match.group(2)
+                            if not imo and href:
+                                match = re.search(r'/details/(\d+)', href)
+                                if match:
+                                    imo = match.group(1)
+                        vessel = {
+                            "name": name,
+                            "type": vtype,
+                            "imo": imo,
+                            "mmsi": mmsi,
+                            "built": tds[1].inner_text().strip() if len(tds) > 1 else "",
+                            "gt": tds[2].inner_text().strip() if len(tds) > 2 else "",
+                            "dwt": tds[3].inner_text().strip() if len(tds) > 3 else "",
+                            "size": tds[4].inner_text().strip() if len(tds) > 4 else "",
+                            "ship_img": ship_img,
+                            "href": href,
+                        }
+                        print(vessel)
+                        self.save_to_db(vessel)
+                except Exception as page_exc:
+                    print(f"[SpiderVesselFinderVessels][crawl][page {page_num}] error: {page_exc}")
+                    traceback.print_exc()
+                    continue
+
+                
                 # 尝试点击下一页
                 # try:
                 #     next_btns = page.get_by_role(self.NEXT_PAGE_ROLE, name=self.NEXT_PAGE_NAME)
@@ -125,9 +133,8 @@ class SpiderVesselFinderVessels(BaseModel):
                 #         break
                 #     next_btn.click()
                 #     page.wait_for_timeout(1000)  # 等待新页面加载
-                # except Exception:
-                #     traceback.print_exc()
-                break
+        except Exception:
+            traceback.print_exc()
         finally:
             page.close()
             context.close()
