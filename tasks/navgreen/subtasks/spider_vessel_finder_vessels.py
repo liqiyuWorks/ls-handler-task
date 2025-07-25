@@ -54,7 +54,7 @@ class SpiderVesselFinderVessels(BaseModel):
         """
         data_time = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
         print(f"[SpiderVesselFinderVessels][crawl] data_time: {data_time}")
-        browser = playwright.chromium.launch(headless=False)
+        browser = playwright.chromium.launch(headless=True)
         context = browser.new_context()
         page = context.new_page()
         vessels = []
