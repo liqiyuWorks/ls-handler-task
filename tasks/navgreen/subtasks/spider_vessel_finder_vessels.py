@@ -55,7 +55,7 @@ class SpiderVesselFinderVessels(BaseModel):
         data_time = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
         print(f"[SpiderVesselFinderVessels][crawl] data_time: {data_time}")
         browser = playwright.chromium.launch(headless=True)
-        context = browser.new_context()
+        context = browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         page = context.new_page()
         vessels = []
         try:
@@ -63,7 +63,13 @@ class SpiderVesselFinderVessels(BaseModel):
                 try:
                     url = self.VESSEL_LIST_URL_BASE.format(page=page_num)
                     print(f"Crawling page: {url}")
-                    page.goto(url, timeout=60000)
+                    # 修改等待条件，提升兼容性
+                    page.goto(url, timeout=60000, wait_until="domcontentloaded")
+                    # 检查是否被反爬
+                    page_content = page.content()
+                    if "captcha" in page_content.lower() or "verify" in page_content.lower():
+                        print(f"[反爬检测] 可能被拦截，页面内容片段: {page_content[:500]}")
+                        break
                     page.wait_for_selector("table tbody tr", timeout=60000)
                     page.wait_for_timeout(10)  # 等待新页面加载
                     rows = page.query_selector_all("table tbody tr")

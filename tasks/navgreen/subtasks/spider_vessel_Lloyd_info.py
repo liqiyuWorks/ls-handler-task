@@ -42,6 +42,7 @@ def request_voc_detail(token, imo_list):
 
     payload = {"lrnoList": imo_list, "mmsiList": []}
     response = requests.request("POST", url, json=payload, headers=headers)
+    print(response.json())
     return response.json().get("data", [])
 
 
@@ -49,8 +50,8 @@ class SpiderVesselsLloydInfo(BaseModel):
     def __init__(self):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 10))
         # "客船,干散货-ok,杂货船-ok,液体散货,特种船,集装箱"]
-        self.batch_size = int(os.getenv('BATCH_SIZE', 10))
-        self.vessel_types = os.getenv('VESSEL_TYPES', "杂货船")
+        self.batch_size = int(os.getenv('BATCH_SIZE', 100))
+        self.vessel_types = os.getenv('VESSEL_TYPES', "特种船")
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
         else:
@@ -74,12 +75,12 @@ class SpiderVesselsLloydInfo(BaseModel):
             print(dataTime)
             imo_list = self.mgo_db["hifleet_vessels"].find({
                 "imo": {
-                    "$exists": True, 
-                    "$ne": "None", 
+                    "$exists": True,
+                    "$ne": "None",
                     "$ne": "0",
                     "$ne": None,
                     "$ne": ""
-                    },
+                },
                 "vesselTypeNameCn": {"$in": self.vessel_types}
             }).distinct("imo")
 
@@ -87,12 +88,13 @@ class SpiderVesselsLloydInfo(BaseModel):
             existing_lrno_list = self.mgo_db["Lloyd_info_vessels"].distinct(
                 "lrno")
             # imo_list与已存在的lrno去重
-            INVALID_IMO_VALUES = {None, "", "None", "0"}
+            INVALID_IMO_VALUES = {None, "", "None",
+                                  "0", "0000000", "12211", "123", "111", "128"}
             imo_list_after_deduplication = [
-                imo for imo in imo_list
+                imo for imo in reversed(imo_list)
                 if imo not in existing_lrno_list and imo not in INVALID_IMO_VALUES
             ]
-            print(len(imo_list),len(imo_list_after_deduplication))
+            print(len(imo_list), len(imo_list_after_deduplication))
             # print(imo_list_after_deduplication)
 
             # imo_list按照 1000 个一个数组，拆分循环
@@ -101,19 +103,24 @@ class SpiderVesselsLloydInfo(BaseModel):
             imo_batches = [imo_list_after_deduplication[i:i + batch_size]
                            for i in range(0, len(imo_list_after_deduplication), batch_size)]
             for batch in imo_batches:
-                print(f"Processing batch of {len(batch)} IMOs")
-                res = request_voc_detail(token, batch)
-                for item in res:
-                    print(item.get("fmShipDTO").get("lrno"), " -- 插入完成")
-                    # 如果以imo为主键，存在则更新，不存在则插入（upsert=True已实现此逻辑）
-                    # 插入更新时间
-                    item["update_time"] = datetime.datetime.now()
-                    self.mgo_db["Lloyd_info_vessels"].update_one(
-                        {"lrno": item.get("fmShipDTO").get("lrno")}, {"$set": item}, upsert=True)
-                    
+                try:
+                    print(f"Processing batch of {len(batch)} IMOs")
+                    print(batch)
+                    res = request_voc_detail(token, batch)
+                    for item in res:
+                        lrno = item.get("fmShipDTO", {}).get("lrno")
+                        print(lrno, " -- 插入完成")
+                        # 如果以imo为主键，存在则更新，不存在则插入（upsert=True已实现此逻辑）
+                        # 插入更新时间
+                        item["update_time"] = datetime.datetime.now()
+                        self.mgo_db["Lloyd_info_vessels"].update_one(
+                            {"lrno": lrno}, {"$set": item}, upsert=True)
+                except Exception as e:
+                    print(f"Error processing item: {e}")
+                    traceback.print_exc()
+                    break
+
                 time.sleep(self.time_sleep_seconds)
-                    
-                # break
 
         except Exception as e:
             traceback.print_exc()
