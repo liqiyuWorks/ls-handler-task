@@ -15,8 +15,8 @@ import re
 
 class SpiderVesselFinderVessels(BaseModel):
     # 常量集中管理
-    page_start = int(os.getenv("PAGE_START", 1))
-    page_end = int(os.getenv("PAGE_END", 133))
+    page_start = int(os.getenv("PAGE_START", 201))
+    page_end = int(os.getenv("PAGE_END", 10000))
     VESSEL_LIST_URL_BASE = "https://www.vesselfinder.com/vessels?page={page}"
     LINK_SELECTOR = "table tbody tr td:first-child a"
     NEXT_PAGE_ROLE = "link"
@@ -117,10 +117,13 @@ class SpiderVesselFinderVessels(BaseModel):
                         }
                         print(vessel)
                         self.save_to_db(vessel)
+                        time.sleep(1)
                 except Exception as page_exc:
                     print(f"[SpiderVesselFinderVessels][crawl][page {page_num}] error: {page_exc}")
                     traceback.print_exc()
+                    time.sleep(1000)
                     continue
+                    
 
                 
                 # 尝试点击下一页

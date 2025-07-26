@@ -10,7 +10,7 @@ from tasks.navgreen.subtasks.spider_vessel_finder_vessels import SpiderVesselFin
 def get_task_dic():
     task_dict = {
         "spider_hifleet_vessels": (lambda: SpiderHifleetVessels(), 'Navgreen => hifleet的船舶档案'),
-        "spider_vessel_finder_vessels": (lambda: SpiderVesselFinderVessels(), 'Navgreen => vesselfinder的列表'),
+        # "spider_vessel_finder_vessels": (lambda: SpiderVesselFinderVessels(), 'Navgreen => vesselfinder的列表'),
         "spider_vessel_Lloyd_info": (lambda: SpiderVesselsLloydInfo(), 'Navgreen => ***查询船舶劳氏船级社的档案'),
         "calc_vessel_performance_details": (lambda: CalcVesselPerformanceDetails(), '****Navgreen：后台计算船舶性能详情'),
         "calc_vessel_performance_details_from_wmy": (lambda: CalcVesselPerformanceDetailsFromWmy(), '****Navgreen：从茂源那边获取 mmsi 去计算船舶性能详情'),
