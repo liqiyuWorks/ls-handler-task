@@ -50,18 +50,20 @@ class SpiderVesselsLloydInfo(BaseModel):
     def __init__(self):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 10))
         # "客船,干散货-ok,杂货船-ok,液体散货,特种船,集装箱"]
-        self.batch_size = int(os.getenv('BATCH_SIZE', 100))
+        self.batch_size = int(os.getenv('BATCH_SIZE', 500))
         # self.hifleet_types = os.getenv('HIFLEET_TYPES', None)
-        self.hifleet_types = os.getenv('HIFLEET_TYPES', "集装箱船")
+        self.hifleet_types = os.getenv('HIFLEET_TYPES', None)
         if self.hifleet_types:
             self.hifleet_types = self.hifleet_types.split(",")
         else:
             self.hifleet_types = []
+        
         self.vessel_types = os.getenv('VESSEL_TYPES', "特种船")
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
         else:
             self.vessel_types = []
+            
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -100,7 +102,7 @@ class SpiderVesselsLloydInfo(BaseModel):
                         "$ne": None,
                         "$ne": ""
                     },
-                    "vesselTypeNameCn": {"$in": self.vessel_types}
+                    # "vesselTypeNameCn": {"$in": self.vessel_types}
                 }).distinct("imo")
 
             # 获取已存在的lrno列表

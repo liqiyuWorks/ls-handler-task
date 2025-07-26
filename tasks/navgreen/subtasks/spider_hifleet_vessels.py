@@ -42,7 +42,9 @@ class SpiderHifleetVessels(BaseModel):
 
     def __init__(self):
         self.PAGE_START = int(os.getenv('PAGE_START', 1))
-        self.PAGE_END = int(os.getenv('PAGE_END', 70))
+        self.PAGE_END = int(os.getenv('PAGE_END', 5))
+        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', 200))
+        self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -54,7 +56,7 @@ class SpiderHifleetVessels(BaseModel):
         }
         self.payload = {
             "offset": 1,
-            "limit": 2000,
+            "limit": self.HIFLEET_VESSELS_LIMIT,
             # "limit": 20,
             "_v": "5.3.588",
             "params": {
@@ -72,7 +74,7 @@ class SpiderHifleetVessels(BaseModel):
                 "dwtmin": -1,
                 "dwtmax": -1,
                 "sortcolumn": "shipname",
-                "sorttype": "asc",
+                "sorttype": "desc",
                 "isFleetShip": 0
             }
         }
@@ -140,7 +142,7 @@ class SpiderHifleetVessels(BaseModel):
                             #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
                             #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
 
-            time.sleep(10)
+            time.sleep(self.time_sleep_seconds)
 
         except Exception as e:
             print("error:", e)
