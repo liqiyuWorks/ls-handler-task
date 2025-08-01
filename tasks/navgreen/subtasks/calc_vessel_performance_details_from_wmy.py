@@ -1000,7 +1000,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def __init__(self):
         # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
         self.vessel_types = os.getenv('VESSEL_TYPES', "干散货")
-        self.wmy_url = os.getenv('WMY_URL', "https://openapi.navgreen.cn")
+        self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
+        self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
 
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
@@ -1396,7 +1397,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         :param end_time: 结束时间戳（毫秒）
         :return: 轨迹数据列表
         """
-        url = f"{self.wmy_url}/api/vessel/trace"
+        url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace"
+        print(url)
         # 构造请求体，使用当前vessel的mmsi，时间戳可根据需要调整
         data = {
             "mmsi": mmsi,
