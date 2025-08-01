@@ -1002,6 +1002,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.vessel_types = os.getenv('VESSEL_TYPES', "")
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
+        self.time_sleep = os.getenv('TIME_SLEEP', "3")
 
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
@@ -1563,6 +1564,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     print(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
                 print(
                     f"性能：{current_good_weather_performance}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
+                time.sleep(int(self.time_sleep))
 
         except Exception as e:
             traceback.print_exc()
