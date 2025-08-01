@@ -999,7 +999,7 @@ def generate_market_recommendations(
 class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def __init__(self):
         # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
-        self.vessel_types = os.getenv('VESSEL_TYPES', "干散货")
+        self.vessel_types = os.getenv('VESSEL_TYPES', "")
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
 
@@ -1398,7 +1398,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         :return: 轨迹数据列表
         """
         url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace"
-        print(url)
         # 构造请求体，使用当前vessel的mmsi，时间戳可根据需要调整
         data = {
             "mmsi": mmsi,
@@ -1407,7 +1406,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             "start_timestamp": start_time,
             "end_timestamp": end_time
         }
-        print(data)
 
         try:
             response = requests.post(url, json=data, verify=False, timeout=30)
@@ -1491,6 +1489,11 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                  * 1000) - 90 * 24 * 3600 * 1000
                 end_time = int(datetime.now().timestamp() * 1000)
                 trace = self.get_vessel_trace(mmsi, start_time, end_time)
+
+                # 初始化性能数据变量
+                current_good_weather_performance = None
+                current_bad_weather_performance = None
+                performance_analysis = None
 
                 if trace:
                     current_good_weather_performance = self.deal_good_perf_list(
