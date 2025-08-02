@@ -1019,7 +1019,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         }
 
         super(CalcVesselPerformanceDetailsFromWmy, self).__init__(config)
-        
+
         # 配置连接池以提高连接稳定性
         self.session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
@@ -1422,14 +1422,14 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         # 重试配置
         max_retries = 3
         retry_delay = 2  # 秒
-        
+
         for attempt in range(max_retries):
             try:
                 # 增加连接超时和读取超时
                 response = self.session.post(
-                    url, 
-                    json=data, 
-                    verify=False, 
+                    url,
+                    json=data,
+                    verify=False,
                     timeout=(30, 120),  # (连接超时, 读取超时)
                     headers={
                         'Content-Type': 'application/json',
@@ -1472,7 +1472,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 if response_data.get("state", {}).get("code") == 0:
                     return response_data.get("traces", [])
                 else:
-                    print(f"API请求失败: {response_data.get('state', {}).get('message', '未知错误')}")
+                    print(
+                        f"API请求失败: {response_data.get('state', {}).get('message', '未知错误')}")
                     if attempt < max_retries - 1:
                         print(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
@@ -1487,7 +1488,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
-                
+
             except requests.exceptions.Timeout as e:
                 print(f"请求超时 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
@@ -1496,7 +1497,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
-                
+
             except requests.exceptions.RequestException as e:
                 print(f"请求异常 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
@@ -1505,10 +1506,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
-        
+
         print(f"所有重试都失败了，返回空列表")
         return []
-    
+
     def check_server_health(self) -> bool:
         """
         检查服务器连接健康状态
@@ -1577,7 +1578,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 load_weight = vessel.get("dwt")
                 if not draught or not design_speed:
                     continue
-                
+
                 # 每处理10个船舶检查一次服务器健康状态
                 if num % 10 == 0:
                     if not self.check_server_health():
@@ -1607,7 +1608,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         current_bad_weather_performance,
                         design_speed
                     )
-                    
+
                     # 更新 mongo 的数据
                     self.mgo_db["vessels_performance_details"].update_one(
                         {"mmsi": mmsi},
@@ -1633,16 +1634,16 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         if current_good_weather_performance["ship_year"]:
                             current_good_weather_performance["ship_year"] = int(
                                 datetime.now().year) - int(current_good_weather_performance["ship_year"])
-                    
+
                     if current_good_weather_performance:
                         task = {
-                        'task_type': "handler_calculate_vessel_performance_ck",
-                        'process_data': current_good_weather_performance
+                            'task_type': "handler_calculate_vessel_performance_ck",
+                            'process_data': current_good_weather_performance
                         }
                         self.cache_rds.rpush(
                             "handler_calculate_vessel_performance_ck", json.dumps(task))
                         print(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
-                        
+
                         # 更新 perf_calculated_updated_at
                         self.mgo_db["hifleet_vessels"].update_one(
                             {"mmsi": mmsi},
@@ -1668,7 +1669,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 else:
                     print(f"MMSI {mmsi} 未获取到轨迹数据")
 
-                
                 print(
                     f"性能：{current_good_weather_performance}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
                 time.sleep(float(self.time_sleep))
