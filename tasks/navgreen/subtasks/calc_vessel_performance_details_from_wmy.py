@@ -3,6 +3,7 @@
 import pymongo
 from pkg.public.decorator import decorate
 from pkg.public.models import BaseModel
+from pkg.public.logger import logger
 import requests
 from datetime import datetime, timedelta
 from datetime import timezone
@@ -1412,12 +1413,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         # 构造请求体，使用当前vessel的mmsi，时间戳可根据需要调整
         data = {
             "mmsi": mmsi,
-            "interval_hour": 6,
-            # 90天前
+            "interval_hour": 3,
             "start_timestamp": start_time,
             "end_timestamp": end_time
         }
-        # print(f"data: {data}")
 
         # 重试配置
         max_retries = 3
@@ -1439,19 +1438,19 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
                 # 检查HTTP状态码
                 if response.status_code != 200:
-                    print(f"HTTP请求失败，状态码: {response.status_code}")
-                    print(f"响应内容: {response.text[:200]}...")
+                    logger.error(f"HTTP请求失败，状态码: {response.status_code}")
+                    logger.error(f"响应内容: {response.text[:200]}...")
                     if attempt < max_retries - 1:
-                        print(f"重试第 {attempt + 1} 次...")
+                        logger.warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
 
                 # 检查响应内容是否为空
                 if not response.text.strip():
-                    print(f"API返回空响应")
+                    logger.warning(f"API返回空响应")
                     if attempt < max_retries - 1:
-                        print(f"重试第 {attempt + 1} 次...")
+                        logger.warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
@@ -1460,10 +1459,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 try:
                     response_data = response.json()
                 except requests.exceptions.JSONDecodeError as e:
-                    print(f"JSON解析失败: {e}")
-                    print(f"响应内容: {response.text[:200]}...")
+                    logger.error(f"JSON解析失败: {e}")
+                    logger.error(f"响应内容: {response.text[:200]}...")
                     if attempt < max_retries - 1:
-                        print(f"重试第 {attempt + 1} 次...")
+                        logger.warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
@@ -1472,42 +1471,42 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 if response_data.get("state", {}).get("code") == 0:
                     return response_data.get("traces", [])
                 else:
-                    print(
+                    logger.error(
                         f"API请求失败: {response_data.get('state', {}).get('message', '未知错误')}")
                     if attempt < max_retries - 1:
-                        print(f"重试第 {attempt + 1} 次...")
+                        logger.warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
 
             except requests.exceptions.ConnectionError as e:
-                print(f"连接错误 (尝试 {attempt + 1}/{max_retries}): {e}")
+                logger.error(f"连接错误 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
-                    print(f"等待 {retry_delay} 秒后重试...")
+                    logger.warning(f"等待 {retry_delay} 秒后重试...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
 
             except requests.exceptions.Timeout as e:
-                print(f"请求超时 (尝试 {attempt + 1}/{max_retries}): {e}")
+                logger.error(f"请求超时 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
-                    print(f"等待 {retry_delay} 秒后重试...")
+                    logger.warning(f"等待 {retry_delay} 秒后重试...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
 
             except requests.exceptions.RequestException as e:
-                print(f"请求异常 (尝试 {attempt + 1}/{max_retries}): {e}")
+                logger.error(f"请求异常 (尝试 {attempt + 1}/{max_retries}): {e}")
                 if attempt < max_retries - 1:
-                    print(f"等待 {retry_delay} 秒后重试...")
+                    logger.warning(f"等待 {retry_delay} 秒后重试...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
 
-        print(f"所有重试都失败了，返回空列表")
+        logger.error(f"所有重试都失败了，返回空列表")
         return []
 
     def check_server_health(self) -> bool:
@@ -1530,14 +1529,14 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
 
             if self.mgo_db is None:
-                print("数据库连接失败")
+                logger.error("数据库连接失败")
                 return
 
             from datetime import datetime, timedelta
 
             # 计算10天前的时间戳
             ten_days_ago = datetime.now() - timedelta(days=10)
-            print(f"ten_days_ago: {ten_days_ago}")
+            logger.info(f"ten_days_ago: {ten_days_ago}")
 
             # 构建排除最近10天内的updated_at条件
             query_sql_with_time = dict(query_sql)
@@ -1563,7 +1562,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
             total_num = vessels.count()
             num = 0
-            print(f"total_num: {total_num}")
+            logger.info(f"total_num: {total_num}")
 
             # 请求接口，获取轨迹气象数据和船舶轨迹数据
             for vessel in vessels:
@@ -1578,13 +1577,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 load_weight = vessel.get("dwt")
                 if not draught or not design_speed:
                     continue
-
-                # 每处理10个船舶检查一次服务器健康状态
-                if num % 10 == 0:
-                    if not self.check_server_health():
-                        print(f"服务器连接异常，等待30秒后继续...")
-                        time.sleep(30)
-                        continue
 
                 start_time = int(datetime.now().timestamp()
                                  * 1000) - 90 * 24 * 3600 * 1000
@@ -1642,7 +1634,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         }
                         self.cache_rds.rpush(
                             "handler_calculate_vessel_performance_ck", json.dumps(task))
-                        print(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
+                        # logger.info(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
 
                         # 更新 perf_calculated_updated_at
                         self.mgo_db["hifleet_vessels"].update_one(
@@ -1667,14 +1659,14 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     # print(f"MMSI {mmsi} 船长评估: {captain_assessment}")
                     # print(f"MMSI {mmsi} 买卖船租船分析: {trading_chartering_analysis}")
                 else:
-                    print(f"MMSI {mmsi} 未获取到轨迹数据")
+                    logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
 
-                print(
-                    f"性能：{current_good_weather_performance}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
+                logger.info(
+                    f"性能计算已完成：mmsi={mmsi}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
                 time.sleep(float(self.time_sleep))
 
         except Exception as e:
             traceback.print_exc()
-            print("error:", e)
+            logger.error(f"error: {e}")
         finally:
-            print("运行结束")
+            logger.info("运行结束")
