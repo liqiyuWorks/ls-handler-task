@@ -249,6 +249,39 @@
         .refresh-btn:hover {
             background: #5a6268;
         }
+
+        .delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+
+        .delete-btn:hover {
+            background: #c82333;
+        }
+
+        .task-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .task-info {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .task-created-time {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
     </style>
 </head>
 <body>
@@ -269,14 +302,14 @@
                 <input type="date" id="date" name="date">
             </div>
 
-            <div class="form-group">
+            <!-- <div class="form-group">
                 <label for="interface">修改接口</label>
                 <select id="interface" name="interface">
                     <option value="default">默认接口</option>
                     <option value="advanced">高级接口</option>
                     <option value="custom">自定义接口</option>
                 </select>
-            </div>
+            </div> -->
 
             <button type="submit" class="btn" id="submitBtn">
                 <span id="submitText">开始修改</span>
@@ -303,7 +336,7 @@
             
             const vin = document.getElementById('vin').value.trim();
             const date = document.getElementById('date').value;
-            const interface = document.getElementById('interface').value;
+            // const interface = document.getElementById('interface').value;
             
             if (!vin) {
                 showStatus('请输入VIN码', 'error');
@@ -327,8 +360,8 @@
                     },
                     body: JSON.stringify({
                         vin: vin,
-                        date: date,
-                        interface: interface
+                        date: date
+                        // interface: interface
                     })
                 });
                 
@@ -430,6 +463,17 @@
                             statusClass = '';
                     }
                     
+                    // 格式化创建时间
+                    let createdTime = '未知时间';
+                    if (task.created_at) {
+                        try {
+                            const date = new Date(task.created_at);
+                            createdTime = date.toLocaleString('zh-CN');
+                        } catch (e) {
+                            createdTime = task.created_at;
+                        }
+                    }
+                    
                     let screenshotHtml = '';
                     if (task.screenshot_path) {
                         screenshotHtml = `<br><a href="/${task.screenshot_path}" target="_blank" class="screenshot-link">查看截图</a>`;
@@ -440,9 +484,18 @@
                             <span class="task-vin">${task.vin || '未知VIN'}</span>
                             <span class="task-status ${statusClass}">${statusText}</span>
                         </div>
+                        <div class="task-created-time">
+                            创建时间: ${createdTime}
+                        </div>
                         <div class="task-details">
                             日期: ${task.new_date || '未指定'}<br>
                             任务ID: ${taskId}${screenshotHtml}
+                        </div>
+                        <div class="task-actions">
+                            <div class="task-info">
+                                状态: ${statusText}
+                            </div>
+                            <button class="delete-btn" onclick="deleteTask('${taskId}')">删除</button>
                         </div>
                     `;
                     
@@ -450,6 +503,34 @@
                 });
             } catch (error) {
                 console.error('刷新任务列表失败:', error);
+            }
+        }
+
+        // 删除任务
+        async function deleteTask(taskId) {
+            if (!confirm('确定要删除这个任务吗？此操作不可撤销。')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus('任务删除成功', 'success');
+                    // 刷新任务列表
+                    refreshTasks();
+                } else {
+                    showStatus(`删除失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`删除失败: ${error.message}`, 'error');
             }
         }
 

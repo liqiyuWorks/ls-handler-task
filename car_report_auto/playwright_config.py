@@ -170,6 +170,136 @@ class PlaywrightConfig:
             logger.error(f"截图失败: {e}")
             return None
     
+    async def save_page_as_image(self, prefix: str = "page_save") -> Optional[str]:
+        """保存页面为图片，类似右击保存页面的效果"""
+        if not self.page:
+            logger.error("页面未初始化，无法截图")
+            return None
+        
+        try:
+            from datetime import datetime
+            import re
+            
+            # 获取页面标题作为文件名的一部分
+            page_title = await self.page.title()
+            if page_title:
+                # 清理标题中的特殊字符，只保留中文、英文、数字
+                clean_title = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9\s]', '', page_title)
+                clean_title = re.sub(r'\s+', '_', clean_title.strip())
+                if len(clean_title) > 20:
+                    clean_title = clean_title[:20]
+            else:
+                clean_title = "page"
+            
+            # 生成时间戳
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # 创建更友好的文件名
+            filename = f"{clean_title}_{prefix}_{timestamp}.png"
+            screenshot_path = f"static/screenshots/{filename}"
+            
+            # 确保目录存在
+            os.makedirs("static/screenshots", exist_ok=True)
+            
+            # 等待页面完全加载和渲染
+            await self.page.wait_for_timeout(2000)
+            
+            # 获取页面尺寸
+            viewport = self.page.viewport_size
+            page_height = await self.page.evaluate("document.documentElement.scrollHeight")
+            
+            # 设置截图选项，模拟右击保存页面的效果
+            screenshot_options = {
+                'path': screenshot_path,
+                'full_page': True,
+                'type': 'png',
+                'omit_background': False,  # 包含背景
+                'scale': 'css'  # 使用CSS缩放
+            }
+            
+            # 截图
+            await self.page.screenshot(**screenshot_options)
+            
+            # 获取文件大小
+            file_size = os.path.getsize(screenshot_path)
+            file_size_mb = file_size / (1024 * 1024)
+            
+            logger.info(f"页面已保存为图片: {screenshot_path} (大小: {file_size_mb:.2f}MB)")
+            return screenshot_path
+            
+        except Exception as e:
+            logger.error(f"保存页面为图片失败: {e}")
+            return None
+    
+    async def save_element_as_image(self, element_selector: str, prefix: str = "element_save") -> Optional[str]:
+        """保存特定元素为图片"""
+        if not self.page:
+            logger.error("页面未初始化，无法截图")
+            return None
+        
+        try:
+            from datetime import datetime
+            import re
+            
+            # 等待元素出现
+            await self.page.wait_for_selector(element_selector, timeout=10000)
+            
+            # 获取元素
+            element = await self.page.query_selector(element_selector)
+            if not element:
+                logger.error(f"未找到元素: {element_selector}")
+                return None
+            
+            # 获取页面标题作为文件名的一部分
+            page_title = await self.page.title()
+            if page_title:
+                # 清理标题中的特殊字符，只保留中文、英文、数字
+                clean_title = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9\s]', '', page_title)
+                clean_title = re.sub(r'\s+', '_', clean_title.strip())
+                if len(clean_title) > 20:
+                    clean_title = clean_title[:20]
+            else:
+                clean_title = "page"
+            
+            # 生成时间戳
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # 创建更友好的文件名
+            filename = f"{clean_title}_{prefix}_{timestamp}.png"
+            screenshot_path = f"static/screenshots/{filename}"
+            
+            # 确保目录存在
+            os.makedirs("static/screenshots", exist_ok=True)
+            
+            # 等待页面完全加载和渲染
+            await self.page.wait_for_timeout(2000)
+            
+            # 滚动到元素位置，确保元素可见
+            await element.scroll_into_view_if_needed()
+            await self.page.wait_for_timeout(500)
+            
+            # 设置截图选项，只截取元素
+            screenshot_options = {
+                'path': screenshot_path,
+                'type': 'png',
+                'omit_background': False,  # 包含背景
+                'scale': 'css'  # 使用CSS缩放
+            }
+            
+            # 截取元素
+            await element.screenshot(**screenshot_options)
+            
+            # 获取文件大小
+            file_size = os.path.getsize(screenshot_path)
+            file_size_mb = file_size / (1024 * 1024)
+            
+            logger.info(f"元素已保存为图片: {screenshot_path} (大小: {file_size_mb:.2f}MB)")
+            return screenshot_path
+            
+        except Exception as e:
+            logger.error(f"保存元素为图片失败: {e}")
+            return None
+    
     async def navigate_to_page(self, url: str, wait_until: str = "networkidle") -> bool:
         """导航到页面"""
         if not self.page:

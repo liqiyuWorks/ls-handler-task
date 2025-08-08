@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-车辆报告修改Web界面 - Docker 优化版本
+车辆报告修改Web界面 - Redis优化版本
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -12,11 +12,11 @@ from datetime import datetime
 from playwright.async_api import async_playwright
 from loguru import logger
 import threading
-import queue
 import os
 import tempfile
 import shutil
 from playwright_config import PlaywrightConfig
+from redis_task_manager import get_redis_task_manager, init_redis_task_manager
 
 # 获取当前文件所在目录
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -24,9 +24,8 @@ app = Flask(__name__,
             template_folder=os.path.join(current_dir, 'templates'),
             static_folder=os.path.join(current_dir, 'static'))
 
-# 全局任务队列
-task_queue = queue.Queue()
-results = {}
+# 初始化Redis任务管理器
+redis_task_manager = None
 
 class CarReportModifier:
     def __init__(self, vin, new_date=None, qr_code_url=None, headless=True):
@@ -45,7 +44,28 @@ class CarReportModifier:
     async def get_report_url(self):
         """获取报告链接"""
         try:
-            logger.info(f"正在请求API获取报告链接，VIN: {self.vin}")
+            # 优先尝试第一个接口获取报告链接
+            alt_base_url = "https://cxm.yimuzhiche.com/service/CustomerService.ashx"
+            alt_params = {
+                "Method": "GenerateLinkURL",
+                "AppName": "zhichepro",
+                "vin": self.vin
+            }
+            try:
+                logger.info(f"尝试API接口获取报告链接，VIN: {self.vin}")
+                alt_response = requests.get(alt_base_url, params=alt_params, timeout=10)
+                alt_response.raise_for_status()
+                alt_data = alt_response.json()
+                if alt_data.get("Result") == 1 and alt_data.get("Message") == "获取成功":
+                    report_url = alt_data.get("ReturnObj")
+                    logger.info(f"API接口成功获取报告链接: {report_url}")
+                    return report_url
+                else:
+                    logger.warning(f"API接口未成功: {alt_data}")
+            except Exception as e:
+                logger.warning(f"API接口请求失败: {e}")
+            
+            logger.info(f"正在请求APP获取报告链接，VIN: {self.vin}")
             response = requests.get(self.base_url, params=self.params)
             response.raise_for_status()
             
@@ -120,13 +140,13 @@ class CarReportModifier:
                 modification_success = await config.modify_element_text(element, full_text)
                 
                 if not modification_success:
-                    return False, await config.take_screenshot("date_modification_failed")
+                    return False, await config.save_element_as_image('//*[@id="reportRef"]', "date_modification_failed")
                 
                 # 等待页面稳定
                 await config.page.wait_for_timeout(2000)
                 
-                # 保存修改后的页面截图
-                screenshot_path = await config.take_screenshot("modified_report")
+                # 保存修改后的页面截图，只截取报告内容区域
+                screenshot_path = await config.save_element_as_image('//*[@id="reportRef"]', "modified_report")
                 
                 return True, screenshot_path
                 
@@ -138,25 +158,37 @@ class CarReportModifier:
     
     async def run(self):
         """运行主流程"""
-        logger.info(f"开始执行自动修改流程...")
+        logger.info(f"开始执行自动修改流程，VIN: {self.vin}, 新日期: {self.new_date}")
         
-        report_url = await self.get_report_url()
-        if not report_url:
-            logger.error("无法获取报告链接，流程终止")
+        try:
+            report_url = await self.get_report_url()
+            if not report_url:
+                logger.error("无法获取报告链接，流程终止")
+                return False, None
+            
+            logger.info(f"成功获取报告链接: {report_url}")
+            
+            success, screenshot_path = await self.modify_date_on_page(report_url)
+            
+            if success:
+                logger.info("✅ 修改完成！")
+                return True, screenshot_path
+            else:
+                logger.error("❌ 修改失败！")
+                return False, screenshot_path
+        except Exception as e:
+            logger.error(f"执行流程时发生异常: {e}")
+            import traceback
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
             return False, None
-        
-        success, screenshot_path = await self.modify_date_on_page(report_url)
-        
-        if success:
-            logger.info("✅ 修改完成！")
-            return True, screenshot_path
-        else:
-            logger.error("❌ 修改失败！")
-            return False, screenshot_path
 
 def run_async_task(task_id, vin, new_date, qr_code_url):
     """在后台运行异步任务"""
     try:
+        # 更新任务状态为运行中
+        redis_task_manager.update_task_status(task_id, 'running')
+        logger.info(f"开始执行任务 {task_id}, VIN: {vin}, 日期: {new_date}")
+        
         modifier = CarReportModifier(
             vin=vin,
             new_date=new_date,
@@ -169,25 +201,33 @@ def run_async_task(task_id, vin, new_date, qr_code_url):
         
         success, screenshot_path = loop.run_until_complete(modifier.run())
         
-        # 保留VIN和日期信息
-        results[task_id] = {
-            'success': success,
-            'screenshot_path': screenshot_path,
-            'status': 'completed',
-            'vin': vin,
-            'new_date': new_date
-        }
+        logger.info(f"任务 {task_id} 执行完成，成功: {success}, 截图: {screenshot_path}")
+        
+        # 保存任务结果到Redis
+        if success and screenshot_path:
+            redis_task_manager.save_task_result(
+                task_id=task_id,
+                success=success,
+                screenshot_path=screenshot_path
+            )
+        else:
+            redis_task_manager.save_task_result(
+                task_id=task_id,
+                success=success,
+                screenshot_path=screenshot_path if screenshot_path else None
+            )
         
         loop.close()
     except Exception as e:
         logger.error(f"任务执行失败: {e}")
-        results[task_id] = {
-            'success': False,
-            'error': str(e),
-            'status': 'failed',
-            'vin': vin,
-            'new_date': new_date
-        }
+        import traceback
+        logger.error(f"详细错误信息: {traceback.format_exc()}")
+        # 保存失败结果到Redis
+        redis_task_manager.save_task_result(
+            task_id=task_id,
+            success=False,
+            error=str(e)
+        )
 
 @app.route('/')
 def index():
@@ -198,6 +238,10 @@ def index():
 def modify_report():
     """修改报告API"""
     try:
+        # 检查Redis连接
+        if not redis_task_manager.is_redis_connected():
+            return jsonify({'error': 'Redis连接失败'}), 500
+        
         data = request.get_json()
         vin = data.get('vin')
         new_date = data.get('date')
@@ -209,15 +253,8 @@ def modify_report():
         if not new_date:
             new_date = datetime.now().strftime("%Y-%m-%d")
         
-        # 生成任务ID
-        task_id = f"task_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
-        # 初始化任务状态
-        results[task_id] = {
-            'status': 'running',
-            'vin': vin,
-            'new_date': new_date
-        }
+        # 创建任务并获取任务ID
+        task_id = redis_task_manager.create_task(vin, new_date, qr_code_url)
         
         # 在后台线程中运行任务
         thread = threading.Thread(
@@ -229,7 +266,7 @@ def modify_report():
         return jsonify({
             'task_id': task_id,
             'message': '任务已启动',
-            'status': 'running'
+            'status': 'pending'
         })
         
     except Exception as e:
@@ -239,20 +276,88 @@ def modify_report():
 @app.route('/api/status/<task_id>')
 def get_task_status(task_id):
     """获取任务状态"""
-    if task_id not in results:
-        return jsonify({'error': '任务不存在'}), 404
-    
-    result = results[task_id]
-    return jsonify(result)
+    try:
+        # 检查Redis连接
+        if not redis_task_manager.is_redis_connected():
+            return jsonify({'error': 'Redis连接失败'}), 500
+        
+        task_info = redis_task_manager.get_task_info(task_id)
+        if not task_info:
+            return jsonify({'error': '任务不存在'}), 404
+        
+        # 合并所有信息
+        result = {
+            'task_id': task_id,
+            **task_info.get('task_data', {}),
+            **task_info.get('status_data', {}),
+            **task_info.get('result_data', {})
+        }
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"获取任务状态失败: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/tasks')
 def get_all_tasks():
     """获取所有任务"""
-    return jsonify(results)
+    try:
+        # 检查Redis连接
+        if not redis_task_manager.is_redis_connected():
+            return jsonify({'error': 'Redis连接失败'}), 500
+        
+        tasks = redis_task_manager.get_all_tasks(limit=100)
+        
+        # 将任务列表转换为以任务ID为键的字典
+        tasks_dict = {}
+        for task in tasks:
+            task_id = task.get('task_id')
+            if task_id:
+                tasks_dict[task_id] = task
+        
+        return jsonify(tasks_dict)
+        
+    except Exception as e:
+        logger.error(f"获取所有任务失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/tasks/<task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """删除任务"""
+    try:
+        # 检查Redis连接
+        if not redis_task_manager.is_redis_connected():
+            return jsonify({'error': 'Redis连接失败'}), 500
+        
+        # 检查任务是否存在
+        task_info = redis_task_manager.get_task_info(task_id)
+        if not task_info:
+            return jsonify({'error': '任务不存在'}), 404
+        
+        # 删除任务
+        success = redis_task_manager.delete_task(task_id)
+        if success:
+            return jsonify({'message': '任务删除成功'})
+        else:
+            return jsonify({'error': '删除任务失败'}), 500
+        
+    except Exception as e:
+        logger.error(f"删除任务失败: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # 创建必要的目录
     os.makedirs("static/screenshots", exist_ok=True)
     os.makedirs("templates", exist_ok=True)
+    
+    # 初始化Redis任务管理器
+    redis_task_manager = init_redis_task_manager()
+    
+    # 检查Redis连接
+    if not redis_task_manager.is_redis_connected():
+        logger.warning("Redis连接失败，将使用内存存储（不推荐生产环境）")
+    else:
+        logger.info("Redis连接成功")
     
     app.run(debug=True, host='0.0.0.0', port=8090) 

@@ -13,5 +13,8 @@ loguru==0.7.2
 # 数据处理
 pydantic==2.5.0
 
+# Redis 支持
+redis==5.0.1
+
 # 异步支持（Python 3.9+ 内置，但为了兼容性保留）
 # asyncio, json, datetime, threading, queue, os 都是 Python 标准库 

@@ -23,3 +23,49 @@ tiles
 zscripts
 *.xlsx
 *.csv
+
+# 图片文件
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.svg
+*.ico
+*.webp
+
+# 文档文件
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+*.xls
+*.xlsx
+*.txt
+*.rtf
+
+# 压缩文件
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+
+# 媒体文件
+*.mp3
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv
+
+# 其他文件
+*.log
+*.tmp
+*.temp
+*.bak
+*.backup

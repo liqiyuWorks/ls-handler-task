@@ -1532,7 +1532,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 logger.error("数据库连接失败")
                 return
 
-            from datetime import datetime, timedelta
+            
 
             # 计算10天前的时间戳
             ten_days_ago = datetime.now() - timedelta(days=10)
