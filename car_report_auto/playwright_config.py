@@ -154,8 +154,7 @@ class PlaywrightConfig:
             screenshot_options = {
                 'path': screenshot_path,
                 'full_page': full_page,
-                'type': 'png',
-                'quality': 90
+                'type': 'png'
             }
             
             # 在 Docker 容器中，可能需要等待页面完全渲染
