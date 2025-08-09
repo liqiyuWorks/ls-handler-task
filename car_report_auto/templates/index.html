@@ -113,6 +113,109 @@
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
 
+        .query-btn {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .query-btn:hover {
+            background: linear-gradient(135deg, #059669 0%, #047857 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .query-btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .report-preview {
+            background: #f8fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .report-preview h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        .preview-content {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .report-link {
+            color: #3b82f6;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+            word-break: break-all;
+            display: block;
+            margin: 10px 0;
+            padding: 10px;
+            background: #eff6ff;
+            border-radius: 6px;
+            border: 1px solid #dbeafe;
+        }
+
+        .report-link:hover {
+            background: #dbeafe;
+            text-decoration: underline;
+        }
+
+        .preview-actions {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+        }
+
+        .preview-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .preview-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -288,13 +391,28 @@
     <div class="container">
         <div class="header">
             <h1>🚗 车辆报告修改系统</h1>
-            <p>输入VIN码，选择修改接口，自动修改车辆报告数据</p>
+            <p>输入VIN码 → 查询报告 → 预览链接 → 修改数据</p>
         </div>
 
         <form id="modifyForm">
             <div class="form-group">
                 <label for="vin">VIN码 *</label>
                 <input type="text" id="vin" name="vin" placeholder="请输入17位VIN码" required>
+                <button type="button" class="query-btn" id="queryBtn" onclick="queryReport()">
+                    <span id="queryText">查询报告</span>
+                    <span id="querySpinner" class="loading" style="display: none;"></span>
+                </button>
+            </div>
+
+            <div id="reportPreview" class="report-preview" style="display: none;">
+                <h3>报告预览</h3>
+                <div class="preview-content">
+                    <p><strong>报告链接：</strong></p>
+                    <a id="reportLink" href="#" target="_blank" class="report-link">点击查看报告</a>
+                    <div class="preview-actions">
+                        <button type="button" class="preview-btn" onclick="openReportPreview()">在新窗口预览</button>
+                    </div>
+                </div>
             </div>
 
             <div class="form-group">
@@ -312,7 +430,7 @@
             </div> -->
 
             <button type="submit" class="btn" id="submitBtn">
-                <span id="submitText">开始修改</span>
+                <span id="submitText">开始修改报告</span>
                 <span id="loadingSpinner" class="loading" style="display: none;"></span>
             </button>
         </form>
@@ -329,6 +447,68 @@
     <script>
         // 设置默认日期为今天
         document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+        // 查询报告链接
+        async function queryReport() {
+            const vin = document.getElementById('vin').value.trim();
+            
+            if (!vin) {
+                showStatus('请输入VIN码', 'error');
+                return;
+            }
+            
+            // 显示加载状态
+            const queryBtn = document.getElementById('queryBtn');
+            const queryText = document.getElementById('queryText');
+            const querySpinner = document.getElementById('querySpinner');
+            const reportPreview = document.getElementById('reportPreview');
+            
+            queryBtn.disabled = true;
+            queryText.textContent = '查询中...';
+            querySpinner.style.display = 'inline-block';
+            reportPreview.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/query-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        vin: vin
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.report_url) {
+                    // 显示报告预览
+                    const reportLink = document.getElementById('reportLink');
+                    reportLink.href = data.report_url;
+                    reportLink.textContent = data.report_url;
+                    reportPreview.style.display = 'block';
+                    
+                    showStatus('报告链接获取成功！', 'success');
+                } else {
+                    showStatus(`错误: ${data.error || '获取报告链接失败'}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`网络错误: ${error.message}`, 'error');
+            } finally {
+                // 恢复按钮状态
+                queryBtn.disabled = false;
+                queryText.textContent = '查询报告';
+                querySpinner.style.display = 'none';
+            }
+        }
+
+        // 在新窗口预览报告
+        function openReportPreview() {
+            const reportLink = document.getElementById('reportLink');
+            if (reportLink.href && reportLink.href !== '#') {
+                window.open(reportLink.href, '_blank');
+            }
+        }
 
         // 表单提交处理
         document.getElementById('modifyForm').addEventListener('submit', async function(e) {

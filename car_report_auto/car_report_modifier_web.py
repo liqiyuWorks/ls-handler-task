@@ -406,6 +406,40 @@ def index():
     """主页"""
     return render_template('index.html')
 
+@app.route('/api/query-report', methods=['POST'])
+def query_report():
+    """查询报告链接API"""
+    try:
+        data = request.get_json()
+        vin = data.get('vin')
+        
+        if not vin:
+            return jsonify({'error': 'VIN不能为空'}), 400
+        
+        # 创建CarReportModifier实例来获取报告链接
+        modifier = CarReportModifier(vin=vin)
+        
+        # 在单独的事件循环中运行异步函数
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            report_url = loop.run_until_complete(modifier.get_report_url())
+        finally:
+            loop.close()
+        
+        if report_url:
+            return jsonify({
+                'report_url': report_url,
+                'vin': vin,
+                'message': '报告链接获取成功'
+            })
+        else:
+            return jsonify({'error': '无法获取报告链接，请检查VIN码是否正确'}), 404
+        
+    except Exception as e:
+        logger.error(f"查询报告链接API错误: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/modify', methods=['POST'])
 def modify_report():
     """修改报告API"""
