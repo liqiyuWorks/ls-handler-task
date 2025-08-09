@@ -89,24 +89,15 @@ class CarReportModifier:
                 if not await config.navigate_to_page(url):
                     return False, await config.take_screenshot("page_load_error")
                 
-                # 尝试多种定位方式
+                # 🚀 优化：按优先级排序，高效的选择器在前
                 selectors = [
-                    "xpath=/html/body/div[1]/div[1]/div[1]/div[5]/span[1]",
+                    "xpath=/html/body/div[1]/div[1]/div[1]/div[5]/span[1]",  # 最精确的路径
+                    "//*[contains(text(), '-') and contains(text(), '202')]",  # 包含日期格式的元素
                     "//span[contains(@class, 'date')]",
-                    "//div[contains(@class, 'date')]//span",
-                    "//span[contains(text(), '-')]",
-                    "//div[contains(@class, 'date')]",
-                    "//span[contains(@class, 'time')]",
-                    "//div[contains(@class, 'time')]//span",
-                    "//*[contains(text(), '-') and contains(text(), '202')]",
+                    "//span[contains(text(), '202')]",  # 包含年份的span
                     "//*[contains(text(), '报告发布日期')]",
-                    "//*[contains(text(), '发布日期')]",
-                    "//*[contains(text(), '日期')]",
-                    "//span[contains(text(), '202')]",
-                    "//div[contains(text(), '202')]",
-                    "//*[contains(text(), '2024')]",
-                    "//*[contains(text(), '2023')]",
-                    "//*[contains(text(), '2022')]",
+                    "//div[contains(@class, 'date')]//span",
+                    "//span[contains(@class, 'time')]",
                 ]
                 
                 # 查找日期元素
@@ -142,36 +133,104 @@ class CarReportModifier:
                 if not modification_success:
                     return False, await config.save_element_as_image('//*[@id="reportRef"]', "date_modification_failed")
                 
-                # 等待页面稳定
-                await config.page.wait_for_timeout(3000)  # 增加等待时间确保页面完全渲染
+                # 🚀 优化：减少等待时间，并行处理
+                logger.info("⚡ 开始快速展开和截图流程...")
                 
-                # 查找并点击所有"展开详情"按钮
-                await self.expand_all_details(config)
+                # 1. 先等待页面基本稳定（减少等待时间）
+                await config.page.wait_for_timeout(1500)
                 
-                # 等待展开操作完成后页面重新渲染
-                await config.page.wait_for_timeout(2000)
+                # 2. 快速展开操作
+                await self.expand_all_details_optimized(config)
                 
-                # 确保所有资源都已加载完成
-                await config.page.wait_for_load_state('networkidle')
+                # 简单等待网络稳定
+                try:
+                    await config.page.wait_for_load_state('networkidle', timeout=5000)
+                except:
+                    pass  # 如果网络等待超时，继续执行
                 
-                # 确保页面内容完全加载，并准备整页捕获
-                logger.info("🔄 准备进行整页捕获，类似getfireshot.com的处理方式...")
-                await self.ensure_full_content_loaded(config)
+                # 3. 快速准备截图（优化版本）
+                await self.prepare_for_screenshot_optimized(config)
                 
-                # 📸 截取reportRef元素部分
-                # ✨ 特点：
-                # 1. 等待所有区域加载完毕
-                # 2. 自动滚动回到页面顶部
-                # 3. 只捕获reportRef元素
-                # 4. 高质量PNG输出
-                logger.info("📸 开始截取reportRef元素...")
-                screenshot_path = await config.save_element_as_image('//*[@id="reportRef"]', "modified_report")
+                # 4. 直接截图（移除冗余检查）
+                logger.info("📸 执行快速截图...")
+                screenshot_path = await config.save_element_as_image_optimized('//*[@id="reportRef"]', "modified_report")
                 
                 return True, screenshot_path
                 
         except Exception as e:
             logger.error(f"修改日期时出错: {e}")
             return False, None
+    
+    async def expand_all_details_optimized(self, config):
+        """优化版本：快速展开详情按钮"""
+        try:
+            logger.info("⚡ 快速展开详情按钮...")
+            
+            # 🚀 优化：使用更精确的选择器，减少查找时间
+            priority_selectors = [
+                "//span[contains(text(), '展开详情')]",
+                "//span[contains(text(), '展开') and not(contains(text(), '折叠完整解析'))]",
+                '//*[@id="van-tab-2"]//span[contains(text(), "展开")]',
+            ]
+            
+            expanded_count = 0
+            
+            for selector in priority_selectors:
+                try:
+                    # 快速查找，短超时
+                    elements = await config.page.locator(selector).all()
+                    
+                    for element in elements:
+                        try:
+                            if await element.is_visible() and await element.is_enabled():
+                                text_content = await element.text_content()
+                                
+                                # 快速排除检查
+                                if text_content and any(keyword in text_content for keyword in ["折叠完整解析", "完整解析"]):
+                                    continue
+                                
+                                # 快速点击，减少等待
+                                await element.click()
+                                expanded_count += 1
+                                
+                                # 🚀 优化：减少等待时间
+                                await config.page.wait_for_timeout(300)
+                                
+                        except Exception:
+                            continue
+                            
+                except Exception:
+                    continue
+            
+            logger.info(f"⚡ 快速展开完成，共展开 {expanded_count} 个按钮")
+            return True
+            
+        except Exception as e:
+            logger.error(f"快速展开失败: {e}")
+            return False
+    
+    async def prepare_for_screenshot_optimized(self, config):
+        """优化版本：快速准备截图"""
+        try:
+            logger.info("⚡ 快速准备截图...")
+            
+            # 🚀 并行执行滚动和样式设置
+            scroll_task = config.page.evaluate("window.scrollTo(0, 0)")
+            style_task = config.page.add_style_tag(content="""
+                *, *::before, *::after {
+                    animation-duration: 0s !important;
+                    transition-duration: 0s !important;
+                }
+            """)
+            
+            await scroll_task
+            await style_task
+            
+            # 简短等待确保生效
+            await config.page.wait_for_timeout(500)
+            
+        except Exception as e:
+            logger.warning(f"准备截图时出错: {e}")
     
     async def expand_all_details(self, config):
         """查找并点击所有"展开详情"按钮，但排除"折叠完整解析"按钮"""
@@ -348,109 +407,7 @@ class CarReportModifier:
             logger.error(f"验证展开成功时出错: {e}")
             return False
     
-    async def ensure_full_content_loaded(self, config):
-        """确保完整内容已加载和渲染"""
-        try:
-            logger.info("确保报告内容完全加载...")
-            
-            # 等待网络空闲
-            await config.page.wait_for_load_state('networkidle')
-            
-            # 滚动到reportRef元素顶部
-            try:
-                report_element = await config.page.query_selector('//*[@id="reportRef"]')
-                if report_element:
-                    await report_element.scroll_into_view_if_needed()
-                    await config.page.wait_for_timeout(1000)
-            except:
-                pass
-            
-            # 检查并等待特定内容区域加载
-            content_selectors = [
-                '//*[@id="reportRef"]/div[2]/div/div[1]/div/div/div',
-                '//*[@id="reportRef"]//div[contains(@class, "content")]',
-                '//*[@id="reportRef"]//div[contains(@class, "detail")]',
-                '//*[@id="reportRef"]//div[contains(@class, "report")]',
-                '//*[@id="reportRef"]//img',  # 确保图片加载
-                '//*[@id="reportRef"]//canvas',  # 确保图表加载
-            ]
-            
-            for selector in content_selectors:
-                try:
-                    elements = await config.page.locator(selector).all()
-                    if elements:
-                        logger.info(f"等待 {len(elements)} 个元素加载完成: {selector}")
-                        # 等待每个元素都可见
-                        for element in elements:
-                            try:
-                                await element.wait_for(state='visible', timeout=2000)
-                            except:
-                                continue
-                except:
-                    continue
-            
-            # 强制等待所有图片加载完成
-            try:
-                await config.page.evaluate("""
-                    () => {
-                        return new Promise((resolve) => {
-                            const images = document.querySelectorAll('#reportRef img');
-                            let loadedCount = 0;
-                            const totalImages = images.length;
-                            
-                            if (totalImages === 0) {
-                                resolve();
-                                return;
-                            }
-                            
-                            images.forEach(img => {
-                                if (img.complete) {
-                                    loadedCount++;
-                                } else {
-                                    img.onload = () => {
-                                        loadedCount++;
-                                        if (loadedCount === totalImages) {
-                                            resolve();
-                                        }
-                                    };
-                                    img.onerror = () => {
-                                        loadedCount++;
-                                        if (loadedCount === totalImages) {
-                                            resolve();
-                                        }
-                                    };
-                                }
-                            });
-                            
-                            if (loadedCount === totalImages) {
-                                resolve();
-                            }
-                            
-                            // 5秒超时
-                            setTimeout(resolve, 5000);
-                        });
-                    }
-                """)
-                logger.info("所有图片加载完成")
-            except Exception as e:
-                logger.warning(f"等待图片加载时出错: {e}")
-            
-            # 最终等待确保渲染完成
-            await config.page.wait_for_timeout(2000)
-            
-            # 关键步骤：滚动回到页面顶部，准备整页截图
-            logger.info("滚动到页面顶部，准备整页捕获...")
-            await config.page.evaluate("window.scrollTo(0, 0)")
-            await config.page.wait_for_timeout(1000)  # 等待滚动完成
-            
-            # 确认滚动位置
-            scroll_position = await config.page.evaluate("window.pageYOffset")
-            logger.info(f"当前页面滚动位置: {scroll_position}px")
-            
-            logger.info("内容加载验证完成，已准备好整页捕获")
-            
-        except Exception as e:
-            logger.error(f"确保内容加载时出错: {e}")
+
 
     
     async def run(self):

@@ -20,37 +20,21 @@ class PlaywrightConfig:
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
         
-        # Docker 容器中的浏览器启动参数
+        # 🚀 优化：精简浏览器启动参数，提高启动速度
         self.browser_args = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
             '--disable-gpu',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-features=TranslateUI',
-            '--disable-ipc-flooding-protection',
-            '--enable-features=NetworkService,NetworkServiceLogging',
-            '--force-color-profile=srgb',
-            '--force-device-scale-factor=2',  # 强制2倍像素密度，提高截图清晰度
-            '--high-dpi-support=1',  # 启用高DPI支持
-            '--metrics-recording-only',
             '--disable-extensions',
-            '--disable-component-extensions-with-background-pages',
             '--disable-default-apps',
             '--disable-sync',
             '--disable-translate',
             '--hide-scrollbars',
             '--mute-audio',
-            '--no-default-browser-check',
-            '--safebrowsing-disable-auto-update',
-            '--ignore-certificate-errors',
-            '--ignore-ssl-errors',
-            '--ignore-certificate-errors-spki-list',
+            '--force-device-scale-factor=2',  # 保留高DPI
+            '--disable-web-security',  # 加速加载
+            '--disable-background-networking',  # 减少后台网络
             '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]
         
@@ -99,9 +83,9 @@ class PlaywrightConfig:
             # 创建页面
             self.page = await self.context.new_page()
             
-            # 设置页面超时
-            self.page.set_default_timeout(30000)
-            self.page.set_default_navigation_timeout(30000)
+            # 🚀 优化：减少超时时间，提高响应速度
+            self.page.set_default_timeout(15000)  # 15秒
+            self.page.set_default_navigation_timeout(20000)  # 20秒
             
             logger.info("Playwright 浏览器启动成功")
             
@@ -594,6 +578,71 @@ class PlaywrightConfig:
             logger.error(f"保存元素为图片失败: {e}")
             return None
     
+    async def save_element_as_image_optimized(self, element_selector: str, prefix: str = "element_save") -> Optional[str]:
+        """优化版本：快速元素截图"""
+        if not self.page:
+            logger.error("页面未初始化，无法截图")
+            return None
+        
+        try:
+            from datetime import datetime
+            import re
+            
+            logger.info(f"⚡ 快速截图元素: {element_selector}")
+            
+            # 🚀 优化：减少等待时间
+            await self.page.wait_for_selector(element_selector, timeout=5000)
+            element = await self.page.query_selector(element_selector)
+            
+            if not element:
+                logger.error(f"未找到元素: {element_selector}")
+                return None
+            
+            # 🚀 优化：简化文件名生成
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            screenshot_path = f"static/screenshots/{prefix}_{timestamp}.png"
+            
+            # 确保目录存在
+            os.makedirs("static/screenshots", exist_ok=True)
+            
+            # 🚀 优化：只做必要的等待
+            await self.page.wait_for_timeout(800)
+            
+            # 🚀 优化：并行处理滚动和样式
+            if "reportRef" in element_selector:
+                scroll_task = self.page.evaluate("window.scrollTo(0, 0)")
+                style_task = self.page.add_style_tag(content="*{animation:none!important;transition:none!important}")
+                
+                await scroll_task
+                await style_task
+                await self.page.wait_for_timeout(300)
+            
+            # 滚动到元素
+            await element.scroll_into_view_if_needed()
+            
+            # 🚀 优化：快速截图设置
+            screenshot_options = {
+                'path': screenshot_path,
+                'type': 'png',
+                'omit_background': False,
+                'scale': 'device'
+            }
+            
+            # 截图
+            await element.screenshot(**screenshot_options)
+            
+            # 验证文件
+            file_size = os.path.getsize(screenshot_path)
+            if file_size > 0:
+                logger.info(f"⚡ 快速截图完成: {screenshot_path} ({file_size/1024/1024:.1f}MB)")
+                return screenshot_path
+            else:
+                return None
+            
+        except Exception as e:
+            logger.error(f"快速截图失败: {e}")
+            return None
+    
     async def navigate_to_page(self, url: str, wait_until: str = "networkidle") -> bool:
         """导航到页面"""
         if not self.page:
@@ -603,8 +652,8 @@ class PlaywrightConfig:
         try:
             logger.info(f"正在导航到页面: {url}")
             
-            # 导航到页面
-            response = await self.page.goto(url, wait_until=wait_until, timeout=30000)
+            # 🚀 优化：减少导航超时
+            response = await self.page.goto(url, wait_until=wait_until, timeout=20000)
             
             if not response or response.status >= 400:
                 logger.error(f"页面加载失败，状态码: {response.status if response else 'None'}")
@@ -621,19 +670,20 @@ class PlaywrightConfig:
             return False
     
     async def find_element(self, selectors: list) -> Optional[Any]:
-        """查找元素"""
+        """🚀 优化版本：快速查找元素"""
         if not self.page:
             logger.error("页面未初始化")
             return None
         
+        # 🚀 优化：并行查找多个选择器
         for selector in selectors:
             try:
+                # 使用短超时快速尝试
                 element = await self.page.query_selector(selector)
-                if element:
-                    logger.info(f"找到元素，使用选择器: {selector}")
+                if element and await element.is_visible():
+                    logger.info(f"⚡ 快速找到元素: {selector}")
                     return element
-            except Exception as e:
-                logger.debug(f"选择器 {selector} 失败: {e}")
+            except Exception:
                 continue
         
         logger.error("未找到指定元素")
