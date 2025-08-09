@@ -158,7 +158,6 @@ class PlaywrightConfig:
                 'path': screenshot_path,
                 'full_page': full_page,
                 'type': 'png',
-                'quality': 100,  # 设置最高质量（对PNG无效，但保持一致性）
                 'omit_background': False,  # 保留背景
                 'scale': 'device'  # 使用设备缩放，利用device_scale_factor
             }
@@ -225,7 +224,6 @@ class PlaywrightConfig:
                 'path': screenshot_path,
                 'full_page': True,
                 'type': 'png',
-                'quality': 100,  # 最高质量
                 'omit_background': False,  # 包含背景
                 'scale': 'device'  # 使用设备缩放获得更高清晰度
             }
@@ -298,7 +296,6 @@ class PlaywrightConfig:
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
-                'quality': 100,  # 最高质量
                 'omit_background': False,  # 包含背景
                 'scale': 'device'  # 使用设备缩放，利用device_scale_factor获得更高清晰度
             }
