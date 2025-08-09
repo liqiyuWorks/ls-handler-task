@@ -243,7 +243,7 @@ class PlaywrightConfig:
             return None
     
     async def save_element_as_image(self, element_selector: str, prefix: str = "element_save") -> Optional[str]:
-        """保存特定元素为图片"""
+        """保存特定元素为图片，确保包含完整内容"""
         if not self.page:
             logger.error("页面未初始化，无法截图")
             return None
@@ -291,6 +291,56 @@ class PlaywrightConfig:
             # 滚动到元素位置，确保元素可见
             await element.scroll_into_view_if_needed()
             await self.page.wait_for_timeout(1000)  # 等待滚动完成
+            
+            # 检查是否为reportRef元素，如果是，执行特殊处理确保包含完整内容
+            if "reportRef" in element_selector:
+                logger.info("检测到reportRef元素，执行完整内容确保逻辑...")
+                
+                # 检查特定内容区域是否存在
+                specific_content_exists = False
+                try:
+                    specific_content = await self.page.query_selector('//*[@id="reportRef"]/div[2]/div/div[1]/div/div/div')
+                    if specific_content:
+                        specific_content_exists = True
+                        logger.info("发现特定内容区域，将确保其在截图中")
+                        # 滚动到特定内容区域
+                        await specific_content.scroll_into_view_if_needed()
+                        await self.page.wait_for_timeout(500)
+                except:
+                    logger.debug("特定内容区域不存在或无法访问")
+                
+                # 强制展开可能的折叠内容
+                try:
+                    await self.page.evaluate("""
+                        () => {
+                            // 展开可能的折叠内容
+                            const reportRef = document.getElementById('reportRef');
+                            if (reportRef) {
+                                // 查找并展开所有可能的收缩元素
+                                const expandableElements = reportRef.querySelectorAll('[style*="display: none"], .collapsed, .folded');
+                                expandableElements.forEach(el => {
+                                    el.style.display = 'block';
+                                    el.classList.remove('collapsed', 'folded');
+                                });
+                                
+                                // 触发可能的展开按钮
+                                const expandButtons = reportRef.querySelectorAll('button, span, div');
+                                expandButtons.forEach(btn => {
+                                    const text = btn.textContent || '';
+                                    if (text.includes('展开') || text.includes('详情') || text.includes('更多')) {
+                                        btn.click();
+                                    }
+                                });
+                            }
+                        }
+                    """)
+                    await self.page.wait_for_timeout(1000)
+                    logger.info("已尝试展开所有可能的折叠内容")
+                except Exception as e:
+                    logger.debug(f"展开内容时出错: {e}")
+                
+                # 等待内容重新渲染
+                await self.page.wait_for_timeout(1000)
             
             # 设置高质量截图选项
             screenshot_options = {

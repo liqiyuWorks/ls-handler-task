@@ -154,7 +154,20 @@ class CarReportModifier:
                 # 确保所有资源都已加载完成
                 await config.page.wait_for_load_state('networkidle')
                 
-                # 保存修改后的页面截图，只截取报告内容区域
+                # 保存修改后的页面截图，确保包含完整的报告内容区域
+                # 首先尝试截取具体的内容区域
+                try:
+                    # 尝试截取指定的详细内容区域
+                    specific_content_selector = '//*[@id="reportRef"]/div[2]/div/div[1]/div/div/div'
+                    await config.page.wait_for_selector(specific_content_selector, timeout=5000)
+                    logger.info("找到具体内容区域，将包含在截图中")
+                except:
+                    logger.info("未找到具体内容区域选择器，使用默认reportRef区域")
+                
+                # 确保整个reportRef区域完全加载和渲染
+                await self.ensure_full_content_loaded(config)
+                
+                # 保存完整的报告区域截图
                 screenshot_path = await config.save_element_as_image('//*[@id="reportRef"]', "modified_report")
                 
                 return True, screenshot_path
@@ -326,6 +339,101 @@ class CarReportModifier:
         except Exception as e:
             logger.error(f"验证展开成功时出错: {e}")
             return False
+    
+    async def ensure_full_content_loaded(self, config):
+        """确保完整内容已加载和渲染"""
+        try:
+            logger.info("确保报告内容完全加载...")
+            
+            # 等待网络空闲
+            await config.page.wait_for_load_state('networkidle')
+            
+            # 滚动到reportRef元素顶部
+            try:
+                report_element = await config.page.query_selector('//*[@id="reportRef"]')
+                if report_element:
+                    await report_element.scroll_into_view_if_needed()
+                    await config.page.wait_for_timeout(1000)
+            except:
+                pass
+            
+            # 检查并等待特定内容区域加载
+            content_selectors = [
+                '//*[@id="reportRef"]/div[2]/div/div[1]/div/div/div',
+                '//*[@id="reportRef"]//div[contains(@class, "content")]',
+                '//*[@id="reportRef"]//div[contains(@class, "detail")]',
+                '//*[@id="reportRef"]//div[contains(@class, "report")]',
+                '//*[@id="reportRef"]//img',  # 确保图片加载
+                '//*[@id="reportRef"]//canvas',  # 确保图表加载
+            ]
+            
+            for selector in content_selectors:
+                try:
+                    elements = await config.page.locator(selector).all()
+                    if elements:
+                        logger.info(f"等待 {len(elements)} 个元素加载完成: {selector}")
+                        # 等待每个元素都可见
+                        for element in elements:
+                            try:
+                                await element.wait_for(state='visible', timeout=2000)
+                            except:
+                                continue
+                except:
+                    continue
+            
+            # 强制等待所有图片加载完成
+            try:
+                await config.page.evaluate("""
+                    () => {
+                        return new Promise((resolve) => {
+                            const images = document.querySelectorAll('#reportRef img');
+                            let loadedCount = 0;
+                            const totalImages = images.length;
+                            
+                            if (totalImages === 0) {
+                                resolve();
+                                return;
+                            }
+                            
+                            images.forEach(img => {
+                                if (img.complete) {
+                                    loadedCount++;
+                                } else {
+                                    img.onload = () => {
+                                        loadedCount++;
+                                        if (loadedCount === totalImages) {
+                                            resolve();
+                                        }
+                                    };
+                                    img.onerror = () => {
+                                        loadedCount++;
+                                        if (loadedCount === totalImages) {
+                                            resolve();
+                                        }
+                                    };
+                                }
+                            });
+                            
+                            if (loadedCount === totalImages) {
+                                resolve();
+                            }
+                            
+                            // 5秒超时
+                            setTimeout(resolve, 5000);
+                        });
+                    }
+                """)
+                logger.info("所有图片加载完成")
+            except Exception as e:
+                logger.warning(f"等待图片加载时出错: {e}")
+            
+            # 最终等待确保渲染完成
+            await config.page.wait_for_timeout(2000)
+            
+            logger.info("内容加载验证完成")
+            
+        except Exception as e:
+            logger.error(f"确保内容加载时出错: {e}")
 
     
     async def run(self):

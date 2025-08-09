@@ -585,43 +585,154 @@
             statusDiv.className = `status-message status-${type}`;
             statusDiv.style.display = 'block';
             
-            // 3秒后自动隐藏成功消息
+            // 根据类型设置不同的自动隐藏时间
+            let hideDelay = 0;
             if (type === 'success') {
+                hideDelay = 5000; // 成功消息显示5秒
+            } else if (type === 'info') {
+                hideDelay = 3000; // 信息消息显示3秒
+            }
+            // error消息不自动隐藏，需要用户手动关闭或被新消息覆盖
+            
+            if (hideDelay > 0) {
                 setTimeout(() => {
-                    statusDiv.style.display = 'none';
-                }, 3000);
+                    // 只有在消息没有被新消息覆盖时才隐藏
+                    if (statusDiv.textContent === message) {
+                        statusDiv.style.display = 'none';
+                    }
+                }, hideDelay);
             }
         }
 
         // 轮询任务状态
         function pollTaskStatus(taskId) {
+            let pollCount = 0;
+            const maxPolls = 150; // 最多轮询150次（5分钟）
+            
             const pollInterval = setInterval(async () => {
+                pollCount++;
+                
                 try {
                     const response = await fetch(`/api/status/${taskId}`);
                     const data = await response.json();
                     
                     if (response.ok) {
                         if (data.status === 'completed') {
-                            showStatus('任务完成！', 'success');
+                            if (data.success) {
+                                showStatus('🎉 任务完成！报告修改成功', 'success');
+                                // 播放完成提示音
+                                playNotificationSound();
+                                // 高亮显示完成的任务
+                                highlightCompletedTask(taskId);
+                                // 显示桌面通知
+                                showDesktopNotification('任务完成', '车辆报告修改成功！');
+                            } else {
+                                showStatus('❌ 任务完成但修改失败', 'error');
+                                showDesktopNotification('任务失败', '报告修改失败，请检查错误信息');
+                            }
                             clearInterval(pollInterval);
-                            refreshTasks();
+                            // 立即刷新任务列表
+                            await refreshTasks();
+                            // 滚动到任务列表
+                            scrollToTaskList();
+                            
                         } else if (data.status === 'failed') {
-                            showStatus('任务失败！', 'error');
+                            showStatus('❌ 任务执行失败！', 'error');
                             clearInterval(pollInterval);
-                            refreshTasks();
+                            await refreshTasks();
+                            scrollToTaskList();
+                            
+                        } else if (data.status === 'running') {
+                            showStatus('🔄 任务正在执行中...', 'info');
+                            // 更新任务列表以显示最新状态
+                            await refreshTasks();
                         }
-                        // 更新任务列表以显示最新状态
-                        refreshTasks();
                     }
                 } catch (error) {
                     console.error('轮询任务状态失败:', error);
                 }
+                
+                // 达到最大轮询次数时停止
+                if (pollCount >= maxPolls) {
+                    clearInterval(pollInterval);
+                    showStatus('⏰ 任务监控超时，请手动刷新查看状态', 'info');
+                }
             }, 2000);
             
-            // 5分钟后停止轮询
+            // 显示轮询开始信息
+            showStatus('🔍 开始监控任务执行状态...', 'info');
+        }
+
+        // 高亮显示完成的任务
+        function highlightCompletedTask(taskId) {
             setTimeout(() => {
-                clearInterval(pollInterval);
-            }, 300000);
+                const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+                if (taskElement) {
+                    taskElement.style.border = '2px solid #10b981';
+                    taskElement.style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.3)';
+                    taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // 3秒后移除高亮
+                    setTimeout(() => {
+                        taskElement.style.border = '';
+                        taskElement.style.boxShadow = '';
+                    }, 3000);
+                }
+            }, 500);
+        }
+
+        // 滚动到任务列表
+        function scrollToTaskList() {
+            const taskList = document.getElementById('taskItems');
+            if (taskList) {
+                taskList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // 播放通知音效
+        function playNotificationSound() {
+            try {
+                // 创建音频上下文并播放简短的提示音
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('无法播放提示音:', error);
+            }
+        }
+
+        // 显示桌面通知
+        function showDesktopNotification(title, body) {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    new Notification(title, {
+                        body: body,
+                        icon: '/static/icon.png', // 如果有图标的话
+                        badge: '/static/badge.png'
+                    });
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            new Notification(title, {
+                                body: body,
+                                icon: '/static/icon.png'
+                            });
+                        }
+                    });
+                }
+            }
         }
 
         // 刷新任务列表
@@ -655,6 +766,7 @@
                     const taskId = task.task_id;
                     const taskDiv = document.createElement('div');
                     taskDiv.className = 'task-item';
+                    taskDiv.setAttribute('data-task-id', taskId);
                     
                     // 确定状态样式
                     let statusClass = 'status-pending';
@@ -745,6 +857,14 @@
             refreshTasks();
             // 每30秒自动刷新任务列表
             setInterval(refreshTasks, 30000);
+            
+            // 请求通知权限
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            
+            // 显示欢迎信息
+            console.log('🚗 车辆报告修改系统已加载');
         });
     </script>
 </body>
