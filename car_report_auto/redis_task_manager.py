@@ -200,6 +200,9 @@ class RedisTaskManager:
                     }
                     tasks.append(combined_info)
 
+            # 按照创建时间排序，确保最新的在前面
+            tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+            
             return tasks
 
         except Exception as e:

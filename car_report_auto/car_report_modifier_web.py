@@ -143,7 +143,16 @@ class CarReportModifier:
                     return False, await config.save_element_as_image('//*[@id="reportRef"]', "date_modification_failed")
                 
                 # 等待页面稳定
+                await config.page.wait_for_timeout(3000)  # 增加等待时间确保页面完全渲染
+                
+                # 查找并点击所有"展开详情"按钮
+                await self.expand_all_details(config)
+                
+                # 等待展开操作完成后页面重新渲染
                 await config.page.wait_for_timeout(2000)
+                
+                # 确保所有资源都已加载完成
+                await config.page.wait_for_load_state('networkidle')
                 
                 # 保存修改后的页面截图，只截取报告内容区域
                 screenshot_path = await config.save_element_as_image('//*[@id="reportRef"]', "modified_report")
@@ -154,6 +163,169 @@ class CarReportModifier:
             logger.error(f"修改日期时出错: {e}")
             return False, None
     
+    async def expand_all_details(self, config):
+        """查找并点击所有"展开详情"按钮"""
+        try:
+            logger.info("开始查找并展开所有详情按钮...")
+            
+            # 定义多种可能的"展开详情"按钮选择器
+            expand_selectors = [
+                # 基于提供的参考路径
+                '//*[@id="van-tab-2"]/div[4]/div/div[2]/div[2]/span',
+                # 通用的展开详情选择器
+                "//span[contains(text(), '展开详情')]",
+                "//span[contains(text(), '展开')]",
+                "//span[contains(text(), '详情')]",
+                "//button[contains(text(), '展开详情')]",
+                "//div[contains(text(), '展开详情')]",
+                "//a[contains(text(), '展开详情')]",
+                # 基于class的选择器
+                "//span[contains(@class, 'expand')]",
+                "//span[contains(@class, 'detail')]",
+                "//span[contains(@class, 'more')]",
+                "//button[contains(@class, 'expand')]",
+                "//div[contains(@class, 'expand')]",
+                # 通过icon或符号查找
+                "//span[contains(text(), '▼')]",
+                "//span[contains(text(), '▽')]",
+                "//span[contains(text(), '⌄')]",
+                "//span[contains(text(), '↓')]",
+                "//span[contains(text(), '更多')]",
+                "//span[contains(text(), '查看更多')]",
+                "//span[contains(text(), '查看详情')]",
+                # van-ui 相关选择器
+                "//*[contains(@id, 'van-tab')]//span[contains(text(), '展开')]",
+                "//*[contains(@id, 'van-tab')]//span[contains(text(), '详情')]",
+                "//*[contains(@class, 'van-')]//span[contains(text(), '展开')]",
+            ]
+            
+            expanded_count = 0
+            total_attempts = 0
+            
+            # 尝试查找所有可能的展开按钮
+            for selector in expand_selectors:
+                try:
+                    # 查找所有匹配的元素
+                    elements = await config.page.locator(selector).all()
+                    
+                    if elements:
+                        logger.info(f"找到 {len(elements)} 个匹配选择器 '{selector}' 的元素")
+                        
+                        for i, element in enumerate(elements):
+                            try:
+                                # 检查元素是否可见和可点击
+                                is_visible = await element.is_visible()
+                                is_enabled = await element.is_enabled()
+                                
+                                if is_visible and is_enabled:
+                                    # 获取元素文本内容
+                                    text_content = await element.text_content()
+                                    logger.info(f"尝试点击元素 {i+1}: '{text_content}'")
+                                    
+                                    # 滚动到元素位置
+                                    await element.scroll_into_view_if_needed()
+                                    await config.page.wait_for_timeout(500)
+                                    
+                                    # 尝试点击
+                                    await element.click()
+                                    expanded_count += 1
+                                    total_attempts += 1
+                                    
+                                    # 等待页面响应
+                                    await config.page.wait_for_timeout(1000)
+                                    
+                                    logger.info(f"成功点击展开按钮: '{text_content}'")
+                                else:
+                                    logger.debug(f"元素不可见或不可点击: visible={is_visible}, enabled={is_enabled}")
+                                    
+                            except Exception as e:
+                                logger.warning(f"点击第 {i+1} 个元素时出错: {e}")
+                                continue
+                                
+                except Exception as e:
+                    logger.debug(f"选择器 '{selector}' 查找失败: {e}")
+                    continue
+            
+            # 验证展开操作是否成功
+            success_validated = await self.validate_expansion_success(config)
+            
+            if expanded_count > 0:
+                logger.info(f"✅ 成功展开了 {expanded_count} 个详情按钮，验证结果: {success_validated}")
+                return True
+            else:
+                logger.warning("⚠️ 未找到任何可点击的展开详情按钮")
+                # 保存当前页面截图用于调试
+                await config.take_screenshot("no_expand_buttons_found")
+                return False
+                
+        except Exception as e:
+            logger.error(f"展开详情时出错: {e}")
+            return False
+    
+    async def validate_expansion_success(self, config):
+        """验证展开操作是否成功"""
+        try:
+            logger.info("验证展开操作是否成功...")
+            
+            # 定义用于验证展开成功的选择器
+            validation_selectors = [
+                # 查找可能的收起按钮或已展开状态的指示器
+                "//span[contains(text(), '收起')]",
+                "//span[contains(text(), '折叠')]",
+                "//span[contains(text(), '▲')]",
+                "//span[contains(text(), '△')]",
+                "//span[contains(text(), '⌃')]",
+                "//span[contains(text(), '↑')]",
+                "//span[contains(text(), '收起详情')]",
+                # 查找展开后可能出现的详细内容
+                "//div[contains(@class, 'detail') and contains(@class, 'expanded')]",
+                "//div[contains(@class, 'content') and contains(@class, 'show')]",
+                "//div[contains(@style, 'display: block')]",
+                "//div[contains(@class, 'van-collapse-item') and contains(@class, 'van-collapse-item--expanded')]",
+            ]
+            
+            validation_count = 0
+            
+            for selector in validation_selectors:
+                try:
+                    elements = await config.page.locator(selector).all()
+                    if elements:
+                        visible_elements = []
+                        for element in elements:
+                            if await element.is_visible():
+                                visible_elements.append(element)
+                        
+                        if visible_elements:
+                            validation_count += len(visible_elements)
+                            logger.info(f"验证选择器 '{selector}' 找到 {len(visible_elements)} 个可见元素")
+                            
+                except Exception as e:
+                    logger.debug(f"验证选择器 '{selector}' 查找失败: {e}")
+                    continue
+            
+            # 额外验证：比较展开前后页面高度变化
+            try:
+                page_height = await config.page.evaluate("document.body.scrollHeight")
+                logger.info(f"当前页面高度: {page_height}px")
+                
+                # 如果页面有较大高度，可能说明内容已展开
+                if page_height > 2000:  # 假设展开后页面会变高
+                    validation_count += 1
+                    logger.info("页面高度增加，可能表示内容已展开")
+                    
+            except Exception as e:
+                logger.debug(f"检查页面高度失败: {e}")
+            
+            if validation_count > 0:
+                logger.info(f"✅ 展开验证成功，找到 {validation_count} 个验证指标")
+                return True
+            else:
+                logger.warning("⚠️ 无法验证展开是否成功")
+                return False
+                
+        except Exception as e:
+            logger.error(f"验证展开成功时出错: {e}")
+            return False
 
     
     async def run(self):

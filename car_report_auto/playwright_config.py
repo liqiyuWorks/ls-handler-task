@@ -36,6 +36,8 @@ class PlaywrightConfig:
             '--disable-ipc-flooding-protection',
             '--enable-features=NetworkService,NetworkServiceLogging',
             '--force-color-profile=srgb',
+            '--force-device-scale-factor=2',  # 强制2倍像素密度，提高截图清晰度
+            '--high-dpi-support=1',  # 启用高DPI支持
             '--metrics-recording-only',
             '--disable-extensions',
             '--disable-component-extensions-with-background-pages',
@@ -52,9 +54,10 @@ class PlaywrightConfig:
             '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]
         
-        # 浏览器上下文配置
+        # 浏览器上下文配置 - 优化截图质量
         self.context_config = {
             'viewport': {'width': 1920, 'height': 1080},
+            'device_scale_factor': 2,  # 2倍DPR，提高截图清晰度
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'locale': 'zh-CN',
             'timezone_id': 'Asia/Shanghai',
@@ -150,15 +153,21 @@ class PlaywrightConfig:
             # 确保目录存在
             os.makedirs("static/screenshots", exist_ok=True)
             
-            # 设置截图选项
+            # 设置高质量截图选项
             screenshot_options = {
                 'path': screenshot_path,
                 'full_page': full_page,
-                'type': 'png'
+                'type': 'png',
+                'quality': 100,  # 设置最高质量（对PNG无效，但保持一致性）
+                'omit_background': False,  # 保留背景
+                'scale': 'device'  # 使用设备缩放，利用device_scale_factor
             }
             
-            # 在 Docker 容器中，可能需要等待页面完全渲染
-            await self.page.wait_for_timeout(1000)
+            # 等待页面完全渲染，确保所有内容加载完成
+            await self.page.wait_for_timeout(3000)  # 增加等待时间
+            
+            # 等待所有图片加载完成
+            await self.page.wait_for_load_state('networkidle')
             
             # 截图
             await self.page.screenshot(**screenshot_options)
@@ -202,19 +211,23 @@ class PlaywrightConfig:
             os.makedirs("static/screenshots", exist_ok=True)
             
             # 等待页面完全加载和渲染
-            await self.page.wait_for_timeout(2000)
+            await self.page.wait_for_timeout(3000)  # 增加等待时间
+            
+            # 等待所有资源加载完成
+            await self.page.wait_for_load_state('networkidle')
             
             # 获取页面尺寸
             viewport = self.page.viewport_size
             page_height = await self.page.evaluate("document.documentElement.scrollHeight")
             
-            # 设置截图选项，模拟右击保存页面的效果
+            # 设置高质量截图选项
             screenshot_options = {
                 'path': screenshot_path,
                 'full_page': True,
                 'type': 'png',
+                'quality': 100,  # 最高质量
                 'omit_background': False,  # 包含背景
-                'scale': 'css'  # 使用CSS缩放
+                'scale': 'device'  # 使用设备缩放获得更高清晰度
             }
             
             # 截图
@@ -272,18 +285,22 @@ class PlaywrightConfig:
             os.makedirs("static/screenshots", exist_ok=True)
             
             # 等待页面完全加载和渲染
-            await self.page.wait_for_timeout(2000)
+            await self.page.wait_for_timeout(3000)  # 增加等待时间
+            
+            # 等待所有图片和内容加载完成
+            await self.page.wait_for_load_state('networkidle')
             
             # 滚动到元素位置，确保元素可见
             await element.scroll_into_view_if_needed()
-            await self.page.wait_for_timeout(500)
+            await self.page.wait_for_timeout(1000)  # 等待滚动完成
             
-            # 设置截图选项，只截取元素
+            # 设置高质量截图选项
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
+                'quality': 100,  # 最高质量
                 'omit_background': False,  # 包含背景
-                'scale': 'css'  # 使用CSS缩放
+                'scale': 'device'  # 使用设备缩放，利用device_scale_factor获得更高清晰度
             }
             
             # 截取元素

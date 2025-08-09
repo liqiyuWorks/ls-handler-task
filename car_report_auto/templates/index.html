@@ -431,7 +431,12 @@
                 const taskItems = document.getElementById('taskItems');
                 taskItems.innerHTML = '';
                 
-                const taskArray = Object.entries(tasks).reverse(); // 最新的任务在前面
+                // 按照创建时间排序，最新的在前面
+                const taskArray = Object.entries(tasks).sort(([, a], [, b]) => {
+                    const dateA = new Date(a.created_at || 0);
+                    const dateB = new Date(b.created_at || 0);
+                    return dateB - dateA; // 降序排列，最新的在前面
+                });
                 
                 if (taskArray.length === 0) {
                     taskItems.innerHTML = '<p style="color: #666; text-align: center; margin-top: 20px;">暂无任务记录</p>';
@@ -463,12 +468,18 @@
                             statusClass = '';
                     }
                     
-                    // 格式化创建时间
+                    // 格式化创建时间为 2025/8/8 22:08:41 格式
                     let createdTime = '未知时间';
                     if (task.created_at) {
                         try {
                             const date = new Date(task.created_at);
-                            createdTime = date.toLocaleString('zh-CN');
+                            const year = date.getFullYear();
+                            const month = date.getMonth() + 1;
+                            const day = date.getDate();
+                            const hours = date.getHours();
+                            const minutes = date.getMinutes();
+                            const seconds = date.getSeconds();
+                            createdTime = `${year}/${month}/${day} ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
                         } catch (e) {
                             createdTime = task.created_at;
                         }
