@@ -242,6 +242,218 @@ class PlaywrightConfig:
             logger.error(f"保存页面为图片失败: {e}")
             return None
     
+    async def capture_full_page_report(self, prefix: str = "full_page_report") -> Optional[str]:
+        """
+        实现类似getfireshot.com的整页捕获功能
+        1. 确保所有内容都已加载
+        2. 滚动到页面顶部
+        3. 捕获整个页面
+        """
+        if not self.page:
+            logger.error("页面未初始化，无法截图")
+            return None
+        
+        try:
+            from datetime import datetime
+            import re
+            
+            logger.info("开始执行整页捕获，类似getfireshot.com方式...")
+            
+            # 获取页面标题作为文件名的一部分
+            page_title = await self.page.title()
+            if page_title:
+                clean_title = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9\s]', '', page_title)
+                clean_title = re.sub(r'\s+', '_', clean_title.strip())
+                if len(clean_title) > 20:
+                    clean_title = clean_title[:20]
+            else:
+                clean_title = "page"
+            
+            # 生成时间戳
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # 创建更友好的文件名
+            filename = f"{clean_title}_{prefix}_{timestamp}.png"
+            screenshot_path = f"static/screenshots/{filename}"
+            
+            # 确保目录存在
+            os.makedirs("static/screenshots", exist_ok=True)
+            
+            # 1. 确保所有内容都已加载完成
+            logger.info("等待所有内容加载完成...")
+            await self.page.wait_for_load_state('networkidle')
+            
+            # 等待动态内容加载
+            await self.page.wait_for_timeout(3000)
+            
+            # 等待所有图片、CSS和JavaScript完全加载
+            await self.page.evaluate("""
+                () => {
+                    return new Promise((resolve) => {
+                        // 等待所有资源加载完成
+                        const images = document.querySelectorAll('img');
+                        const stylesheets = document.querySelectorAll('link[rel="stylesheet"]');
+                        const scripts = document.querySelectorAll('script[src]');
+                        
+                        let loadedImages = 0;
+                        let loadedStylesheets = 0;
+                        let loadedScripts = 0;
+                        
+                        const totalImages = images.length;
+                        const totalStylesheets = stylesheets.length;
+                        const totalScripts = scripts.length;
+                        
+                        function checkAllLoaded() {
+                            if (loadedImages === totalImages && 
+                                loadedStylesheets === totalStylesheets && 
+                                loadedScripts === totalScripts) {
+                                resolve();
+                            }
+                        }
+                        
+                        // 加载图片
+                        if (totalImages === 0) {
+                            loadedImages = 0;
+                        } else {
+                            images.forEach(img => {
+                                if (img.complete) {
+                                    loadedImages++;
+                                } else {
+                                    img.onload = () => {
+                                        loadedImages++;
+                                        checkAllLoaded();
+                                    };
+                                    img.onerror = () => {
+                                        loadedImages++;
+                                        checkAllLoaded();
+                                    };
+                                }
+                            });
+                        }
+                        
+                        // 检查样式表
+                        if (totalStylesheets === 0) {
+                            loadedStylesheets = 0;
+                        } else {
+                            stylesheets.forEach(link => {
+                                if (link.sheet) {
+                                    loadedStylesheets++;
+                                } else {
+                                    link.onload = () => {
+                                        loadedStylesheets++;
+                                        checkAllLoaded();
+                                    };
+                                    link.onerror = () => {
+                                        loadedStylesheets++;
+                                        checkAllLoaded();
+                                    };
+                                }
+                            });
+                        }
+                        
+                        // 检查脚本
+                        if (totalScripts === 0) {
+                            loadedScripts = 0;
+                        } else {
+                            scripts.forEach(script => {
+                                if (script.readyState === 'loaded' || script.readyState === 'complete') {
+                                    loadedScripts++;
+                                } else {
+                                    script.onload = () => {
+                                        loadedScripts++;
+                                        checkAllLoaded();
+                                    };
+                                    script.onerror = () => {
+                                        loadedScripts++;
+                                        checkAllLoaded();
+                                    };
+                                }
+                            });
+                        }
+                        
+                        // 初始检查
+                        checkAllLoaded();
+                        
+                        // 15秒超时
+                        setTimeout(resolve, 15000);
+                    });
+                }
+            """)
+            
+            # 2. 滚动到页面最顶部（关键步骤）
+            logger.info("滚动到页面顶部...")
+            await self.page.evaluate("window.scrollTo(0, 0)")
+            await self.page.wait_for_timeout(1000)  # 等待滚动完成
+            
+            # 确保页面已经回到顶部
+            scroll_position = await self.page.evaluate("window.pageYOffset")
+            logger.info(f"当前滚动位置: {scroll_position}")
+            
+            # 3. 获取完整页面尺寸
+            page_metrics = await self.page.evaluate("""
+                () => {
+                    return {
+                        scrollWidth: document.documentElement.scrollWidth,
+                        scrollHeight: document.documentElement.scrollHeight,
+                        clientWidth: document.documentElement.clientWidth,
+                        clientHeight: document.documentElement.clientHeight,
+                        viewportWidth: window.innerWidth,
+                        viewportHeight: window.innerHeight
+                    };
+                }
+            """)
+            
+            logger.info(f"页面尺寸信息: {page_metrics}")
+            
+            # 4. 进行整页截图（类似getfireshot.com的处理方式）
+            logger.info("开始整页截图...")
+            
+            # 设置高质量截图选项（类似getfireshot.com的质量标准）
+            screenshot_options = {
+                'path': screenshot_path,
+                'full_page': True,  # 关键：启用整页截图
+                'type': 'png',
+                'omit_background': False,  # 保留背景
+                'scale': 'device',  # 使用设备缩放，利用device_scale_factor获得更高清晰度
+                'clip': None,  # 不裁剪，捕获整个页面
+                'animations': 'disabled'  # 禁用动画，确保截图稳定
+                # 注意：quality参数仅适用于JPEG格式，PNG格式不支持此参数
+            }
+            
+            # 在截图前禁用页面动画和过渡效果，提高截图质量
+            await self.page.add_style_tag(content="""
+                *, *::before, *::after {
+                    animation-duration: 0s !important;
+                    animation-delay: 0s !important;
+                    transition-duration: 0s !important;
+                    transition-delay: 0s !important;
+                    scroll-behavior: auto !important;
+                }
+            """)
+            
+            # 执行截图
+            await self.page.screenshot(**screenshot_options)
+            
+            # 获取文件信息
+            file_size = os.path.getsize(screenshot_path)
+            file_size_mb = file_size / (1024 * 1024)
+            
+            # 验证截图是否成功
+            if file_size > 0:
+                logger.info(f"✅ 整页截图已成功保存: {screenshot_path}")
+                logger.info(f"📊 文件大小: {file_size_mb:.2f}MB")
+                logger.info(f"📏 页面尺寸: {page_metrics['scrollWidth']}x{page_metrics['scrollHeight']}px")
+                logger.info(f"🔧 使用getfireshot.com类似的整页捕获技术")
+            else:
+                logger.error("❌ 截图文件大小为0，可能截图失败")
+                return None
+            
+            return screenshot_path
+            
+        except Exception as e:
+            logger.error(f"整页截图失败: {e}")
+            return None
+
     async def save_element_as_image(self, element_selector: str, prefix: str = "element_save") -> Optional[str]:
         """保存特定元素为图片，确保包含完整内容"""
         if not self.page:
@@ -287,6 +499,12 @@ class PlaywrightConfig:
             
             # 等待所有图片和内容加载完成
             await self.page.wait_for_load_state('networkidle')
+            
+            # 如果是reportRef元素，先滚动到页面顶部，然后再滚动到元素
+            if "reportRef" in element_selector:
+                logger.info("检测到reportRef元素，先滚动到页面顶部...")
+                await self.page.evaluate("window.scrollTo(0, 0)")
+                await self.page.wait_for_timeout(500)
             
             # 滚动到元素位置，确保元素可见
             await element.scroll_into_view_if_needed()
@@ -342,12 +560,24 @@ class PlaywrightConfig:
                 # 等待内容重新渲染
                 await self.page.wait_for_timeout(1000)
             
+            # 在截图前禁用页面动画和过渡效果，提高截图质量
+            await self.page.add_style_tag(content="""
+                *, *::before, *::after {
+                    animation-duration: 0s !important;
+                    animation-delay: 0s !important;
+                    transition-duration: 0s !important;
+                    transition-delay: 0s !important;
+                    scroll-behavior: auto !important;
+                }
+            """)
+            
             # 设置高质量截图选项
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
                 'omit_background': False,  # 包含背景
-                'scale': 'device'  # 使用设备缩放，利用device_scale_factor获得更高清晰度
+                'scale': 'device',  # 使用设备缩放，利用device_scale_factor获得更高清晰度
+                'animations': 'disabled'  # 禁用动画，确保截图稳定
             }
             
             # 截取元素

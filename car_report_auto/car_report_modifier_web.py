@@ -154,20 +154,17 @@ class CarReportModifier:
                 # 确保所有资源都已加载完成
                 await config.page.wait_for_load_state('networkidle')
                 
-                # 保存修改后的页面截图，确保包含完整的报告内容区域
-                # 首先尝试截取具体的内容区域
-                try:
-                    # 尝试截取指定的详细内容区域
-                    specific_content_selector = '//*[@id="reportRef"]/div[2]/div/div[1]/div/div/div'
-                    await config.page.wait_for_selector(specific_content_selector, timeout=5000)
-                    logger.info("找到具体内容区域，将包含在截图中")
-                except:
-                    logger.info("未找到具体内容区域选择器，使用默认reportRef区域")
-                
-                # 确保整个reportRef区域完全加载和渲染
+                # 确保页面内容完全加载，并准备整页捕获
+                logger.info("🔄 准备进行整页捕获，类似getfireshot.com的处理方式...")
                 await self.ensure_full_content_loaded(config)
                 
-                # 保存完整的报告区域截图
+                # 📸 截取reportRef元素部分
+                # ✨ 特点：
+                # 1. 等待所有区域加载完毕
+                # 2. 自动滚动回到页面顶部
+                # 3. 只捕获reportRef元素
+                # 4. 高质量PNG输出
+                logger.info("📸 开始截取reportRef元素...")
                 screenshot_path = await config.save_element_as_image('//*[@id="reportRef"]', "modified_report")
                 
                 return True, screenshot_path
@@ -177,9 +174,9 @@ class CarReportModifier:
             return False, None
     
     async def expand_all_details(self, config):
-        """查找并点击所有"展开详情"按钮"""
+        """查找并点击所有"展开详情"按钮，但排除"折叠完整解析"按钮"""
         try:
-            logger.info("开始查找并展开所有详情按钮...")
+            logger.info("开始查找并展开详情按钮（排除折叠完整解析）...")
             
             # 定义多种可能的"展开详情"按钮选择器
             expand_selectors = [
@@ -233,6 +230,17 @@ class CarReportModifier:
                                 if is_visible and is_enabled:
                                     # 获取元素文本内容
                                     text_content = await element.text_content()
+                                    
+                                    # 🚫 排除"折叠完整解析"按钮
+                                    if text_content and "折叠完整解析" in text_content:
+                                        logger.info(f"跳过折叠完整解析按钮: '{text_content}'")
+                                        continue
+                                    
+                                    # 🚫 也排除包含"完整解析"的其他相关按钮
+                                    if text_content and any(keyword in text_content for keyword in ["完整解析", "折叠完整", "隐藏完整"]):
+                                        logger.info(f"跳过完整解析相关按钮: '{text_content}'")
+                                        continue
+                                    
                                     logger.info(f"尝试点击元素 {i+1}: '{text_content}'")
                                     
                                     # 滚动到元素位置
@@ -247,7 +255,7 @@ class CarReportModifier:
                                     # 等待页面响应
                                     await config.page.wait_for_timeout(1000)
                                     
-                                    logger.info(f"成功点击展开按钮: '{text_content}'")
+                                    logger.info(f"✅ 成功点击展开按钮: '{text_content}'")
                                 else:
                                     logger.debug(f"元素不可见或不可点击: visible={is_visible}, enabled={is_enabled}")
                                     
@@ -263,10 +271,10 @@ class CarReportModifier:
             success_validated = await self.validate_expansion_success(config)
             
             if expanded_count > 0:
-                logger.info(f"✅ 成功展开了 {expanded_count} 个详情按钮，验证结果: {success_validated}")
+                logger.info(f"✅ 成功展开了 {expanded_count} 个详情按钮（已排除折叠完整解析），验证结果: {success_validated}")
                 return True
             else:
-                logger.warning("⚠️ 未找到任何可点击的展开详情按钮")
+                logger.warning("⚠️ 未找到任何可点击的展开详情按钮（排除折叠完整解析后）")
                 # 保存当前页面截图用于调试
                 await config.take_screenshot("no_expand_buttons_found")
                 return False
@@ -430,7 +438,16 @@ class CarReportModifier:
             # 最终等待确保渲染完成
             await config.page.wait_for_timeout(2000)
             
-            logger.info("内容加载验证完成")
+            # 关键步骤：滚动回到页面顶部，准备整页截图
+            logger.info("滚动到页面顶部，准备整页捕获...")
+            await config.page.evaluate("window.scrollTo(0, 0)")
+            await config.page.wait_for_timeout(1000)  # 等待滚动完成
+            
+            # 确认滚动位置
+            scroll_position = await config.page.evaluate("window.pageYOffset")
+            logger.info(f"当前页面滚动位置: {scroll_position}px")
+            
+            logger.info("内容加载验证完成，已准备好整页捕获")
             
         except Exception as e:
             logger.error(f"确保内容加载时出错: {e}")
