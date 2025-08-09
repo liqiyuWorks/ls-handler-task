@@ -183,8 +183,9 @@ class RedisTaskManager:
             logger.error(f"获取任务状态失败: {task_id}, 错误: {e}")
             return None
 
-    def get_all_tasks(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_all_tasks(self, limit: int = 10) -> List[Dict[str, Any]]:
         try:
+            # 使用 zrevrange 获取最新的任务（按时间戳降序），确保获取最新的任务
             task_ids = self.redis_client.zrevrange(
                 self.TASK_LIST_KEY, 0, limit - 1)
 
@@ -200,10 +201,11 @@ class RedisTaskManager:
                     }
                     tasks.append(combined_info)
 
-            # 按照创建时间排序，确保最新的在前面
+            # 再次按照创建时间排序，确保最新的在前面（双重保险）
             tasks.sort(key=lambda x: x.get('created_at', ''), reverse=True)
             
-            return tasks
+            # 确保返回的任务数量不超过限制
+            return tasks[:limit]
 
         except Exception as e:
             logger.error(f"获取所有任务失败: {e}")

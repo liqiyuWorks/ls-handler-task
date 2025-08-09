@@ -595,7 +595,7 @@ def get_all_tasks():
         if not redis_task_manager.is_redis_connected():
             return jsonify({'error': 'Redis连接失败'}), 500
         
-        tasks = redis_task_manager.get_all_tasks(limit=100)
+        tasks = redis_task_manager.get_all_tasks(limit=10)
         
         # 将任务列表转换为以任务ID为键的字典
         tasks_dict = {}
