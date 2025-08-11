@@ -1004,6 +1004,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.2")
+        self.time_days = int(os.getenv('TIME_DAYS', "10"))
+        self.calc_days = int(os.getenv('CALC_DAYS', "90"))
 
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
@@ -1535,7 +1537,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             
 
             # 计算10天前的时间戳
-            ten_days_ago = datetime.now() - timedelta(days=10)
+            ten_days_ago = datetime.now() - timedelta(days=self.time_days)
             logger.info(f"ten_days_ago: {ten_days_ago}")
 
             # 构建排除最近10天内的updated_at条件
@@ -1579,7 +1581,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     continue
 
                 start_time = int(datetime.now().timestamp()
-                                 * 1000) - 90 * 24 * 3600 * 1000
+                                 * 1000) - self.calc_days * 24 * 3600 * 1000
                 end_time = int(datetime.now().timestamp() * 1000)
                 trace = self.get_vessel_trace(mmsi, start_time, end_time)
 

@@ -9,6 +9,12 @@ import asyncio
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
 from typing import Optional, Dict, Any
+try:
+    from PIL import Image
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+    logger.warning("PIL/Pillow未安装，无法使用图片压缩功能")
 
 
 class PlaywrightConfig:
@@ -32,16 +38,16 @@ class PlaywrightConfig:
             '--disable-translate',
             '--hide-scrollbars',
             '--mute-audio',
-            '--force-device-scale-factor=2',  # 保留高DPI
+            '--force-device-scale-factor=1.5',  # 平衡清晰度和性能
             '--disable-web-security',  # 加速加载
             '--disable-background-networking',  # 减少后台网络
             '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         ]
         
-        # 浏览器上下文配置 - 优化截图质量
+        # 浏览器上下文配置 - 平衡清晰度和文件大小
         self.context_config = {
-            'viewport': {'width': 1920, 'height': 1080},
-            'device_scale_factor': 2,  # 2倍DPR，提高截图清晰度
+            'viewport': {'width': 1366, 'height': 768},  # 降低分辨率减少文件大小
+            'device_scale_factor': 1.5,  # 适度缩放保证清晰度
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'locale': 'zh-CN',
             'timezone_id': 'Asia/Shanghai',
@@ -123,8 +129,37 @@ class PlaywrightConfig:
         except Exception as e:
             logger.warning(f"停止 Playwright 时出错: {e}")
     
-    async def take_screenshot(self, prefix: str, full_page: bool = True) -> Optional[str]:
-        """统一的截图方法"""
+    def optimize_png_size(self, image_path: str) -> bool:
+        """优化PNG文件大小"""
+        if not PIL_AVAILABLE:
+            return False
+        
+        try:
+            # 获取原始文件大小
+            original_size = os.path.getsize(image_path)
+            
+            # 打开并优化图片
+            with Image.open(image_path) as img:
+                # 确保是RGBA模式以保持透明度
+                if img.mode != 'RGBA':
+                    img = img.convert('RGBA')
+                
+                # 使用更高的压缩级别保存
+                img.save(image_path, 'PNG', optimize=True, compress_level=9)
+            
+            # 获取优化后的文件大小
+            optimized_size = os.path.getsize(image_path)
+            reduction = (original_size - optimized_size) / original_size * 100
+            
+            logger.info(f"图片压缩完成: {original_size/1024/1024:.2f}MB -> {optimized_size/1024/1024:.2f}MB (减少 {reduction:.1f}%)")
+            return True
+            
+        except Exception as e:
+            logger.warning(f"图片压缩失败: {e}")
+            return False
+    
+    async def take_screenshot(self, prefix: str, full_page: bool = True, optimize_size: bool = True) -> Optional[str]:
+        """优化版截图方法 - 平衡清晰度和文件大小"""
         if not self.page:
             logger.error("页面未初始化，无法截图")
             return None
@@ -137,25 +172,45 @@ class PlaywrightConfig:
             # 确保目录存在
             os.makedirs("static/screenshots", exist_ok=True)
             
-            # 设置高质量截图选项
-            screenshot_options = {
-                'path': screenshot_path,
-                'full_page': full_page,
-                'type': 'png',
-                'omit_background': False,  # 保留背景
-                'scale': 'device'  # 使用设备缩放，利用device_scale_factor
-            }
+            # 根据优化选项设置截图配置
+            if optimize_size:
+                # 文件大小优化模式
+                screenshot_options = {
+                    'path': screenshot_path,
+                    'full_page': full_page,
+                    'type': 'png',
+                    'omit_background': False,
+                    'scale': 'css',  # 使用CSS缩放，文件更小
+                    'animations': 'disabled'  # 禁用动画减少文件大小
+                }
+            else:
+                # 高质量模式
+                screenshot_options = {
+                    'path': screenshot_path,
+                    'full_page': full_page,
+                    'type': 'png',
+                    'omit_background': False,
+                    'scale': 'device'  # 使用设备缩放，质量更高
+                }
             
-            # 等待页面完全渲染，确保所有内容加载完成
-            await self.page.wait_for_timeout(3000)  # 增加等待时间
+            # 等待页面完全渲染
+            await self.page.wait_for_timeout(2000)  # 减少等待时间
             
-            # 等待所有图片加载完成
+            # 等待网络空闲
             await self.page.wait_for_load_state('networkidle')
             
             # 截图
             await self.page.screenshot(**screenshot_options)
             
-            logger.info(f"截图已保存: {screenshot_path}")
+            # 如果启用大小优化，则压缩图片
+            if optimize_size:
+                self.optimize_png_size(screenshot_path)
+            
+            # 检查文件大小并记录
+            file_size = os.path.getsize(screenshot_path)
+            file_size_mb = file_size / (1024 * 1024)
+            logger.info(f"截图已保存: {screenshot_path} (大小: {file_size_mb:.2f}MB)")
+            
             return screenshot_path
             
         except Exception as e:
@@ -203,13 +258,14 @@ class PlaywrightConfig:
             viewport = self.page.viewport_size
             page_height = await self.page.evaluate("document.documentElement.scrollHeight")
             
-            # 设置高质量截图选项
+            # 设置优化后的截图选项 - 平衡清晰度和文件大小
             screenshot_options = {
                 'path': screenshot_path,
                 'full_page': True,
                 'type': 'png',
                 'omit_background': False,  # 包含背景
-                'scale': 'device'  # 使用设备缩放获得更高清晰度
+                'scale': 'css',  # 使用CSS缩放减少文件大小
+                'animations': 'disabled'  # 禁用动画
             }
             
             # 截图
@@ -392,13 +448,13 @@ class PlaywrightConfig:
             # 4. 进行整页截图（类似getfireshot.com的处理方式）
             logger.info("开始整页截图...")
             
-            # 设置高质量截图选项（类似getfireshot.com的质量标准）
+            # 设置优化后的截图选项 - 平衡清晰度和文件大小
             screenshot_options = {
                 'path': screenshot_path,
                 'full_page': True,  # 关键：启用整页截图
                 'type': 'png',
                 'omit_background': False,  # 保留背景
-                'scale': 'device',  # 使用设备缩放，利用device_scale_factor获得更高清晰度
+                'scale': 'css',  # 使用CSS缩放减少文件大小
                 'clip': None,  # 不裁剪，捕获整个页面
                 'animations': 'disabled'  # 禁用动画，确保截图稳定
                 # 注意：quality参数仅适用于JPEG格式，PNG格式不支持此参数
@@ -555,12 +611,12 @@ class PlaywrightConfig:
                 }
             """)
             
-            # 设置高质量截图选项
+            # 设置优化后的截图选项 - 平衡清晰度和文件大小
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
                 'omit_background': False,  # 包含背景
-                'scale': 'device',  # 使用设备缩放，利用device_scale_factor获得更高清晰度
+                'scale': 'css',  # 使用CSS缩放减少文件大小
                 'animations': 'disabled'  # 禁用动画，确保截图稳定
             }
             
@@ -620,16 +676,20 @@ class PlaywrightConfig:
             # 滚动到元素
             await element.scroll_into_view_if_needed()
             
-            # 🚀 优化：快速截图设置
+            # 🚀 优化：快速截图设置 - 平衡清晰度和文件大小
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
                 'omit_background': False,
-                'scale': 'device'
+                'scale': 'css',  # 使用CSS缩放减少文件大小
+                'animations': 'disabled'  # 禁用动画
             }
             
             # 截图
             await element.screenshot(**screenshot_options)
+            
+            # 自动压缩图片以减少文件大小
+            self.optimize_png_size(screenshot_path)
             
             # 验证文件
             file_size = os.path.getsize(screenshot_path)
