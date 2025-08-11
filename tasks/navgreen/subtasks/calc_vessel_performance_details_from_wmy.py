@@ -1004,8 +1004,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.2")
-        self.time_days = int(os.getenv('TIME_DAYS', "10"))
-        self.calc_days = int(os.getenv('CALC_DAYS', "90"))
+        self.time_days = int(os.getenv('TIME_DAYS', "7"))
+        self.calc_days = int(os.getenv('CALC_DAYS', "180"))
 
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
@@ -1660,11 +1660,11 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     # print(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
                     # print(f"MMSI {mmsi} 船长评估: {captain_assessment}")
                     # print(f"MMSI {mmsi} 买卖船租船分析: {trading_chartering_analysis}")
+                    logger.info(f"性能计算已完成：mmsi={mmsi}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
                 else:
                     logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
 
-                logger.info(
-                    f"性能计算已完成：mmsi={mmsi}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
+                
                 time.sleep(float(self.time_sleep))
 
         except Exception as e:
