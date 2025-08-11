@@ -1537,15 +1537,18 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             
 
             # 计算10天前的时间戳
-            ten_days_ago = datetime.now() - timedelta(days=self.time_days)
-            logger.info(f"ten_days_ago: {ten_days_ago}")
+            if self.time_days:
+                ten_days_ago = datetime.now() - timedelta(days=self.time_days)
+                logger.info(f"ten_days_ago: {ten_days_ago}")
 
-            # 构建排除最近10天内的updated_at条件
-            query_sql_with_time = dict(query_sql)
-            query_sql_with_time["$or"] = [
-                {"perf_calculated_updated_at": {"$lt": ten_days_ago}},
-                {"perf_calculated_updated_at": {"$exists": False}}
-            ]
+                # 构建排除最近10天内的updated_at条件
+                query_sql_with_time = dict(query_sql)
+                query_sql_with_time["$or"] = [
+                    {"perf_calculated_updated_at": {"$lt": ten_days_ago}},
+                    {"perf_calculated_updated_at": {"$exists": False}}
+                ]
+            else:
+                query_sql_with_time = query_sql
 
             vessels = self.mgo_db["hifleet_vessels"].find(
                 query_sql_with_time,
