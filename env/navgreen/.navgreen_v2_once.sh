@@ -14,6 +14,7 @@ export REDIS_PORT=6379
 export REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 export SELECTED_DIRECTORY=navgreen
 # export TASK_TYPE=calculate_vessel_performance
+export WMY_URL=http://58.241.41.78
 export IS_CONSUMER=0
 export RUN_ONCE=1
 export IS_OPEN_RDS=0

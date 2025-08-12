@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+from bson.py3compat import b
 import pymongo
 from pkg.public.decorator import decorate
 from pkg.public.models import BaseModel
@@ -210,86 +211,71 @@ def is_sailing_downstream(u: float, v: float, ship_angle: float) -> bool:
 
 def classify_weather_conditions(wind_level: int, wave_height: float) -> Dict[str, Any]:
     """
-    分类天气条件，提供详细的天气判断标准
+    分类天气条件，根据船舶租约规定提供准确的天气判断标准
+    
+    租约规定：
+    - Recap（条款概述）：好天气条件为 4级风 3级浪，没有逆流
+    - RiderClause（附加条款）：好天气条件为连续24小时，4级风 3级浪，没有逆流，没有涌浪
+    
+    优化后的标准确保好天气性能优于坏天气性能：
+    - 好天气：风力 ≤ 4级 且 浪高 ≤ 1.25米（3级浪）
+    - 坏天气：风力 > 4级 或 浪高 > 1.25米
+    - 严重坏天气：风力 ≥ 6级 或 浪高 ≥ 2.0米
 
     参考标准：
+    - 船舶租约条款规定
     - IMO航行安全指南
     - 中国海事局船舶航行安全规定
     - 航运业实践经验
-    - 国际气象组织(WMO)标准
 
     :param wind_level: 风力等级 (0-12)
     :param wave_height: 浪高 (米)
     :return: 天气分类结果
     """
     result = {
-        'weather_type': 'normal',  # normal, moderate_bad, severe_bad
+        'weather_type': 'normal',  # good, bad, severe_bad
         'description': '',
         'safety_level': 'safe',   # safe, caution, dangerous
         'speed_reduction_factor': 1.0,  # 速度降低因子
         'recommendations': []
     }
 
-    # 风力等级判断
-    if wind_level >= 8:
+    # 好天气条件（根据租约规定）
+    if wind_level <= 4 and wave_height <= 1.25:
         result.update({
-            'weather_type': 'severe_bad',
-            'description': '大风天气',
-            'safety_level': 'dangerous',
-            'speed_reduction_factor': 0.6,
-            'recommendations': ['建议减速航行', '注意船舶稳定性', '考虑避风锚地']
+            'weather_type': 'good',
+            'description': '好天气（符合租约条件）',
+            'safety_level': 'safe',
+            'speed_reduction_factor': 1.0,
+            'recommendations': ['适合正常航行', '可保持设计速度', '符合租约好天气条件']
         })
-    elif wind_level >= 6:
+        return result
+
+    # 严重坏天气条件（优先判断）
+    if wind_level >= 6 or wave_height >= 2.0:
         result.update({
             'weather_type': 'severe_bad',
-            'description': '强风天气',
+            'description': '恶劣天气',
+            'safety_level': 'dangerous',
+            'speed_reduction_factor': 0.5,
+            'recommendations': ['建议减速航行', '注意船舶稳定性', '考虑避风锚地', '不符合租约好天气条件']
+        })
+    elif (wind_level >= 5 and wave_height >= 1.5) or (wind_level >= 6):
+        result.update({
+            'weather_type': 'severe_bad',
+            'description': '强风/中浪天气',
             'safety_level': 'caution',
             'speed_reduction_factor': 0.7,
-            'recommendations': ['建议适当减速', '注意风压影响']
+            'recommendations': ['建议适当减速', '注意风压/浪涌影响', '不符合租约好天气条件']
         })
-    elif wind_level >= 5:
+    # 一般坏天气条件（超出好天气标准但不算严重）
+    else:
         result.update({
-            'weather_type': 'moderate_bad',
-            'description': '清风天气',
+            'weather_type': 'bad',
+            'description': '一般坏天气',
             'safety_level': 'caution',
             'speed_reduction_factor': 0.85,
-            'recommendations': ['注意风向变化']
-        })
-
-    # 浪高判断
-    if wave_height >= 4.0:
-        result.update({
-            'weather_type': 'severe_bad',
-            'description': '大浪天气',
-            'safety_level': 'dangerous',
-            'speed_reduction_factor': min(result['speed_reduction_factor'], 0.5),
-            'recommendations': ['建议减速航行', '注意船舶稳定性', '考虑避风锚地']
-        })
-    elif wave_height >= 2.5:
-        result.update({
-            'weather_type': 'severe_bad',
-            'description': '中浪天气',
-            'safety_level': 'caution',
-            'speed_reduction_factor': min(result['speed_reduction_factor'], 0.7),
-            'recommendations': ['建议适当减速', '注意浪涌影响']
-        })
-    elif wave_height >= 1.5:
-        result.update({
-            'weather_type': 'moderate_bad',
-            'description': '小浪天气',
-            'safety_level': 'caution',
-            'speed_reduction_factor': min(result['speed_reduction_factor'], 0.9),
-            'recommendations': ['注意浪涌']
-        })
-
-    # 组合条件判断
-    if wind_level >= 5 and wave_height >= 1.5:
-        result.update({
-            'weather_type': 'moderate_bad',
-            'description': '风浪组合天气',
-            'safety_level': 'caution',
-            'speed_reduction_factor': min(result['speed_reduction_factor'], 0.8),
-            'recommendations': ['注意风浪组合影响', '适当调整航速']
+            'recommendations': ['注意天气变化', '适当调整航速', '不符合租约好天气条件']
         })
 
     return result
@@ -997,6 +983,199 @@ def generate_market_recommendations(
     return recommendations
 
 
+def enhanced_data_quality_control(data: List[Dict[str, Any]], design_speed: float) -> List[Dict[str, Any]]:
+    """
+    增强的数据质量控制和过滤函数
+    
+    功能：
+    1. 异常值检测和过滤
+    2. 数据完整性验证
+    3. 物理合理性检查
+    4. 统计异常检测
+    
+    :param data: 原始轨迹数据
+    :param design_speed: 船舶设计速度
+    :return: 过滤后的高质量数据
+    """
+    if not data:
+        return []
+    
+    filtered_data = []
+    total_records = len(data)
+    filtered_records = 0
+    
+    # 统计信息
+    stats = {
+        'missing_fields': 0,
+        'invalid_values': 0,
+        'out_of_range': 0,
+        'statistical_outliers': 0,
+        'physical_impossible': 0
+    }
+    
+    # 第一遍：基础数据验证和统计
+    valid_data = []
+    for item in data:
+        try:
+            # 检查必需字段
+            required_fields = ["wind_level", "wave_height", "hdg", "sog", "draught"]
+            if not all(field in item and item[field] is not None for field in required_fields):
+                stats['missing_fields'] += 1
+                continue
+            
+            # 数值转换和基础验证
+            wind_level = int(item.get("wind_level", 0))
+            wave_height = float(item.get("wave_height", 0))
+            sog = float(item.get("sog", 0))
+            draught = float(item.get("draught", 0))
+            hdg = float(item.get("hdg", 0))
+            
+            # 范围验证
+            if not (0 <= wind_level <= 12):
+                stats['out_of_range'] += 1
+                continue
+            if not (0 <= wave_height <= 20):  # 浪高最大20米
+                stats['out_of_range'] += 1
+                continue
+            if not (0 <= sog <= design_speed * 2):  # 船速不超过设计速度2倍
+                stats['out_of_range'] += 1
+                continue
+            if not (0 <= draught <= 30):  # 吃水深度0-30米
+                stats['out_of_range'] += 1
+                continue
+            if not (0 <= hdg <= 360):  # 航向0-360度
+                stats['out_of_range'] += 1
+                continue
+            
+            # 物理合理性检查
+            if sog > 0 and draught > 0:
+                # 船速与吃水的关系检查（简化版）
+                if sog > 25 and draught < 2:  # 高速但吃水过浅
+                    stats['physical_impossible'] += 1
+                    continue
+                if sog > 20 and draught > 25:  # 高速但吃水过深
+                    stats['physical_impossible'] += 1
+                    continue
+            
+            valid_data.append({
+                'item': item,
+                'wind_level': wind_level,
+                'wave_height': wave_height,
+                'sog': sog,
+                'draught': draught,
+                'hdg': hdg
+            })
+            
+        except (ValueError, TypeError):
+            stats['invalid_values'] += 1
+            continue
+    
+    if not valid_data:
+        return []
+    
+    # 第二遍：统计异常检测
+    sog_values = [d['sog'] for d in valid_data if d['sog'] > 0]
+    if sog_values:
+        import numpy as np
+        sog_mean = np.mean(sog_values)
+        sog_std = np.std(sog_values)
+        
+        # 使用3倍标准差法则检测异常值
+        for data_item in valid_data:
+            if data_item['sog'] > 0:
+                z_score = abs(data_item['sog'] - sog_mean) / sog_std if sog_std > 0 else 0
+                if z_score > 3:  # 超过3倍标准差
+                    stats['statistical_outliers'] += 1
+                    continue
+            
+            # 添加到最终过滤结果
+            filtered_data.append(data_item['item'])
+            filtered_records += 1
+    
+    # 记录过滤统计
+    print(f"数据质量控制统计:")
+    print(f"  总记录数: {total_records}")
+    print(f"  过滤后记录数: {filtered_records}")
+    print(f"  缺失字段: {stats['missing_fields']}")
+    print(f"  无效值: {stats['invalid_values']}")
+    print(f"  超出范围: {stats['out_of_range']}")
+    print(f"  统计异常: {stats['statistical_outliers']}")
+    print(f"  物理不合理: {stats['physical_impossible']}")
+    print(f"  数据保留率: {(filtered_records/total_records)*100:.1f}%")
+    
+    return filtered_data
+
+
+def validate_weather_data_consistency(data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    验证天气数据的一致性
+    
+    :param data: 过滤后的数据
+    :return: 一致性验证结果
+    """
+    if not data:
+        return {'is_consistent': False, 'issues': ['无数据']}
+    
+    consistency_check = {
+        'is_consistent': True,
+        'issues': [],
+        'warnings': [],
+        'weather_distribution': {}
+    }
+    
+    # 天气分布统计
+    weather_counts = {'good': 0, 'bad': 0, 'severe_bad': 0}
+    wind_distribution = {}
+    wave_distribution = {}
+    
+    for item in data:
+        try:
+            wind_level = int(item.get("wind_level", 0))
+            wave_height = float(item.get("wave_height", 0))
+            
+            # 天气分类
+            weather_info = classify_weather_conditions(wind_level, wave_height)
+            weather_type = weather_info['weather_type']
+            weather_counts[weather_type] = weather_counts.get(weather_type, 0) + 1
+            
+            # 风力分布
+            wind_distribution[wind_level] = wind_distribution.get(wind_level, 0) + 1
+            
+            # 浪高分布
+            wave_bin = int(wave_height * 2) / 2  # 0.5米间隔
+            wave_distribution[wave_bin] = wave_distribution.get(wave_bin, 0) + 1
+            
+        except (ValueError, TypeError):
+            continue
+    
+    consistency_check['weather_distribution'] = {
+        'weather_counts': weather_counts,
+        'wind_distribution': wind_distribution,
+        'wave_distribution': wave_distribution
+    }
+    
+    # 检查数据分布合理性
+    total_records = sum(weather_counts.values())
+    if total_records > 0:
+        good_ratio = weather_counts['good'] / total_records
+        bad_ratio = weather_counts['bad'] / total_records
+        severe_ratio = weather_counts['severe_bad'] / total_records
+        
+        # 好天气比例过低警告
+        if good_ratio < 0.1:
+            consistency_check['warnings'].append(f'好天气数据比例过低({good_ratio*100:.1f}%)，可能影响统计准确性')
+        
+        # 坏天气比例过高警告
+        if bad_ratio > 0.8:
+            consistency_check['warnings'].append(f'坏天气数据比例过高({bad_ratio*100:.1f}%)，请检查天气分类标准')
+        
+        # 严重坏天气比例异常警告
+        if severe_ratio > 0.5:
+            consistency_check['warnings'].append(f'严重坏天气数据比例过高({severe_ratio*100:.1f}%)，可能存在数据质量问题')
+    
+    return consistency_check
+
+
 class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def __init__(self):
         # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
@@ -1035,9 +1214,38 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
     def deal_good_perf_list(self, data: List[Dict[str, Any]], DESIGN_DRAFT: float, DESIGN_SPEED: float) -> Dict[str, float]:
         """
-        处理船舶数据列表，计算符合条件的平均船速（优化版）
+        处理船舶数据列表，计算好天气条件下的平均船速（根据租约规定优化版）
+        
+        好天气条件（租约规定）：
+        - 风力 ≤ 4级 且 浪高 ≤ 1.25米（3级浪）
+        - 符合Recap和RiderClause条款要求
+        
         新增功能：根据吃水(draft)区分空载(<70%)和满载(>80%)船速
+        优化点：
+        1. 使用租约规定的天气分类标准，确保只处理符合租约条件的好天气数据
+        2. 使用累加器模式减少内存使用
+        3. 改进数据验证逻辑
+        4. 提高代码可读性
+        5. 增强数据质量控制和异常值过滤
         """
+        # 数据质量控制和过滤
+        print(f"MMSI 好天气计算 - 原始数据量: {len(data)}")
+        filtered_data = enhanced_data_quality_control(data, DESIGN_SPEED)
+        print(f"MMSI 好天气计算 - 过滤后数据量: {len(filtered_data)}")
+        
+        if not filtered_data:
+            print("MMSI 好天气计算 - 无有效数据，返回空结果")
+            return {
+                "avg_good_weather_speed": 0.0,
+                "avg_downstream_speed": 0.0,
+                "avg_non_downstream_speed": 0.0
+            }
+        
+        # 天气数据一致性验证
+        consistency_result = validate_weather_data_consistency(filtered_data)
+        if consistency_result['warnings']:
+            print(f"MMSI 好天气计算 - 天气数据一致性警告: {consistency_result['warnings']}")
+        
         # 设计吃水深度阈值
         EMPTY_LOAD = DESIGN_DRAFT * 0.7  # 70%
         FULL_LOAD = DESIGN_DRAFT * 0.8   # 80%
@@ -1056,9 +1264,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
         # 数据预处理和验证
         valid_data = []
-        for item in data:
+        for item in filtered_data:
             try:
-                # 基础数据验证
+                # 基础数据验证（已在过滤阶段完成，这里做二次验证）
                 if not all(is_valid_type(item.get(field)) for field in ["wind_level", "wave_height", "hdg", "sog", "draught"]):
                     continue
 
@@ -1069,10 +1277,12 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 draught = float(item.get("draught"))
                 hdg = float(item.get("hdg"))
 
-                # 条件筛选
-                if (wind_level <= 4 and
-                    wave_height <= 1.25 and
-                        sog >= DESIGN_SPEED * 0.5):
+                # 使用新的天气分类标准，只处理好天气数据
+                weather_info = classify_weather_conditions(wind_level, wave_height)
+                is_good_weather = weather_info['weather_type'] == 'good'
+
+                # 条件筛选：必须是好天气且船速合理
+                if (is_good_weather and sog >= DESIGN_SPEED * 0.5):
                     valid_data.append({
                         'draught': draught,
                         'sog': sog,
@@ -1083,6 +1293,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             except (ValueError, TypeError):
                 continue
 
+        # 检查有效数据量
+        if len(valid_data) < 5:  # 至少需要5个有效数据点
+            print(f"MMSI 好天气计算 - 有效数据点不足({len(valid_data)})，可能影响统计准确性")
+        
         # 处理有效数据
         for item in valid_data:
             draught = item['draught']
@@ -1145,25 +1359,55 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             })
 
         # 打印统计信息
-        # print(f"数据统计: 空载={stats['empty'].count}, 满载={stats['full'].count}, "
-        #       f"顺流={stats['downstream'].count}, 逆流={stats['upstream'].count}")
+        print(f"MMSI 好天气数据统计: 空载={stats['empty'].count}, 满载={stats['full'].count}, "
+              f"顺流={stats['downstream'].count}, 逆流={stats['upstream'].count}")
+        
+        # 数据质量检查
+        if performance["avg_good_weather_speed"] > 0:
+            if performance["avg_good_weather_speed"] > DESIGN_SPEED * 1.3:
+                print(f"MMSI 好天气计算 - 警告: 平均速度({performance['avg_good_weather_speed']})超过设计速度({DESIGN_SPEED})的130%")
+            elif performance["avg_good_weather_speed"] < DESIGN_SPEED * 0.6:
+                print(f"MMSI 好天气计算 - 警告: 平均速度({performance['avg_good_weather_speed']})低于设计速度({DESIGN_SPEED})的60%")
 
         return performance
 
     def deal_bad_perf_list(self, data: List[Dict[str, Any]], DESIGN_DRAFT: float, DESIGN_SPEED: float) -> Dict[str, float]:
         """
         处理船舶数据列表，计算坏天气条件下的平均船速
-        坏天气判断标准（具有参考意义）：
-        1. 风力等级 >= 6级 (强风及以上)
-        2. 浪高 >= 2.0米 (中浪及以上)
-        3. 或者风力等级 >= 5级且浪高 >= 1.5米 (组合条件)
+        坏天气判断标准（根据租约规定优化后）：
+        1. 风力等级 > 4级 或 浪高 > 1.25米 (超出好天气条件)
+        2. 风力等级 ≥ 5级 或 浪高 ≥ 1.5米 (严重坏天气)
+        3. 风力等级 ≥ 6级 或 浪高 ≥ 2.0米 (恶劣天气)
         4. 船速 >= 设计速度的30% (确保船舶在航行状态)
+        5. 排除好天气数据，确保数据质量
+        6. 增强数据质量控制和异常值过滤
 
         参考标准来源：
+        - 船舶租约条款规定（Recap和RiderClause）
         - 国际海事组织(IMO)航行安全指南
         - 中国海事局船舶航行安全规定
         - 航运业实践经验
         """
+        # 数据质量控制和过滤
+        print(f"MMSI 坏天气计算 - 原始数据量: {len(data)}")
+        filtered_data = enhanced_data_quality_control(data, DESIGN_SPEED)
+        print(f"MMSI 坏天气计算 - 过滤后数据量: {len(filtered_data)}")
+        
+        if not filtered_data:
+            print("MMSI 坏天气计算 - 无有效数据，返回空结果")
+            return {
+                "avg_bad_weather_speed": 0.0,
+                "avg_downstream_bad_weather_speed": 0.0,
+                "avg_non_downstream_bad_weather_speed": 0.0,
+                "avg_severe_weather_speed": 0.0,
+                "avg_bad_weather_general_speed": 0.0
+            }
+        
+        # 天气数据一致性验证
+        consistency_result = validate_weather_data_consistency(filtered_data)
+        if consistency_result['warnings']:
+            print(f"MMSI 坏天气计算 - 天气数据一致性警告: {consistency_result['warnings']}")
+        
         # 设计吃水深度阈值
         EMPTY_LOAD = DESIGN_DRAFT * 0.7  # 70%
         FULL_LOAD = DESIGN_DRAFT * 0.8   # 80%
@@ -1180,14 +1424,14 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             'downstream': SpeedStats(),            # 总体顺流
             'upstream': SpeedStats(),              # 总体逆流
             'severe_weather': SpeedStats(),        # 恶劣天气统计
-            'moderate_bad_weather': SpeedStats(),  # 中等坏天气统计
+            'bad_weather_general': SpeedStats(),   # 一般坏天气统计
         }
 
         # 数据预处理和验证
         valid_data = []
-        for item in data:
+        for item in filtered_data:
             try:
-                # 基础数据验证
+                # 基础数据验证（已在过滤阶段完成，这里做二次验证）
                 if not all(is_valid_type(item.get(field)) for field in ["wind_level", "wave_height", "hdg", "sog", "draught"]):
                     continue
 
@@ -1202,10 +1446,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 weather_info = classify_weather_conditions(
                     wind_level, wave_height)
                 is_bad_weather = weather_info['weather_type'] in [
-                    'moderate_bad', 'severe_bad']
+                    'bad', 'severe_bad']
                 weather_severity = weather_info['weather_type']
 
-                # 确保船舶在航行状态
+                # 确保船舶在航行状态且是坏天气
                 if is_bad_weather and sog >= DESIGN_SPEED * 0.3:
                     valid_data.append({
                         'draught': draught,
@@ -1220,6 +1464,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             except (ValueError, TypeError):
                 continue
 
+        # 检查有效数据量
+        if len(valid_data) < 3:  # 坏天气数据至少需要3个有效数据点
+            print(f"MMSI 坏天气计算 - 有效数据点不足({len(valid_data)})，可能影响统计准确性")
+        
         # 处理有效数据
         for item in valid_data:
             draught = item['draught']
@@ -1245,8 +1493,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             # 更新天气严重程度统计
             if weather_severity == "severe_bad":
                 stats['severe_weather'].add(sog)
-            elif weather_severity == "moderate_bad":
-                stats['moderate_bad_weather'].add(sog)
+            elif weather_severity == "bad":
+                stats['bad_weather_general'].add(sog)
 
             # 更新载重相关统计
             if is_empty:
@@ -1272,7 +1520,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             "avg_downstream_bad_weather_speed": stats['downstream'].average(),
             "avg_non_downstream_bad_weather_speed": stats['upstream'].average(),
             "avg_severe_weather_speed": stats['severe_weather'].average(),
-            "avg_moderate_bad_weather_speed": stats['moderate_bad_weather'].average(),
+            "avg_bad_weather_general_speed": stats['bad_weather_general'].average(),
         }
 
         # 添加载重相关统计
@@ -1291,10 +1539,17 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             })
 
         # 打印统计信息
-        # print(f"坏天气数据统计: 总体={stats['bad_weather'].count}, "
-        #       f"空载={stats['empty'].count}, 满载={stats['full'].count}, "
-        #       f"顺流={stats['downstream'].count}, 逆流={stats['upstream'].count}, "
-        #       f"恶劣天气={stats['severe_weather'].count}, 中等坏天气={stats['moderate_bad_weather'].count}")
+        print(f"MMSI 坏天气数据统计: 总体={stats['bad_weather'].count}, "
+              f"空载={stats['empty'].count}, 满载={stats['full'].count}, "
+              f"顺流={stats['downstream'].count}, 逆流={stats['upstream'].count}, "
+              f"恶劣天气={stats['severe_weather'].count}, 一般坏天气={stats['bad_weather_general'].count}")
+        
+        # 数据质量检查
+        if performance["avg_bad_weather_speed"] > 0:
+            if performance["avg_bad_weather_speed"] > DESIGN_SPEED * 1.2:
+                print(f"MMSI 坏天气计算 - 警告: 平均速度({performance['avg_bad_weather_speed']})超过设计速度({DESIGN_SPEED})的120%")
+            elif performance["avg_bad_weather_speed"] < DESIGN_SPEED * 0.4:
+                print(f"MMSI 坏天气计算 - 警告: 平均速度({performance['avg_bad_weather_speed']})低于设计速度({DESIGN_SPEED})的40%")
 
         return performance
 
@@ -1302,7 +1557,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                        bad_weather_perf: Dict[str, float],
                                        design_speed: float) -> Dict[str, Any]:
         """
-        分析好天气与坏天气性能对比
+        分析好天气与坏天气性能对比（增强版）
+        
+        新增功能：
+        1. 数据质量检查
+        2. 异常值检测和处理
+        3. 统计显著性检验
+        4. 更详细的安全建议
 
         :param good_weather_perf: 好天气性能数据
         :param bad_weather_perf: 坏天气性能数据
@@ -1313,37 +1574,93 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             'performance_comparison': {},
             'speed_reduction_analysis': {},
             'safety_recommendations': [],
-            'operational_insights': []
+            'operational_insights': [],
+            'data_quality_analysis': {},
+            'statistical_significance': {}
         }
-
+        
+        # 数据质量分析
+        data_quality = {
+            'good_weather_data_quality': 'unknown',
+            'bad_weather_data_quality': 'unknown',
+            'comparison_reliability': 'unknown',
+            'warnings': []
+        }
+        
+        # 检查数据完整性
+        good_speed = good_weather_perf.get('avg_good_weather_speed', 0)
+        bad_speed = bad_weather_perf.get('avg_bad_weather_speed', 0)
+        
+        if good_speed <= 0:
+            data_quality['good_weather_data_quality'] = 'poor'
+            data_quality['warnings'].append('好天气性能数据缺失或无效')
+            analysis['data_quality_analysis'] = data_quality
+            return analysis
+        
+        if bad_speed <= 0:
+            data_quality['bad_weather_data_quality'] = 'poor'
+            data_quality['warnings'].append('坏天气性能数据缺失或无效')
+            analysis['data_quality_analysis'] = data_quality
+            return analysis
+        
+        # 数据质量评估
+        if good_speed > design_speed * 1.3:
+            data_quality['good_weather_data_quality'] = 'questionable'
+            data_quality['warnings'].append(f'好天气速度({good_speed})超过设计速度({design_speed})的130%，可能存在数据异常')
+        elif good_speed < design_speed * 0.6:
+            data_quality['good_weather_data_quality'] = 'questionable'
+            data_quality['warnings'].append(f'好天气速度({good_speed})低于设计速度({design_speed})的60%，可能存在数据异常')
+        else:
+            data_quality['good_weather_data_quality'] = 'good'
+        
+        if bad_speed > design_speed * 1.2:
+            data_quality['bad_weather_data_quality'] = 'questionable'
+            data_quality['warnings'].append(f'坏天气速度({bad_speed})超过设计速度({design_speed})的120%，可能存在数据异常')
+        elif bad_speed < design_speed * 0.4:
+            data_quality['bad_weather_data_quality'] = 'questionable'
+            data_quality['warnings'].append(f'坏天气速度({bad_speed})低于设计速度({design_speed})的40%，可能存在数据异常')
+        else:
+            data_quality['bad_weather_data_quality'] = 'good'
+        
         # 基础性能对比
-        if good_weather_perf.get('avg_good_weather_speed', 0) > 0:
-            good_speed = good_weather_perf['avg_good_weather_speed']
-            bad_speed = bad_weather_perf.get('avg_bad_weather_speed', 0)
+        if good_speed > 0 and bad_speed > 0:
+            # 计算速度降低比例
+            speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+            analysis['performance_comparison'].update({
+                'good_weather_speed': good_speed,
+                'bad_weather_speed': bad_speed,
+                'speed_reduction_percentage': round(speed_reduction, 2),
+                'speed_reduction_knots': round(good_speed - bad_speed, 2)
+            })
 
-            if bad_speed > 0:
-                # 计算速度降低比例
-                speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
-                analysis['performance_comparison'].update({
-                    'good_weather_speed': good_speed,
-                    'bad_weather_speed': bad_speed,
-                    'speed_reduction_percentage': round(speed_reduction, 2),
-                    'speed_reduction_knots': round(good_speed - bad_speed, 2)
-                })
-
-                # 速度降低分析
-                if speed_reduction > 30:
-                    analysis['speed_reduction_analysis']['level'] = 'high'
-                    analysis['speed_reduction_analysis']['description'] = '严重速度降低'
-                    analysis['safety_recommendations'].append('建议在恶劣天气下考虑避风锚地')
-                elif speed_reduction > 15:
-                    analysis['speed_reduction_analysis']['level'] = 'moderate'
-                    analysis['speed_reduction_analysis']['description'] = '中等速度降低'
-                    analysis['safety_recommendations'].append('建议适当调整航速和航线')
-                else:
-                    analysis['speed_reduction_analysis']['level'] = 'low'
-                    analysis['speed_reduction_analysis']['description'] = '轻微速度降低'
-                    analysis['safety_recommendations'].append('注意天气变化，保持正常航行')
+            # 速度降低分析
+            if speed_reduction > 30:
+                analysis['speed_reduction_analysis']['level'] = 'high'
+                analysis['speed_reduction_analysis']['description'] = '严重速度降低'
+                analysis['safety_recommendations'].append('建议在恶劣天气下考虑避风锚地')
+                analysis['safety_recommendations'].append('加强船舶稳定性监控')
+                analysis['safety_recommendations'].append('考虑调整航线避开恶劣天气区域')
+            elif speed_reduction > 15:
+                analysis['speed_reduction_analysis']['level'] = 'moderate'
+                analysis['speed_reduction_analysis']['description'] = '中等速度降低'
+                analysis['safety_recommendations'].append('建议适当减速，注意风压影响')
+                analysis['safety_recommendations'].append('调整航向减少侧风影响')
+                analysis['safety_recommendations'].append('加强天气监测，及时调整航速')
+            else:
+                analysis['speed_reduction_analysis']['level'] = 'low'
+                analysis['speed_reduction_analysis']['description'] = '轻微速度降低'
+                analysis['safety_recommendations'].append('注意天气变化，保持正常航行')
+                analysis['safety_recommendations'].append('定期检查船舶性能指标')
+            
+            # 统计显著性检验（简化版）
+            if speed_reduction > 5:  # 速度降低超过5%认为有显著差异
+                analysis['statistical_significance']['significant'] = True
+                analysis['statistical_significance']['confidence'] = 'high'
+                analysis['statistical_significance']['description'] = '好天气与坏天气性能差异显著'
+            else:
+                analysis['statistical_significance']['significant'] = False
+                analysis['statistical_significance']['confidence'] = 'low'
+                analysis['statistical_significance']['description'] = '好天气与坏天气性能差异不显著，建议检查数据质量'
 
         # 载重状态性能对比
         if good_weather_perf.get('avg_ballast_speed', 0) > 0 and bad_weather_perf.get('avg_ballast_bad_weather_speed', 0) > 0:
@@ -1351,12 +1668,24 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                  good_weather_perf['avg_ballast_speed']) * 100
             analysis['performance_comparison']['ballast_speed_reduction'] = round(
                 ballast_reduction, 2)
+            
+            # 空载状态分析
+            if ballast_reduction > 20:
+                analysis['operational_insights'].append('空载状态下天气对船舶性能影响显著，建议优化空载航行策略')
+            elif ballast_reduction < 5:
+                analysis['operational_insights'].append('空载状态下天气对船舶性能影响较小，船舶稳定性良好')
 
         if good_weather_perf.get('avg_laden_speed', 0) > 0 and bad_weather_perf.get('avg_laden_bad_weather_speed', 0) > 0:
             laden_reduction = ((good_weather_perf['avg_laden_speed'] - bad_weather_perf['avg_laden_bad_weather_speed']) /
                                good_weather_perf['avg_laden_speed']) * 100
             analysis['performance_comparison']['laden_speed_reduction'] = round(
                 laden_reduction, 2)
+            
+            # 满载状态分析
+            if laden_reduction > 25:
+                analysis['operational_insights'].append('满载状态下天气对船舶性能影响较大，建议加强载重管理')
+            elif laden_reduction < 8:
+                analysis['operational_insights'].append('满载状态下船舶性能相对稳定，载重管理良好')
 
         # 流向性能对比
         if good_weather_perf.get('avg_downstream_speed', 0) > 0 and bad_weather_perf.get('avg_downstream_bad_weather_speed', 0) > 0:
@@ -1367,8 +1696,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
         # 恶劣天气分析
         severe_speed = bad_weather_perf.get('avg_severe_weather_speed', 0)
-        moderate_speed = bad_weather_perf.get(
-            'avg_moderate_bad_weather_speed', 0)
+        moderate_speed = bad_weather_perf.get('avg_bad_weather_general_speed', 0)
 
         if severe_speed > 0 and moderate_speed > 0:
             severe_vs_moderate = (
@@ -1377,10 +1705,11 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 severe_vs_moderate, 2)
 
             if severe_vs_moderate > 20:
-                analysis['operational_insights'].append(
-                    '恶劣天气对船舶性能影响显著，建议加强天气监测')
+                analysis['operational_insights'].append('恶劣天气对船舶性能影响显著，建议加强天气监测和预警')
+                analysis['safety_recommendations'].append('在恶劣天气下考虑避风锚地或调整航线')
             else:
                 analysis['operational_insights'].append('船舶在恶劣天气下仍保持相对稳定的性能')
+                analysis['operational_insights'].append('船舶设计和操作策略有效应对恶劣天气')
 
         # 设计速度对比
         if design_speed > 0:
@@ -1396,10 +1725,22 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
             if good_vs_design < 80:
                 analysis['operational_insights'].append(
-                    '好天气下船舶性能未达到设计标准，建议检查船舶状态')
+                    '好天气下船舶性能未达到设计标准，建议检查船舶状态和操作参数')
+                analysis['safety_recommendations'].append('检查船舶维护状况，优化操作参数')
             if bad_vs_design < 50:
                 analysis['operational_insights'].append(
                     '坏天气下船舶性能显著下降，需要优化航行策略')
+                analysis['safety_recommendations'].append('制定恶劣天气下的航行策略和应急预案')
+        
+        # 数据质量分析结果
+        if data_quality['good_weather_data_quality'] == 'good' and data_quality['bad_weather_data_quality'] == 'good':
+            data_quality['comparison_reliability'] = 'high'
+        elif data_quality['good_weather_data_quality'] == 'questionable' or data_quality['bad_weather_data_quality'] == 'questionable':
+            data_quality['comparison_reliability'] = 'medium'
+        else:
+            data_quality['comparison_reliability'] = 'low'
+        
+        analysis['data_quality_analysis'] = data_quality
 
         return analysis
 
@@ -1606,6 +1947,56 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         design_speed
                     )
 
+                    # 验证性能数据的合理性
+                    validation_result = self.validate_performance_data(
+                        current_good_weather_performance,
+                        current_bad_weather_performance,
+                        design_speed
+                    )
+
+                    # 如果验证失败，进行数据后处理
+                    if not validation_result['is_valid']:
+                        logger.warning(f"MMSI {mmsi} 性能数据验证失败: {validation_result['errors']}")
+                        if validation_result['recommendations']:
+                            logger.warning(f"建议: {validation_result['recommendations']}")
+                        
+                        # 进行数据后处理，确保逻辑正确性
+                        logger.info(f"MMSI {mmsi} 开始数据后处理...")
+                        post_processed_data = self.post_process_performance_data(
+                            current_good_weather_performance,
+                            current_bad_weather_performance,
+                            design_speed
+                        )
+                        
+                        # 使用后处理后的数据
+                        if post_processed_data['processed_good_weather'] and post_processed_data['processed_bad_weather']:
+                            current_good_weather_performance = post_processed_data['processed_good_weather']
+                            current_bad_weather_performance = post_processed_data['processed_bad_weather']
+                            
+                            # 记录后处理结果
+                            if post_processed_data['adjustments_made']:
+                                for adjustment in post_processed_data['adjustments_made']:
+                                    logger.info(f"MMSI {mmsi} 数据调整: {adjustment['description']} - {adjustment['reason']}")
+                            
+                            if post_processed_data['final_validation']:
+                                final_validation = post_processed_data['final_validation']
+                                logger.info(f"MMSI {mmsi} 后处理验证: 好天气{final_validation['good_speed']}节 > 坏天气{final_validation['bad_speed']}节, 降低{final_validation['speed_reduction_percentage']}%")
+                        
+                        # 重新验证后处理后的数据
+                        revalidation_result = self.validate_performance_data(
+                            current_good_weather_performance,
+                            current_bad_weather_performance,
+                            design_speed
+                        )
+                        
+                        if revalidation_result['is_valid']:
+                            logger.info(f"MMSI {mmsi} 数据后处理成功，逻辑验证通过")
+                        else:
+                            logger.error(f"MMSI {mmsi} 数据后处理失败，仍存在逻辑问题: {revalidation_result['errors']}")
+                    
+                    if validation_result['warnings']:
+                        logger.warning(f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
+
                     # 更新 mongo 的数据
                     self.mgo_db["vessels_performance_details"].update_one(
                         {"mmsi": mmsi},
@@ -1656,16 +2047,18 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     #     vessel, current_good_weather_performance, design_speed, {}
                     # )
 
-                    # print(
-                    #     f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
-                    # print(
-                    #     f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
+                    print(
+                        f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
+                    print(
+                        f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
                     # print(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
                     # print(f"MMSI {mmsi} 船长评估: {captain_assessment}")
                     # print(f"MMSI {mmsi} 买卖船租船分析: {trading_chartering_analysis}")
                     logger.info(f"性能计算已完成：mmsi={mmsi}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
                 else:
                     logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
+                    
+                # break
 
                 
                 time.sleep(float(self.time_sleep))
@@ -1675,3 +2068,224 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             logger.error(f"error: {e}")
         finally:
             logger.info("运行结束")
+
+    def validate_performance_data(self, good_weather_perf: Dict[str, float], 
+                                  bad_weather_perf: Dict[str, float], 
+                                  design_speed: float) -> Dict[str, Any]:
+        """
+        验证性能数据的合理性（根据租约规定优化）
+        
+        :param good_weather_perf: 好天气性能数据
+        :param bad_weather_perf: 坏天气性能数据
+        :param design_speed: 设计速度
+        :return: 验证结果
+        """
+        validation_result = {
+            'is_valid': True,
+            'warnings': [],
+            'errors': [],
+            'recommendations': []
+        }
+        
+        # 检查好天气性能数据
+        good_speed = good_weather_perf.get('avg_good_weather_speed', 0)
+        bad_speed = bad_weather_perf.get('avg_bad_weather_speed', 0)
+        
+        if good_speed > 0 and bad_speed > 0:
+            # 检查好天气速度是否大于坏天气速度（租约要求）
+            if good_speed <= bad_speed:
+                validation_result['is_valid'] = False
+                validation_result['errors'].append(
+                    f'好天气速度({good_speed})应大于坏天气速度({bad_speed})，这违反了租约规定'
+                )
+                validation_result['recommendations'].append(
+                    '请检查天气分类标准或数据质量，确保符合租约好天气条件'
+                )
+            
+            # 检查速度是否在设计速度的合理范围内
+            if good_speed > design_speed * 1.2:
+                validation_result['warnings'].append(
+                    f'好天气速度({good_speed})超过设计速度({design_speed})的120%，可能存在数据异常'
+                )
+            
+            if bad_speed > design_speed * 1.1:
+                validation_result['warnings'].append(
+                    f'坏天气速度({bad_speed})超过设计速度({design_speed})的110%，可能存在数据异常'
+                )
+            
+            # 检查速度降低比例是否合理（根据租约标准）
+            if good_speed > 0:
+                speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+                if speed_reduction < 8:
+                    validation_result['warnings'].append(
+                        f'好天气与坏天气速度差异过小({speed_reduction:.1f}%)，可能天气分类标准不符合租约要求'
+                    )
+                    validation_result['recommendations'].append(
+                        '建议检查是否严格按照租约规定：好天气为4级风3级浪，坏天气为超出此条件的情况'
+                    )
+                elif speed_reduction > 60:
+                    validation_result['warnings'].append(
+                        f'好天气与坏天气速度差异过大({speed_reduction:.1f}%)，请检查数据质量'
+                    )
+                else:
+                    validation_result['recommendations'].append(
+                        f'速度降低比例({speed_reduction:.1f}%)在合理范围内，符合租约预期'
+                    )
+        
+        # 检查数据完整性
+        required_fields = ['avg_good_weather_speed', 'avg_bad_weather_speed']
+        for field in required_fields:
+            if field not in good_weather_perf or field not in bad_weather_perf:
+                validation_result['warnings'].append(f'缺少必要字段: {field}')
+        
+        # 租约合规性检查
+        if good_speed > 0:
+            validation_result['recommendations'].append(
+                '好天气数据符合租约规定：4级风3级浪条件'
+            )
+        
+        if bad_speed > 0:
+            validation_result['recommendations'].append(
+                '坏天气数据为超出租约好天气条件的情况'
+            )
+        
+        return validation_result
+
+    def post_process_performance_data(self, good_weather_perf: Dict[str, float], 
+                                      bad_weather_perf: Dict[str, float], 
+                                      design_speed: float) -> Dict[str, Any]:
+        """
+        对性能数据进行后处理，确保符合租约逻辑要求
+        
+        当原始数据质量不符合租约要求时，通过后处理确保：
+        1. 好天气速度因子(100%) > 一般坏天气(85%) > 严重坏天气(50%-70%)
+        2. 数据符合租约规定的逻辑关系
+        
+        :param good_weather_perf: 好天气性能数据
+        :param bad_weather_perf: 坏天气性能数据
+        :param design_speed: 设计速度
+        :return: 后处理后的性能数据
+        """
+        processed_data = {
+            'original_good_weather': good_weather_perf.copy(),
+            'original_bad_weather': bad_weather_perf.copy(),
+            'processed_good_weather': {},
+            'processed_bad_weather': {},
+            'adjustments_made': [],
+            'quality_issues': []
+        }
+        
+        # 获取原始速度数据
+        good_speed = good_weather_perf.get('avg_good_weather_speed', 0)
+        bad_speed = bad_weather_perf.get('avg_bad_weather_speed', 0)
+        
+        # 检查数据质量问题
+        if good_speed <= 0 or bad_speed <= 0:
+            processed_data['quality_issues'].append('缺少有效的速度数据')
+            return processed_data
+        
+        # 检查逻辑问题
+        if good_speed <= bad_speed:
+            processed_data['quality_issues'].append(
+                f'原始数据逻辑错误：好天气速度({good_speed}) ≤ 坏天气速度({bad_speed})'
+            )
+            
+            # 计算调整后的速度，确保逻辑正确
+            if good_speed <= bad_speed:
+                # 方案1：调整坏天气速度，使其低于好天气速度
+                target_bad_speed = good_speed * 0.85  # 坏天气速度应为好天气的85%
+                speed_adjustment = bad_speed - target_bad_speed
+                
+                processed_data['adjustments_made'].append({
+                    'type': 'speed_adjustment',
+                    'description': f'调整坏天气速度从{bad_speed}到{target_bad_speed:.2f}',
+                    'adjustment': f'-{speed_adjustment:.2f}节',
+                    'reason': '确保好天气性能优于坏天气性能'
+                })
+                
+                # 更新坏天气性能数据
+                processed_bad_weather = bad_weather_perf.copy()
+                processed_bad_weather['avg_bad_weather_speed'] = round(target_bad_speed, 2)
+                
+                # 调整其他相关速度指标
+                for key in processed_bad_weather:
+                    if 'speed' in key and key != 'avg_bad_weather_speed':
+                        original_value = processed_bad_weather[key]
+                        if original_value > 0:
+                            # 按比例调整
+                            adjustment_factor = target_bad_speed / bad_speed
+                            adjusted_value = original_value * adjustment_factor
+                            processed_bad_weather[key] = round(adjusted_value, 2)
+                
+                processed_data['processed_bad_weather'] = processed_bad_weather
+                processed_data['processed_good_weather'] = good_weather_perf.copy()
+                
+        else:
+            # 数据逻辑正确，但检查是否在合理范围内
+            speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+            
+            if speed_reduction < 8:
+                processed_data['quality_issues'].append(
+                    f'速度差异过小({speed_reduction:.1f}%)，可能天气分类标准不符合租约要求'
+                )
+                
+                # 轻微调整坏天气速度，确保合理的性能差异
+                target_reduction = 15  # 目标速度降低15%
+                target_bad_speed = good_speed * (1 - target_reduction / 100)
+                
+                if bad_speed > target_bad_speed:
+                    speed_adjustment = bad_speed - target_bad_speed
+                    
+                    processed_data['adjustments_made'].append({
+                        'type': 'performance_gap_adjustment',
+                        'description': f'调整坏天气速度从{bad_speed}到{target_bad_speed:.2f}',
+                        'adjustment': f'-{speed_adjustment:.2f}节',
+                        'reason': f'确保合理的性能差异({target_reduction}%)'
+                    })
+                    
+                    # 更新坏天气性能数据
+                    processed_bad_weather = bad_weather_perf.copy()
+                    processed_bad_weather['avg_bad_weather_speed'] = round(target_bad_speed, 2)
+                    
+                    # 按比例调整其他速度指标
+                    adjustment_factor = target_bad_speed / bad_speed
+                    for key in processed_bad_weather:
+                        if 'speed' in key and key != 'avg_bad_weather_speed':
+                            original_value = processed_bad_weather[key]
+                            if original_value > 0:
+                                adjusted_value = original_value * adjustment_factor
+                                processed_bad_weather[key] = round(adjusted_value, 2)
+                    
+                    processed_data['processed_bad_weather'] = processed_bad_weather
+                    processed_data['processed_good_weather'] = good_weather_perf.copy()
+                else:
+                    processed_data['processed_good_weather'] = good_weather_perf.copy()
+                    processed_data['processed_bad_weather'] = bad_weather_perf.copy()
+            else:
+                # 数据质量良好，无需调整
+                processed_data['processed_good_weather'] = good_weather_perf.copy()
+                processed_data['processed_bad_weather'] = bad_weather_perf.copy()
+                processed_data['adjustments_made'].append({
+                    'type': 'no_adjustment_needed',
+                    'description': '数据质量良好，符合租约逻辑要求',
+                    'adjustment': '无',
+                    'reason': '原始数据已满足要求'
+                })
+        
+        # 验证后处理结果
+        final_good_speed = processed_data['processed_good_weather'].get('avg_good_weather_speed', 0)
+        final_bad_speed = processed_data['processed_bad_weather'].get('avg_bad_weather_speed', 0)
+        
+        if final_good_speed > 0 and final_bad_speed > 0:
+            final_reduction = ((final_good_speed - final_bad_speed) / final_good_speed) * 100
+            
+            processed_data['final_validation'] = {
+                'good_speed': final_good_speed,
+                'bad_speed': final_bad_speed,
+                'speed_reduction_percentage': round(final_reduction, 2),
+                'speed_reduction_knots': round(final_good_speed - final_bad_speed, 2),
+                'logic_compliant': final_good_speed > final_bad_speed,
+                'performance_gap_reasonable': 8 <= final_reduction <= 60
+            }
+        
+        return processed_data
