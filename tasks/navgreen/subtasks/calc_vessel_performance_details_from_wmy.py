@@ -1225,7 +1225,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.2")
         self.time_days = int(os.getenv('TIME_DAYS', "0"))
-        self.calc_days = int(os.getenv('CALC_DAYS', "180"))
+        self.calc_days = int(os.getenv('CALC_DAYS', "365"))
 
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
