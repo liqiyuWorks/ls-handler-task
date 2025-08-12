@@ -211,31 +211,33 @@ def is_sailing_downstream(u: float, v: float, ship_angle: float) -> bool:
 
 def classify_weather_conditions(wind_level: int, wave_height: float) -> Dict[str, Any]:
     """
-    分类天气条件，根据船舶租约规定提供准确的天气判断标准
+    分类天气条件，根据船舶租约规定提供准确的天气判断标准（优化版）
     
     租约规定：
     - Recap（条款概述）：好天气条件为 4级风 3级浪，没有逆流
     - RiderClause（附加条款）：好天气条件为连续24小时，4级风 3级浪，没有逆流，没有涌浪
     
-    优化后的标准确保好天气性能优于坏天气性能：
+    优化后的标准确保好天气性能显著优于坏天气性能：
     - 好天气：风力 ≤ 4级 且 浪高 ≤ 1.25米（3级浪）
-    - 坏天气：风力 > 4级 或 浪高 > 1.25米
-    - 严重坏天气：风力 ≥ 6级 或 浪高 ≥ 2.0米
+    - 一般坏天气：风力 5级 或 浪高 1.25-1.8米（轻微超出好天气条件）
+    - 中等坏天气：风力 6级 或 浪高 1.8-2.5米（明显影响航行）
+    - 严重坏天气：风力 ≥ 7级 或 浪高 ≥ 2.5米（恶劣天气，严重影响航行）
 
     参考标准：
     - 船舶租约条款规定
     - IMO航行安全指南
     - 中国海事局船舶航行安全规定
     - 航运业实践经验
+    - 实际航行性能差异要求
 
     :param wind_level: 风力等级 (0-12)
     :param wave_height: 浪高 (米)
     :return: 天气分类结果
     """
     result = {
-        'weather_type': 'normal',  # good, bad, severe_bad
+        'weather_type': 'normal',  # good, bad, moderate_bad, severe_bad
         'description': '',
-        'safety_level': 'safe',   # safe, caution, dangerous
+        'safety_level': 'safe',   # safe, caution, warning, dangerous
         'speed_reduction_factor': 1.0,  # 速度降低因子
         'recommendations': []
     }
@@ -251,30 +253,31 @@ def classify_weather_conditions(wind_level: int, wave_height: float) -> Dict[str
         })
         return result
 
-    # 严重坏天气条件（优先判断）
-    if wind_level >= 6 or wave_height >= 2.0:
+    # 严重坏天气条件（优先判断，严重影响航行）
+    if wind_level >= 7 or wave_height >= 2.5:
         result.update({
             'weather_type': 'severe_bad',
-            'description': '恶劣天气',
+            'description': '恶劣天气（严重影响航行）',
             'safety_level': 'dangerous',
-            'speed_reduction_factor': 0.5,
+            'speed_reduction_factor': 0.4,  # 速度降低60%
             'recommendations': ['建议减速航行', '注意船舶稳定性', '考虑避风锚地', '不符合租约好天气条件']
         })
-    elif (wind_level >= 5 and wave_height >= 1.5) or (wind_level >= 6):
+    # 中等坏天气条件（明显影响航行）
+    elif wind_level >= 6 or wave_height >= 1.8:
         result.update({
-            'weather_type': 'severe_bad',
-            'description': '强风/中浪天气',
-            'safety_level': 'caution',
-            'speed_reduction_factor': 0.7,
-            'recommendations': ['建议适当减速', '注意风压/浪涌影响', '不符合租约好天气条件']
+            'weather_type': 'moderate_bad',
+            'description': '中等坏天气（明显影响航行）',
+            'safety_level': 'warning',
+            'speed_reduction_factor': 0.6,  # 速度降低40%
+            'recommendations': ['建议适当减速', '注意风压/浪涌影响', '调整航向减少侧风', '不符合租约好天气条件']
         })
-    # 一般坏天气条件（超出好天气标准但不算严重）
+    # 一般坏天气条件（轻微超出好天气标准）
     else:
         result.update({
             'weather_type': 'bad',
-            'description': '一般坏天气',
+            'description': '一般坏天气（轻微超出好天气条件）',
             'safety_level': 'caution',
-            'speed_reduction_factor': 0.85,
+            'speed_reduction_factor': 0.75,  # 速度降低25%
             'recommendations': ['注意天气变化', '适当调整航速', '不符合租约好天气条件']
         })
 
@@ -551,6 +554,8 @@ def analyze_vessel_for_trading_and_chartering(
     build_year = vessel_data.get('buildYear', 0)
     length = vessel_data.get('length', 0)
     width = vessel_data.get('width', 0)
+    height = vessel_data.get('height', 0)
+    load_weight = vessel_data.get("dwt")
 
     # 性能数据
     good_speed = weather_performance.get('avg_good_weather_speed', 0)
@@ -1124,7 +1129,7 @@ def validate_weather_data_consistency(data: List[Dict[str, Any]]) -> Dict[str, A
     }
     
     # 天气分布统计
-    weather_counts = {'good': 0, 'bad': 0, 'severe_bad': 0}
+    weather_counts = {'good': 0, 'bad': 0, 'moderate_bad': 0, 'severe_bad': 0}
     wind_distribution = {}
     wave_distribution = {}
     
@@ -1159,18 +1164,23 @@ def validate_weather_data_consistency(data: List[Dict[str, Any]]) -> Dict[str, A
     if total_records > 0:
         good_ratio = weather_counts['good'] / total_records
         bad_ratio = weather_counts['bad'] / total_records
+        moderate_bad_ratio = weather_counts['moderate_bad'] / total_records
         severe_ratio = weather_counts['severe_bad'] / total_records
         
         # 好天气比例过低警告
         if good_ratio < 0.1:
             consistency_check['warnings'].append(f'好天气数据比例过低({good_ratio*100:.1f}%)，可能影响统计准确性')
         
-        # 坏天气比例过高警告
-        if bad_ratio > 0.8:
-            consistency_check['warnings'].append(f'坏天气数据比例过高({bad_ratio*100:.1f}%)，请检查天气分类标准')
+        # 一般坏天气比例过高警告
+        if bad_ratio > 0.6:
+            consistency_check['warnings'].append(f'一般坏天气数据比例过高({bad_ratio*100:.1f}%)，请检查天气分类标准')
+        
+        # 中等坏天气比例过高警告
+        if moderate_bad_ratio > 0.4:
+            consistency_check['warnings'].append(f'中等坏天气数据比例过高({moderate_bad_ratio*100:.1f}%)，请检查天气分类标准')
         
         # 严重坏天气比例异常警告
-        if severe_ratio > 0.5:
+        if severe_ratio > 0.3:
             consistency_check['warnings'].append(f'严重坏天气数据比例过高({severe_ratio*100:.1f}%)，可能存在数据质量问题')
     
     return consistency_check
@@ -1183,7 +1193,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.2")
-        self.time_days = int(os.getenv('TIME_DAYS', "7"))
+        self.time_days = int(os.getenv('TIME_DAYS', "0"))
         self.calc_days = int(os.getenv('CALC_DAYS', "180"))
 
         if self.vessel_types:
@@ -1375,12 +1385,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         """
         处理船舶数据列表，计算坏天气条件下的平均船速
         坏天气判断标准（根据租约规定优化后）：
-        1. 风力等级 > 4级 或 浪高 > 1.25米 (超出好天气条件)
-        2. 风力等级 ≥ 5级 或 浪高 ≥ 1.5米 (严重坏天气)
-        3. 风力等级 ≥ 6级 或 浪高 ≥ 2.0米 (恶劣天气)
+        1. 风力等级 5级 或 浪高 1.25-1.8米 (一般坏天气，轻微超出好天气条件)
+        2. 风力等级 6级 或 浪高 1.8-2.5米 (中等坏天气，明显影响航行)
+        3. 风力等级 ≥ 7级 或 浪高 ≥ 2.5米 (严重坏天气，恶劣天气，严重影响航行)
         4. 船速 >= 设计速度的30% (确保船舶在航行状态)
         5. 排除好天气数据，确保数据质量
         6. 增强数据质量控制和异常值过滤
+        7. 优化天气分类，确保与好天气有显著性能差异
 
         参考标准来源：
         - 船舶租约条款规定（Recap和RiderClause）
@@ -1423,7 +1434,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             'full_upstream': SpeedStats(),         # 满载逆流
             'downstream': SpeedStats(),            # 总体顺流
             'upstream': SpeedStats(),              # 总体逆流
-            'severe_weather': SpeedStats(),        # 恶劣天气统计
+            'severe_weather': SpeedStats(),        # 严重坏天气统计
+            'moderate_bad_weather': SpeedStats(),  # 中等坏天气统计
             'bad_weather_general': SpeedStats(),   # 一般坏天气统计
         }
 
@@ -1446,7 +1458,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 weather_info = classify_weather_conditions(
                     wind_level, wave_height)
                 is_bad_weather = weather_info['weather_type'] in [
-                    'bad', 'severe_bad']
+                    'bad', 'moderate_bad', 'severe_bad']
                 weather_severity = weather_info['weather_type']
 
                 # 确保船舶在航行状态且是坏天气
@@ -1493,6 +1505,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             # 更新天气严重程度统计
             if weather_severity == "severe_bad":
                 stats['severe_weather'].add(sog)
+            elif weather_severity == "moderate_bad":
+                stats['moderate_bad_weather'].add(sog)
             elif weather_severity == "bad":
                 stats['bad_weather_general'].add(sog)
 
@@ -1516,11 +1530,72 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
         # 构建结果
         performance = {
-            "avg_bad_weather_speed": stats['bad_weather'].average(),
-            "avg_downstream_bad_weather_speed": stats['downstream'].average(),
-            "avg_non_downstream_bad_weather_speed": stats['upstream'].average(),
-            "avg_severe_weather_speed": stats['severe_weather'].average(),
-            "avg_bad_weather_general_speed": stats['bad_weather_general'].average(),
+            # === 坏天气总体性能 ===
+            "avg_bad_weather_speed": stats['bad_weather'].average(),                    # 坏天气总体平均速度
+            "bad_weather_data_count": stats['bad_weather'].count,                      # 坏天气数据点总数
+            
+            # === 三种坏天气分类性能 ===
+            # 1. 一般坏天气（风力5级或浪高1.25-1.8米，轻微超出好天气条件）
+            "avg_general_bad_weather_speed": stats['bad_weather_general'].average(),   # 一般坏天气平均速度
+            "general_bad_weather_count": stats['bad_weather_general'].count,           # 一般坏天气数据点数量
+            "general_bad_weather_speed_factor": 0.75,                                  # 一般坏天气速度因子（75%）
+            "general_bad_weather_speed_reduction": "25%",                              # 一般坏天气速度降低百分比
+            
+            # 2. 中等坏天气（风力6级或浪高1.8-2.5米，明显影响航行）
+            "avg_moderate_bad_weather_speed": stats['moderate_bad_weather'].average(), # 中等坏天气平均速度
+            "moderate_bad_weather_count": stats['moderate_bad_weather'].count,         # 中等坏天气数据点数量
+            "moderate_bad_weather_speed_factor": 0.6,                                  # 中等坏天气速度因子（60%）
+            "moderate_bad_weather_speed_reduction": "40%",                             # 中等坏天气速度降低百分比
+            
+            # 3. 严重坏天气（风力≥7级或浪高≥2.5米，恶劣天气，严重影响航行）
+            "avg_severe_bad_weather_speed": stats['severe_weather'].average(),         # 严重坏天气平均速度
+            "severe_bad_weather_count": stats['severe_weather'].count,                 # 严重坏天气数据点数量
+            "severe_bad_weather_speed_factor": 0.4,                                    # 严重坏天气速度因子（40%）
+            "severe_bad_weather_speed_reduction": "60%",                               # 严重坏天气速度降低百分比
+            
+            # === 流向相关性能 ===
+            "avg_downstream_bad_weather_speed": stats['downstream'].average(),         # 顺流坏天气平均速度
+            "avg_non_downstream_bad_weather_speed": stats['upstream'].average(),       # 逆流坏天气平均速度
+            "downstream_data_count": stats['downstream'].count,                        # 顺流数据点数量
+            "upstream_data_count": stats['upstream'].count,                            # 逆流数据点数量
+            
+            # === 天气分类标准说明 ===
+            "weather_classification_standards": {
+                "good_weather": {
+                    "description": "好天气（符合租约条件）",
+                    "wind_level": "≤ 4级",
+                    "wave_height": "≤ 1.25米（3级浪）",
+                    "speed_factor": "100%",
+                    "safety_level": "safe"
+                },
+                "general_bad_weather": {
+                    "description": "一般坏天气（轻微超出好天气条件）",
+                    "wind_level": "5级",
+                    "wave_height": "1.25-1.8米",
+                    "speed_factor": "75%",
+                    "speed_reduction": "25%",
+                    "safety_level": "caution",
+                    "recommendations": ["注意天气变化", "适当调整航速", "不符合租约好天气条件"]
+                },
+                "moderate_bad_weather": {
+                    "description": "中等坏天气（明显影响航行）",
+                    "wind_level": "6级",
+                    "wave_height": "1.8-2.5米",
+                    "speed_factor": "60%",
+                    "speed_reduction": "40%",
+                    "safety_level": "warning",
+                    "recommendations": ["建议适当减速", "注意风压/浪涌影响", "调整航向减少侧风", "不符合租约好天气条件"]
+                },
+                "severe_bad_weather": {
+                    "description": "严重坏天气（恶劣天气，严重影响航行）",
+                    "wind_level": "≥ 7级",
+                    "wave_height": "≥ 2.5米",
+                    "speed_factor": "40%",
+                    "speed_reduction": "60%",
+                    "safety_level": "dangerous",
+                    "recommendations": ["建议减速航行", "注意船舶稳定性", "考虑避风锚地", "不符合租约好天气条件"]
+                }
+            }
         }
 
         # 添加载重相关统计
@@ -1542,7 +1617,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         print(f"MMSI 坏天气数据统计: 总体={stats['bad_weather'].count}, "
               f"空载={stats['empty'].count}, 满载={stats['full'].count}, "
               f"顺流={stats['downstream'].count}, 逆流={stats['upstream'].count}, "
-              f"恶劣天气={stats['severe_weather'].count}, 一般坏天气={stats['bad_weather_general'].count}")
+              f"一般坏天气={stats['bad_weather_general'].count}, 中等坏天气={stats['moderate_bad_weather'].count}, "
+              f"严重坏天气={stats['severe_weather'].count}")
         
         # 数据质量检查
         if performance["avg_bad_weather_speed"] > 0:
@@ -1550,12 +1626,22 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 print(f"MMSI 坏天气计算 - 警告: 平均速度({performance['avg_bad_weather_speed']})超过设计速度({DESIGN_SPEED})的120%")
             elif performance["avg_bad_weather_speed"] < DESIGN_SPEED * 0.4:
                 print(f"MMSI 坏天气计算 - 警告: 平均速度({performance['avg_bad_weather_speed']})低于设计速度({DESIGN_SPEED})的40%")
+            
+            # 性能差异检查
+            print(f"MMSI 坏天气计算 - 性能分类统计:")
+            if stats['bad_weather_general'].count > 0:
+                print(f"  一般坏天气: {stats['bad_weather_general'].count}个数据点, 平均速度{stats['bad_weather_general'].average():.2f}节 (速度因子75%)")
+            if stats['moderate_bad_weather'].count > 0:
+                print(f"  中等坏天气: {stats['moderate_bad_weather'].count}个数据点, 平均速度{stats['moderate_bad_weather'].average():.2f}节 (速度因子60%)")
+            if stats['severe_weather'].count > 0:
+                print(f"  严重坏天气: {stats['severe_weather'].count}个数据点, 平均速度{stats['severe_weather'].average():.2f}节 (速度因子40%)")
 
         return performance
 
     def analyze_performance_comparison(self, good_weather_perf: Dict[str, float],
                                        bad_weather_perf: Dict[str, float],
-                                       design_speed: float) -> Dict[str, Any]:
+                                       design_speed: float,
+                                       vessel_data: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         分析好天气与坏天气性能对比（增强版）
         
@@ -1568,6 +1654,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         :param good_weather_perf: 好天气性能数据
         :param bad_weather_perf: 坏天气性能数据
         :param design_speed: 设计速度
+        :param vessel_data: 船舶基础数据（可选，用于生成针对性建议）
         :return: 性能对比分析结果
         """
         analysis = {
@@ -1637,20 +1724,12 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             if speed_reduction > 30:
                 analysis['speed_reduction_analysis']['level'] = 'high'
                 analysis['speed_reduction_analysis']['description'] = '严重速度降低'
-                analysis['safety_recommendations'].append('建议在恶劣天气下考虑避风锚地')
-                analysis['safety_recommendations'].append('加强船舶稳定性监控')
-                analysis['safety_recommendations'].append('考虑调整航线避开恶劣天气区域')
             elif speed_reduction > 15:
                 analysis['speed_reduction_analysis']['level'] = 'moderate'
                 analysis['speed_reduction_analysis']['description'] = '中等速度降低'
-                analysis['safety_recommendations'].append('建议适当减速，注意风压影响')
-                analysis['safety_recommendations'].append('调整航向减少侧风影响')
-                analysis['safety_recommendations'].append('加强天气监测，及时调整航速')
             else:
                 analysis['speed_reduction_analysis']['level'] = 'low'
                 analysis['speed_reduction_analysis']['description'] = '轻微速度降低'
-                analysis['safety_recommendations'].append('注意天气变化，保持正常航行')
-                analysis['safety_recommendations'].append('定期检查船舶性能指标')
             
             # 统计显著性检验（简化版）
             if speed_reduction > 5:  # 速度降低超过5%认为有显著差异
@@ -1671,9 +1750,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             
             # 空载状态分析
             if ballast_reduction > 20:
-                analysis['operational_insights'].append('空载状态下天气对船舶性能影响显著，建议优化空载航行策略')
+                analysis['performance_comparison']['ballast_impact'] = 'significant'
             elif ballast_reduction < 5:
-                analysis['operational_insights'].append('空载状态下天气对船舶性能影响较小，船舶稳定性良好')
+                analysis['performance_comparison']['ballast_impact'] = 'minimal'
 
         if good_weather_perf.get('avg_laden_speed', 0) > 0 and bad_weather_perf.get('avg_laden_bad_weather_speed', 0) > 0:
             laden_reduction = ((good_weather_perf['avg_laden_speed'] - bad_weather_perf['avg_laden_bad_weather_speed']) /
@@ -1683,9 +1762,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             
             # 满载状态分析
             if laden_reduction > 25:
-                analysis['operational_insights'].append('满载状态下天气对船舶性能影响较大，建议加强载重管理')
+                analysis['performance_comparison']['laden_impact'] = 'significant'
             elif laden_reduction < 8:
-                analysis['operational_insights'].append('满载状态下船舶性能相对稳定，载重管理良好')
+                analysis['performance_comparison']['laden_impact'] = 'stable'
 
         # 流向性能对比
         if good_weather_perf.get('avg_downstream_speed', 0) > 0 and bad_weather_perf.get('avg_downstream_bad_weather_speed', 0) > 0:
@@ -1705,11 +1784,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 severe_vs_moderate, 2)
 
             if severe_vs_moderate > 20:
-                analysis['operational_insights'].append('恶劣天气对船舶性能影响显著，建议加强天气监测和预警')
-                analysis['safety_recommendations'].append('在恶劣天气下考虑避风锚地或调整航线')
+                analysis['performance_comparison']['severe_weather_impact'] = 'significant'
             else:
-                analysis['operational_insights'].append('船舶在恶劣天气下仍保持相对稳定的性能')
-                analysis['operational_insights'].append('船舶设计和操作策略有效应对恶劣天气')
+                analysis['performance_comparison']['severe_weather_impact'] = 'stable'
 
         # 设计速度对比
         if design_speed > 0:
@@ -1723,14 +1800,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 'bad_weather_vs_design_percentage': round(bad_vs_design, 2)
             })
 
-            if good_vs_design < 80:
-                analysis['operational_insights'].append(
-                    '好天气下船舶性能未达到设计标准，建议检查船舶状态和操作参数')
-                analysis['safety_recommendations'].append('检查船舶维护状况，优化操作参数')
-            if bad_vs_design < 50:
-                analysis['operational_insights'].append(
-                    '坏天气下船舶性能显著下降，需要优化航行策略')
-                analysis['safety_recommendations'].append('制定恶劣天气下的航行策略和应急预案')
+            # 性能数据已记录，具体建议将由数据驱动函数生成
         
         # 数据质量分析结果
         if data_quality['good_weather_data_quality'] == 'good' and data_quality['bad_weather_data_quality'] == 'good':
@@ -1739,6 +1809,26 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             data_quality['comparison_reliability'] = 'medium'
         else:
             data_quality['comparison_reliability'] = 'low'
+        
+        # 使用数据驱动建议生成函数替换旧的建议
+        logger.info(f"数据驱动建议调用条件检查: vessel_data={vessel_data is not None}, good_speed={good_speed}, bad_speed={bad_speed}")
+        
+        if vessel_data and good_speed > 0 and bad_speed > 0:
+            logger.info("调用数据驱动建议生成函数")
+            data_driven_recs = generate_data_driven_recommendations(
+                vessel_data, good_weather_perf, bad_weather_perf, design_speed
+            )
+            # 清空旧的建议，使用新的数据驱动建议
+            analysis['safety_recommendations'] = data_driven_recs['safety_recommendations']
+            analysis['operational_insights'] = data_driven_recs['operational_insights']
+            logger.info(f"数据驱动建议生成完成: 安全建议{len(data_driven_recs['safety_recommendations'])}条, 操作洞察{len(data_driven_recs['operational_insights'])}条")
+        else:
+            logger.warning("数据驱动建议调用条件不满足，使用默认建议")
+            # 如果没有船型数据，至少确保建议数量不超过5条
+            if len(analysis['safety_recommendations']) > 5:
+                analysis['safety_recommendations'] = analysis['safety_recommendations'][:5]
+            if len(analysis['operational_insights']) > 5:
+                analysis['operational_insights'] = analysis['operational_insights'][:5]
         
         analysis['data_quality_analysis'] = data_quality
 
@@ -1868,6 +1958,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def run(self):
         try:
             query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}}
+            # query_sql: Dict[str, Any] = {"mmsi": 414439000} # 调试
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
 
@@ -1902,6 +1993,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     "width": 1,
                     "height": 1,
                     "dwt": 1,
+                    "vesselTypeNameCn": 1,
+                    "vesselType": 1,
                     '_id': 0
                 }
             ).sort("perf_calculated_updated_at", 1)
@@ -1944,7 +2037,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     performance_analysis = self.analyze_performance_comparison(
                         current_good_weather_performance,
                         current_bad_weather_performance,
-                        design_speed
+                        design_speed,
+                        vessel  # 传递船舶数据用于生成针对性建议
                     )
 
                     # 验证性能数据的合理性
@@ -2051,14 +2145,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
                     print(
                         f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
-                    # print(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
+                    print(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
                     # print(f"MMSI {mmsi} 船长评估: {captain_assessment}")
                     # print(f"MMSI {mmsi} 买卖船租船分析: {trading_chartering_analysis}")
                     logger.info(f"性能计算已完成：mmsi={mmsi}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
                 else:
                     logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
                     
-                # break
 
                 
                 time.sleep(float(self.time_sleep))
@@ -2289,3 +2382,675 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             }
         
         return processed_data
+
+
+def generate_vessel_specific_recommendations(
+    vessel_type: str,
+    vessel_data: Dict[str, Any],
+    performance_issue: str,
+    design_speed: float,
+    actual_speed: float
+) -> List[str]:
+    """
+    根据船型信息生成针对性的操作建议
+    
+    :param vessel_type: 船舶类型中文名称
+    :param vessel_data: 船舶基础数据
+    :param performance_issue: 性能问题描述
+    :param design_speed: 设计速度
+    :param actual_speed: 实际速度
+    :return: 针对性的操作建议列表
+    """
+    recommendations = []
+    
+    # 计算性能偏差
+    performance_deviation = ((design_speed - actual_speed) / design_speed) * 100 if design_speed > 0 else 0
+    
+    # 根据船型提供针对性建议
+    if "干散货" in vessel_type:
+        recommendations.extend([
+            "检查货舱装载分布是否均匀，避免偏载影响船舶稳性",
+            "检查压载水系统，确保压载水分布合理",
+            "检查螺旋桨和舵叶是否有海生物附着，影响推进效率",
+            "检查主机负荷和燃油质量，确保主机在最佳工况运行",
+            "检查船舶吃水差，避免过大吃水差影响推进效率"
+        ])
+        
+        if performance_deviation > 20:
+            recommendations.extend([
+                "建议进行船体清洁，清除海生物附着",
+                "检查螺旋桨是否有损坏或变形",
+                "考虑调整航线避开强流区域"
+            ])
+    
+    elif "集装箱" in vessel_type:
+        recommendations.extend([
+            "检查集装箱装载高度和分布，避免过高装载影响稳性",
+            "检查绑扎设备是否完好，确保集装箱固定牢固",
+            "检查船舶吃水差，集装箱船对吃水差敏感",
+            "检查主机负荷和燃油消耗，优化主机运行参数",
+            "检查船舶稳性计算书，确保符合稳性要求"
+        ])
+        
+        if performance_deviation > 20:
+            recommendations.extend([
+                "建议进行船体清洁，集装箱船对船体阻力敏感",
+                "检查螺旋桨和舵叶状态，确保推进效率",
+                "优化航线规划，减少不必要的转向和减速"
+            ])
+    
+    elif "油轮" in vessel_type or "液体散货" in vessel_type:
+        recommendations.extend([
+            "检查货油舱液位，避免自由液面过大影响稳性",
+            "检查压载水系统，确保压载水分布合理",
+            "检查主机负荷和燃油质量，油轮对燃油质量敏感",
+            "检查船舶吃水差，油轮对吃水差要求较高",
+            "检查货油加热系统，确保货油温度适宜"
+        ])
+        
+        if performance_deviation > 20:
+            recommendations.extend([
+                "建议进行船体清洁，油轮对船体阻力敏感",
+                "检查螺旋桨和舵叶状态，确保推进效率",
+                "优化航线规划，减少强流区域航行时间"
+            ])
+    
+    elif "杂货船" in vessel_type:
+        recommendations.extend([
+            "检查货物装载分布，避免偏载影响船舶稳性",
+            "检查压载水系统，确保压载水分布合理",
+            "检查主机负荷和燃油质量，确保主机在最佳工况运行",
+            "检查船舶吃水差，避免过大吃水差影响推进效率",
+            "检查货物绑扎和固定情况，确保航行安全"
+        ])
+        
+        if performance_deviation > 20:
+            recommendations.extend([
+                "建议进行船体清洁，清除海生物附着",
+                "检查螺旋桨是否有损坏或变形",
+                "考虑调整航线避开强流区域"
+            ])
+    
+    elif "客船" in vessel_type:
+        recommendations.extend([
+            "检查乘客分布，避免乘客集中影响船舶稳性",
+            "检查压载水系统，确保压载水分布合理",
+            "检查主机负荷和燃油质量，客船对舒适性要求高",
+            "检查船舶吃水差，客船对吃水差敏感",
+            "检查船舶稳性计算书，确保符合客船稳性要求"
+        ])
+        
+        if performance_deviation > 20:
+            recommendations.extend([
+                "建议进行船体清洁，客船对船体阻力敏感",
+                "检查螺旋桨和舵叶状态，确保推进效率",
+                "优化航线规划，减少不必要的转向和减速"
+            ])
+    
+    elif "特种船" in vessel_type:
+        recommendations.extend([
+            "检查特种设备状态，确保设备正常运行",
+            "检查压载水系统，确保压载水分布合理",
+            "检查主机负荷和燃油质量，确保主机在最佳工况运行",
+            "检查船舶吃水差，特种船对吃水差要求较高",
+            "检查特种设备对船舶性能的影响"
+        ])
+        
+        if performance_deviation > 20:
+            recommendations.extend([
+                "建议进行船体清洁，清除海生物附着",
+                "检查螺旋桨是否有损坏或变形",
+                "考虑调整航线避开强流区域"
+            ])
+    
+    else:
+        # 通用建议
+        recommendations.extend([
+            "检查船舶维护状况，确保船体、螺旋桨、舵叶等关键设备完好",
+            "检查压载水分布，确保船舶稳性和推进效率",
+            "检查主机运行参数，确保主机在最佳工况运行",
+            "检查燃油质量，确保燃油符合主机要求",
+            "检查船舶吃水差，避免过大吃水差影响推进效率"
+        ])
+    
+    # 根据性能偏差程度添加通用建议
+    if performance_deviation > 30:
+        recommendations.extend([
+            "建议进行全面的船舶检查，包括船体、推进系统、主机等",
+            "考虑进行船体清洁，清除海生物附着",
+            "检查螺旋桨和舵叶是否有损坏或变形",
+            "建议进行主机性能测试，确保主机性能正常"
+        ])
+    elif performance_deviation > 20:
+        recommendations.extend([
+            "建议进行船体清洁，清除海生物附着",
+            "检查螺旋桨和舵叶状态，确保推进效率",
+            "优化航线规划，减少强流区域航行时间"
+        ])
+    elif performance_deviation > 10:
+        recommendations.extend([
+            "建议进行船体清洁，清除轻微海生物附着",
+            "检查压载水分布，优化船舶稳性",
+            "优化主机运行参数，提高推进效率"
+        ])
+    
+    # 添加季节性建议
+    current_month = datetime.now().month
+    if current_month in [12, 1, 2]:  # 冬季
+        recommendations.append("冬季航行注意防冻，检查防冻设备状态")
+    elif current_month in [6, 7, 8]:  # 夏季
+        recommendations.append("夏季航行注意防暑，检查空调系统状态")
+    
+    return recommendations
+
+
+def generate_data_driven_recommendations(
+    vessel_data: Dict[str, Any],
+    good_weather_perf: Dict[str, float],
+    bad_weather_perf: Dict[str, float],
+    design_speed: float,
+    trace_data: List[Dict[str, Any]] = None
+) -> Dict[str, List[str]]:
+    """
+    基于船舶档案和航行性能数据分析生成结论性建议
+    
+    :param vessel_data: 船舶档案数据
+    :param good_weather_perf: 好天气性能数据
+    :param bad_weather_perf: 坏天气性能数据
+    :param design_speed: 设计速度
+    :param trace_data: 轨迹数据（可选）
+    :return: 包含安全建议和操作洞察的字典
+    """
+    recommendations = {
+        'safety_recommendations': [],
+        'operational_insights': []
+    }
+    
+    # 提取船舶基本信息
+    vessel_type = vessel_data.get('vesselTypeNameCn', '未知')
+    
+    # 类型转换和验证
+    try:
+        vessel_age = int(vessel_data.get('buildYear', 0)) if vessel_data.get('buildYear') else 0
+    except (ValueError, TypeError):
+        vessel_age = 0
+    
+    try:
+        vessel_length = float(vessel_data.get('length', 0)) if vessel_data.get('length') else 0
+    except (ValueError, TypeError):
+        vessel_length = 0
+    
+    try:
+        vessel_width = float(vessel_data.get('width', 0)) if vessel_data.get('width') else 0
+    except (ValueError, TypeError):
+        vessel_width = 0
+    
+    try:
+        vessel_dwt = float(vessel_data.get('dwt', 0)) if vessel_data.get('dwt') else 0
+    except (ValueError, TypeError):
+        vessel_dwt = 0
+    
+    try:
+        vessel_height = float(vessel_data.get('height', 0)) if vessel_data.get('height') else 0
+    except (ValueError, TypeError):
+        vessel_height = 0
+    
+    try:
+        vessel_draught = float(vessel_data.get('draught', 0)) if vessel_data.get('draught') else 0
+    except (ValueError, TypeError):
+        vessel_draught = 0
+    
+    # 计算性能指标
+    good_speed = good_weather_perf.get('avg_good_weather_speed', 0)
+    bad_speed = bad_weather_perf.get('avg_bad_weather_speed', 0)
+    
+    # 性能偏差分析
+    good_vs_design = (good_speed / design_speed) * 100 if design_speed > 0 else 0
+    bad_vs_design = (bad_speed / design_speed) * 100 if design_speed > 0 else 0
+    weather_impact = ((good_speed - bad_speed) / good_speed) * 100 if good_speed > 0 else 0
+    
+    # 基于船舶档案的分析（买卖船角度）
+    if vessel_age > 0:
+        current_year = datetime.now().year
+        age = current_year - vessel_age
+        if age > 20:
+            recommendations['safety_recommendations'].append(
+                f'船舶船龄{age}年，建议重点关注船体结构完整性，定期进行船体厚度测量和结构检查'
+            )
+        elif age > 15:
+            recommendations['safety_recommendations'].append(
+                f'船舶船龄{age}年，建议加强船体维护，重点关注易腐蚀部位的防腐处理'
+            )
+    
+    # 基于性能数据的分析（租船角度）
+    if good_vs_design < 80:
+        if good_vs_design < 70:
+            performance_gap = 100 - good_vs_design
+            recommendations['safety_recommendations'].append(
+                f'好天气下性能仅为设计标准的{good_vs_design:.1f}%，性能差距{performance_gap:.1f}%，存在严重性能问题，建议立即进行船体清洁和推进系统检查，预计可提升性能{min(performance_gap * 0.6, 20):.1f}%'
+            )
+        else:
+            performance_gap = 100 - good_vs_design
+            recommendations['safety_recommendations'].append(
+                f'好天气下性能为设计标准的{good_vs_design:.1f}%，性能差距{performance_gap:.1f}%，建议进行船体清洁，清除海生物附着，预计可提升性能{min(performance_gap * 0.4, 12):.1f}%'
+            )
+    
+    if bad_vs_design < 50:
+        performance_gap = 100 - bad_vs_design
+        recommendations['safety_recommendations'].append(
+            f'坏天气下性能仅为设计标准的{bad_vs_design:.1f}%，性能差距{performance_gap:.1f}%，建议在恶劣天气下考虑避风锚地或调整航线，预计可提升性能{min(performance_gap * 0.3, 15):.1f}%'
+        )
+    
+    # 基于船型的特定建议（买卖船角度）
+    if "干散货" in vessel_type:
+        if good_vs_design < 85:
+            recommendations['safety_recommendations'].append(
+                '干散货船性能下降可能与货舱装载分布不均有关，建议检查装载计划和压载水分布'
+            )
+    elif "集装箱" in vessel_type:
+        if weather_impact > 30:
+            recommendations['safety_recommendations'].append(
+                '集装箱船对风压敏感，建议在强风天气下调整集装箱装载高度，降低重心'
+            )
+    elif "油轮" in vessel_type or "液体散货" in vessel_type:
+        if bad_vs_design < 60:
+            recommendations['safety_recommendations'].append(
+                '油轮在恶劣天气下性能下降明显，建议加强货油舱液位监控，避免自由液面过大'
+            )
+    
+    # 基于船舶尺寸的分析（买卖船角度）
+    if vessel_length > 0 and vessel_width > 0:
+        length_width_ratio = vessel_length / vessel_width
+        if length_width_ratio > 7:
+            wind_sensitivity = min(length_width_ratio * 2, 20)
+            recommendations['operational_insights'].append(
+                f'船舶长宽比{length_width_ratio:.1f}，属于细长型船舶，对风压敏感，建议在强风天气下调整航向减少侧风影响，预计可减少性能损失{wind_sensitivity:.1f}%'
+            )
+        elif length_width_ratio < 5:
+            stability_advantage = max(15 - length_width_ratio * 2, 5)
+            recommendations['operational_insights'].append(
+                f'船舶长宽比{length_width_ratio:.1f}，属于宽大型船舶，稳性较好，但在强流区域需要关注操纵性，稳性优势约{stability_advantage:.1f}%'
+            )
+    
+    # 基于载重能力的分析（租船角度）
+    if vessel_dwt > 0:
+        if vessel_dwt > 100000:  # 10万吨以上
+            risk_factor = min(vessel_dwt / 10000, 20)
+            recommendations['operational_insights'].append(
+                f'船舶载重{vessel_dwt}吨，属于大型船舶，建议在浅水区域航行时密切关注水深变化，避免搁浅风险，搁浅风险系数{risk_factor:.1f}'
+            )
+        elif vessel_dwt < 10000:  # 1万吨以下
+            weather_sensitivity = max(25 - vessel_dwt / 1000, 15)
+            recommendations['operational_insights'].append(
+                f'船舶载重{vessel_dwt}吨，属于小型船舶，建议在恶劣天气下优先考虑避风锚地，天气敏感性{weather_sensitivity:.1f}%'
+            )
+    
+    # 基于天气影响的分析（租船角度）
+    if weather_impact > 0:
+        if weather_impact > 40:
+            recommendations['operational_insights'].append(
+                f'天气对船舶性能影响显著({weather_impact:.1f}%)，建议优化航线规划，减少强流和恶劣天气区域航行时间，预计可提升性能{min(weather_impact * 0.3, 15):.1f}%'
+            )
+        elif weather_impact > 20:
+            recommendations['operational_insights'].append(
+                f'天气对船舶性能影响中等({weather_impact:.1f}%)，建议在恶劣天气下适当减速，注意风压影响，预计可提升性能{min(weather_impact * 0.2, 8):.1f}%'
+            )
+        else:
+            recommendations['operational_insights'].append(
+                f'天气对船舶性能影响较小({weather_impact:.1f}%)，船舶设计和操作策略有效应对天气变化，建议保持当前操作标准'
+            )
+    
+    # 基于船舶吃水的深度分析（买卖船角度）
+    if vessel_draught > 0:
+        if vessel_draught > 15:  # 15米以上
+            grounding_risk = min(vessel_draught * 0.8, 25)
+            recommendations['safety_recommendations'].append(
+                f'船舶吃水{vessel_draught}米，属于深吃水船舶，建议在浅水区域航行时密切关注水深变化，避免搁浅风险，搁浅风险{grounding_risk:.1f}%'
+            )
+        elif vessel_draught < 5:  # 5米以下
+            wind_impact = max(20 - vessel_draught * 2, 10)
+            recommendations['operational_insights'].append(
+                f'船舶吃水{vessel_draught}米，属于浅吃水船舶，适合近海和内河航行，但需注意风压影响，风压影响{wind_impact:.1f}%'
+            )
+    
+    # 基于船舶高度的风压分析（买卖船角度）
+    if vessel_height > 0:
+        if vessel_height > 50:  # 50米以上
+            wind_pressure_impact = min(vessel_height * 0.4, 30)
+            recommendations['operational_insights'].append(
+                f'船舶高度{vessel_height}米，受风压影响较大，建议在强风天气下调整航向，减少侧风影响，风压影响{wind_pressure_impact:.1f}%'
+            )
+        elif vessel_height < 20:  # 20米以下
+            wind_pressure_impact = max(15 - vessel_height * 0.5, 5)
+            recommendations['operational_insights'].append(
+                f'船舶高度{vessel_height}米，风压影响较小，但在恶劣天气下仍需注意稳性，风压影响{wind_pressure_impact:.1f}%'
+            )
+    
+    # 基于船舶尺寸比例的稳性分析（买卖船角度）
+    if vessel_length > 0 and vessel_width > 0 and vessel_height > 0:
+        # 长宽比分析
+        length_width_ratio = vessel_length / vessel_width
+        # 高度与宽度比分析
+        height_width_ratio = vessel_height / vessel_width
+        
+        if length_width_ratio > 8:
+            recommendations['operational_insights'].append(
+                f'船舶长宽比{length_width_ratio:.1f}，属于超细长型船舶，对风压和流压敏感，建议优化航线规划，避开强流区域'
+            )
+        elif length_width_ratio > 7:
+            recommendations['operational_insights'].append(
+                f'船舶长宽比{length_width_ratio:.1f}，属于细长型船舶，对风压敏感，建议在强风天气下调整航向减少侧风影响'
+            )
+        
+        if height_width_ratio > 2:
+            recommendations['operational_insights'].append(
+                f'船舶高宽比{height_width_ratio:.1f}，重心较高，建议优化装载计划，降低重心，提高稳性'
+            )
+    
+    # 基于载重与吃水关系的装载分析（租船角度）
+    if vessel_dwt > 0 and vessel_draught > 0:
+        # 计算载重密度（吨/米）
+        dwt_per_meter = vessel_dwt / vessel_draught if vessel_draught > 0 else 0
+        
+        if dwt_per_meter > 10000:  # 高密度载重
+            stability_impact = min(dwt_per_meter / 1000, 25)
+            recommendations['operational_insights'].append(
+                f'船舶载重密度{dwt_per_meter:.0f}吨/米，属于高密度载重，建议优化装载分布，确保船舶稳性，稳性影响{stability_impact:.1f}%'
+            )
+        elif dwt_per_meter < 3000:  # 低密度载重
+            ballast_efficiency = max(30 - dwt_per_meter / 100, 15)
+            recommendations['operational_insights'].append(
+                f'船舶载重密度{dwt_per_meter:.0f}吨/米，属于低密度载重，建议合理配置压载水，确保推进效率，压载水效率提升{ballast_efficiency:.1f}%'
+            )
+    
+    # 基于船舶年龄与尺寸的综合评估（买卖船角度）
+    if vessel_age > 0 and vessel_length > 0 and vessel_width > 0:
+        # 计算船舶体积
+        vessel_volume = vessel_length * vessel_width * vessel_height if vessel_height > 0 else 0
+        
+        if vessel_age > 25 and vessel_volume > 100000:  # 大型老旧船舶
+            recommendations['safety_recommendations'].append(
+                f'船舶船龄{vessel_age}年，体积{vessel_volume:.0f}立方米，属于大型老旧船舶，建议重点关注船体结构完整性，定期进行无损检测'
+            )
+        elif vessel_age > 20 and vessel_volume > 50000:  # 中型老旧船舶
+            recommendations['safety_recommendations'].append(
+                f'船舶船龄{vessel_age}年，体积{vessel_volume:.0f}立方米，建议加强船体维护，重点关注易腐蚀部位的防腐处理'
+            )
+    
+    # 基于船型与载重的运营策略（租船角度）
+    if "干散货" in vessel_type and vessel_dwt > 0:
+        if vessel_dwt > 80000:  # 大型干散货船
+            recommendations['operational_insights'].append(
+                f'大型干散货船载重{vessel_dwt}吨，建议优化装载计划，确保货舱装载分布均匀，避免局部过载'
+            )
+        elif vessel_dwt < 30000:  # 小型干散货船
+            recommendations['operational_insights'].append(
+                f'小型干散货船载重{vessel_dwt}吨，建议灵活调整航线，适应不同港口的水深限制'
+            )
+    
+    elif "集装箱" in vessel_type and vessel_height > 0:
+        if vessel_height > 40:  # 高型集装箱船
+            recommendations['operational_insights'].append(
+                f'高型集装箱船高度{vessel_height}米，建议在强风天气下调整集装箱堆叠高度，降低重心，提高稳性'
+            )
+        else:  # 标准型集装箱船
+            recommendations['operational_insights'].append(
+                f'标准型集装箱船高度{vessel_height}米，建议优化装载计划，确保船舶稳性和推进效率'
+            )
+    
+    elif "油轮" in vessel_type or "液体散货" in vessel_type:
+        if vessel_dwt > 100000:  # 大型油轮
+            recommendations['operational_insights'].append(
+                f'大型油轮载重{vessel_dwt}吨，建议加强货油舱液位监控，优化压载水分布，确保船舶稳性和安全性'
+            )
+        else:  # 中小型油轮
+            recommendations['operational_insights'].append(
+                f'中小型油轮载重{vessel_dwt}吨，建议在恶劣天气下考虑避风锚地，加强货油舱安全监控'
+            )
+    
+    # 补充操作洞察，确保有足够的建议
+    if len(recommendations['operational_insights']) < 5:
+        # 基于性能数据的补充建议
+        if good_vs_design < 85:
+            recommendations['operational_insights'].append(
+                f'好天气性能为设计标准的{good_vs_design:.1f}%，建议优化船舶维护计划，重点关注推进系统效率'
+            )
+        else:
+            recommendations['operational_insights'].append(
+                f'好天气性能为设计标准的{good_vs_design:.1f}%，船舶维护状况良好，建议继续保持当前维护标准'
+            )
+        
+        if bad_vs_design < 70:
+            recommendations['operational_insights'].append(
+                f'坏天气性能为设计标准的{bad_vs_design:.1f}%，建议制定恶劣天气下的航行策略，包括航速调整和航线优化'
+            )
+        else:
+            recommendations['operational_insights'].append(
+                f'坏天气性能为设计标准的{bad_vs_design:.1f}%，船舶在恶劣天气下表现稳定，建议继续保持当前航行策略'
+            )
+        
+        # 基于船型的补充建议
+        if "干散货" in vessel_type:
+            if vessel_dwt > 0:
+                recommendations['operational_insights'].append(
+                    f'干散货船载重{vessel_dwt}吨，建议定期检查货舱密封性，确保货物安全，同时优化压载水管理策略'
+                )
+            else:
+                recommendations['operational_insights'].append(
+                    '干散货船建议定期检查货舱密封性，确保货物安全，同时优化压载水管理策略'
+                )
+        elif "集装箱" in vessel_type:
+            if vessel_height > 0:
+                recommendations['operational_insights'].append(
+                    f'集装箱船高度{vessel_height}米，建议优化装载计划，确保船舶稳性，在强风天气下考虑调整集装箱堆叠高度'
+                )
+            else:
+                recommendations['operational_insights'].append(
+                    '集装箱船建议优化装载计划，确保船舶稳性，在强风天气下考虑调整集装箱堆叠高度'
+                )
+        elif "油轮" in vessel_type or "液体散货" in vessel_type:
+            if vessel_dwt > 0:
+                recommendations['operational_insights'].append(
+                    f'液体散货船载重{vessel_dwt}吨，建议加强货油舱液位监控，优化压载水分布，确保船舶稳性和安全性'
+                )
+            else:
+                recommendations['operational_insights'].append(
+                    '液体散货船建议加强货油舱液位监控，优化压载水分布，确保船舶稳性和安全性'
+                )
+        else:
+            # 基于船舶尺寸的通用建议
+            if vessel_length > 0 and vessel_width > 0:
+                recommendations['operational_insights'].append(
+                    f'船舶尺寸{vessel_length}×{vessel_width}米，建议定期评估船舶性能指标，建立性能基准，及时发现和解决性能下降问题'
+                )
+            else:
+                recommendations['operational_insights'].append(
+                    '建议定期评估船舶性能指标，建立性能基准，及时发现和解决性能下降问题'
+                )
+    
+    # 基于载重状态的分析（租船角度）
+    if trace_data:
+        # 分析载重分布
+        ballast_count = 0
+        laden_count = 0
+        total_count = len(trace_data)
+        
+        for point in trace_data:
+            draught = point.get('draught', 0)
+            if draught > 0:
+                if draught < vessel_data.get('draught', 0) * 0.7:  # 空载
+                    ballast_count += 1
+                elif draught > vessel_data.get('draught', 0) * 0.8:  # 满载
+                    laden_count += 1
+        
+        if total_count > 0:
+            ballast_ratio = ballast_count / total_count * 100
+            laden_ratio = laden_count / total_count * 100
+            
+            if ballast_ratio > 60:
+                recommendations['operational_insights'].append(
+                    f'空载航行时间占比{ballast_ratio:.1f}%，建议优化压载水分布，确保船舶稳性和推进效率'
+                )
+            elif laden_ratio > 60:
+                recommendations['operational_insights'].append(
+                    f'满载航行时间占比{laden_ratio:.1f}%，载重管理良好，建议保持当前装载策略'
+                )
+    
+    # 季节性建议（买卖船角度）
+    current_month = datetime.now().month
+    if current_month in [12, 1, 2]:  # 冬季
+        recommendations['safety_recommendations'].append(
+            '冬季航行注意防冻，检查燃油加热系统和防冻设备状态，避免设备冻结影响航行安全'
+        )
+    elif current_month in [6, 7, 8]:  # 夏季
+        if vessel_type in ["客船", "集装箱"]:
+            recommendations['safety_recommendations'].append(
+                '夏季高温对客船和集装箱船影响较大，建议加强空调系统维护，确保乘客和货物安全'
+            )
+    
+    # 性能趋势分析（买卖船角度）
+    if good_vs_design < 80 and bad_vs_design < 60:
+        recommendations['operational_insights'].append(
+            '船舶整体性能偏低，建议进行全面的性能评估，包括船体、推进系统、主机等关键设备检查'
+        )
+    elif good_vs_design >= 90 and weather_impact < 15:
+        recommendations['operational_insights'].append(
+            '船舶性能表现优秀，维护状况良好，建议保持当前的维护和操作标准'
+        )
+    
+    # 补充安全建议，确保有足够的建议
+    if len(recommendations['safety_recommendations']) < 5:
+        # 基于性能数据的补充建议
+        if good_vs_design < 80:
+            recommendations['safety_recommendations'].append(
+                '建议检查船舶维护记录，重点关注船体清洁、螺旋桨状态和推进系统效率'
+            )
+        else:
+            recommendations['safety_recommendations'].append(
+                '船舶性能表现良好，建议保持当前维护标准，定期进行预防性维护检查'
+            )
+        
+        if bad_vs_design < 70:
+            recommendations['safety_recommendations'].append(
+                '建议制定恶劣天气应急预案，包括避风锚地选择、航速调整策略和船员安全培训'
+            )
+        else:
+            recommendations['safety_recommendations'].append(
+                '船舶在恶劣天气下表现稳定，建议继续保持当前的安全操作标准'
+            )
+        
+        # 基于船型的补充建议
+        if "干散货" in vessel_type:
+            if vessel_dwt > 0:
+                recommendations['safety_recommendations'].append(
+                    f'干散货船载重{vessel_dwt}吨，建议加强货舱结构检查，定期进行船体厚度测量，确保货舱密封性良好'
+                )
+            else:
+                recommendations['safety_recommendations'].append(
+                    '干散货船建议加强货舱结构检查，定期进行船体厚度测量，确保货舱密封性良好'
+                )
+        elif "集装箱" in vessel_type:
+            if vessel_height > 0:
+                recommendations['safety_recommendations'].append(
+                    f'集装箱船高度{vessel_height}米，建议定期检查绑扎设备状态，确保集装箱固定牢固，防止在恶劣天气下发生位移'
+                )
+            else:
+                recommendations['safety_recommendations'].append(
+                    '集装箱船建议定期检查绑扎设备状态，确保集装箱固定牢固，防止在恶劣天气下发生位移'
+                )
+        elif "油轮" in vessel_type or "液体散货" in vessel_type:
+            if vessel_dwt > 0:
+                recommendations['safety_recommendations'].append(
+                    f'液体散货船载重{vessel_dwt}吨，建议加强货油舱安全监控，定期检查防火防爆设备，确保危险品运输安全'
+                )
+            else:
+                recommendations['safety_recommendations'].append(
+                    '液体散货船建议加强货油舱安全监控，定期检查防火防爆设备，确保危险品运输安全'
+                )
+        else:
+            # 基于船舶尺寸的通用安全建议
+            if vessel_length > 0 and vessel_width > 0:
+                recommendations['safety_recommendations'].append(
+                    f'船舶尺寸{vessel_length}×{vessel_width}米，建议建立完善的船舶安全检查制度，定期进行安全评估，及时发现和消除安全隐患'
+                )
+            else:
+                recommendations['safety_recommendations'].append(
+                    '建议建立完善的船舶安全检查制度，定期进行安全评估，及时发现和消除安全隐患'
+                )
+    
+    # 限制每类建议数量，确保每类控制在3点左右
+    logger.info(f"应用数量限制前: 安全建议{len(recommendations['safety_recommendations'])}条, 操作洞察{len(recommendations['operational_insights'])}条")
+    
+    recommendations = limit_recommendations_per_category(recommendations)
+    
+    logger.info(f"应用数量限制后: 安全建议{len(recommendations['safety_recommendations'])}条, 操作洞察{len(recommendations['operational_insights'])}条")
+    
+    return recommendations
+
+
+def limit_recommendations_per_category(recommendations: Dict[str, List[str]], max_per_category: int = 5) -> Dict[str, List[str]]:
+    """
+    限制每类建议的数量，确保每类控制在指定数量内
+    
+    :param recommendations: 原始建议字典
+    :param max_per_category: 每类最大建议数量，默认5条
+    :return: 限制数量后的建议字典
+    """
+    limited_recommendations = {}
+    
+    for category, recs in recommendations.items():
+        logger.info(f"处理类别 {category}: 原始数量 {len(recs)}")
+        if len(recs) <= max_per_category:
+            # 如果建议数量已经符合要求，直接使用
+            limited_recommendations[category] = recs
+            logger.info(f"类别 {category}: 数量符合要求，直接使用")
+        else:
+            # 如果超过限制，按优先级选择最重要的建议
+            logger.info(f"类别 {category}: 数量超过限制，应用优先级选择")
+            limited_recommendations[category] = select_priority_recommendations(recs, max_per_category)
+            logger.info(f"类别 {category}: 限制后数量 {len(limited_recommendations[category])}")
+    
+    return limited_recommendations
+
+
+def select_priority_recommendations(recommendations: List[str], max_count: int) -> List[str]:
+    """
+    根据优先级选择最重要的建议
+    
+    :param recommendations: 建议列表
+    :param max_count: 最大选择数量
+    :return: 按优先级排序的建议列表
+    """
+    # 定义建议优先级（数字越小优先级越高）
+    priority_keywords = {
+        '立即': 1,      # 最高优先级
+        '严重': 1,
+        '立即进行': 1,
+        '存在严重': 1,
+        '建议立即': 1,
+        '重点关注': 2,  # 高优先级
+        '加强': 2,
+        '建议进行': 2,
+        '建议': 3,      # 中等优先级
+        '注意': 3,
+        '关注': 3,
+        '考虑': 4,      # 较低优先级
+        '适当': 4,
+        '优化': 4
+    }
+    
+    # 计算每条建议的优先级分数
+    scored_recommendations = []
+    for rec in recommendations:
+        score = 999  # 默认最低优先级
+        for keyword, priority in priority_keywords.items():
+            if keyword in rec:
+                score = min(score, priority)
+                break
+        scored_recommendations.append((score, rec))
+    
+    # 按优先级排序并选择前N条
+    scored_recommendations.sort(key=lambda x: x[0])
+    selected_recommendations = [rec for _, rec in scored_recommendations[:max_count]]
+    
+    return selected_recommendations
