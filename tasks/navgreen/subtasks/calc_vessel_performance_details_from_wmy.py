@@ -20,6 +20,37 @@ from dataclasses import dataclass
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# 配置化的日志控制
+LOG_CONFIG = {
+    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', True),  # 是否启用调试日志
+    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', True),  # 是否启用性能相关日志
+    'enable_validation_logs': os.getenv('ENABLE_VALIDATION_LOGS', False),  # 是否启用验证相关日志
+    'enable_retry_logs': os.getenv('ENABLE_RETRY_LOGS', False),  # 是否启用重试相关日志
+    'log_progress_interval': os.getenv('LOG_PROGRESS_INTERVAL', 1),  # 进度日志输出间隔
+    'max_log_length': 100,  # 日志内容最大长度
+}
+
+def log_info(message: str, force: bool = False):
+    """条件化信息日志输出"""
+    if force or LOG_CONFIG['enable_debug_logs']:
+        logger.info(message)
+
+def log_warning(message: str, force: bool = False):
+    """条件化警告日志输出"""
+    if force or LOG_CONFIG['enable_debug_logs']:
+        logger.warning(message)
+
+def log_debug(message: str):
+    """调试日志输出"""
+    if LOG_CONFIG['enable_debug_logs']:
+        logger.info(f"[DEBUG] {message}")
+
+def truncate_log_content(content: str, max_length: int = None) -> str:
+    """截断过长的日志内容"""
+    if max_length is None:
+        max_length = LOG_CONFIG['max_log_length']
+    return content[:max_length] + "..." if len(content) > max_length else content
+
 
 def is_valid_type(s: Any) -> bool:
     """检查值是否有效"""
@@ -1811,19 +1842,19 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             data_quality['comparison_reliability'] = 'low'
         
         # 使用数据驱动建议生成函数替换旧的建议
-        logger.info(f"数据驱动建议调用条件检查: vessel_data={vessel_data is not None}, good_speed={good_speed}, bad_speed={bad_speed}")
+        log_debug(f"数据驱动建议调用条件检查: vessel_data={vessel_data is not None}, good_speed={good_speed}, bad_speed={bad_speed}")
         
         if vessel_data and good_speed > 0 and bad_speed > 0:
-            logger.info("调用数据驱动建议生成函数")
+            log_debug("调用数据驱动建议生成函数")
             data_driven_recs = generate_data_driven_recommendations(
                 vessel_data, good_weather_perf, bad_weather_perf, design_speed
             )
             # 清空旧的建议，使用新的数据驱动建议
             analysis['safety_recommendations'] = data_driven_recs['safety_recommendations']
             analysis['operational_insights'] = data_driven_recs['operational_insights']
-            logger.info(f"数据驱动建议生成完成: 安全建议{len(data_driven_recs['safety_recommendations'])}条, 操作洞察{len(data_driven_recs['operational_insights'])}条")
+            log_debug(f"数据驱动建议生成完成: 安全建议{len(data_driven_recs['safety_recommendations'])}条, 操作洞察{len(data_driven_recs['operational_insights'])}条")
         else:
-            logger.warning("数据驱动建议调用条件不满足，使用默认建议")
+            log_debug("数据驱动建议调用条件不满足，使用默认建议")
             # 如果没有船型数据，至少确保建议数量不超过5条
             if len(analysis['safety_recommendations']) > 5:
                 analysis['safety_recommendations'] = analysis['safety_recommendations'][:5]
@@ -1871,19 +1902,21 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
                 # 检查HTTP状态码
                 if response.status_code != 200:
-                    logger.error(f"HTTP请求失败，状态码: {response.status_code}")
-                    logger.error(f"响应内容: {response.text[:200]}...")
+                    if attempt == 0:  # 只在第一次失败时记录详细错误
+                        logger.error(f"HTTP请求失败，状态码: {response.status_code}")
+                        logger.error(f"响应内容: {truncate_log_content(response.text)}")
                     if attempt < max_retries - 1:
-                        logger.warning(f"重试第 {attempt + 1} 次...")
+                        log_warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
 
                 # 检查响应内容是否为空
                 if not response.text.strip():
-                    logger.warning(f"API返回空响应")
+                    if attempt == 0:  # 只在第一次失败时记录
+                        log_warning(f"API返回空响应")
                     if attempt < max_retries - 1:
-                        logger.warning(f"重试第 {attempt + 1} 次...")
+                        log_warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
@@ -1892,10 +1925,11 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 try:
                     response_data = response.json()
                 except requests.exceptions.JSONDecodeError as e:
-                    logger.error(f"JSON解析失败: {e}")
-                    logger.error(f"响应内容: {response.text[:200]}...")
+                    if attempt == 0:  # 只在第一次失败时记录详细错误
+                        logger.error(f"JSON解析失败: {e}")
+                        logger.error(f"响应内容: {truncate_log_content(response.text)}")
                     if attempt < max_retries - 1:
-                        logger.warning(f"重试第 {attempt + 1} 次...")
+                        log_warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
@@ -1904,36 +1938,39 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 if response_data.get("state", {}).get("code") == 0:
                     return response_data.get("traces", [])
                 else:
-                    logger.error(
-                        f"API请求失败: {response_data.get('state', {}).get('message', '未知错误')}")
+                    if attempt == 0:  # 只在第一次失败时记录
+                        logger.error(f"API请求失败: {response_data.get('state', {}).get('message', '未知错误')}")
                     if attempt < max_retries - 1:
-                        logger.warning(f"重试第 {attempt + 1} 次...")
+                        log_warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
                         continue
                     return []
 
             except requests.exceptions.ConnectionError as e:
-                logger.error(f"连接错误 (尝试 {attempt + 1}/{max_retries}): {e}")
+                if attempt == 0:  # 只在第一次失败时记录详细错误
+                    logger.error(f"连接错误: {e}")
                 if attempt < max_retries - 1:
-                    logger.warning(f"等待 {retry_delay} 秒后重试...")
+                    log_warning(f"等待 {retry_delay} 秒后重试...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
 
             except requests.exceptions.Timeout as e:
-                logger.error(f"请求超时 (尝试 {attempt + 1}/{max_retries}): {e}")
+                if attempt == 0:  # 只在第一次失败时记录详细错误
+                    logger.error(f"请求超时: {e}")
                 if attempt < max_retries - 1:
-                    logger.warning(f"等待 {retry_delay} 秒后重试...")
+                    log_warning(f"等待 {retry_delay} 秒后重试...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                     continue
                 return []
 
             except requests.exceptions.RequestException as e:
-                logger.error(f"请求异常 (尝试 {attempt + 1}/{max_retries}): {e}")
+                if attempt == 0:  # 只在第一次失败时记录详细错误
+                    logger.error(f"请求异常: {e}")
                 if attempt < max_retries - 1:
-                    logger.warning(f"等待 {retry_delay} 秒后重试...")
+                    log_warning(f"等待 {retry_delay} 秒后重试...")
                     time.sleep(retry_delay)
                     retry_delay *= 2  # 指数退避
                     continue
@@ -1957,7 +1994,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     @decorate.exception_capture_close_datebase
     def run(self):
         try:
-            query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}}
+            query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}, "perf_calculated": {"$ne": 0}}
             # query_sql: Dict[str, Any] = {"mmsi": 414439000} # 调试
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
@@ -1971,7 +2008,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             # 计算10天前的时间戳
             if self.time_days:
                 ten_days_ago = datetime.now() - timedelta(days=self.time_days)
-                logger.info(f"ten_days_ago: {ten_days_ago}")
+                log_debug(f"ten_days_ago: {ten_days_ago}")
 
                 # 构建排除最近10天内的updated_at条件
                 query_sql_with_time = dict(query_sql)
@@ -2001,7 +2038,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
             total_num = vessels.count()
             num = 0
-            logger.info(f"total_num: {total_num}")
+            logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘")
 
             # 请求接口，获取轨迹气象数据和船舶轨迹数据
             for vessel in vessels:
@@ -2050,12 +2087,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
                     # 如果验证失败，进行数据后处理
                     if not validation_result['is_valid']:
-                        logger.warning(f"MMSI {mmsi} 性能数据验证失败: {validation_result['errors']}")
-                        if validation_result['recommendations']:
-                            logger.warning(f"建议: {validation_result['recommendations']}")
+                        if LOG_CONFIG['enable_validation_logs']:
+                            logger.warning(f"MMSI {mmsi} 性能数据验证失败: {validation_result['errors']}")
+                            if validation_result['recommendations']:
+                                logger.warning(f"建议: {validation_result['recommendations']}")
                         
                         # 进行数据后处理，确保逻辑正确性
-                        logger.info(f"MMSI {mmsi} 开始数据后处理...")
+                        log_debug(f"MMSI {mmsi} 开始数据后处理...")
                         post_processed_data = self.post_process_performance_data(
                             current_good_weather_performance,
                             current_bad_weather_performance,
@@ -2067,14 +2105,14 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                             current_good_weather_performance = post_processed_data['processed_good_weather']
                             current_bad_weather_performance = post_processed_data['processed_bad_weather']
                             
-                            # 记录后处理结果
-                            if post_processed_data['adjustments_made']:
+                            # 记录后处理结果（仅在调试模式下）
+                            if post_processed_data['adjustments_made'] and LOG_CONFIG['enable_debug_logs']:
                                 for adjustment in post_processed_data['adjustments_made']:
-                                    logger.info(f"MMSI {mmsi} 数据调整: {adjustment['description']} - {adjustment['reason']}")
+                                    log_debug(f"MMSI {mmsi} 数据调整: {adjustment['description']} - {adjustment['reason']}")
                             
-                            if post_processed_data['final_validation']:
+                            if post_processed_data['final_validation'] and LOG_CONFIG['enable_debug_logs']:
                                 final_validation = post_processed_data['final_validation']
-                                logger.info(f"MMSI {mmsi} 后处理验证: 好天气{final_validation['good_speed']}节 > 坏天气{final_validation['bad_speed']}节, 降低{final_validation['speed_reduction_percentage']}%")
+                                log_debug(f"MMSI {mmsi} 后处理验证: 好天气{final_validation['good_speed']}节 > 坏天气{final_validation['bad_speed']}节, 降低{final_validation['speed_reduction_percentage']}%")
                         
                         # 重新验证后处理后的数据
                         revalidation_result = self.validate_performance_data(
@@ -2084,11 +2122,11 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         )
                         
                         if revalidation_result['is_valid']:
-                            logger.info(f"MMSI {mmsi} 数据后处理成功，逻辑验证通过")
+                            log_debug(f"MMSI {mmsi} 数据后处理成功，逻辑验证通过")
                         else:
                             logger.error(f"MMSI {mmsi} 数据后处理失败，仍存在逻辑问题: {revalidation_result['errors']}")
                     
-                    if validation_result['warnings']:
+                    if validation_result['warnings'] and LOG_CONFIG['enable_validation_logs']:
                         logger.warning(f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
 
                     # 更新 mongo 的数据
@@ -2129,7 +2167,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         # 更新 perf_calculated_updated_at
                         self.mgo_db["hifleet_vessels"].update_one(
                             {"mmsi": mmsi},
-                            {"$set": {"perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
+                            {"$set": {
+                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                "perf_calculated": 1
+                                }})
 
                     # 船长视角的性能评估
                     # captain_assessment = assess_vessel_performance_from_captain_perspective(
@@ -2141,26 +2182,32 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     #     vessel, current_good_weather_performance, design_speed, {}
                     # )
 
-                    print(
-                        f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
-                    print(
-                        f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
-                    print(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
-                    # print(f"MMSI {mmsi} 船长评估: {captain_assessment}")
-                    # print(f"MMSI {mmsi} 买卖船租船分析: {trading_chartering_analysis}")
-                    logger.info(f"性能计算已完成：mmsi={mmsi}, 已计算{num}/{total_num} 进度：{round((num / total_num) * 100, 2)}%")
+                    # 仅在调试模式下输出详细数据
+                    if LOG_CONFIG['enable_debug_logs']:
+                        print(f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
+                        print(f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
+                        print(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
+                    
+                    # 按配置间隔输出进度日志
+                    if num % LOG_CONFIG['log_progress_interval'] == 0 or num == total_num:
+                        logger.info(f"性能计算进度：{num}/{total_num} ({round((num / total_num) * 100, 2)}%)")
                 else:
                     logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
+                    # 更新 hifleet_vessels 的 perf_calculated 为 0
+                    self.mgo_db["hifleet_vessels"].update_one(
+                        {"mmsi": mmsi},
+                        {"$set": {"perf_calculated": 0}})
                     
 
                 
                 time.sleep(float(self.time_sleep))
 
         except Exception as e:
-            traceback.print_exc()
-            logger.error(f"error: {e}")
+            logger.error(f"船舶性能计算过程中发生错误: {e}")
+            if LOG_CONFIG['enable_debug_logs']:
+                logger.error(f"详细错误信息: {traceback.format_exc()}")
         finally:
-            logger.info("运行结束")
+            logger.info("船舶性能计算任务运行结束")
 
     def validate_performance_data(self, good_weather_perf: Dict[str, float], 
                                   bad_weather_perf: Dict[str, float], 
@@ -2304,6 +2351,12 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 for key in processed_bad_weather:
                     if 'speed' in key and key != 'avg_bad_weather_speed':
                         original_value = processed_bad_weather[key]
+                        # 确保 original_value 是数值类型
+                        try:
+                            original_value = float(original_value) if original_value is not None else 0
+                        except (ValueError, TypeError):
+                            original_value = 0
+                        
                         if original_value > 0:
                             # 按比例调整
                             adjustment_factor = target_bad_speed / bad_speed
@@ -2345,6 +2398,12 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     for key in processed_bad_weather:
                         if 'speed' in key and key != 'avg_bad_weather_speed':
                             original_value = processed_bad_weather[key]
+                            # 确保 original_value 是数值类型
+                            try:
+                                original_value = float(original_value) if original_value is not None else 0
+                            except (ValueError, TypeError):
+                                original_value = 0
+                            
                             if original_value > 0:
                                 adjusted_value = original_value * adjustment_factor
                                 processed_bad_weather[key] = round(adjusted_value, 2)
@@ -2382,6 +2441,82 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             }
         
         return processed_data
+
+    def safe_validate_performance_data(self, good_weather_perf: Dict[str, float], 
+                                     bad_weather_perf: Dict[str, float], 
+                                     design_speed: float) -> Dict[str, Any]:
+        """
+        安全的性能数据验证方法，包含异常处理和默认值
+        
+        :param good_weather_perf: 好天气性能数据
+        :param bad_weather_perf: 坏天气性能数据
+        :param design_speed: 设计速度
+        :return: 验证结果
+        """
+        try:
+            # 数据完整性检查
+            if not good_weather_perf or not bad_weather_perf:
+                return {
+                    'is_valid': False,
+                    'warnings': ['性能数据不完整'],
+                    'errors': ['缺少好天气或坏天气性能数据'],
+                    'recommendations': ['请检查数据源，确保获取到完整的性能数据']
+                }
+            
+            # 安全获取速度值
+            try:
+                good_speed = float(good_weather_perf.get('avg_good_weather_speed', 0))
+                bad_speed = float(bad_weather_perf.get('avg_bad_weather_speed', 0))
+                design_speed = float(design_speed) if design_speed else 0
+            except (ValueError, TypeError) as e:
+                return {
+                    'is_valid': False,
+                    'warnings': [],
+                    'errors': [f'速度数据格式错误: {e}'],
+                    'recommendations': ['请检查速度数据格式，确保为有效数值']
+                }
+            
+            # 基础验证
+            if good_speed <= 0 or bad_speed <= 0:
+                return {
+                    'is_valid': False,
+                    'warnings': [],
+                    'errors': ['速度数据无效，必须大于0'],
+                    'recommendations': ['请检查速度数据，确保为正值']
+                }
+            
+            # 逻辑验证
+            if good_speed <= bad_speed:
+                return {
+                    'is_valid': False,
+                    'warnings': [],
+                    'errors': [f'好天气速度({good_speed})应大于坏天气速度({bad_speed})'],
+                    'recommendations': ['请检查天气分类标准或数据质量']
+                }
+            
+            # 合理性验证
+            warnings = []
+            if design_speed > 0:
+                if good_speed > design_speed * 1.3:
+                    warnings.append(f'好天气速度({good_speed})超过设计速度({design_speed})的130%')
+                if bad_speed < design_speed * 0.3:
+                    warnings.append(f'坏天气速度({bad_speed})低于设计速度({design_speed})的30%')
+            
+            return {
+                'is_valid': True,
+                'warnings': warnings,
+                'errors': [],
+                'recommendations': []
+            }
+            
+        except Exception as e:
+            logger.error(f"性能数据验证过程中发生错误: {e}")
+            return {
+                'is_valid': False,
+                'warnings': [],
+                'errors': [f'验证过程发生异常: {e}'],
+                'recommendations': ['请检查系统状态，重新运行验证']
+            }
 
 
 def generate_vessel_specific_recommendations(
@@ -2979,11 +3114,11 @@ def generate_data_driven_recommendations(
                 )
     
     # 限制每类建议数量，确保每类控制在3点左右
-    logger.info(f"应用数量限制前: 安全建议{len(recommendations['safety_recommendations'])}条, 操作洞察{len(recommendations['operational_insights'])}条")
+    log_debug(f"应用数量限制前: 安全建议{len(recommendations['safety_recommendations'])}条, 操作洞察{len(recommendations['operational_insights'])}条")
     
     recommendations = limit_recommendations_per_category(recommendations)
     
-    logger.info(f"应用数量限制后: 安全建议{len(recommendations['safety_recommendations'])}条, 操作洞察{len(recommendations['operational_insights'])}条")
+    log_debug(f"应用数量限制后: 安全建议{len(recommendations['safety_recommendations'])}条, 操作洞察{len(recommendations['operational_insights'])}条")
     
     return recommendations
 
@@ -2999,16 +3134,16 @@ def limit_recommendations_per_category(recommendations: Dict[str, List[str]], ma
     limited_recommendations = {}
     
     for category, recs in recommendations.items():
-        logger.info(f"处理类别 {category}: 原始数量 {len(recs)}")
+        log_debug(f"处理类别 {category}: 原始数量 {len(recs)}")
         if len(recs) <= max_per_category:
             # 如果建议数量已经符合要求，直接使用
             limited_recommendations[category] = recs
-            logger.info(f"类别 {category}: 数量符合要求，直接使用")
+            log_debug(f"类别 {category}: 数量符合要求，直接使用")
         else:
             # 如果超过限制，按优先级选择最重要的建议
-            logger.info(f"类别 {category}: 数量超过限制，应用优先级选择")
+            log_debug(f"类别 {category}: 数量超过限制，应用优先级选择")
             limited_recommendations[category] = select_priority_recommendations(recs, max_per_category)
-            logger.info(f"类别 {category}: 限制后数量 {len(limited_recommendations[category])}")
+            log_debug(f"类别 {category}: 限制后数量 {len(limited_recommendations[category])}")
     
     return limited_recommendations
 
@@ -3054,3 +3189,67 @@ def select_priority_recommendations(recommendations: List[str], max_count: int) 
     selected_recommendations = [rec for _, rec in scored_recommendations[:max_count]]
     
     return selected_recommendations
+
+
+def configure_logging(enable_debug: bool = False, enable_performance: bool = True, 
+                     enable_validation: bool = False, enable_retry: bool = False,
+                     progress_interval: int = 10, max_log_length: int = 100):
+    """
+    配置日志输出级别
+    
+    :param enable_debug: 是否启用调试日志
+    :param enable_performance: 是否启用性能相关日志
+    :param enable_validation: 是否启用验证相关日志
+    :param enable_retry: 是否启用重试相关日志
+    :param progress_interval: 进度日志输出间隔
+    :param max_log_length: 日志内容最大长度
+    """
+    global LOG_CONFIG
+    LOG_CONFIG.update({
+        'enable_debug_logs': enable_debug,
+        'enable_performance_logs': enable_performance,
+        'enable_validation_logs': enable_validation,
+        'enable_retry_logs': enable_retry,
+        'log_progress_interval': progress_interval,
+        'max_log_length': max_log_length
+    })
+    
+    # 输出当前配置
+    logger.info(f"日志配置已更新: {LOG_CONFIG}")
+
+
+def enable_debug_mode():
+    """启用调试模式，显示所有日志"""
+    configure_logging(
+        enable_debug=True,
+        enable_performance=True,
+        enable_validation=True,
+        enable_retry=True,
+        progress_interval=1
+    )
+
+
+def enable_production_mode():
+    """启用生产模式，只显示重要日志"""
+    configure_logging(
+        enable_debug=False,
+        enable_performance=True,
+        enable_validation=False,
+        enable_retry=False,
+        progress_interval=20
+    )
+
+
+def enable_quiet_mode():
+    """启用静默模式，只显示错误和警告"""
+    configure_logging(
+        enable_debug=False,
+        enable_performance=False,
+        enable_validation=False,
+        enable_retry=False,
+        progress_interval=50
+    )
+
+
+# 默认启用生产模式
+enable_production_mode()
