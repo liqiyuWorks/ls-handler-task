@@ -23,7 +23,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # 配置化的日志控制
 LOG_CONFIG = {
     'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', True),  # 是否启用调试日志
-    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', True),  # 是否启用性能相关日志
+    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', False),  # 是否启用性能相关日志
     'enable_validation_logs': os.getenv('ENABLE_VALIDATION_LOGS', False),  # 是否启用验证相关日志
     'enable_retry_logs': os.getenv('ENABLE_RETRY_LOGS', False),  # 是否启用重试相关日志
     'log_progress_interval': os.getenv('LOG_PROGRESS_INTERVAL', 1),  # 进度日志输出间隔
