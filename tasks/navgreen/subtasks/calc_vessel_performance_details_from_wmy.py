@@ -3562,13 +3562,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     captain_assessment = assess_vessel_performance_from_captain_perspective(
                         vessel, current_good_weather_performance, design_speed
                     )
-                    print(captain_assessment)
+                    # print(captain_assessment)
 
                     # 买卖船和租船分析
                     trading_chartering_analysis = analyze_vessel_for_trading_and_chartering(
                         vessel, current_good_weather_performance, design_speed, {}
                     )
-                    print(trading_chartering_analysis)
+                    # print(trading_chartering_analysis)
 
                     # 更新 mongo 的数据
                     self.mgo_db["vessels_performance_details"].update_one(
