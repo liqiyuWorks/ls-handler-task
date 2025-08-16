@@ -16,19 +16,111 @@ import json
 import urllib3
 from typing import Dict, List, Any, Optional, Union
 from dataclasses import dataclass
+from functools import lru_cache
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import gc
 
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# 性能优化配置
+PERFORMANCE_CONFIG = {
+    'enable_batch_processing': True,  # 启用批量处理
+    'batch_size': 100,  # 批量处理大小
+    'max_workers': 4,  # 最大工作线程数
+    'enable_memory_optimization': True,  # 启用内存优化
+    'enable_cache': True,  # 启用缓存
+    'cache_ttl': 3600,  # 缓存生存时间（秒）
+    'enable_connection_pooling': True,  # 启用连接池
+    'max_retries': 3,  # 最大重试次数
+    'retry_delay': 1.0,  # 重试延迟（秒）
+    'enable_progress_tracking': True,  # 启用进度跟踪
+    'progress_update_interval': 10,  # 进度更新间隔
+}
+
 # 配置化的日志控制
 LOG_CONFIG = {
-    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', True),  # 是否启用调试日志
-    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', False),  # 是否启用性能相关日志
-    'enable_validation_logs': os.getenv('ENABLE_VALIDATION_LOGS', False),  # 是否启用验证相关日志
-    'enable_retry_logs': os.getenv('ENABLE_RETRY_LOGS', False),  # 是否启用重试相关日志
-    'log_progress_interval': os.getenv('LOG_PROGRESS_INTERVAL', 1),  # 进度日志输出间隔
-    'max_log_length': 100,  # 日志内容最大长度
+    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', 'True').lower() == 'true',  # 是否启用调试日志
+    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', 'False').lower() == 'true',  # 是否启用性能相关日志
+    'enable_validation_logs': os.getenv('ENABLE_VALIDATION_LOGS', 'False').lower() == 'true',  # 是否启用验证相关日志
+    'enable_retry_logs': os.getenv('ENABLE_RETRY_LOGS', 'False').lower() == 'true',  # 是否启用重试相关日志
+    'log_progress_interval': int(os.getenv('LOG_PROGRESS_INTERVAL', '1')),  # 进度日志输出间隔
+    'max_log_length': int(os.getenv('MAX_LOG_LENGTH', '100')),  # 日志内容最大长度
 }
+
+# 全局缓存
+_performance_cache = {}
+_cache_lock = threading.Lock()
+_cache_timestamps = {}
+
+def get_cached_result(key: str, ttl: int = None) -> Optional[Any]:
+    """获取缓存结果"""
+    if not PERFORMANCE_CONFIG['enable_cache']:
+        return None
+    
+    if ttl is None:
+        ttl = PERFORMANCE_CONFIG['cache_ttl']
+    
+    with _cache_lock:
+        if key in _performance_cache:
+            timestamp = _cache_timestamps.get(key, 0)
+            if time.time() - timestamp < ttl:
+                return _performance_cache[key]
+            else:
+                # 清理过期缓存
+                del _performance_cache[key]
+                del _cache_timestamps[key]
+    return None
+
+def set_cached_result(key: str, value: Any, ttl: int = None):
+    """设置缓存结果"""
+    if not PERFORMANCE_CONFIG['enable_cache']:
+        return
+    
+    if ttl is None:
+        ttl = PERFORMANCE_CONFIG['cache_ttl']
+    
+    with _cache_lock:
+        _performance_cache[key] = value
+        _cache_timestamps[key] = time.time()
+        
+        # 清理过期缓存
+        current_time = time.time()
+        expired_keys = [k for k, ts in _cache_timestamps.items() if current_time - ts > ttl]
+        for k in expired_keys:
+            del _performance_cache[k]
+            del _cache_timestamps[k]
+
+def clear_cache():
+    """清理所有缓存"""
+    with _cache_lock:
+        _performance_cache.clear()
+        _cache_timestamps.clear()
+
+def retry_operation(func, max_retries: int = None, delay: float = None):
+    """重试操作装饰器"""
+    if max_retries is None:
+        max_retries = PERFORMANCE_CONFIG['max_retries']
+    if delay is None:
+        delay = PERFORMANCE_CONFIG['retry_delay']
+    
+    def wrapper(*args, **kwargs):
+        last_exception = None
+        for attempt in range(max_retries + 1):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                last_exception = e
+                if attempt < max_retries:
+                    if LOG_CONFIG['enable_retry_logs']:
+                        logger.warning(f"操作失败，第{attempt + 1}次重试: {e}")
+                    time.sleep(delay * (2 ** attempt))  # 指数退避
+                else:
+                    if LOG_CONFIG['enable_retry_logs']:
+                        logger.error(f"操作最终失败，已重试{max_retries}次: {e}")
+        raise last_exception
+    return wrapper
 
 def log_info(message: str, force: bool = False):
     """条件化信息日志输出"""
@@ -62,29 +154,113 @@ def is_valid_type(s: Any) -> bool:
     return False
 
 
+class PerformanceTracker:
+    """性能跟踪器"""
+    def __init__(self):
+        self.start_time = time.time()
+        self.operation_count = 0
+        self.total_processing_time = 0.0
+        self.memory_usage = []
+    
+    def start_operation(self):
+        """开始操作计时"""
+        self.operation_count += 1
+        return time.time()
+    
+    def end_operation(self, start_time: float):
+        """结束操作计时"""
+        duration = time.time() - start_time
+        self.total_processing_time += duration
+        
+        if PERFORMANCE_CONFIG['enable_memory_optimization']:
+            # 记录内存使用情况
+            try:
+                import psutil
+                process = psutil.Process()
+                memory_info = process.memory_info()
+                self.memory_usage.append({
+                    'operation': self.operation_count,
+                    'memory_mb': memory_info.rss / 1024 / 1024,
+                    'duration': duration
+                })
+            except ImportError:
+                pass
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        """获取性能统计"""
+        total_time = time.time() - self.start_time
+        avg_operation_time = self.total_processing_time / self.operation_count if self.operation_count > 0 else 0
+        
+        stats = {
+            'total_operations': self.operation_count,
+            'total_time': round(total_time, 2),
+            'total_processing_time': round(self.total_processing_time, 2),
+            'average_operation_time': round(avg_operation_time, 3),
+            'operations_per_second': round(self.operation_count / total_time, 2) if total_time > 0 else 0
+        }
+        
+        if self.memory_usage:
+            max_memory = max(m['memory_mb'] for m in self.memory_usage)
+            avg_memory = sum(m['memory_mb'] for m in self.memory_usage) / len(self.memory_usage)
+            stats.update({
+                'max_memory_mb': round(max_memory, 1),
+                'average_memory_mb': round(avg_memory, 1)
+            })
+        
+        return stats
+
+# 全局性能跟踪器
+performance_tracker = PerformanceTracker()
+
 @dataclass
 class SpeedStats:
-    """速度统计累加器"""
+    """速度统计累加器（优化版）"""
     total: float = 0.0
     count: int = 0
+    min_speed: float = float('inf')
+    max_speed: float = 0.0
 
     def add(self, speed: float):
         """添加速度值"""
-        self.total += speed
-        self.count += 1
+        if not math.isnan(speed) and speed > 0:
+            self.total += speed
+            self.count += 1
+            self.min_speed = min(self.min_speed, speed)
+            self.max_speed = max(self.max_speed, speed)
 
     def average(self) -> float:
         """计算平均速度"""
         return round(self.total / self.count, 2) if self.count > 0 else 0.0
+    
+    def variance(self) -> float:
+        """计算速度方差（用于稳定性评估）"""
+        if self.count < 2:
+            return 0.0
+        mean = self.total / self.count
+        # 简化计算，实际应用中可能需要更精确的方差计算
+        return round(abs(self.max_speed - self.min_speed) / mean, 3)
+    
+    def reset(self):
+        """重置统计数据"""
+        self.total = 0.0
+        self.count = 0
+        self.min_speed = float('inf')
+        self.max_speed = 0.0
 
 
 def is_valid_current_data(current_u: Any, current_v: Any) -> bool:
-    """验证洋流数据的有效性"""
+    """验证洋流数据的有效性（优化版）"""
     try:
         if current_u is None or current_v is None:
             return False
+        
         u = float(current_u)
         v = float(current_v)
+        
+        # 检查是否为NaN或无穷大
+        if math.isnan(u) or math.isnan(v) or math.isinf(u) or math.isinf(v):
+            return False
+        
         # 检查洋流速度是否在合理范围内 (0-5 m/s)
         current_speed = math.sqrt(u*u + v*v)
         return 0 <= current_speed <= 5.0
@@ -3248,7 +3424,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def run(self):
         try:
             query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}, "perf_calculated": {"$ne": 0}}
-            query_sql: Dict[str, Any] = {"mmsi": 414439000} # 调试
+            # query_sql: Dict[str, Any] = {"mmsi": 414439000} # 调试
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
 
