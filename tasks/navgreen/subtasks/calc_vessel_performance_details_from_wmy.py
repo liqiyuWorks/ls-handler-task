@@ -16,111 +16,19 @@ import json
 import urllib3
 from typing import Dict, List, Any, Optional, Union
 from dataclasses import dataclass
-from functools import lru_cache
-import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import gc
 
 # Suppress SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# 性能优化配置
-PERFORMANCE_CONFIG = {
-    'enable_batch_processing': True,  # 启用批量处理
-    'batch_size': 100,  # 批量处理大小
-    'max_workers': 4,  # 最大工作线程数
-    'enable_memory_optimization': True,  # 启用内存优化
-    'enable_cache': True,  # 启用缓存
-    'cache_ttl': 3600,  # 缓存生存时间（秒）
-    'enable_connection_pooling': True,  # 启用连接池
-    'max_retries': 3,  # 最大重试次数
-    'retry_delay': 1.0,  # 重试延迟（秒）
-    'enable_progress_tracking': True,  # 启用进度跟踪
-    'progress_update_interval': 10,  # 进度更新间隔
-}
-
 # 配置化的日志控制
 LOG_CONFIG = {
-    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', 'True').lower() == 'true',  # 是否启用调试日志
-    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', 'False').lower() == 'true',  # 是否启用性能相关日志
-    'enable_validation_logs': os.getenv('ENABLE_VALIDATION_LOGS', 'False').lower() == 'true',  # 是否启用验证相关日志
-    'enable_retry_logs': os.getenv('ENABLE_RETRY_LOGS', 'False').lower() == 'true',  # 是否启用重试相关日志
-    'log_progress_interval': int(os.getenv('LOG_PROGRESS_INTERVAL', '1')),  # 进度日志输出间隔
-    'max_log_length': int(os.getenv('MAX_LOG_LENGTH', '100')),  # 日志内容最大长度
+    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', True),  # 是否启用调试日志
+    'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', False),  # 是否启用性能相关日志
+    'enable_validation_logs': os.getenv('ENABLE_VALIDATION_LOGS', False),  # 是否启用验证相关日志
+    'enable_retry_logs': os.getenv('ENABLE_RETRY_LOGS', False),  # 是否启用重试相关日志
+    'log_progress_interval': os.getenv('LOG_PROGRESS_INTERVAL', 1),  # 进度日志输出间隔
+    'max_log_length': 100,  # 日志内容最大长度
 }
-
-# 全局缓存
-_performance_cache = {}
-_cache_lock = threading.Lock()
-_cache_timestamps = {}
-
-def get_cached_result(key: str, ttl: int = None) -> Optional[Any]:
-    """获取缓存结果"""
-    if not PERFORMANCE_CONFIG['enable_cache']:
-        return None
-    
-    if ttl is None:
-        ttl = PERFORMANCE_CONFIG['cache_ttl']
-    
-    with _cache_lock:
-        if key in _performance_cache:
-            timestamp = _cache_timestamps.get(key, 0)
-            if time.time() - timestamp < ttl:
-                return _performance_cache[key]
-            else:
-                # 清理过期缓存
-                del _performance_cache[key]
-                del _cache_timestamps[key]
-    return None
-
-def set_cached_result(key: str, value: Any, ttl: int = None):
-    """设置缓存结果"""
-    if not PERFORMANCE_CONFIG['enable_cache']:
-        return
-    
-    if ttl is None:
-        ttl = PERFORMANCE_CONFIG['cache_ttl']
-    
-    with _cache_lock:
-        _performance_cache[key] = value
-        _cache_timestamps[key] = time.time()
-        
-        # 清理过期缓存
-        current_time = time.time()
-        expired_keys = [k for k, ts in _cache_timestamps.items() if current_time - ts > ttl]
-        for k in expired_keys:
-            del _performance_cache[k]
-            del _cache_timestamps[k]
-
-def clear_cache():
-    """清理所有缓存"""
-    with _cache_lock:
-        _performance_cache.clear()
-        _cache_timestamps.clear()
-
-def retry_operation(func, max_retries: int = None, delay: float = None):
-    """重试操作装饰器"""
-    if max_retries is None:
-        max_retries = PERFORMANCE_CONFIG['max_retries']
-    if delay is None:
-        delay = PERFORMANCE_CONFIG['retry_delay']
-    
-    def wrapper(*args, **kwargs):
-        last_exception = None
-        for attempt in range(max_retries + 1):
-            try:
-                return func(*args, **kwargs)
-            except Exception as e:
-                last_exception = e
-                if attempt < max_retries:
-                    if LOG_CONFIG['enable_retry_logs']:
-                        logger.warning(f"操作失败，第{attempt + 1}次重试: {e}")
-                    time.sleep(delay * (2 ** attempt))  # 指数退避
-                else:
-                    if LOG_CONFIG['enable_retry_logs']:
-                        logger.error(f"操作最终失败，已重试{max_retries}次: {e}")
-        raise last_exception
-    return wrapper
 
 def log_info(message: str, force: bool = False):
     """条件化信息日志输出"""
@@ -154,113 +62,43 @@ def is_valid_type(s: Any) -> bool:
     return False
 
 
-class PerformanceTracker:
-    """性能跟踪器"""
-    def __init__(self):
-        self.start_time = time.time()
-        self.operation_count = 0
-        self.total_processing_time = 0.0
-        self.memory_usage = []
+def safe_division(numerator, denominator, default_value=0.0):
+    """
+    安全除法函数，避免除零错误
     
-    def start_operation(self):
-        """开始操作计时"""
-        self.operation_count += 1
-        return time.time()
-    
-    def end_operation(self, start_time: float):
-        """结束操作计时"""
-        duration = time.time() - start_time
-        self.total_processing_time += duration
-        
-        if PERFORMANCE_CONFIG['enable_memory_optimization']:
-            # 记录内存使用情况
-            try:
-                import psutil
-                process = psutil.Process()
-                memory_info = process.memory_info()
-                self.memory_usage.append({
-                    'operation': self.operation_count,
-                    'memory_mb': memory_info.rss / 1024 / 1024,
-                    'duration': duration
-                })
-            except ImportError:
-                pass
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """获取性能统计"""
-        total_time = time.time() - self.start_time
-        avg_operation_time = self.total_processing_time / self.operation_count if self.operation_count > 0 else 0
-        
-        stats = {
-            'total_operations': self.operation_count,
-            'total_time': round(total_time, 2),
-            'total_processing_time': round(self.total_processing_time, 2),
-            'average_operation_time': round(avg_operation_time, 3),
-            'operations_per_second': round(self.operation_count / total_time, 2) if total_time > 0 else 0
-        }
-        
-        if self.memory_usage:
-            max_memory = max(m['memory_mb'] for m in self.memory_usage)
-            avg_memory = sum(m['memory_mb'] for m in self.memory_usage) / len(self.memory_usage)
-            stats.update({
-                'max_memory_mb': round(max_memory, 1),
-                'average_memory_mb': round(avg_memory, 1)
-            })
-        
-        return stats
+    :param numerator: 分子
+    :param denominator: 分母
+    :param default_value: 当分母为0时的默认值
+    :return: 除法结果或默认值
+    """
+    if denominator == 0 or abs(denominator) < 1e-10:  # 使用小阈值避免浮点数精度问题
+        return default_value
+    return numerator / denominator
 
-# 全局性能跟踪器
-performance_tracker = PerformanceTracker()
 
 @dataclass
 class SpeedStats:
-    """速度统计累加器（优化版）"""
+    """速度统计累加器"""
     total: float = 0.0
     count: int = 0
-    min_speed: float = float('inf')
-    max_speed: float = 0.0
 
     def add(self, speed: float):
         """添加速度值"""
-        if not math.isnan(speed) and speed > 0:
-            self.total += speed
-            self.count += 1
-            self.min_speed = min(self.min_speed, speed)
-            self.max_speed = max(self.max_speed, speed)
+        self.total += speed
+        self.count += 1
 
     def average(self) -> float:
         """计算平均速度"""
         return round(self.total / self.count, 2) if self.count > 0 else 0.0
-    
-    def variance(self) -> float:
-        """计算速度方差（用于稳定性评估）"""
-        if self.count < 2:
-            return 0.0
-        mean = self.total / self.count
-        # 简化计算，实际应用中可能需要更精确的方差计算
-        return round(abs(self.max_speed - self.min_speed) / mean, 3)
-    
-    def reset(self):
-        """重置统计数据"""
-        self.total = 0.0
-        self.count = 0
-        self.min_speed = float('inf')
-        self.max_speed = 0.0
 
 
 def is_valid_current_data(current_u: Any, current_v: Any) -> bool:
-    """验证洋流数据的有效性（优化版）"""
+    """验证洋流数据的有效性"""
     try:
         if current_u is None or current_v is None:
             return False
-        
         u = float(current_u)
         v = float(current_v)
-        
-        # 检查是否为NaN或无穷大
-        if math.isnan(u) or math.isnan(v) or math.isinf(u) or math.isinf(v):
-            return False
-        
         # 检查洋流速度是否在合理范围内 (0-5 m/s)
         current_speed = math.sqrt(u*u + v*v)
         return 0 <= current_speed <= 5.0
@@ -592,7 +430,7 @@ def assess_vessel_performance_from_captain_perspective(
 
     # 1. 船舶操纵性能评估（基于实际航运经验）
     if good_speed > 0 and bad_speed > 0:
-        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
 
         # 基于实际航运经验的性能评级（更符合实际情况）
         if speed_reduction <= 15:  # 调整阈值，15%以内为优秀
@@ -617,7 +455,7 @@ def assess_vessel_performance_from_captain_perspective(
             bad_speed, dwt, vessel_type, length, width) if bad_speed > 0 else 0
 
         if fuel_consumption_good > 0:
-            consumption_increase = round(((fuel_consumption_bad - fuel_consumption_good) / fuel_consumption_good) * 100, 2)
+            consumption_increase = round(safe_division((fuel_consumption_bad - fuel_consumption_good), fuel_consumption_good, 0.0) * 100, 2)
             
             # 基于实际经验的燃油效率评级
             if consumption_increase <= 20:
@@ -1311,7 +1149,7 @@ def assess_vessel_stability_realistic(vessel_data: Dict[str, Any], weather_perfo
     bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
     
     if good_speed > 0 and bad_speed > 0:
-        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
         
         # 基于实际航运经验的天气适应性评级
         if speed_reduction <= 20:  # 天气适应性好
@@ -1392,7 +1230,7 @@ def assess_vessel_stability_realistic(vessel_data: Dict[str, Any], weather_perfo
         'avg_moderate_bad_weather_speed', 0)
 
     if severe_speed > 0 and moderate_speed > 0:
-        speed_drop = ((moderate_speed - severe_speed) / moderate_speed) * 100
+        speed_drop = safe_division((moderate_speed - severe_speed), moderate_speed, 0.0) * 100
         if speed_drop > 25:
             stability['concerns'].append('在恶劣天气下速度下降明显，可能存在稳定性问题')
             stability['overall_rating'] = 'fair'
@@ -1418,7 +1256,7 @@ def generate_route_recommendations(vessel_data: Dict[str, Any], weather_performa
     
     # 基于船长经验的航线建议
     if good_speed > 0 and bad_speed > 0:
-        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
         
         if speed_reduction <= 25:
             recommendations.append('船舶天气适应性良好，适合大部分航线')
@@ -1474,7 +1312,7 @@ def generate_route_recommendations_realistic(vessel_data: Dict[str, Any], weathe
     
     # 1. 基于船舶性能的航线建议
     if good_speed > 0 and bad_speed > 0:
-        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
         
         if speed_reduction <= 20:  # 天气适应性好
             recommendations.append('船舶天气适应性优异，适合全年航线运营，包括高纬度航线')
@@ -1517,7 +1355,7 @@ def generate_route_recommendations_realistic(vessel_data: Dict[str, Any], weathe
     
     # 4. 基于设计速度的航线建议
     if design_speed > 0 and good_speed > 0:
-        performance_ratio = good_speed / design_speed
+        performance_ratio = safe_division(good_speed, design_speed, 0.0)
         
         if performance_ratio >= 0.9:  # 性能优异
             recommendations.append('船舶性能优异，可考虑多种航线选择')
@@ -1557,7 +1395,7 @@ def generate_route_recommendations_realistic(vessel_data: Dict[str, Any], weathe
         recommendations.append('船舶在恶劣天气下速度较低，建议选择避风航线')
     elif moderate_speed > 12:  # 中等坏天气下速度尚可
         recommendations.append('船舶在中等坏天气下性能良好，可考虑优化航线')
-
+    
     return recommendations
 
 
@@ -1587,7 +1425,7 @@ def assess_commercial_value(vessel_data: Dict[str, Any], weather_performance: Di
 
     # 性能与设计速度对比
     if good_speed > 0 and design_speed > 0:
-        performance_ratio = (good_speed / design_speed) * 100
+        performance_ratio = safe_division(good_speed, design_speed, 0.0) * 100
         if performance_ratio < 80:
             insights.append('船舶实际性能低于设计标准，可能影响商业价值')
         elif performance_ratio > 95:
@@ -1595,7 +1433,7 @@ def assess_commercial_value(vessel_data: Dict[str, Any], weather_performance: Di
 
     # 天气适应性评估
     if good_speed > 0 and bad_speed > 0:
-        weather_adaptability = (bad_speed / good_speed) * 100
+        weather_adaptability = safe_division(bad_speed, good_speed, 0.0) * 100
         if weather_adaptability > 85:
             insights.append('船舶天气适应性极佳，适合全年运营')
         elif weather_adaptability < 60:
@@ -1672,7 +1510,7 @@ def assess_commercial_value_realistic(vessel_data: Dict[str, Any], weather_perfo
     
     # 2. 性能竞争力评估
     if good_speed > 0 and design_speed > 0:
-        performance_ratio = good_speed / design_speed
+        performance_ratio = safe_division(good_speed, design_speed, 0.0)
         
         if performance_ratio >= 0.95:
             performance_rating = 'excellent'
@@ -1700,7 +1538,7 @@ def assess_commercial_value_realistic(vessel_data: Dict[str, Any], weather_perfo
     
     # 3. 天气适应性评估
     if good_speed > 0 and bad_speed > 0:
-        weather_adaptability = (bad_speed / good_speed) * 100
+        weather_adaptability = safe_division(bad_speed, good_speed, 0.0) * 100
         
         if weather_adaptability >= 85:
             weather_rating = 'excellent'
@@ -1909,13 +1747,13 @@ def analyze_vessel_for_trading(
 
     # 基于性能的价值评估
     if good_speed > 0 and design_speed > 0:
-        performance_factor = min(good_speed / design_speed, 1.2)  # 最高1.2倍
+        performance_factor = min(safe_division(good_speed, design_speed, 0.0), 1.2)  # 最高1.2倍
     else:
         performance_factor = 0.8
 
     # 天气适应性价值
     if good_speed > 0 and bad_speed > 0:
-        weather_factor = (bad_speed / good_speed) * 1.2  # 天气适应性好的船舶价值更高
+        weather_factor = safe_division(bad_speed, good_speed, 0.0) * 1.2  # 天气适应性好的船舶价值更高
     else:
         weather_factor = 1.0
 
@@ -1978,7 +1816,7 @@ def analyze_vessel_for_chartering(
 
     # 租船潜力评估
     if good_speed > 0 and bad_speed > 0:
-        weather_adaptability = (bad_speed / good_speed) * 100
+        weather_adaptability = safe_division(bad_speed, good_speed, 0.0) * 100
 
         if weather_adaptability >= 85:
             analysis['charter_potential']['rating'] = 'excellent'
@@ -2010,7 +1848,7 @@ def analyze_vessel_for_chartering(
         analysis['operational_efficiency']['annual_distance'] = round(
             total_distance, 0)
         analysis['operational_efficiency']['average_speed'] = round(
-            total_distance / (365 * 24), 2)
+            safe_division(total_distance, (365 * 24), 0.0), 2)
 
     # 租船建议
     charter_rating = analysis['charter_potential'].get('rating', 'unknown')
@@ -2071,7 +1909,7 @@ def calculate_financial_impact(
         impact['fuel_cost_analysis'] = {
             'good_weather_annual_cost': round(annual_fuel_cost_good, 0),
             'bad_weather_annual_cost': round(annual_fuel_cost_bad, 0),
-            'cost_increase_percentage': round(((annual_fuel_cost_bad - annual_fuel_cost_good) / annual_fuel_cost_good) * 100, 2) if annual_fuel_cost_good > 0 else 0
+            'cost_increase_percentage': round(safe_division((annual_fuel_cost_bad - annual_fuel_cost_good), annual_fuel_cost_good, 0.0) * 100, 2) if annual_fuel_cost_good > 0 else 0
         }
     else:
         # 如果数据不足，设置默认值
@@ -2087,7 +1925,7 @@ def calculate_financial_impact(
 
     impact['operational_cost_analysis'] = {
         'annual_operational_cost': round(base_operational_cost, 0),
-        'cost_per_day': round(base_operational_cost / 365, 2)
+        'cost_per_day': round(safe_division(base_operational_cost, 365, 0.0), 2)
     }
 
     # 收入影响分析
@@ -2100,7 +1938,7 @@ def calculate_financial_impact(
         impact['revenue_impact'] = {
             'good_weather_annual_revenue': round(annual_revenue_good, 0),
             'bad_weather_annual_revenue': round(annual_revenue_bad, 0),
-            'revenue_decrease_percentage': round(((annual_revenue_good - annual_revenue_bad) / annual_revenue_good) * 100, 2) if annual_revenue_good > 0 else 0
+            'revenue_decrease_percentage': round(safe_division((annual_revenue_good - annual_revenue_bad), annual_revenue_good, 0.0) * 100, 2) if annual_revenue_good > 0 else 0
         }
     else:
         # 如果数据不足，设置默认值
@@ -2120,13 +1958,13 @@ def calculate_financial_impact(
         revenue = impact['revenue_impact']['good_weather_annual_revenue']
 
         profit = revenue - fuel_cost - operational_cost
-        profit_margin = (profit / revenue) * 100 if revenue > 0 else 0
+        profit_margin = safe_division(profit, revenue, 0.0) * 100 if revenue > 0 else 0
 
         impact['profitability_analysis'] = {
             'annual_profit': round(profit, 0),
             'profit_margin_percentage': round(profit_margin, 2),
             # 假设船舶价值为载重吨位*1000美元
-            'roi_estimate': round((profit / (dwt * 1000)) * 100, 2)
+            'roi_estimate': round(safe_division(profit, (dwt * 1000), 0.0) * 100, 2)
         }
     else:
         # 如果数据不足，设置默认值
@@ -2165,7 +2003,7 @@ def assess_trading_and_chartering_risks(
         risks['operational_risks'].append('船舶在恶劣天气下速度过低，存在运营风险')
 
     if good_speed > 0 and bad_speed > 0:
-        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
         if speed_reduction > 30:
             risks['operational_risks'].append('船舶在坏天气下性能下降严重，运营风险较高')
 
@@ -2181,7 +2019,7 @@ def assess_trading_and_chartering_risks(
         risks['financial_risks'].append('船舶年龄较大，维护成本可能增加')
 
     if good_speed > 0 and design_speed > 0:
-        performance_ratio = (good_speed / design_speed) * 100
+        performance_ratio = safe_division(good_speed, design_speed, 0.0) * 100
         if performance_ratio < 80:
             risks['financial_risks'].append('船舶实际性能低于设计标准，可能影响盈利能力')
 
@@ -2245,7 +2083,7 @@ def generate_market_recommendations(
     bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
 
     if good_speed > 0 and bad_speed > 0:
-        weather_adaptability = (bad_speed / good_speed) * 100
+        weather_adaptability = safe_division(bad_speed, good_speed, 0.0) * 100
         if weather_adaptability > 85:
             recommendations.append('船舶天气适应性极佳，适合全年运营，具有竞争优势')
         elif weather_adaptability < 60:
@@ -2354,7 +2192,7 @@ def enhanced_data_quality_control(data: List[Dict[str, Any]], design_speed: floa
         # 使用3倍标准差法则检测异常值
         for data_item in valid_data:
             if data_item['sog'] > 0:
-                z_score = abs(data_item['sog'] - sog_mean) / sog_std if sog_std > 0 else 0
+                z_score = safe_division(abs(data_item['sog'] - sog_mean), sog_std, 0.0) if sog_std > 0 else 0
                 if z_score > 3:  # 超过3倍标准差
                     stats['statistical_outliers'] += 1
                     continue
@@ -2428,10 +2266,10 @@ def validate_weather_data_consistency(data: List[Dict[str, Any]]) -> Dict[str, A
     # 检查数据分布合理性
     total_records = sum(weather_counts.values())
     if total_records > 0:
-        good_ratio = weather_counts['good'] / total_records
-        bad_ratio = weather_counts['bad'] / total_records
-        moderate_bad_ratio = weather_counts['moderate_bad'] / total_records
-        severe_ratio = weather_counts['severe_bad'] / total_records
+        good_ratio = safe_division(weather_counts['good'], total_records, 0.0)
+        bad_ratio = safe_division(weather_counts['bad'], total_records, 0.0)
+        moderate_bad_ratio = safe_division(weather_counts['moderate_bad'], total_records, 0.0)
+        severe_ratio = safe_division(weather_counts['severe_bad'], total_records, 0.0)
         
         # 好天气比例过低警告
         if good_ratio < 0.1:
@@ -3110,7 +2948,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         # 基础性能对比
         if good_speed > 0 and bad_speed > 0:
             # 计算速度降低比例（确保不会出现负值）
-            speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+            speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
             
             # 验证速度降低比例的合理性
             if speed_reduction < 0:
@@ -3169,7 +3007,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 warning_msg = f'空载性能数据异常已修正：坏天气速度从{bad_weather_perf.get("avg_ballast_bad_weather_speed", 0)}调整为{corrected_bad_ballast:.2f}'
                 analysis['data_validation_warnings'].append(warning_msg)
             
-            ballast_reduction = ((good_ballast - bad_ballast) / good_ballast) * 100
+            ballast_reduction = safe_division((good_ballast - bad_ballast), good_ballast, 0.0) * 100
             ballast_reduction = max(5.0, min(80.0, ballast_reduction))  # 确保在合理范围内
             
             analysis['performance_comparison']['ballast_speed_reduction'] = round(ballast_reduction, 2)
@@ -3194,7 +3032,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 warning_msg = f'满载性能数据异常已修正：坏天气速度从{bad_weather_perf.get("avg_laden_bad_weather_speed", 0)}调整为{corrected_bad_laden:.2f}'
                 analysis['data_validation_warnings'].append(warning_msg)
             
-            laden_reduction = ((good_laden - bad_laden) / good_laden) * 100
+            laden_reduction = safe_division((good_laden - bad_laden), good_laden, 0.0) * 100
             laden_reduction = max(5.0, min(80.0, laden_reduction))  # 确保在合理范围内
             
             analysis['performance_comparison']['laden_speed_reduction'] = round(laden_reduction, 2)
@@ -3240,7 +3078,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 warning_msg = f'严重坏天气性能数据异常已修正：速度从{bad_weather_perf.get("avg_severe_bad_weather_speed", 0)}调整为{corrected_severe_speed:.2f}'
                 analysis['data_validation_warnings'].append(warning_msg)
             
-            severe_vs_moderate = ((moderate_speed - severe_speed) / moderate_speed) * 100
+            severe_vs_moderate = safe_division((moderate_speed - severe_speed), moderate_speed, 0.0) * 100
             severe_vs_moderate = max(5.0, min(80.0, severe_vs_moderate))  # 确保在合理范围内
             
             analysis['performance_comparison']['severe_vs_moderate_reduction'] = round(severe_vs_moderate, 2)
@@ -3252,8 +3090,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
         # 设计速度对比
         if design_speed > 0:
-            good_vs_design = (good_weather_perf.get('avg_good_weather_speed', 0) / design_speed) * 100
-            bad_vs_design = (bad_weather_perf.get('avg_bad_weather_speed', 0) / design_speed) * 100
+            good_vs_design = safe_division(good_weather_perf.get('avg_good_weather_speed', 0), design_speed, 0.0) * 100
+            bad_vs_design = safe_division(bad_weather_perf.get('avg_bad_weather_speed', 0), design_speed, 0.0) * 100
 
             analysis['performance_comparison'].update({
                 'good_weather_vs_design_percentage': round(good_vs_design, 2),
@@ -3562,13 +3400,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     captain_assessment = assess_vessel_performance_from_captain_perspective(
                         vessel, current_good_weather_performance, design_speed
                     )
-                    # print(captain_assessment)
+                    print(captain_assessment)
 
                     # 买卖船和租船分析
                     trading_chartering_analysis = analyze_vessel_for_trading_and_chartering(
                         vessel, current_good_weather_performance, design_speed, {}
                     )
-                    # print(trading_chartering_analysis)
+                    print(trading_chartering_analysis)
 
                     # 更新 mongo 的数据
                     self.mgo_db["vessels_performance_details"].update_one(
@@ -4685,404 +4523,10 @@ def enable_quiet_mode():
     )
 
 
-def calculate_vessel_performance_score(
-    weather_performance: Dict[str, float], 
-    design_speed: float, 
-    vessel_data: Dict[str, Any]
-) -> Dict[str, Any]:
-    """
-    计算船舶性能综合评分（科学评分系统）
-    
-    评分维度：
-    1. 速度性能评分（40%）：好天气速度、设计速度匹配度
-    2. 天气适应性评分（35%）：坏天气下的性能表现
-    3. 稳定性评分（15%）：不同天气条件下的稳定性
-    4. 效率评分（10%）：燃油效率和运营效率
-    
-    评分标准：
-    - 90-100分：优秀（A级）
-    - 80-89分：良好（B级）
-    - 70-79分：一般（C级）
-    - 60-69分：较差（D级）
-    - 60分以下：差（E级）
-    """
-    score_result = {
-        'total_score': 0,
-        'grade': '',
-        'grade_description': '',
-        'dimension_scores': {},
-        'score_details': {},
-        'improvement_suggestions': []
-    }
-    
-    # 获取性能数据
-    good_speed = weather_performance.get('avg_good_weather_speed', 0)
-    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
-    severe_speed = weather_performance.get('avg_severe_bad_weather_speed', 0)
-    moderate_speed = weather_performance.get('avg_moderate_bad_weather_speed', 0)
-    general_speed = weather_performance.get('avg_general_bad_weather_speed', 0)
-    
-    # 1. 速度性能评分（40%权重）
-    speed_score = calculate_speed_performance_score(good_speed, design_speed, vessel_data)
-    score_result['dimension_scores']['speed_performance'] = speed_score
-    
-    # 2. 天气适应性评分（35%权重）
-    weather_adaptability_score = calculate_weather_adaptability_score(
-        good_speed, bad_speed, severe_speed, moderate_speed, general_speed
-    )
-    score_result['dimension_scores']['weather_adaptability'] = weather_adaptability_score
-    
-    # 3. 稳定性评分（15%权重）
-    stability_score = calculate_stability_score(
-        weather_performance, vessel_data
-    )
-    score_result['dimension_scores']['stability'] = stability_score
-    
-    # 4. 效率评分（10%权重）
-    efficiency_score = calculate_efficiency_score(
-        weather_performance, vessel_data
-    )
-    score_result['dimension_scores']['efficiency'] = efficiency_score
-    
-    # 计算加权总分
-    total_score = (
-        speed_score * 0.40 +
-        weather_adaptability_score * 0.35 +
-        stability_score * 0.15 +
-        efficiency_score * 0.10
-    )
-    
-    score_result['total_score'] = round(total_score, 1)
-    
-    # 确定等级
-    if total_score >= 90:
-        grade = 'A'
-        grade_desc = '优秀'
-    elif total_score >= 80:
-        grade = 'B'
-        grade_desc = '良好'
-    elif total_score >= 70:
-        grade = 'C'
-        grade_desc = '一般'
-    elif total_score >= 60:
-        grade = 'D'
-        grade_desc = '较差'
-    else:
-        grade = 'E'
-        grade_desc = '差'
-    
-    score_result['grade'] = grade
-    score_result['grade_description'] = grade_desc
-    
-    # 生成改进建议
-    improvement_suggestions = generate_improvement_suggestions(
-        score_result['dimension_scores'], total_score, vessel_data
-    )
-    score_result['improvement_suggestions'] = improvement_suggestions
-    
-    # 详细评分说明
-    score_result['score_details'] = {
-        'speed_performance': {
-            'score': speed_score,
-            'weight': '40%',
-            'description': '基于好天气速度和设计速度的匹配度评估'
-        },
-        'weather_adaptability': {
-            'score': weather_adaptability_score,
-            'weight': '35%',
-            'description': '基于坏天气下性能表现的评估'
-        },
-        'stability': {
-            'score': stability_score,
-            'weight': '15%',
-            'description': '基于不同天气条件下稳定性的评估'
-        },
-        'efficiency': {
-            'score': efficiency_score,
-            'weight': '10%',
-            'description': '基于燃油效率和运营效率的评估'
-        }
-    }
-    
-    return score_result
 
 
-def calculate_speed_performance_score(good_speed: float, design_speed: float, vessel_data: Dict[str, Any]) -> float:
-    """
-    计算速度性能评分
-    
-    评分标准：
-    - 好天气速度与设计速度的匹配度
-    - 考虑船舶类型和载重的实际影响
-    """
-    if good_speed <= 0 or design_speed <= 0:
-        return 60.0  # 数据缺失，给予及格分
-    
-    # 计算速度匹配度
-    speed_ratio = good_speed / design_speed
-    
-    # 基于实际航运经验的评分
-    if speed_ratio >= 0.95:  # 达到设计速度的95%以上
-        base_score = 95
-    elif speed_ratio >= 0.90:  # 达到设计速度的90%以上
-        base_score = 90
-    elif speed_ratio >= 0.85:  # 达到设计速度的85%以上
-        base_score = 85
-    elif speed_ratio >= 0.80:  # 达到设计速度的80%以上
-        base_score = 80
-    elif speed_ratio >= 0.75:  # 达到设计速度的75%以上
-        base_score = 75
-    elif speed_ratio >= 0.70:  # 达到设计速度的70%以上
-        base_score = 70
-    else:  # 低于设计速度的70%
-        base_score = 60
-    
-    # 考虑船舶类型的调整
-    vessel_type = vessel_data.get('vesselTypeNameCn', '')
-    if '集装箱' in vessel_type:
-        # 集装箱船对速度要求较高
-        if speed_ratio < 0.85:
-            base_score -= 5
-    elif 'LNG' in vessel_type or '液化气' in vessel_type:
-        # LNG船对速度要求相对较低
-        if speed_ratio >= 0.80:
-            base_score += 3
-    
-    # 考虑载重的影响
-    dwt = vessel_data.get('dwt', 0)
-    if dwt > 0:
-        if dwt >= 100000:  # 大型船舶
-            if speed_ratio >= 0.85:
-                base_score += 2
-        elif dwt < 10000:  # 小型船舶
-            if speed_ratio >= 0.90:
-                base_score += 3
-    
-    return min(100.0, max(0.0, base_score))
 
 
-def calculate_weather_adaptability_score(
-    good_speed: float, bad_speed: float, severe_speed: float, 
-    moderate_speed: float, general_speed: float
-) -> float:
-    """
-    计算天气适应性评分
-    
-    评分标准：
-    - 坏天气与好天气的速度对比
-    - 不同等级坏天气下的性能表现
-    """
-    if good_speed <= 0:
-        return 60.0
-    
-    # 基础天气适应性评分
-    if bad_speed > 0:
-        weather_ratio = bad_speed / good_speed
-        if weather_ratio >= 0.85:
-            base_score = 95  # 天气适应性优异
-        elif weather_ratio >= 0.75:
-            base_score = 90  # 天气适应性良好
-        elif weather_ratio >= 0.65:
-            base_score = 85  # 天气适应性较好
-        elif weather_ratio >= 0.55:
-            base_score = 80  # 天气适应性一般
-        elif weather_ratio >= 0.45:
-            base_score = 75  # 天气适应性较差
-        else:
-            base_score = 65  # 天气适应性差
-    else:
-        base_score = 70  # 数据不足
-    
-    # 考虑不同等级坏天气的表现
-    bonus_score = 0
-    
-    # 严重坏天气表现
-    if severe_speed > 0 and good_speed > 0:
-        severe_ratio = severe_speed / good_speed
-        if severe_ratio >= 0.60:
-            bonus_score += 3
-        elif severe_ratio >= 0.50:
-            bonus_score += 2
-        elif severe_ratio >= 0.40:
-            bonus_score += 1
-    
-    # 中等坏天气表现
-    if moderate_speed > 0 and good_speed > 0:
-        moderate_ratio = moderate_speed / good_speed
-        if moderate_ratio >= 0.75:
-            bonus_score += 2
-        elif moderate_ratio >= 0.65:
-            bonus_score += 1
-    
-    # 一般坏天气表现
-    if general_speed > 0 and good_speed > 0:
-        general_ratio = general_speed / good_speed
-        if general_ratio >= 0.85:
-            bonus_score += 2
-        elif general_ratio >= 0.75:
-            bonus_score += 1
-    
-    final_score = min(100.0, base_score + bonus_score)
-    return round(final_score, 1)
-
-
-def calculate_stability_score(weather_performance: Dict[str, float], vessel_data: Dict[str, Any]) -> float:
-    """
-    计算稳定性评分
-    
-    评分标准：
-    - 不同天气条件下的速度稳定性
-    - 船舶尺寸和载重的稳定性影响
-    """
-    good_speed = weather_performance.get('avg_good_weather_speed', 0)
-    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
-    
-    if good_speed <= 0:
-        return 70.0
-    
-    # 基于速度变化的稳定性评分
-    if bad_speed > 0:
-        speed_variation = abs(good_speed - bad_speed) / good_speed
-        
-        if speed_variation <= 0.15:  # 速度变化小于15%
-            base_score = 95
-        elif speed_variation <= 0.25:  # 速度变化小于25%
-            base_score = 90
-        elif speed_variation <= 0.35:  # 速度变化小于35%
-            base_score = 85
-        elif speed_variation <= 0.45:  # 速度变化小于45%
-            base_score = 80
-        elif speed_variation <= 0.55:  # 速度变化小于55%
-            base_score = 75
-        else:  # 速度变化大于55%
-            base_score = 70
-    else:
-        base_score = 75
-    
-    # 考虑船舶尺寸的稳定性影响
-    length = vessel_data.get('length', 0)
-    width = vessel_data.get('width', 0)
-    
-    if length > 0 and width > 0:
-        length_width_ratio = length / width
-        
-        # 长宽比在理想范围内，稳定性更好
-        if 5.5 <= length_width_ratio <= 7.5:
-            base_score += 3
-        elif 5.0 <= length_width_ratio < 5.5 or 7.5 < length_width_ratio <= 8.0:
-            base_score += 2
-        elif length_width_ratio < 4.5 or length_width_ratio > 8.5:
-            base_score -= 2
-    
-    # 考虑载重的稳定性影响
-    dwt = vessel_data.get('dwt', 0)
-    if dwt > 0:
-        if 50000 <= dwt <= 150000:  # 中等载重，稳定性较好
-            base_score += 2
-        elif dwt > 150000:  # 超大型船舶，稳定性挑战
-            base_score -= 1
-    
-    final_score = min(100.0, max(0.0, base_score))
-    return round(final_score, 1)
-
-
-def calculate_efficiency_score(weather_performance: Dict[str, float], vessel_data: Dict[str, Any]) -> float:
-    """
-    计算效率评分
-    
-    评分标准：
-    - 燃油效率（基于速度变化）
-    - 运营效率（基于天气适应性）
-    """
-    good_speed = weather_performance.get('avg_good_weather_speed', 0)
-    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
-    
-    if good_speed <= 0:
-        return 75.0
-    
-    # 基于天气适应性的效率评分
-    if bad_speed > 0:
-        efficiency_ratio = bad_speed / good_speed
-        
-        if efficiency_ratio >= 0.80:
-            base_score = 95  # 效率优异
-        elif efficiency_ratio >= 0.70:
-            base_score = 90  # 效率良好
-        elif efficiency_ratio >= 0.60:
-            base_score = 85  # 效率较好
-        elif efficiency_ratio >= 0.50:
-            base_score = 75  # 效率较差
-        else:
-            base_score = 70  # 效率差
-    else:
-        base_score = 80
-    
-    # 考虑船型的效率特点
-    vessel_type = vessel_data.get('vesselTypeNameCn', '')
-    if '集装箱' in vessel_type:
-        # 集装箱船对效率要求较高
-        if base_score >= 85:
-            base_score += 3
-        elif base_score < 75:
-            base_score -= 2
-    elif 'LNG' in vessel_type or '液化气' in vessel_type:
-        # LNG船效率要求相对较低
-        if base_score >= 80:
-            base_score += 2
-    
-    final_score = min(100.0, max(0.0, base_score))
-    return round(final_score, 1)
-
-
-def generate_improvement_suggestions(
-    dimension_scores: Dict[str, float], 
-    total_score: float, 
-    vessel_data: Dict[str, Any]
-) -> List[str]:
-    """
-    生成改进建议
-    
-    基于各维度评分和总分，提供针对性的改进建议
-    """
-    suggestions = []
-    
-    # 基于总分的总体建议
-    if total_score >= 90:
-        suggestions.append('船舶性能优异，建议保持当前运营标准，可考虑高端市场运营')
-    elif total_score >= 80:
-        suggestions.append('船舶性能良好，建议在现有基础上进行小幅优化，提高竞争力')
-    elif total_score >= 70:
-        suggestions.append('船舶性能一般，建议进行系统性优化，重点关注薄弱环节')
-    elif total_score >= 60:
-        suggestions.append('船舶性能较差，建议进行全面评估和改进，可能需要设备升级')
-    else:
-        suggestions.append('船舶性能差，建议进行深度评估，考虑是否适合继续运营')
-    
-    # 基于各维度评分的具体建议
-    speed_score = dimension_scores.get('speed_performance', 0)
-    if speed_score < 80:
-        suggestions.append('速度性能有待提升，建议检查推进系统、船体清洁度和载重分布')
-    
-    weather_score = dimension_scores.get('weather_adaptability', 0)
-    if weather_score < 80:
-        suggestions.append('天气适应性需要改善，建议优化航线选择，避开恶劣天气期')
-    
-    stability_score = dimension_scores.get('stability', 0)
-    if stability_score < 80:
-        suggestions.append('稳定性需要加强，建议检查船舶维护状态，优化载重分布')
-    
-    efficiency_score = dimension_scores.get('efficiency', 0)
-    if efficiency_score < 80:
-        suggestions.append('运营效率有待提高，建议优化航速策略，改进燃油管理')
-    
-    # 基于船型的特定建议
-    vessel_type = vessel_data.get('vesselTypeNameCn', '')
-    if '集装箱' in vessel_type and total_score < 85:
-        suggestions.append('集装箱船对性能要求较高，建议优先提升速度和稳定性')
-    elif 'LNG' in vessel_type and total_score < 80:
-        suggestions.append('LNG船对安全要求极高，建议优先提升稳定性和天气适应性')
-    
-    return suggestions
 
 
 # 默认启用生产模式
@@ -5118,7 +4562,7 @@ def generate_seasonal_recommendations(vessel_data: Dict[str, Any], weather_perfo
     
     # 1. 基于船舶性能的季节性建议
     if good_speed > 0 and bad_speed > 0:
-        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        speed_reduction = safe_division((good_speed - bad_speed), good_speed, 0.0) * 100
         
         if speed_reduction <= 20:  # 天气适应性好
             recommendations.append('船舶天气适应性优异，适合全年运营，包括台风季节和高纬度冬季航线')
