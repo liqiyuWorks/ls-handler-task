@@ -2835,7 +2835,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def run(self):
         try:
             query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}, "perf_calculated": {"$ne": 0}}
-            query_sql: Dict[str, Any] = {"mmsi": 356822000} # 调试
+            # query_sql: Dict[str, Any] = {"mmsi": 356822000} # 调试
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
 
