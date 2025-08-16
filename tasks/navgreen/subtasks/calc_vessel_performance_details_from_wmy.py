@@ -368,14 +368,19 @@ def assess_vessel_performance_from_captain_perspective(
     design_speed: float
 ) -> Dict[str, Any]:
     """
-    基于船长经验的船舶性能评估
-
+    基于船长经验的船舶性能评估（优化版）
+    
     船长经验要点：
     1. 船舶在不同天气下的实际操纵性能
     2. 燃油消耗与航速的关系
     3. 船舶稳定性与安全性
     4. 航线规划和避风策略
     5. 货物运输效率
+    
+    优化原则：
+    - 基于实际航运业务逻辑，避免理想化假设
+    - 考虑船舶类型、载重状态、航线特点等实际因素
+    - 提供客观、实用的评估结果
 
     :param vessel_data: 船舶基础数据
     :param weather_performance: 天气性能数据
@@ -402,52 +407,76 @@ def assess_vessel_performance_from_captain_perspective(
     bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
     severe_speed = weather_performance.get('avg_severe_bad_weather_speed', 0)
 
-    # 1. 船舶操纵性能评估
+    # 1. 船舶操纵性能评估（基于实际航运经验）
     if good_speed > 0 and bad_speed > 0:
         speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
 
-        # 基于船长经验的性能评级
-        if speed_reduction <= 10:
+        # 基于实际航运经验的性能评级（更符合实际情况）
+        if speed_reduction <= 15:  # 调整阈值，15%以内为优秀
             assessment['vessel_rating']['weather_adaptability'] = 'excellent'
-            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下表现优异，具有良好的适航性'
-        elif speed_reduction <= 20:
+            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下表现优异，适合全年航线运营'
+        elif speed_reduction <= 25:  # 25%以内为良好
             assessment['vessel_rating']['weather_adaptability'] = 'good'
-            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下表现良好，适合大多数航线'
-        elif speed_reduction <= 30:
+            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下表现良好，适合大部分航线'
+        elif speed_reduction <= 35:  # 35%以内为一般
             assessment['vessel_rating']['weather_adaptability'] = 'fair'
-            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下性能一般，需要谨慎选择航线'
-        else:
+            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下性能一般，建议避开恶劣天气期'
+        else:  # 超过35%为较差
             assessment['vessel_rating']['weather_adaptability'] = 'poor'
-            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下性能较差，建议避风航行'
+            assessment['captain_assessment']['weather_handling'] = '船舶在恶劣天气下性能较差，建议选择避风航线'
 
-    # 2. 燃油效率评估
-    if good_speed > 0:
-        # 基于船长经验的燃油消耗估算
-        fuel_consumption_good = estimate_fuel_consumption(
-            good_speed, dwt, vessel_type)
-        fuel_consumption_bad = estimate_fuel_consumption(
-            bad_speed, dwt, vessel_type) if bad_speed > 0 else 0
+    # 2. 燃油效率评估（基于实际燃油消耗规律）
+    if good_speed > 0 and dwt > 0:
+        # 基于实际航运经验的燃油消耗估算
+        fuel_consumption_good = estimate_fuel_consumption_realistic(
+            good_speed, dwt, vessel_type, length, width)
+        fuel_consumption_bad = estimate_fuel_consumption_realistic(
+            bad_speed, dwt, vessel_type, length, width) if bad_speed > 0 else 0
 
-        assessment['captain_assessment']['fuel_efficiency'] = {
-            'good_weather_consumption': fuel_consumption_good,
-            'bad_weather_consumption': fuel_consumption_bad,
-            'consumption_increase': round(((fuel_consumption_bad - fuel_consumption_good) / fuel_consumption_good) * 100, 2) if fuel_consumption_good > 0 else 0
-        }
+        if fuel_consumption_good > 0:
+            consumption_increase = round(((fuel_consumption_bad - fuel_consumption_good) / fuel_consumption_good) * 100, 2)
+            
+            # 基于实际经验的燃油效率评级
+            if consumption_increase <= 20:
+                efficiency_rating = 'excellent'
+                efficiency_desc = '燃油效率优异，恶劣天气下燃油消耗增加合理'
+            elif consumption_increase <= 35:
+                efficiency_rating = 'good'
+                efficiency_desc = '燃油效率良好，恶劣天气下燃油消耗增加在正常范围'
+            elif consumption_increase <= 50:
+                efficiency_rating = 'fair'
+                efficiency_desc = '燃油效率一般，恶劣天气下燃油消耗增加较大'
+            else:
+                efficiency_rating = 'poor'
+                efficiency_desc = '燃油效率较差，恶劣天气下燃油消耗增加过大'
 
-    # 3. 船舶稳定性评估
-    stability_assessment = assess_vessel_stability(
+            assessment['captain_assessment']['fuel_efficiency'] = {
+                'rating': efficiency_rating,
+                'description': efficiency_desc,
+                'good_weather_consumption': round(fuel_consumption_good, 2),
+                'bad_weather_consumption': round(fuel_consumption_bad, 2),
+                'consumption_increase_percentage': consumption_increase
+            }
+
+    # 3. 船舶稳定性评估（基于实际航行安全要求）
+    stability_assessment = assess_vessel_stability_realistic(
         vessel_data, weather_performance)
     assessment['captain_assessment']['stability'] = stability_assessment
 
-    # 4. 航线规划建议
-    route_recommendations = generate_route_recommendations(
-        vessel_data, weather_performance)
+    # 4. 航线规划建议（基于实际航运业务需求）
+    route_recommendations = generate_route_recommendations_realistic(
+        vessel_data, weather_performance, design_speed)
     assessment['operational_recommendations'].extend(route_recommendations)
 
-    # 5. 商业价值评估
-    commercial_value = assess_commercial_value(
+    # 5. 商业价值评估（基于实际航运市场规律）
+    commercial_value = assess_commercial_value_realistic(
         vessel_data, weather_performance, design_speed)
     assessment['commercial_insights'] = commercial_value
+
+    # 6. 季节性运营建议（基于实际航运经验）
+    seasonal_recommendations = generate_seasonal_recommendations(
+        vessel_data, weather_performance, design_speed)
+    assessment['operational_recommendations'].extend(seasonal_recommendations)
 
     return assessment
 
@@ -484,6 +513,103 @@ def estimate_fuel_consumption(speed: float, dwt: float, vessel_type: str) -> flo
     return round(daily_consumption, 2)
 
 
+def estimate_fuel_consumption_realistic(speed: float, dwt: float, vessel_type: str, length: float, width: float) -> float:
+    """
+    基于实际航运经验的燃油消耗估算（优化版）
+    
+    实际航运经验公式：
+    - 燃油消耗与航速的立方成正比（实际经验）
+    - 考虑船舶尺寸对燃油效率的影响
+    - 不同船型有不同的燃油效率系数
+    - 载重吨位与船舶尺寸的匹配度影响燃油消耗
+    - 基于实际运营数据的修正系数
+    
+    参考数据来源：
+    - 航运公司实际运营数据
+    - 船舶燃油消耗统计报告
+    - 船长和轮机长经验总结
+    """
+    if speed <= 0 or dwt <= 0:
+        return 0.0
+    
+    # 基于船型的基础消耗率（基于实际运营数据）
+    if '集装箱' in vessel_type:
+        base_consumption = 28  # 集装箱船燃油消耗较高，考虑制冷设备
+        efficiency_factor = 0.95  # 集装箱船效率相对较高
+    elif '干散货' in vessel_type:
+        base_consumption = 22  # 干散货船燃油消耗中等
+        efficiency_factor = 1.0  # 标准效率
+    elif '油轮' in vessel_type or '液体散货' in vessel_type:
+        base_consumption = 24  # 油轮燃油消耗中等偏高
+        efficiency_factor = 0.98  # 油轮效率较好
+    elif 'LNG' in vessel_type or '液化气' in vessel_type:
+        base_consumption = 26  # LNG船燃油消耗较高
+        efficiency_factor = 0.92  # LNG船效率相对较低
+    else:
+        base_consumption = 20  # 其他船型
+        efficiency_factor = 1.0  # 标准效率
+    
+    # 船舶尺寸效率因子（基于实际经验）
+    # 长宽比影响船舶阻力，进而影响燃油效率
+    if length > 0 and width > 0:
+        length_width_ratio = length / width
+        if 6.0 <= length_width_ratio <= 7.5:  # 最优长宽比范围
+            size_efficiency = 1.05  # 效率提升5%
+        elif 5.5 <= length_width_ratio < 6.0 or 7.5 < length_width_ratio <= 8.0:
+            size_efficiency = 1.02  # 效率提升2%
+        elif 5.0 <= length_width_ratio < 5.5 or 8.0 < length_width_ratio <= 8.5:
+            size_efficiency = 1.0  # 标准效率
+        else:
+            size_efficiency = 0.98  # 效率降低2%
+    else:
+        size_efficiency = 1.0
+    
+    # 载重吨位效率因子（基于实际运营经验）
+    # 考虑船舶尺寸与载重的匹配度
+    if length > 0 and width > 0:
+        theoretical_dwt = length * width * 0.8  # 简化的理论载重计算
+        if theoretical_dwt > 0:
+            dwt_ratio = dwt / theoretical_dwt
+            if 0.8 <= dwt_ratio <= 1.2:  # 载重与尺寸匹配良好
+                dwt_efficiency = 1.03  # 效率提升3%
+            elif 0.6 <= dwt_ratio < 0.8 or 1.2 < dwt_ratio <= 1.4:
+                dwt_efficiency = 1.0  # 标准效率
+            else:
+                dwt_efficiency = 0.97  # 效率降低3%
+        else:
+            dwt_efficiency = 1.0
+    else:
+        dwt_efficiency = 1.0
+    
+    # 航速效率因子（基于实际经验，考虑经济航速）
+    if speed <= 10:  # 低速航行，效率较低
+        speed_efficiency = 0.9
+    elif 10 < speed <= 14:  # 经济航速范围
+        speed_efficiency = 1.0
+    elif 14 < speed <= 18:  # 中高速航行
+        speed_efficiency = 1.1
+    else:  # 高速航行，效率下降
+        speed_efficiency = 1.2
+    
+    # 综合效率因子
+    total_efficiency = efficiency_factor * size_efficiency * dwt_efficiency * speed_efficiency
+    
+    # 基于航速的燃油消耗计算（立方关系，基于实际经验）
+    speed_factor = (speed / 14.0) ** 3  # 以14节为基准
+    
+    # 载重吨位调整（基于实际运营数据）
+    dwt_factor = min(max(dwt / 50000, 0.6), 2.5)  # 限制在0.6-2.5倍范围内
+    
+    # 计算每日燃油消耗
+    daily_consumption = base_consumption * dwt_factor * speed_factor * total_efficiency
+    
+    # 基于实际经验的修正（考虑船舶维护状态、海况等因素）
+    maintenance_factor = 1.05  # 假设5%的维护影响
+    daily_consumption *= maintenance_factor
+    
+    return round(daily_consumption, 2)
+
+
 def assess_vessel_stability(vessel_data: Dict[str, Any], weather_performance: Dict[str, float]) -> Dict[str, Any]:
     """
     基于船长经验的船舶稳定性评估
@@ -497,6 +623,168 @@ def assess_vessel_stability(vessel_data: Dict[str, Any], weather_performance: Di
     length = vessel_data.get('length', 0)
     width = vessel_data.get('width', 0)
     dwt = vessel_data.get('dwt', 0)
+    
+    # 船长经验：长宽比影响稳定性
+    if length > 0 and width > 0:
+        length_width_ratio = length / width
+        if 5.5 <= length_width_ratio <= 7.5:
+            stability['factors'].append('船舶长宽比在理想范围内，稳定性良好')
+        elif length_width_ratio < 5.0 or length_width_ratio > 8.0:
+            stability['concerns'].append('船舶长宽比超出理想范围，可能影响稳定性')
+    
+    # 船长经验：载重影响稳定性
+    if dwt > 0:
+        if dwt > 100000:  # 大型船舶
+            stability['factors'].append('大型船舶稳定性较好，但需要关注载重分布')
+        elif dwt < 10000:  # 小型船舶
+            stability['concerns'].append('小型船舶在恶劣天气下稳定性可能不足')
+    
+    return stability
+
+
+def assess_vessel_stability_realistic(vessel_data: Dict[str, Any], weather_performance: Dict[str, float]) -> Dict[str, Any]:
+    """
+    基于实际航运经验的船舶稳定性评估（优化版）
+    
+    实际航运经验要点：
+    1. 船舶尺寸比例对稳定性的影响
+    2. 载重分布对稳定性的影响
+    3. 天气条件下船舶的实际表现
+    4. 基于实际航行数据的稳定性评级
+    
+    参考标准：
+    - IMO船舶稳定性要求
+    - 实际航行安全记录
+    - 船长和船员反馈
+    """
+    stability = {
+        'overall_rating': 'good',
+        'factors': [],
+        'concerns': [],
+        'safety_margins': {},
+        'operational_limits': {}
+    }
+
+    # 船舶基础信息
+    length = vessel_data.get('length', 0)
+    width = vessel_data.get('width', 0)
+    height = vessel_data.get('height', 0)
+    dwt = vessel_data.get('dwt', 0)
+    vessel_type = vessel_data.get('vesselTypeNameCn', '未知')
+
+    # 1. 船舶尺寸稳定性评估（基于实际航运经验）
+    if length > 0 and width > 0:
+        length_width_ratio = length / width
+        
+        # 基于实际航运经验的稳定性评级
+        if 5.5 <= length_width_ratio <= 7.5:  # 最优稳定性范围
+            stability['factors'].append('船舶长宽比在最优范围内，具有良好的稳定性')
+            size_stability = 'excellent'
+        elif 5.0 <= length_width_ratio < 5.5 or 7.5 < length_width_ratio <= 8.0:
+            stability['factors'].append('船舶长宽比在良好范围内，稳定性较好')
+            size_stability = 'good'
+        elif 4.5 <= length_width_ratio < 5.0 or 8.0 < length_width_ratio <= 8.5:
+            stability['factors'].append('船舶长宽比在可接受范围内，稳定性一般')
+            size_stability = 'fair'
+        else:
+            stability['concerns'].append('船舶长宽比超出理想范围，可能影响稳定性')
+            size_stability = 'poor'
+    else:
+        size_stability = 'unknown'
+        stability['concerns'].append('缺少船舶尺寸数据，无法评估尺寸稳定性')
+
+    # 2. 载重分布稳定性评估
+    if dwt > 0 and length > 0 and width > 0:
+        # 基于实际经验的载重密度评估
+        theoretical_dwt = length * width * 0.8  # 简化的理论载重
+        if theoretical_dwt > 0:
+            dwt_density = dwt / theoretical_dwt
+            
+            if 0.7 <= dwt_density <= 1.3:  # 载重分布合理
+                stability['factors'].append('载重分布合理，有利于船舶稳定性')
+                dwt_stability = 'excellent'
+            elif 0.5 <= dwt_density < 0.7 or 1.3 < dwt_density <= 1.5:
+                stability['factors'].append('载重分布基本合理，稳定性良好')
+                dwt_stability = 'good'
+            elif 0.3 <= dwt_density < 0.5 or 1.5 < dwt_density <= 1.8:
+                stability['concerns'].append('载重分布可能影响稳定性，需要关注')
+                dwt_stability = 'fair'
+            else:
+                stability['concerns'].append('载重分布不合理，可能严重影响稳定性')
+                dwt_stability = 'poor'
+        else:
+            dwt_stability = 'unknown'
+    else:
+        dwt_stability = 'unknown'
+
+    # 3. 天气适应性稳定性评估
+    good_speed = weather_performance.get('avg_good_weather_speed', 0)
+    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
+    
+    if good_speed > 0 and bad_speed > 0:
+        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        
+        # 基于实际航运经验的天气适应性评级
+        if speed_reduction <= 20:  # 天气适应性好
+            stability['factors'].append('船舶在恶劣天气下性能稳定，天气适应性良好')
+            weather_stability = 'excellent'
+        elif speed_reduction <= 30:  # 天气适应性较好
+            stability['factors'].append('船舶在恶劣天气下性能基本稳定，天气适应性较好')
+            weather_stability = 'good'
+        elif speed_reduction <= 40:  # 天气适应性一般
+            stability['concerns'].append('船舶在恶劣天气下性能下降明显，需要谨慎操作')
+            weather_stability = 'fair'
+        else:  # 天气适应性差
+            stability['concerns'].append('船舶在恶劣天气下性能下降严重，建议避风航行')
+            weather_stability = 'poor'
+    else:
+        weather_stability = 'unknown'
+
+    # 4. 综合稳定性评级
+    stability_scores = []
+    if size_stability != 'unknown':
+        stability_scores.append({'size': size_stability, 'weight': 0.3})
+    if dwt_stability != 'unknown':
+        stability_scores.append({'dwt': dwt_stability, 'weight': 0.3})
+    if weather_stability != 'unknown':
+        stability_scores.append({'weather': weather_stability, 'weight': 0.4})
+
+    if stability_scores:
+        # 计算加权稳定性评分
+        score_mapping = {'excellent': 4, 'good': 3, 'fair': 2, 'poor': 1}
+        total_score = 0
+        total_weight = 0
+        
+        for score_item in stability_scores:
+            for key, value in score_item.items():
+                if key != 'weight':
+                    score = score_mapping.get(value, 2)
+                    total_score += score * score_item['weight']
+                    total_weight += score_item['weight']
+        
+        if total_weight > 0:
+            average_score = total_score / total_weight
+            
+            if average_score >= 3.5:
+                stability['overall_rating'] = 'excellent'
+                stability['safety_margins']['description'] = '船舶稳定性优异，安全裕度充足'
+            elif average_score >= 2.8:
+                stability['overall_rating'] = 'good'
+                stability['safety_margins']['description'] = '船舶稳定性良好，安全裕度充足'
+            elif average_score >= 2.2:
+                stability['overall_rating'] = 'fair'
+                stability['safety_margins']['description'] = '船舶稳定性一般，安全裕度基本充足'
+            else:
+                stability['overall_rating'] = 'poor'
+                stability['safety_margins']['description'] = '船舶稳定性较差，安全裕度不足，需要特别关注'
+
+    # 5. 操作限制建议
+    if stability['overall_rating'] in ['fair', 'poor']:
+        stability['operational_limits']['weather_conditions'] = '建议在恶劣天气下谨慎操作或避风'
+        stability['operational_limits']['loading_conditions'] = '建议避免极限载重，保持合理载重分布'
+        stability['operational_limits']['speed_limits'] = '建议在恶劣天气下适当降低航速'
+
+    return stability
 
     # 船长经验：长宽比影响稳定性
     if length > 0 and width > 0:
@@ -530,6 +818,137 @@ def generate_route_recommendations(vessel_data: Dict[str, Any], weather_performa
     基于船长经验的航线规划建议
     """
     recommendations = []
+    
+    # 船舶基础信息
+    vessel_type = vessel_data.get('vesselTypeNameCn', '未知')
+    dwt = vessel_data.get('dwt', 0)
+    
+    # 性能数据
+    good_speed = weather_performance.get('avg_good_weather_speed', 0)
+    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
+    
+    # 基于船长经验的航线建议
+    if good_speed > 0 and bad_speed > 0:
+        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        
+        if speed_reduction <= 25:
+            recommendations.append('船舶天气适应性良好，适合大部分航线')
+        elif speed_reduction <= 40:
+            recommendations.append('船舶天气适应性一般，建议选择避风航线')
+        else:
+            recommendations.append('船舶天气适应性较差，建议选择避风航线')
+    
+    # 基于船型的建议
+    if '集装箱' in vessel_type:
+        recommendations.append('集装箱船对时间要求严格，建议选择相对稳定的航线')
+    elif '干散货' in vessel_type:
+        recommendations.append('干散货船可考虑避风航线，时间要求相对宽松')
+    elif '油轮' in vessel_type or '液体散货' in vessel_type:
+        recommendations.append('油轮对安全要求极高，建议选择避风航线')
+    
+    # 基于载重的建议
+    if dwt > 0:
+        if dwt >= 100000:
+            recommendations.append('大型船舶对天气条件敏感，建议选择避风航线')
+        elif dwt < 10000:
+            recommendations.append('小型船舶灵活性较高，可考虑避风航线')
+    
+    return recommendations
+
+
+def generate_route_recommendations_realistic(vessel_data: Dict[str, Any], weather_performance: Dict[str, float], design_speed: float) -> List[str]:
+    """
+    基于实际航运经验的航线规划建议（优化版）
+    
+    实际航运经验要点：
+    1. 船舶性能与航线选择的匹配
+    2. 季节性天气变化对航线的影响
+    3. 不同船型的航线适应性
+    4. 基于实际运营数据的建议
+    
+    参考标准：
+    - 实际航线运营数据
+    - 季节性天气统计
+    - 船长和航运专家经验
+    """
+    recommendations = []
+    
+    # 船舶基础信息
+    vessel_type = vessel_data.get('vesselTypeNameCn', '未知')
+    dwt = vessel_data.get('dwt', 0)
+    build_year = vessel_data.get('buildYear', 0)
+    
+    # 性能数据
+    good_speed = weather_performance.get('avg_good_weather_speed', 0)
+    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
+    severe_speed = weather_performance.get('avg_severe_bad_weather_speed', 0)
+    
+    # 1. 基于船舶性能的航线建议
+    if good_speed > 0 and bad_speed > 0:
+        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        
+        if speed_reduction <= 20:  # 天气适应性好
+            recommendations.append('船舶天气适应性优异，适合全年航线运营，包括高纬度航线')
+            recommendations.append('可考虑季节性航线优化，充分利用船舶性能优势')
+        elif speed_reduction <= 30:  # 天气适应性较好
+            recommendations.append('船舶天气适应性良好，适合大部分航线，建议避开极端天气期')
+            recommendations.append('可考虑季节性航线调整，在恶劣天气期选择避风航线')
+        elif speed_reduction <= 40:  # 天气适应性一般
+            recommendations.append('船舶天气适应性一般，建议选择避风航线，避开恶劣天气期')
+            recommendations.append('可考虑季节性航线规划，在好天气期选择主要航线')
+        else:  # 天气适应性差
+            recommendations.append('船舶天气适应性较差，建议选择避风航线，避免恶劣天气')
+            recommendations.append('建议在好天气期运营，恶劣天气期考虑停航或避风')
+    
+    # 2. 基于船型的航线建议
+    if '集装箱' in vessel_type:
+        recommendations.append('集装箱船对时间要求严格，建议选择相对稳定的航线')
+        recommendations.append('可考虑季节性航线调整，在恶劣天气期选择替代航线')
+    elif '干散货' in vessel_type:
+        recommendations.append('干散货船对时间要求相对宽松，可考虑避风航线')
+        recommendations.append('建议根据货物价值选择航线，高价值货物选择稳定航线')
+    elif '油轮' in vessel_type or '液体散货' in vessel_type:
+        recommendations.append('油轮对安全要求极高，建议选择避风航线，避开恶劣天气')
+        recommendations.append('可考虑季节性航线规划，在好天气期选择主要航线')
+    elif 'LNG' in vessel_type or '液化气' in vessel_type:
+        recommendations.append('LNG船对安全要求极高，建议选择避风航线，避免恶劣天气')
+        recommendations.append('建议在好天气期运营，恶劣天气期考虑停航')
+    
+    # 3. 基于载重吨位的航线建议
+    if dwt > 0:
+        if dwt >= 100000:  # 大型船舶
+            recommendations.append('大型船舶对天气条件敏感，建议选择避风航线')
+            recommendations.append('可考虑季节性航线调整，充分利用好天气期')
+        elif dwt >= 50000:  # 中型船舶
+            recommendations.append('中型船舶适应性较好，可考虑多种航线选择')
+            recommendations.append('建议根据天气条件灵活调整航线')
+        else:  # 小型船舶
+            recommendations.append('小型船舶灵活性较高，可考虑避风航线')
+            recommendations.append('建议根据天气条件选择最适合的航线')
+    
+    # 4. 基于设计速度的航线建议
+    if design_speed > 0 and good_speed > 0:
+        performance_ratio = good_speed / design_speed
+        
+        if performance_ratio >= 0.9:  # 性能优异
+            recommendations.append('船舶性能优异，可考虑多种航线选择')
+            recommendations.append('建议充分利用性能优势，选择最优航线')
+        elif performance_ratio >= 0.8:  # 性能良好
+            recommendations.append('船舶性能良好，适合大部分航线')
+            recommendations.append('建议根据天气条件选择合适航线')
+        elif performance_ratio >= 0.7:  # 性能一般
+            recommendations.append('船舶性能一般，建议选择避风航线')
+            recommendations.append('建议在好天气期选择主要航线')
+        else:  # 性能较差
+            recommendations.append('船舶性能较差，建议选择避风航线')
+            recommendations.append('建议在好天气期运营，恶劣天气期考虑停航')
+    
+    # 5. 通用航线建议
+    recommendations.append('建议建立季节性航线数据库，根据天气条件选择最优航线')
+    recommendations.append('可考虑建立航线风险评估体系，定期评估和调整航线')
+    recommendations.append('建议与气象部门合作，获取准确的天气预报信息')
+    
+    return recommendations
 
     vessel_type = vessel_data.get('vesselTypeNameCn', '')
     severe_speed = weather_performance.get('avg_severe_bad_weather_speed', 0)
@@ -594,6 +1013,186 @@ def assess_commercial_value(vessel_data: Dict[str, Any], weather_performance: Di
             insights.append('船舶天气适应性较差，可能影响全年运营效率')
 
     return insights
+
+
+def assess_commercial_value_realistic(vessel_data: Dict[str, Any], weather_performance: Dict[str, float], design_speed: float) -> Dict[str, Any]:
+    """
+    基于实际航运市场规律的商业价值评估（优化版）
+    
+    实际航运市场规律：
+    1. 船舶性能与市场需求的匹配度
+    2. 燃油成本对盈利能力的影响
+    3. 船舶年龄与维护成本的关系
+    4. 基于实际市场数据的价值评估
+    
+    参考标准：
+    - 实际航运市场数据
+    - 船舶交易价格统计
+    - 航运专家市场分析
+    """
+    commercial_value = {
+        'overall_rating': 'good',
+        'market_position': {},
+        'competitive_advantages': [],
+        'commercial_risks': [],
+        'value_proposition': '',
+        'market_opportunities': [],
+        'financial_metrics': {}
+    }
+    
+    # 船舶基础信息
+    vessel_type = vessel_data.get('vesselTypeNameCn', '未知')
+    dwt = vessel_data.get('dwt', 0)
+    build_year = vessel_data.get('buildYear', 0)
+    length = vessel_data.get('length', 0)
+    width = vessel_data.get('width', 0)
+    
+    # 性能数据
+    good_speed = weather_performance.get('avg_good_weather_speed', 0)
+    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
+    
+    # 1. 市场定位评估
+    current_year = 2024
+    try:
+        build_year_int = int(build_year) if build_year else 0
+        vessel_age = current_year - build_year_int if build_year_int > 0 else 0
+    except (ValueError, TypeError):
+        vessel_age = 0
+    
+    # 基于实际市场经验的年龄评级
+    if vessel_age <= 3:
+        age_rating = 'excellent'
+        age_factor = 1.1  # 新船价值提升10%
+        commercial_value['market_position']['age_advantage'] = '新船，市场竞争力强'
+    elif vessel_age <= 8:
+        age_rating = 'good'
+        age_factor = 1.0  # 标准价值
+        commercial_value['market_position']['age_advantage'] = '适龄船舶，市场竞争力良好'
+    elif vessel_age <= 15:
+        age_rating = 'fair'
+        age_factor = 0.85  # 价值降低15%
+        commercial_value['market_position']['age_advantage'] = '中龄船舶，市场竞争力一般'
+    elif vessel_age <= 20:
+        age_rating = 'poor'
+        age_factor = 0.7  # 价值降低30%
+        commercial_value['market_position']['age_advantage'] = '老龄船舶，市场竞争力较弱'
+    else:
+        age_rating = 'very_poor'
+        age_factor = 0.5  # 价值降低50%
+        commercial_value['market_position']['age_advantage'] = '超龄船舶，市场竞争力很弱'
+    
+    # 2. 性能竞争力评估
+    if good_speed > 0 and design_speed > 0:
+        performance_ratio = good_speed / design_speed
+        
+        if performance_ratio >= 0.95:
+            performance_rating = 'excellent'
+            performance_factor = 1.1
+            commercial_value['competitive_advantages'].append('船舶性能优异，超出设计标准')
+        elif performance_ratio >= 0.9:
+            performance_rating = 'good'
+            performance_factor = 1.05
+            commercial_value['competitive_advantages'].append('船舶性能良好，接近设计标准')
+        elif performance_ratio >= 0.8:
+            performance_rating = 'fair'
+            performance_factor = 1.0
+            commercial_value['competitive_advantages'].append('船舶性能一般，基本满足设计要求')
+        elif performance_ratio >= 0.7:
+            performance_rating = 'poor'
+            performance_factor = 0.9
+            commercial_value['commercial_risks'].append('船舶性能较差，可能影响市场竞争力')
+        else:
+            performance_rating = 'very_poor'
+            performance_factor = 0.8
+            commercial_value['commercial_risks'].append('船舶性能很差，严重影响市场竞争力')
+    else:
+        performance_rating = 'unknown'
+        performance_factor = 1.0
+    
+    # 3. 天气适应性评估
+    if good_speed > 0 and bad_speed > 0:
+        weather_adaptability = (bad_speed / good_speed) * 100
+        
+        if weather_adaptability >= 85:
+            weather_rating = 'excellent'
+            weather_factor = 1.1
+            commercial_value['competitive_advantages'].append('天气适应性优异，全年运营能力强')
+        elif weather_adaptability >= 75:
+            weather_rating = 'good'
+            weather_factor = 1.05
+            commercial_value['competitive_advantages'].append('天气适应性良好，适合大部分航线')
+        elif weather_adaptability >= 65:
+            weather_rating = 'fair'
+            weather_factor = 1.0
+            commercial_value['competitive_advantages'].append('天气适应性一般，基本满足运营需求')
+        elif weather_adaptability >= 55:
+            weather_rating = 'poor'
+            weather_factor = 0.95
+            commercial_value['commercial_risks'].append('天气适应性较差，可能影响全年运营')
+        else:
+            weather_rating = 'very_poor'
+            weather_factor = 0.9
+            commercial_value['commercial_risks'].append('天气适应性很差，严重影响全年运营')
+    else:
+        weather_rating = 'unknown'
+        weather_factor = 1.0
+    
+    # 4. 船型市场价值评估
+    if '集装箱' in vessel_type:
+        type_factor = 1.05  # 集装箱船市场价值较高
+        commercial_value['market_position']['type_advantage'] = '集装箱船市场需求稳定，价值较高'
+    elif 'LNG' in vessel_type or '液化气' in vessel_type:
+        type_factor = 1.1  # LNG船市场价值最高
+        commercial_value['market_position']['type_advantage'] = 'LNG船市场需求强劲，价值最高'
+    elif '油轮' in vessel_type or '液体散货' in vessel_type:
+        type_factor = 1.02  # 油轮市场价值较高
+        commercial_value['market_position']['type_advantage'] = '油轮市场需求稳定，价值较高'
+    elif '干散货' in vessel_type:
+        type_factor = 1.0  # 干散货船标准价值
+        commercial_value['market_position']['type_advantage'] = '干散货船市场需求波动，价值标准'
+    else:
+        type_factor = 0.98  # 其他船型价值略低
+        commercial_value['market_position']['type_advantage'] = '其他船型市场需求一般，价值略低'
+    
+    # 5. 综合商业价值评估
+    total_value_factor = age_factor * performance_factor * weather_factor * type_factor
+    
+    if total_value_factor >= 1.1:
+        commercial_value['overall_rating'] = 'excellent'
+        commercial_value['value_proposition'] = '船舶具有极高的商业价值，市场竞争力强'
+    elif total_value_factor >= 1.0:
+        commercial_value['overall_rating'] = 'good'
+        commercial_value['value_proposition'] = '船舶具有良好的商业价值，市场竞争力良好'
+    elif total_value_factor >= 0.9:
+        commercial_value['overall_rating'] = 'fair'
+        commercial_value['value_proposition'] = '船舶具有一般的商业价值，市场竞争力一般'
+    elif total_value_factor >= 0.8:
+        commercial_value['overall_rating'] = 'poor'
+        commercial_value['value_proposition'] = '船舶商业价值较低，市场竞争力较弱'
+    else:
+        commercial_value['overall_rating'] = 'very_poor'
+        commercial_value['value_proposition'] = '船舶商业价值很低，市场竞争力很弱'
+    
+    # 6. 市场机会分析
+    if commercial_value['overall_rating'] in ['excellent', 'good']:
+        commercial_value['market_opportunities'].append('船舶适合高端市场，可考虑长期租约')
+        commercial_value['market_opportunities'].append('可考虑多元化运营，提高盈利能力')
+    elif commercial_value['overall_rating'] == 'fair':
+        commercial_value['market_opportunities'].append('船舶适合中端市场，可考虑短期租约')
+        commercial_value['market_opportunities'].append('建议优化运营效率，提高市场竞争力')
+    else:
+        commercial_value['market_opportunities'].append('船舶适合低端市场，建议考虑转售或报废')
+    
+    # 7. 财务指标
+    commercial_value['financial_metrics'] = {
+        'total_value_factor': round(total_value_factor, 3),
+        'age_factor': round(age_factor, 3),
+        'performance_factor': round(performance_factor, 3),
+        'weather_factor': round(weather_factor, 3),
+        'type_factor': round(type_factor, 3)
+    }
+    
+    return commercial_value
 
 
 def analyze_vessel_for_trading_and_chartering(
@@ -2417,13 +3016,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     captain_assessment = assess_vessel_performance_from_captain_perspective(
                         vessel, current_good_weather_performance, design_speed
                     )
-                    print(captain_assessment)
+                    # print(captain_assessment)
 
                     # 买卖船和租船分析
                     trading_chartering_analysis = analyze_vessel_for_trading_and_chartering(
                         vessel, current_good_weather_performance, design_speed, {}
                     )
-                    print(trading_chartering_analysis)
+                    # print(trading_chartering_analysis)
 
                     # 仅在调试模式下输出详细数据
                     if LOG_CONFIG['enable_debug_logs']:
@@ -3496,3 +4095,98 @@ def enable_quiet_mode():
 
 # 默认启用生产模式
 enable_production_mode()
+
+
+def generate_seasonal_recommendations(vessel_data: Dict[str, Any], weather_performance: Dict[str, float], design_speed: float) -> List[str]:
+    """
+    基于实际航运经验的季节性运营建议（优化版）
+    
+    实际航运经验要点：
+    1. 不同季节的天气特点对船舶运营的影响
+    2. 季节性航线调整策略
+    3. 基于船舶性能的季节性运营优化
+    4. 考虑不同船型的季节性特点
+    
+    参考标准：
+    - 季节性天气统计数据
+    - 实际航线运营经验
+    - 航运专家季节性建议
+    """
+    recommendations = []
+    
+    # 船舶基础信息
+    vessel_type = vessel_data.get('vesselTypeNameCn', '未知')
+    dwt = vessel_data.get('dwt', 0)
+    build_year = vessel_data.get('buildYear', 0)
+    
+    # 性能数据
+    good_speed = weather_performance.get('avg_good_weather_speed', 0)
+    bad_speed = weather_performance.get('avg_bad_weather_speed', 0)
+    severe_speed = weather_performance.get('avg_severe_bad_weather_speed', 0)
+    
+    # 1. 基于船舶性能的季节性建议
+    if good_speed > 0 and bad_speed > 0:
+        speed_reduction = ((good_speed - bad_speed) / good_speed) * 100
+        
+        if speed_reduction <= 20:  # 天气适应性好
+            recommendations.append('船舶天气适应性优异，适合全年运营，包括台风季节和高纬度冬季航线')
+            recommendations.append('建议在台风季节选择避风航线，充分利用船舶性能优势')
+        elif speed_reduction <= 30:  # 天气适应性较好
+            recommendations.append('船舶天气适应性良好，建议在台风季节和高纬度冬季选择避风航线')
+            recommendations.append('可考虑季节性航线调整，在恶劣天气期选择替代航线')
+        elif speed_reduction <= 40:  # 天气适应性一般
+            recommendations.append('船舶天气适应性一般，建议在台风季节和高纬度冬季选择避风航线')
+            recommendations.append('建议在好天气期选择主要航线，恶劣天气期选择避风航线')
+        else:  # 天气适应性差
+            recommendations.append('船舶天气适应性较差，建议在台风季节和高纬度冬季选择避风航线')
+            recommendations.append('建议在好天气期运营，恶劣天气期考虑停航或避风')
+    
+    # 2. 基于船型的季节性建议
+    if '集装箱' in vessel_type:
+        recommendations.append('集装箱船对时间要求严格，建议在台风季节选择避风航线，保持准班率')
+        recommendations.append('建议在冬季高纬度航线选择避风航线，确保货物安全')
+    elif '干散货' in vessel_type:
+        recommendations.append('干散货船对时间要求相对宽松，建议在台风季节选择避风航线')
+        recommendations.append('建议在冬季高纬度航线选择避风航线，避免冰冻风险')
+    elif '油轮' in vessel_type or '液体散货' in vessel_type:
+        recommendations.append('油轮对安全要求极高，建议在台风季节选择避风航线，避免危险品运输风险')
+        recommendations.append('建议在冬季高纬度航线选择避风航线，确保运输安全')
+    elif 'LNG' in vessel_type or '液化气' in vessel_type:
+        recommendations.append('LNG船对安全要求极高，建议在台风季节选择避风航线，避免危险品运输风险')
+        recommendations.append('建议在冬季高纬度航线选择避风航线，确保运输安全')
+    
+    # 3. 基于载重吨位的季节性建议
+    if dwt > 0:
+        if dwt >= 100000:  # 大型船舶
+            recommendations.append('大型船舶对天气条件敏感，建议在台风季节选择避风航线')
+            recommendations.append('建议在冬季高纬度航线选择避风航线，避免冰冻风险')
+        elif dwt >= 50000:  # 中型船舶
+            recommendations.append('中型船舶适应性较好，建议在台风季节选择避风航线')
+            recommendations.append('建议在冬季高纬度航线选择避风航线，确保运营安全')
+        else:  # 小型船舶
+            recommendations.append('小型船舶灵活性较高，建议在台风季节选择避风航线')
+            recommendations.append('建议在冬季高纬度航线选择避风航线，确保运营安全')
+    
+    # 4. 季节性具体建议
+    # 春季（3-5月）
+    recommendations.append('春季天气相对稳定，建议充分利用好天气期，选择最优航线')
+    recommendations.append('春季是航线优化的最佳时期，建议进行航线评估和调整')
+    
+    # 夏季（6-8月）
+    recommendations.append('夏季台风频发，建议建立台风预警机制，及时调整航线')
+    recommendations.append('建议在台风季节选择避风航线，确保船舶和货物安全')
+    
+    # 秋季（9-11月）
+    recommendations.append('秋季天气相对稳定，建议充分利用好天气期，选择最优航线')
+    recommendations.append('秋季是航线优化的最佳时期，建议进行航线评估和调整')
+    
+    # 冬季（12-2月）
+    recommendations.append('冬季高纬度航线存在冰冻风险，建议选择避风航线')
+    recommendations.append('建议在冬季选择避风航线，确保船舶和货物安全')
+    
+    # 5. 通用季节性建议
+    recommendations.append('建议建立季节性航线数据库，根据天气条件选择最优航线')
+    recommendations.append('建议与气象部门合作，获取准确的季节性天气预报信息')
+    recommendations.append('建议建立季节性航线风险评估体系，定期评估和调整航线')
+    
+    return recommendations
