@@ -3263,8 +3263,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 logger.error("数据库连接失败")
                 return
 
-            
-
             # 计算10天前的时间戳
             if self.time_days:
                 ten_days_ago = datetime.now() - timedelta(days=self.time_days)
@@ -3311,8 +3309,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 width = vessel.get("width")
                 height = vessel.get("height")
                 load_weight = vessel.get("dwt")
-                # if not draught or not design_speed:
-                #     continue
+                if not draught or not design_speed:
+                    logger.warning(f"MMSI {mmsi} 没有吃水或设计速度，跳过")
+                    continue
 
                 start_time = int(datetime.now().timestamp()
                                  * 1000) - self.calc_days * 24 * 3600 * 1000
