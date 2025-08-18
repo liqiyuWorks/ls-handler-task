@@ -3277,200 +3277,226 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             else:
                 query_sql_with_time = query_sql
 
-            vessels = self.mgo_db["hifleet_vessels"].find(
-                query_sql_with_time,
-                {
-                    "mmsi": 1,
-                    "draught": 1,
-                    "speed": 1,
-                    "buildYear": 1,
-                    "length": 1,
-                    "width": 1,
-                    "height": 1,
-                    "dwt": 1,
-                    "vesselTypeNameCn": 1,
-                    "vesselType": 1,
-                    '_id': 0
-                }
-            ).sort("perf_calculated_updated_at", 1)
-
-            total_num = vessels.count()
-            num = 0
+            # 先获取总数，避免游标超时问题
+            total_num = self.mgo_db["hifleet_vessels"].count_documents(query_sql_with_time)
             logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘")
-
-            # 请求接口，获取轨迹气象数据和船舶轨迹数据
-            for vessel in vessels:
-                num += 1
-                mmsi = vessel["mmsi"]
-                draught = vessel.get("draught")
-                design_speed = vessel.get("speed", 0)
-                buildYear = vessel.get("buildYear")
-                length = vessel.get("length")
-                width = vessel.get("width")
-                height = vessel.get("height")
-                load_weight = vessel.get("dwt")
-                if not draught or not design_speed:
-                    logger.warning(f"MMSI {mmsi} 没有吃水或设计速度，跳过")
-                    continue
-
-                start_time = int(datetime.now().timestamp()
-                                 * 1000) - self.calc_days * 24 * 3600 * 1000
-                end_time = int(datetime.now().timestamp() * 1000)
-                trace = self.get_vessel_trace(mmsi, start_time, end_time)
-
-                # 初始化性能数据变量
-                current_good_weather_performance = None
-                current_bad_weather_performance = None
-                performance_analysis = None
-
-                if trace:
-                    current_good_weather_performance = self.deal_good_perf_list(
-                        trace, draught, design_speed)
-                    current_bad_weather_performance = self.deal_bad_perf_list(
-                        trace, draught, design_speed)
-
-                    # 性能对比分析
-                    performance_analysis = self.analyze_performance_comparison(
-                        current_good_weather_performance,
-                        current_bad_weather_performance,
-                        design_speed,
-                        vessel  # 传递船舶数据用于生成针对性建议
-                    )
-
-                    # 验证性能数据的合理性
-                    validation_result = self.validate_performance_data(
-                        current_good_weather_performance,
-                        current_bad_weather_performance,
-                        design_speed
-                    )
-
-                    # 如果验证失败，进行数据后处理
-                    if not validation_result['is_valid']:
-                        if LOG_CONFIG['enable_validation_logs']:
-                            logger.warning(f"MMSI {mmsi} 性能数据验证失败: {validation_result['errors']}")
-                            if validation_result['recommendations']:
-                                logger.warning(f"建议: {validation_result['recommendations']}")
-                        
-                        # 进行数据后处理，确保逻辑正确性
-                        log_debug(f"MMSI {mmsi} 开始数据后处理...")
-                        post_processed_data = self.post_process_performance_data(
-                            current_good_weather_performance,
-                            current_bad_weather_performance,
-                            design_speed
-                        )
-                        
-                        # 使用后处理后的数据
-                        if post_processed_data['processed_good_weather'] and post_processed_data['processed_bad_weather']:
-                            current_good_weather_performance = post_processed_data['processed_good_weather']
-                            current_bad_weather_performance = post_processed_data['processed_bad_weather']
-                            
-                            # 记录后处理结果（仅在调试模式下）
-                            if post_processed_data['adjustments_made'] and LOG_CONFIG['enable_debug_logs']:
-                                for adjustment in post_processed_data['adjustments_made']:
-                                    log_debug(f"MMSI {mmsi} 数据调整: {adjustment['description']} - {adjustment['reason']}")
-                            
-                            if post_processed_data['final_validation'] and LOG_CONFIG['enable_debug_logs']:
-                                final_validation = post_processed_data['final_validation']
-                                log_debug(f"MMSI {mmsi} 后处理验证: 好天气{final_validation['good_speed']}节 > 坏天气{final_validation['bad_speed']}节, 降低{final_validation['speed_reduction_percentage']}%")
-                        
-                        # 重新验证后处理后的数据
-                        revalidation_result = self.validate_performance_data(
-                            current_good_weather_performance,
-                            current_bad_weather_performance,
-                            design_speed
-                        )
-                        
-                        if revalidation_result['is_valid']:
-                            log_debug(f"MMSI {mmsi} 数据后处理成功，逻辑验证通过")
-                        else:
-                            errors = revalidation_result.get('errors', [])
-                            error_summary = f"{len(errors)}个问题" if errors else "未知问题"
-                            logger.error(f"MMSI {mmsi} 数据后处理失败: {error_summary}")
-                    
-                    if validation_result['warnings'] and LOG_CONFIG['enable_validation_logs']:
-                        logger.warning(f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
-                        
-                    # 船长视角的性能评估
-                    captain_assessment = assess_vessel_performance_from_captain_perspective(
-                        vessel, current_good_weather_performance, design_speed
-                    )
-                    # print(captain_assessment)
-
-                    # 买卖船和租船分析
-                    trading_chartering_analysis = analyze_vessel_for_trading_and_chartering(
-                        vessel, current_good_weather_performance, design_speed, {}
-                    )
-                    # print(trading_chartering_analysis)
-
-                    # 更新 mongo 的数据
-                    self.mgo_db["vessels_performance_details"].update_one(
-                        {"mmsi": mmsi},
-                        {"$set": {
-                            "current_good_weather_performance": current_good_weather_performance,
-                            "current_bad_weather_performance": current_bad_weather_performance,
-                            "performance_analysis": performance_analysis,
-                            "captain_assessment": captain_assessment,
-                            "trading_chartering_analysis": trading_chartering_analysis,
-                            "perf_calculated": 1,
-                            "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        }}, upsert=True)
-
-                    # 入计算油耗队列
-                    if current_good_weather_performance:
-                        current_good_weather_performance["mmsi"] = mmsi
-                        current_good_weather_performance["load_weight"] = load_weight
-                        current_good_weather_performance["ship_draft"] = draught
-                        
-                        # 安全地计算 ballast_draft，确保 ship_draft 不为 None
-                        ship_draft = current_good_weather_performance.get("ship_draft")
-                        if ship_draft is not None:
-                            current_good_weather_performance["ballast_draft"] = round(ship_draft * 0.7, 2)
-                        else:
-                            current_good_weather_performance["ballast_draft"] = 0.0
-                            
-                        current_good_weather_performance["length"] = length
-                        current_good_weather_performance["width"] = width
-                        current_good_weather_performance["height"] = height
-                        current_good_weather_performance["ship_year"] = buildYear
-                        if current_good_weather_performance["ship_year"]:
-                            current_good_weather_performance["ship_year"] = int(
-                                datetime.now().year) - int(current_good_weather_performance["ship_year"])
-
-                    if current_good_weather_performance:
-                        task = {
-                            'task_type': "handler_calculate_vessel_performance_ck",
-                            'process_data': current_good_weather_performance
-                        }
-                        self.cache_rds.rpush(
-                            "handler_calculate_vessel_performance_ck", json.dumps(task))
-                        # logger.info(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
-
-                        # 更新 perf_calculated_updated_at
+            
+            # 分批处理，避免游标超时
+            batch_size = 100
+            skip = 0
+            num = 0
+            
+            while skip < total_num:
+                vessels = self.mgo_db["hifleet_vessels"].find(
+                    query_sql_with_time,
+                    {
+                        "mmsi": 1,
+                        "draught": 1,
+                        "speed": 1,
+                        "buildYear": 1,
+                        "length": 1,
+                        "width": 1,
+                        "height": 1,
+                        "dwt": 1,
+                        "vesselTypeNameCn": 1,
+                        "vesselType": 1,
+                        '_id': 0
+                    }
+                ).sort("perf_calculated_updated_at", 1).skip(skip).limit(batch_size)
+                
+                # 将游标转换为列表，避免在遍历过程中游标超时
+                vessels_list = list(vessels)
+                
+                if not vessels_list:
+                    break
+                
+                logger.info(f"处理批次 {skip//batch_size + 1}/{(total_num + batch_size - 1)//batch_size}，本批次 {len(vessels_list)} 艘")
+                
+                # 请求接口，获取轨迹气象数据和船舶轨迹数据
+                for vessel in vessels_list:
+                    num += 1
+                    mmsi = vessel["mmsi"]
+                    draught = vessel.get("draught")
+                    design_speed = vessel.get("speed", 0)
+                    buildYear = vessel.get("buildYear")
+                    length = vessel.get("length")
+                    width = vessel.get("width")
+                    height = vessel.get("height")
+                    load_weight = vessel.get("dwt")
+                    if not draught or not design_speed:
+                        logger.warning(f"MMSI {mmsi} 没有吃水或设计速度，跳过")
+                        # 更新 hifleet_vessels 的 perf_calculated 为 0
                         self.mgo_db["hifleet_vessels"].update_one(
                             {"mmsi": mmsi},
-                            {"$set": {
-                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                "perf_calculated": 1
-                                }})
+                            {"$set": {"perf_calculated": 0,
+                                      "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
+                        continue
 
+                    start_time = int(datetime.now().timestamp()
+                                     * 1000) - self.calc_days * 24 * 3600 * 1000
+                    end_time = int(datetime.now().timestamp() * 1000)
+                    trace = self.get_vessel_trace(mmsi, start_time, end_time)
 
-                    # 仅在调试模式下输出详细数据
-                    if LOG_CONFIG['enable_debug_logs']:
-                        log_debug(f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
-                        log_debug(f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
-                        log_debug(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
+                    # 初始化性能数据变量
+                    current_good_weather_performance = None
+                    current_bad_weather_performance = None
+                    performance_analysis = None
+
+                    if trace:
+                        current_good_weather_performance = self.deal_good_perf_list(
+                            trace, draught, design_speed)
+                        current_bad_weather_performance = self.deal_bad_perf_list(
+                            trace, draught, design_speed)
+
+                        # 性能对比分析
+                        performance_analysis = self.analyze_performance_comparison(
+                            current_good_weather_performance,
+                            current_bad_weather_performance,
+                            design_speed,
+                            vessel  # 传递船舶数据用于生成针对性建议
+                        )
+
+                        # 验证性能数据的合理性
+                        validation_result = self.validate_performance_data(
+                            current_good_weather_performance,
+                            current_bad_weather_performance,
+                            design_speed
+                        )
+
+                        # 如果验证失败，进行数据后处理
+                        if not validation_result['is_valid']:
+                            if LOG_CONFIG['enable_validation_logs']:
+                                logger.warning(f"MMSI {mmsi} 性能数据验证失败: {validation_result['errors']}")
+                                if validation_result['recommendations']:
+                                    logger.warning(f"建议: {validation_result['recommendations']}")
+                            
+                            # 进行数据后处理，确保逻辑正确性
+                            log_debug(f"MMSI {mmsi} 开始数据后处理...")
+                            post_processed_data = self.post_process_performance_data(
+                                current_good_weather_performance,
+                                current_bad_weather_performance,
+                                design_speed
+                            )
+                            
+                            # 使用后处理后的数据
+                            if post_processed_data['processed_good_weather'] and post_processed_data['processed_bad_weather']:
+                                current_good_weather_performance = post_processed_data['processed_good_weather']
+                                current_bad_weather_performance = post_processed_data['processed_bad_weather']
+                                
+                                # 记录后处理结果（仅在调试模式下）
+                                if post_processed_data['adjustments_made'] and LOG_CONFIG['enable_debug_logs']:
+                                    for adjustment in post_processed_data['adjustments_made']:
+                                        log_debug(f"MMSI {mmsi} 数据调整: {adjustment['description']} - {adjustment['reason']}")
+                                
+                                if post_processed_data['final_validation'] and LOG_CONFIG['enable_debug_logs']:
+                                    final_validation = post_processed_data['final_validation']
+                                    log_debug(f"MMSI {mmsi} 后处理验证: 好天气{final_validation['good_speed']}节 > 坏天气{final_validation['bad_speed']}节, 降低{final_validation['speed_reduction_percentage']}%")
+                            
+                            # 重新验证后处理后的数据
+                            revalidation_result = self.validate_performance_data(
+                                current_good_weather_performance,
+                                current_bad_weather_performance,
+                                design_speed
+                            )
+                            
+                            if revalidation_result['is_valid']:
+                                log_debug(f"MMSI {mmsi} 数据后处理成功，逻辑验证通过")
+                            else:
+                                errors = revalidation_result.get('errors', [])
+                                error_summary = f"{len(errors)}个问题" if errors else "未知问题"
+                                logger.error(f"MMSI {mmsi} 数据后处理失败: {error_summary}")
                         
-                else:
-                    logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
-                    # 更新 hifleet_vessels 的 perf_calculated 为 0
-                    self.mgo_db["hifleet_vessels"].update_one(
-                        {"mmsi": mmsi},
-                        {"$set": {"perf_calculated": 0}})
-                    
-                logger.info(f"性能计算进度: {mmsi} {num}/{total_num} ({round((num / total_num) * 100, 1)}%)")
+                        if validation_result['warnings'] and LOG_CONFIG['enable_validation_logs']:
+                            logger.warning(f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
+                            
+                        # 船长视角的性能评估
+                        captain_assessment = assess_vessel_performance_from_captain_perspective(
+                            vessel, current_good_weather_performance, design_speed
+                        )
+                        # print(captain_assessment)
 
+                        # 买卖船和租船分析
+                        trading_chartering_analysis = analyze_vessel_for_trading_and_chartering(
+                            vessel, current_good_weather_performance, design_speed, {}
+                        )
+                        # print(trading_chartering_analysis)
+
+                        # 更新 mongo 的数据
+                        self.mgo_db["vessels_performance_details"].update_one(
+                            {"mmsi": mmsi},
+                            {"$set": {
+                                "current_good_weather_performance": current_good_weather_performance,
+                                "current_bad_weather_performance": current_bad_weather_performance,
+                                "performance_analysis": performance_analysis,
+                                "captain_assessment": captain_assessment,
+                                "trading_chartering_analysis": trading_chartering_analysis,
+                                "perf_calculated": 1,
+                                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            }}, upsert=True)
+
+                        # 入计算油耗队列
+                        if current_good_weather_performance:
+                            current_good_weather_performance["mmsi"] = mmsi
+                            current_good_weather_performance["load_weight"] = load_weight
+                            current_good_weather_performance["ship_draft"] = draught
+                            
+                            # 安全地计算 ballast_draft，确保 ship_draft 不为 None
+                            ship_draft = current_good_weather_performance.get("ship_draft")
+                            if ship_draft is not None:
+                                current_good_weather_performance["ballast_draft"] = round(ship_draft * 0.7, 2)
+                            else:
+                                current_good_weather_performance["ballast_draft"] = 0.0
+                                
+                            current_good_weather_performance["length"] = length
+                            current_good_weather_performance["width"] = width
+                            current_good_weather_performance["height"] = height
+                            current_good_weather_performance["ship_year"] = buildYear
+                            if current_good_weather_performance["ship_year"]:
+                                current_good_weather_performance["ship_year"] = int(
+                                    datetime.now().year) - int(current_good_weather_performance["ship_year"])
+
+                        if current_good_weather_performance:
+                            task = {
+                                'task_type': "handler_calculate_vessel_performance_ck",
+                                'process_data': current_good_weather_performance
+                            }
+                            self.cache_rds.rpush(
+                                "handler_calculate_vessel_performance_ck", json.dumps(task))
+                            # logger.info(f"已推送mmsi={mmsi}的船舶进入油耗计算队列")
+
+                            # 更新 perf_calculated_updated_at
+                            self.mgo_db["hifleet_vessels"].update_one(
+                                {"mmsi": mmsi},
+                                {"$set": {
+                                    "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    "perf_calculated": 1
+                                    }})
+
+
+                        # 仅在调试模式下输出详细数据
+                        if LOG_CONFIG['enable_debug_logs']:
+                            log_debug(f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
+                            log_debug(f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
+                            log_debug(f"MMSI {mmsi} 性能对比分析: {performance_analysis}")
+                            
+                    else:
+                        logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
+                        # 更新 hifleet_vessels 的 perf_calculated 为 0
+                        self.mgo_db["hifleet_vessels"].update_one(
+                            {"mmsi": mmsi},
+                            {"$set": {"perf_calculated": 0,
+                                      "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
+                        
+                    logger.info(f"性能计算进度: {mmsi} {num}/{total_num} ({round((num / total_num) * 100, 1)}%)")
+
+                    time.sleep(float(self.time_sleep))
                 
-                time.sleep(float(self.time_sleep))
+                # 更新skip，准备处理下一批
+                skip += batch_size
+                
+                # 如果还有数据需要处理，记录进度
+                if skip < total_num:
+                    logger.info(f"批次处理完成，准备处理下一批...")
 
         except Exception as e:
             traceback.print_exc()
