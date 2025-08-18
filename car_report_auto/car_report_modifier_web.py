@@ -416,148 +416,12 @@ class CarReportModifier:
             return False
     
     async def modify_qr_codes(self, config):
-        """修改页面中的二维码图片 - 专门针对class='qrcode'和class='qr-item'的元素"""
+        """修改页面中的二维码图片 - 专门针对'官方验证'和'专属保障'两个二维码"""
         try:
-            logger.info("🔄 开始替换页面中的二维码...")
+            logger.info("🔄 开始替换页面中的二维码（官方验证 + 专属保障）...")
             
             # 等待页面完全加载
             await config.page.wait_for_timeout(2000)
-            
-            # 查找class="qrcode"和class="qr-item"的元素
-            qr_selectors = [
-                ".qr-item",  # 优先使用最精确的选择器
-                "div.qr-item",
-                ".qrcode",
-                "div.qrcode",
-                "//div[contains(@class, 'qr-item')]",
-                "//div[contains(@class, 'qrcode')]",
-                "//*[contains(@class, 'qr-item')]",
-                "//*[contains(@class, 'qrcode')]"
-            ]
-            
-            # 添加调试：先检查页面中所有可能的二维码相关元素
-            logger.info("🔍 开始搜索页面中的二维码元素...")
-            try:
-                # 使用JavaScript查找所有可能的二维码元素
-                all_qr_elements = await config.page.evaluate("""
-                    () => {
-                        const elements = [];
-                        
-                        // 查找所有包含qr相关class的元素
-                        document.querySelectorAll('*').forEach(el => {
-                            const className = el.className || '';
-                            if (typeof className === 'string' && 
-                                (className.includes('qr') || className.includes('code') || className.includes('QR'))) {
-                                elements.push({
-                                    tagName: el.tagName,
-                                    className: className,
-                                    id: el.id || '',
-                                    textContent: el.textContent?.substring(0, 50) || ''
-                                });
-                            }
-                        });
-                        
-                        return elements;
-                    }
-                """)
-                
-                if all_qr_elements:
-                    logger.info(f"🔍 找到 {len(all_qr_elements)} 个可能相关的元素:")
-                    for i, elem in enumerate(all_qr_elements[:10]):  # 只显示前10个
-                        logger.info(f"  元素 {i+1}: {elem['tagName']}, class='{elem['className']}', id='{elem['id']}', text='{elem['textContent']}'")
-                else:
-                    logger.warning("🔍 未找到任何包含qr相关class的元素")
-                    
-            except Exception as e:
-                logger.debug(f"搜索页面元素时出错: {e}")
-            
-            qr_elements = []
-            for selector in qr_selectors:
-                try:
-                    if selector.startswith("//"):
-                        # XPath选择器
-                        elements = await config.page.locator(selector).all()
-                    else:
-                        # CSS选择器
-                        elements = await config.page.locator(selector).all()
-                    
-                    if elements:
-                        qr_elements.extend(elements)
-                        logger.info(f"选择器 '{selector}' 找到 {len(elements)} 个元素")
-                        
-                        # 不要停止查找，收集所有选择器找到的元素
-                except Exception as e:
-                    logger.debug(f"选择器 '{selector}' 查找失败: {e}")
-                    continue
-            
-            # 去重并确保所有元素都被处理
-            qr_elements = list(set(qr_elements))
-            logger.info(f"🔍 总共找到 {len(qr_elements)} 个唯一的二维码容器元素")
-            
-            # 如果使用选择器没有找到元素，尝试使用JavaScript直接查找
-            if not qr_elements:
-                logger.info("🔍 选择器未找到元素，尝试使用JavaScript直接查找...")
-                try:
-                    js_result = await config.page.evaluate("""
-                        () => {
-                            const elements = [];
-                            
-                            // 查找所有包含qr-item或qrcode class的元素
-                            document.querySelectorAll('.qr-item, .qrcode').forEach(el => {
-                                elements.push({
-                                    element: el,
-                                    className: el.className || '',
-                                    hasCanvas: !!el.querySelector('canvas'),
-                                    hasImg: !!el.querySelector('img'),
-                                    textContent: el.textContent?.substring(0, 100) || ''
-                                });
-                            });
-                            
-                            return elements.length;
-                        }
-                    """)
-                    
-                    if js_result > 0:
-                        logger.info(f"🔍 JavaScript找到 {js_result} 个二维码容器")
-                        # 重新使用JavaScript查找元素
-                        qr_elements = await config.page.locator(".qr-item, .qrcode").all()
-                    else:
-                        logger.warning("🔍 JavaScript也未找到二维码容器")
-                        
-                except Exception as e:
-                    logger.debug(f"JavaScript查找失败: {e}")
-            
-            if not qr_elements:
-                logger.warning("未找到class='qrcode'或class='qr-item'的元素")
-                
-                # 尝试查找页面中的所有元素，看看是否有其他二维码相关的元素
-                all_elements = await config.page.locator("*").all()
-                qr_related = []
-                for elem in all_elements[:100]:  # 只检查前100个元素
-                    try:
-                        class_attr = await elem.get_attribute("class")
-                        if class_attr and ("qr" in class_attr.lower() or "code" in class_attr.lower()):
-                            qr_related.append(elem)
-                    except:
-                        continue
-                
-                if qr_related:
-                    logger.info(f"找到 {len(qr_related)} 个可能相关的元素: {[await elem.get_attribute('class') for elem in qr_related[:5]]}")
-                
-                return False
-            
-            # 去重
-            qr_elements = list(set(qr_elements))
-            logger.info(f"找到 {len(qr_elements)} 个二维码容器元素")
-            
-            # 调试：打印每个元素的详细信息
-            for i, elem in enumerate(qr_elements[:3]):  # 只检查前3个
-                try:
-                    class_attr = await elem.get_attribute("class")
-                    inner_html = await elem.inner_html()
-                    logger.info(f"元素 {i+1}: class='{class_attr}', 内容长度: {len(inner_html)}")
-                except Exception as e:
-                    logger.debug(f"无法获取元素 {i+1} 信息: {e}")
             
             # 构建本地图片路径
             local_qr_path = os.path.join(current_dir, "getQRCode.jpg")
@@ -572,461 +436,266 @@ class CarReportModifier:
                     img_data = img_file.read()
                     img_base64 = base64.b64encode(img_data).decode('utf-8')
                     file_url = f"data:image/jpeg;base64,{img_base64}"
-                    logger.info(f"成功将图片转换为base64编码，长度: {len(img_base64)} 字符")
+                    logger.info(f"✅ 成功将图片转换为base64编码，长度: {len(img_base64)} 字符")
             except Exception as e:
                 logger.error(f"转换图片为base64失败: {e}")
-                # 回退到file://协议
-                if os.name == 'nt':  # Windows
-                    file_url = f"file:///{local_qr_path.replace(os.sep, '/')}"
-                else:  # macOS/Linux
-                    file_url = f"file://{local_qr_path}"
-                logger.warning(f"回退到file://协议: {file_url}")
+                return False
             
-            logger.info(f"使用图片URL: {file_url[:100]}...")
-            logger.info(f"原始路径: {local_qr_path}")
-            logger.info(f"操作系统: {os.name}")
+            # 使用JavaScript直接查找并替换两个特定的二维码
+            logger.info("🔍 使用JavaScript查找并替换'官方验证'和'专属保障'二维码...")
             
-            # 验证图片文件
-            try:
-                import PIL.Image
-                with PIL.Image.open(local_qr_path) as img:
-                    width, height = img.size
-                    logger.info(f"图片尺寸: {width}x{height} 像素")
-            except Exception as e:
-                logger.warning(f"无法读取图片信息: {e}")
-            
-            # 修改每个二维码容器元素
-            modified_count = 0
-            for i, element in enumerate(qr_elements):
-                try:
-                    # 检查元素内是否有canvas或img元素
-                    # 使用locator来查找子元素
-                    canvas_elements = await element.locator("canvas").all()
-                    img_elements = await element.locator("img").all()
-                    
-                    logger.info(f"处理第 {i+1} 个二维码容器，找到 {len(canvas_elements)} 个canvas，{len(img_elements)} 个img")
-                    
-                    # 如果找到img元素，检查是否已经是我们的目标图片
-                    has_target_image = False
-                    if len(img_elements) > 0:
-                        for img_idx, img in enumerate(img_elements):
-                            try:
-                                img_src = await img.get_attribute("src")
-                                if img_src and file_url in img_src:
-                                    logger.info(f"第 {i+1} 个容器的第 {img_idx+1} 个img已经是目标图片: {img_src}")
-                                    has_target_image = True
-                                    break
-                                else:
-                                    logger.info(f"第 {i+1} 个容器的第 {img_idx+1} 个img的src: {img_src}")
-                            except Exception as e:
-                                logger.debug(f"无法获取img src: {e}")
-                    
-                    # 如果容器已经有目标图片，记录但继续处理其他容器
-                    if has_target_image:
-                        logger.info(f"第 {i+1} 个容器已包含目标图片，但继续处理其他容器...")
-                    
-                    logger.info(f"🔄 继续处理第 {i+1} 个二维码容器...")
-                    
-                    # 调试：检查元素的HTML内容
-                    try:
-                        element_html = await element.inner_html()
-                        logger.info(f"第 {i+1} 个二维码容器的HTML内容: {element_html[:200]}...")
-                    except Exception as e:
-                        logger.debug(f"无法获取第 {i+1} 个元素的HTML内容: {e}")
-                    
-                    # 强制处理：即使容器已经有目标图片，也要确保所有canvas都被替换
-                    force_process = has_target_image and len(canvas_elements) > 0
-                    if force_process:
-                        logger.info(f"🔧 强制处理第 {i+1} 个容器，确保所有canvas都被替换...")
-                    
-                    # 如果没有找到canvas或img，尝试直接查找
-                    if len(canvas_elements) == 0 and len(img_elements) == 0:
-                        logger.info(f"第 {i+1} 个容器内没有找到canvas或img，尝试直接查找...")
-                        # 尝试使用更宽泛的选择器
-                        all_canvas = await config.page.locator("canvas").all()
-                        all_img = await config.page.locator("img").all()
-                        logger.info(f"页面中共有 {len(all_canvas)} 个canvas，{len(all_img)} 个img")
+            result = await config.page.evaluate(f"""
+                () => {{
+                    try {{
+                        const targetTexts = ['官方验证', '专属保障'];
+                        let modifiedCount = 0;
+                        let results = [];
                         
-                        # 检查是否有canvas在页面中但不在当前容器中
-                        for canvas in all_canvas:
-                            try:
-                                canvas_parent = await canvas.locator("xpath=..").first()
-                                if canvas_parent:
-                                    parent_class = await canvas_parent.get_attribute("class")
-                                    if parent_class and "qr" in parent_class.lower():
-                                        logger.info(f"找到可能相关的canvas，父元素class: {parent_class}")
-                            except:
-                                continue
-                    
-                    # 处理canvas元素 - 替换为图片
-                    for j, canvas in enumerate(canvas_elements):
-                        try:
-                            logger.info(f"🔄 处理第 {i+1} 个容器的第 {j+1} 个canvas元素...")
+                        // 查找所有qr-item容器
+                        const qrContainers = document.querySelectorAll('.qr-item');
+                        console.log('找到二维码容器数量:', qrContainers.length);
+                        
+                        if (qrContainers.length === 0) {{
+                            return {{ 
+                                success: false, 
+                                error: '未找到.qr-item容器',
+                                modifiedCount: 0 
+                            }};
+                        }}
+                        
+                        // 遍历每个容器
+                        for (let i = 0; i < qrContainers.length; i++) {{
+                            const container = qrContainers[i];
+                            const spanElement = container.querySelector('span');
                             
-                            # 使用更可靠的方法替换canvas为img
-                            # 通过选择器直接查找和替换，避免元素传递问题
-                            canvas_selector = f"canvas:nth-of-type({j+1})"
+                            if (!spanElement) {{
+                                console.log('容器', i, '未找到span元素');
+                                continue;
+                            }}
                             
-                            # 在页面上直接执行替换 - 修复：限制在特定容器内
-                            result = await config.page.evaluate(f"""
-                                () => {{
-                                    try {{
-                                        // 查找第 {i+1} 个qr-item容器
-                                        const qrContainers = document.querySelectorAll('.qr-item');
-                                        if (qrContainers.length === 0) {{
-                                            return {{ success: false, error: 'no qr-item containers found' }};
-                                        }}
-                                        
-                                        const container = qrContainers[{i}];
-                                        if (!container) {{
-                                            return {{ success: false, error: 'container not found' }};
-                                        }}
-                                        
-                                        // 在容器内查找canvas元素
-                                        const canvas = container.querySelector('canvas');
-                                        if (!canvas) {{
-                                            return {{ success: false, error: 'canvas not found in container' }};
-                                        }}
-                                        
-                                        // 获取canvas的尺寸
-                                        const width = canvas.width || canvas.offsetWidth || 60;
-                                        const height = canvas.height || canvas.offsetHeight || 60;
-                                        
-                                        // 创建新的img元素
-                                        const img = document.createElement('img');
-                                        img.src = '{file_url}';
-                                        img.alt = '二维码';
-                                        img.style.width = width + 'px';
-                                        img.style.height = height + 'px';
-                                        img.style.display = 'block';
-                                        
-                                        // 复制canvas的样式
-                                        if (canvas.style.cssText) {{
-                                            img.style.cssText = canvas.style.cssText;
-                                        }}
-                                        
-                                        // 替换canvas
-                                        if (canvas.parentNode) {{
-                                            canvas.parentNode.replaceChild(img, canvas);
-                                            
-                                            // 触发加载事件
-                                            img.dispatchEvent(new Event('load', {{ bubbles: true }}));
-                                            
-                                            // 验证图片是否正确加载
-                                            setTimeout(() => {{
-                                                if (img.complete && img.naturalWidth > 0) {{
-                                                    console.log('图片加载成功:', img.src, img.naturalWidth, 'x', img.naturalHeight);
-                                                }} else {{
-                                                    console.log('图片加载失败:', img.src);
-                                                    // 如果base64加载失败，尝试其他方法
-                                                    if (img.src.startsWith('data:')) {{
-                                                        console.log('base64图片加载失败，尝试重新加载');
-                                                        img.src = img.src; // 重新设置src
-                                                    }}
-                                                }}
-                                            }}, 100);
-                                            
-                                            return {{ success: true, width: width, height: height }};
-                                        }}
-                                        return {{ success: false, error: 'no parent node' }};
-                                    }} catch (e) {{
-                                        return {{ success: false, error: e.message }};
-                                    }}
-                                }}
-                            """)
+                            const containerText = spanElement.textContent.trim();
+                            console.log('容器', i, '文本:', containerText);
                             
-                            # 如果替换成功，记录并继续处理下一个canvas
-                            if result and result.get('success'):
-                                logger.info(f"✅ 成功替换第 {i+1} 个容器的第 {j+1} 个canvas元素，尺寸: {result.get('width')}x{result.get('height')}")
-                                modified_count += 1
+                            // 检查是否是目标容器
+                            if (!targetTexts.includes(containerText)) {{
+                                console.log('跳过非目标容器:', containerText);
+                                continue;
+                            }}
+                            
+                            console.log('处理目标容器:', containerText);
+                            
+                            // 查找canvas元素
+                            const canvas = container.querySelector('canvas');
+                            if (!canvas) {{
+                                console.log('容器', containerText, '未找到canvas元素');
+                                continue;
+                            }}
+                            
+                            // 获取canvas尺寸
+                            const width = canvas.width || canvas.offsetWidth || 60;
+                            const height = canvas.height || canvas.offsetHeight || 60;
+                            
+                            // 创建新的img元素
+                            const img = document.createElement('img');
+                            img.src = '{file_url}';
+                            img.alt = '二维码';
+                            img.style.width = width + 'px';
+                            img.style.height = height + 'px';
+                            img.style.display = 'block';
+                            
+                            // 复制canvas的样式
+                            if (canvas.style.cssText) {{
+                                img.style.cssText = canvas.style.cssText;
+                            }}
+                            
+                            // 替换canvas
+                            if (canvas.parentNode) {{
+                                canvas.parentNode.replaceChild(img, canvas);
                                 
-                                # 验证替换是否真的成功
-                                try:
-                                    await config.page.wait_for_timeout(500)  # 等待图片加载
-                                    # 检查替换后的元素 - 使用JavaScript验证
-                                    verify_result = await config.page.evaluate(f"""
-                                        () => {{
-                                            try {{
-                                                const img = document.querySelector('img[src="{file_url}"]');
-                                                if (img) {{
-                                                    return {{
-                                                        success: true,
-                                                        src: img.src,
-                                                        width: img.width || img.offsetWidth || img.naturalWidth,
-                                                        height: img.height || img.offsetHeight || img.naturalHeight,
-                                                        complete: img.complete,
-                                                        naturalWidth: img.naturalWidth,
-                                                        naturalHeight: img.naturalHeight
-                                                    }};
-                                                }} else {{
-                                                    return {{ success: false, error: 'img element not found' }};
-                                                }}
-                                            }} catch (e) {{
-                                                return {{ success: false, error: e.message }};
-                                            }}
-                                        }}
-                                    """)
-                                    
-                                    if verify_result and verify_result.get('success'):
-                                        logger.info(f"✅ 验证成功：第 {i+1} 个容器的第 {j+1} 个canvas替换成功")
-                                    else:
-                                        error_msg = verify_result.get('error', 'unknown error') if verify_result else 'no result'
-                                        logger.warning(f"⚠️ 替换后未找到对应的img元素: {error_msg}")
-                                except Exception as verify_e:
-                                    logger.debug(f"验证替换结果时出错: {verify_e}")
-                            else:
-                                error_msg = result.get('error', 'unknown error') if result else 'no result'
-                                logger.warning(f"替换第 {i+1} 个容器的第 {j+1} 个canvas失败: {error_msg}")
+                                // 触发加载事件
+                                img.dispatchEvent(new Event('load', {{ bubbles: true }}));
                                 
-                                # 如果上面的方法失败，尝试使用更直接的选择器
-                                try:
-                                    logger.info(f"尝试使用直接选择器替换第 {i+1} 个容器的第 {j+1} 个canvas...")
-                                    direct_result = await config.page.evaluate(f"""
-                                        () => {{
-                                            try {{
-                                                // 查找所有qr-item容器
-                                                const qrContainers = document.querySelectorAll('.qr-item');
-                                                if (qrContainers.length === 0) {{
-                                                    return {{ success: false, error: 'no qr-item containers found' }};
-                                                }}
-                                                
-                                                // 获取第 {i+1} 个容器内的canvas
-                                                const container = qrContainers[{i}];
-                                                if (!container) {{
-                                                    return {{ success: false, error: 'container not found' }};
-                                                }}
-                                                
-                                                const canvas = container.querySelector('canvas');
-                                                if (!canvas) {{
-                                                    return {{ success: false, error: 'canvas not found in container' }};
-                                                }}
-                                                
-                                                // 获取尺寸并替换
-                                                const width = canvas.width || canvas.offsetWidth || 60;
-                                                const height = canvas.height || canvas.offsetHeight || 60;
-                                                
-                                                const img = document.createElement('img');
-                                                img.src = '{file_url}';
-                                                img.alt = '二维码';
-                                                img.style.width = width + 'px';
-                                                img.style.height = height + 'px';
-                                                img.style.display = 'block';
-                                                
-                                                if (canvas.style.cssText) {{
-                                                    img.style.cssText = canvas.style.cssText;
-                                                }}
-                                                
-                                                canvas.parentNode.replaceChild(img, canvas);
-                                                img.dispatchEvent(new Event('load', {{ bubbles: true }}));
-                                                
-                                                // 验证图片是否正确加载
-                                                setTimeout(() => {{
-                                                    if (img.complete && img.naturalWidth > 0) {{
-                                                        console.log('备选方法图片加载成功:', img.src, img.naturalWidth, 'x', img.naturalHeight);
-                                                    }} else {{
-                                                        console.log('备选方法图片加载失败:', img.src);
-                                                        // 如果base64加载失败，尝试其他方法
-                                                        if (img.src.startsWith('data:')) {{
-                                                            console.log('备选方法base64图片加载失败，尝试重新加载');
-                                                            img.src = img.src; // 重新设置src
-                                                        }}
-                                                    }}
-                                                }}, 100);
-                                                
-                                                return {{ success: true, width: width, height: height }};
-                                            }} catch (e) {{
-                                                return {{ success: false, error: e.message }};
-                                            }}
-                                        }}
-                                    """)
-                                    
-                                    if direct_result and direct_result.get('success'):
-                                        logger.info(f"✅ 使用直接选择器成功替换第 {i+1} 个容器的第 {j+1} 个canvas元素")
-                                        modified_count += 1
-                                        
-                                        # 验证备选替换是否真的成功
-                                        try:
-                                            await config.page.wait_for_timeout(500)  # 等待图片加载
-                                            # 检查替换后的元素 - 使用JavaScript验证
-                                            verify_result = await config.page.evaluate(f"""
-                                                () => {{
-                                                    try {{
-                                                        const img = document.querySelector('img[src="{file_url}"]');
-                                                        if (img) {{
-                                                            return {{
-                                                                success: true,
-                                                                src: img.src,
-                                                                width: img.width || img.offsetWidth || img.naturalWidth,
-                                                                height: img.height || img.offsetHeight || img.naturalHeight,
-                                                                complete: img.complete,
-                                                                naturalWidth: img.naturalWidth,
-                                                                naturalHeight: img.naturalHeight
-                                                            }};
-                                                        }} else {{
-                                                            return {{ success: false, error: 'img element not found' }};
-                                                        }}
-                                                    }} catch (e) {{
-                                                        return {{ success: false, error: e.message }};
-                                                    }}
-                                                }}
-                                            """)
-                                            
-                                            if verify_result and verify_result.get('success'):
-                                                logger.info(f"✅ 备选方法验证成功：第 {i+1} 个容器的第 {j+1} 个canvas替换后的img元素")
-                                            else:
-                                                error_msg = verify_result.get('error', 'unknown error') if verify_result else 'no result'
-                                                logger.warning(f"⚠️ 备选方法替换后未找到对应的img元素: {error_msg}")
-                                        except Exception as verify_e:
-                                            logger.debug(f"验证备选替换结果时出错: {verify_e}")
-                                    else:
-                                        direct_error = direct_result.get('error', 'unknown error') if direct_result else 'no result'
-                                        logger.warning(f"直接选择器替换也失败: {direct_error}")
-                                        
-                                except Exception as direct_e:
-                                    logger.error(f"直接选择器替换出错: {direct_e}")
+                                modifiedCount++;
+                                results.push({{
+                                    containerText: containerText,
+                                    width: width,
+                                    height: height,
+                                    success: true
+                                }});
                                 
-                        except Exception as canvas_e:
-                            logger.error(f"替换第 {i+1} 个容器的第 {j+1} 个canvas时出错: {canvas_e}")
-                                
-                        except Exception as canvas_e:
-                            logger.error(f"替换第 {j+1} 个canvas时出错: {canvas_e}")
-                    
-                    # 处理img元素 - 直接修改src
-                    for j, img in enumerate(img_elements):
-                        try:
-                            # 先获取img元素信息
-                            img_info = await config.page.evaluate("""
-                                (img) => {
-                                    if (!img) return null;
-                                    
-                                    return {
-                                        originalSrc: img.src || '',
-                                        originalAlt: img.alt || '',
-                                        hasParent: img.parentNode ? true : false
-                                    };
-                                }
-                            """, img)
-                            
-                            if not img_info:
-                                logger.warning(f"无法获取第 {j+1} 个img元素信息，跳过")
-                                continue
-                            
-                            # 使用JavaScript修改图片src并验证
-                            result = await config.page.evaluate(f"""
-                                (img) => {{
-                                    if (!img) return {{ success: false, error: 'img element is null' }};
-                                    
-                                    try {{
-                                        // 保存原始属性
-                                        const originalSrc = '{img_info["originalSrc"]}';
-                                        const originalAlt = '{img_info["originalAlt"]}';
-                                        
-                                        // 修改图片源
-                                        img.src = '{file_url}';
-                                        img.setAttribute('src', '{file_url}');
-                                        
-                                        // 更新alt属性
-                                        if (originalAlt.includes('验证') || originalAlt.includes('保障')) {{
-                                            img.alt = originalAlt;
-                                        }}
-                                        
-                                        // 触发图片加载事件
-                                        img.dispatchEvent(new Event('load', {{ bubbles: true }}));
-                                        
-                                        // 强制重新加载
-                                        img.style.display = 'none';
-                                        img.offsetHeight;
-                                        img.style.display = '';
-                                        
-                                        // 返回修改结果
-                                        return {{
-                                            success: img.src === '{file_url}',
-                                            originalSrc: originalSrc,
-                                            newSrc: img.src
-                                        }};
-                                    }} catch (e) {{
-                                        return {{ success: false, error: e.message }};
-                                    }}
-                                }}
-                            """, img)
-                            
-                            # 验证修改是否成功
-                            if result and result.get('success'):
-                                modified_count += 1
-                                logger.info(f"✅ 成功修改第 {j+1} 个img元素")
-                            else:
-                                error_msg = result.get('error', 'unknown error') if result else 'no result'
-                                logger.warning(f"修改第 {j+1} 个img元素失败: {error_msg}")
-                                
-                                # 尝试强制修改
-                                try:
-                                    force_result = await config.page.evaluate(f"""
-                                        (img) => {{
-                                            if (!img) return false;
-                                            
-                                            try {{
-                                                img.src = '{file_url}';
-                                                img.setAttribute('src', '{file_url}');
-                                                img.style.display = 'none';
-                                                img.offsetHeight;
-                                                img.style.display = '';
-                                                return img.src === '{file_url}';
-                                            }} catch (e) {{
-                                                return false;
-                                            }}
-                                        }}
-                                    """, img)
-                                    
-                                    if force_result:
-                                        modified_count += 1
-                                        logger.info(f"✅ 强制修改第 {j+1} 个img元素成功")
-                                    else:
-                                        logger.error(f"强制修改第 {j+1} 个img元素失败")
-                                except Exception as force_e:
-                                    logger.error(f"强制修改第 {j+1} 个img元素出错: {force_e}")
-                            
-                        except Exception as img_e:
-                            logger.error(f"修改第 {j+1} 个img元素时出错: {img_e}")
-                    
-                    # 如果二维码容器内既没有canvas也没有img，尝试直接添加img
-                    if len(canvas_elements) == 0 and len(img_elements) == 0:
-                        try:
-                            await config.page.evaluate(f"""
-                                (element) => {{
-                                    // 创建新的img元素
-                                    const img = document.createElement('img');
-                                    img.src = '{file_url}';
-                                    img.alt = '二维码';
-                                    img.style.width = '100px';
-                                    img.style.height = '100px';
-                                    img.style.display = 'block';
-                                    
-                                    // 添加到二维码容器元素
-                                    element.appendChild(img);
-                                    
-                                    // 触发加载事件
-                                    img.dispatchEvent(new Event('load', {{ bubbles: true }}));
-                                }}
-                            """, element)
-                            
-                            modified_count += 1
-                            logger.info(f"✅ 成功添加新的img元素到第 {i+1} 个二维码容器")
-                            
-                        except Exception as add_e:
-                            logger.error(f"添加img时出错: {add_e}")
-                    
-                except Exception as e:
-                    logger.error(f"处理第 {i+1} 个二维码容器时出错: {e}")
+                                console.log('成功替换容器:', containerText, '尺寸:', width, 'x', height);
+                            }} else {{
+                                console.log('canvas没有父节点，无法替换');
+                                results.push({{
+                                    containerText: containerText,
+                                    success: false,
+                                    error: 'canvas没有父节点'
+                                }});
+                            }}
+                        }}
+                        
+                        return {{
+                            success: true,
+                            modifiedCount: modifiedCount,
+                            results: results,
+                            totalContainers: qrContainers.length
+                        }};
+                        
+                    }} catch (e) {{
+                        console.error('替换二维码时出错:', e);
+                        return {{
+                            success: false,
+                            error: e.message,
+                            modifiedCount: 0
+                        }};
+                    }}
+                }}
+            """)
             
-            if modified_count > 0:
-                logger.info(f"✅ 二维码修改成功，共修改 {modified_count} 个元素")
+            if result and result.get('success'):
+                modified_count = result.get('modifiedCount', 0)
+                total_containers = result.get('totalContainers', 0)
+                results = result.get('results', [])
+                
+                logger.info(f"✅ 二维码替换完成！")
+                logger.info(f"   总容器数: {total_containers}")
+                logger.info(f"   成功替换: {modified_count} 个")
+                
+                # 显示详细结果
+                for res in results:
+                    if res.get('success'):
+                        logger.info(f"   ✅ {res['containerText']}: {res['width']}x{res['height']}")
+                    else:
+                        logger.warning(f"   ⚠️ {res['containerText']}: {res.get('error', '未知错误')}")
+                
+                # 验证替换结果
+                await self.verify_qr_replacement(config, file_url)
+                
+                return modified_count > 0
             else:
-                logger.warning("⚠️ 未找到可修改的二维码元素")
-            
-            return modified_count > 0
-            
+                error_msg = result.get('error', 'unknown error') if result else 'no result'
+                logger.error(f"❌ 二维码替换失败: {error_msg}")
+                return False
+                
         except Exception as e:
             logger.error(f"修改二维码时出错: {e}")
+            return False
+    
+    async def verify_qr_replacement(self, config, file_url):
+        """验证二维码替换结果"""
+        try:
+            logger.info("🔍 开始验证二维码替换结果...")
+            
+            # 等待图片加载
+            await config.page.wait_for_timeout(1000)
+            
+            # 使用JavaScript验证替换结果
+            verify_result = await config.page.evaluate(f"""
+                () => {{
+                    try {{
+                        const targetTexts = ['官方验证', '专属保障'];
+                        let verificationResults = [];
+                        
+                        // 查找所有qr-item容器
+                        const qrContainers = document.querySelectorAll('.qr-item');
+                        
+                        for (let i = 0; i < qrContainers.length; i++) {{
+                            const container = qrContainers[i];
+                            const spanElement = container.querySelector('span');
+                            
+                            if (!spanElement) continue;
+                            
+                            const containerText = spanElement.textContent.trim();
+                            
+                            // 只检查目标容器
+                            if (!targetTexts.includes(containerText)) continue;
+                            
+                            const img = container.querySelector('img');
+                            const canvas = container.querySelector('canvas');
+                            
+                            if (img && !canvas) {{
+                                // 成功替换：有img，没有canvas
+                                verificationResults.push({{
+                                    containerText: containerText,
+                                    status: 'success',
+                                    hasImg: true,
+                                    hasCanvas: false,
+                                    imgSrc: img.src,
+                                    imgWidth: img.width || img.offsetWidth || img.naturalWidth,
+                                    imgHeight: img.height || img.offsetHeight || img.naturalHeight
+                                }});
+                            }} else if (canvas && !img) {{
+                                // 替换失败：有canvas，没有img
+                                verificationResults.push({{
+                                    containerText: containerText,
+                                    status: 'failed',
+                                    hasImg: false,
+                                    hasCanvas: true,
+                                    error: 'canvas未被替换'
+                                }});
+                            }} else if (img && canvas) {{
+                                // 部分替换：既有img又有canvas
+                                verificationResults.push({{
+                                    containerText: containerText,
+                                    status: 'partial',
+                                    hasImg: true,
+                                    hasCanvas: true,
+                                    warning: 'canvas和img同时存在'
+                                }});
+                            }} else {{
+                                // 异常状态：既没有img也没有canvas
+                                verificationResults.push({{
+                                    containerText: containerText,
+                                    status: 'error',
+                                    hasImg: false,
+                                    hasCanvas: false,
+                                    error: '既没有canvas也没有img'
+                                }});
+                            }}
+                        }}
+                        
+                        return {{
+                            success: true,
+                            results: verificationResults,
+                            totalChecked: verificationResults.length
+                        }};
+                        
+                    }} catch (e) {{
+                        return {{
+                            success: false,
+                            error: e.message
+                        }};
+                    }}
+                }}
+            """)
+            
+            if verify_result and verify_result.get('success'):
+                results = verify_result.get('results', [])
+                total_checked = verify_result.get('totalChecked', 0)
+                
+                logger.info(f"🔍 验证完成，检查了 {total_checked} 个目标容器")
+                
+                success_count = 0
+                for res in results:
+                    if res['status'] == 'success':
+                        logger.info(f"   ✅ {res['containerText']}: 替换成功 ({res['imgWidth']}x{res['imgHeight']})")
+                        success_count += 1
+                    elif res['status'] == 'failed':
+                        logger.warning(f"   ❌ {res['containerText']}: {res['error']}")
+                    elif res['status'] == 'partial':
+                        logger.warning(f"   ⚠️ {res['containerText']}: {res['warning']}")
+                    elif res['status'] == 'error':
+                        logger.error(f"   💥 {res['containerText']}: {res['error']}")
+                
+                logger.info(f"🔍 验证结果: {success_count}/{total_checked} 个容器替换成功")
+                return success_count == total_checked
+            else:
+                error_msg = verify_result.get('error', 'unknown error') if verify_result else 'no result'
+                logger.error(f"❌ 验证失败: {error_msg}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"验证二维码替换结果时出错: {e}")
             return False
     
 
