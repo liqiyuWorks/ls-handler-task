@@ -418,7 +418,7 @@ class CarReportModifier:
     async def modify_qr_codes(self, config):
         """修改页面中的二维码图片 - 专门针对class='qrcode'和class='qr-item'的元素"""
         try:
-            logger.info("开始替换页面中的二维码...")
+            logger.info("🔄 开始替换页面中的二维码...")
             
             # 等待页面完全加载
             await config.page.wait_for_timeout(2000)
@@ -435,6 +435,42 @@ class CarReportModifier:
                 "//*[contains(@class, 'qrcode')]"
             ]
             
+            # 添加调试：先检查页面中所有可能的二维码相关元素
+            logger.info("🔍 开始搜索页面中的二维码元素...")
+            try:
+                # 使用JavaScript查找所有可能的二维码元素
+                all_qr_elements = await config.page.evaluate("""
+                    () => {
+                        const elements = [];
+                        
+                        // 查找所有包含qr相关class的元素
+                        document.querySelectorAll('*').forEach(el => {
+                            const className = el.className || '';
+                            if (typeof className === 'string' && 
+                                (className.includes('qr') || className.includes('code') || className.includes('QR'))) {
+                                elements.push({
+                                    tagName: el.tagName,
+                                    className: className,
+                                    id: el.id || '',
+                                    textContent: el.textContent?.substring(0, 50) || ''
+                                });
+                            }
+                        });
+                        
+                        return elements;
+                    }
+                """)
+                
+                if all_qr_elements:
+                    logger.info(f"🔍 找到 {len(all_qr_elements)} 个可能相关的元素:")
+                    for i, elem in enumerate(all_qr_elements[:10]):  # 只显示前10个
+                        logger.info(f"  元素 {i+1}: {elem['tagName']}, class='{elem['className']}', id='{elem['id']}', text='{elem['textContent']}'")
+                else:
+                    logger.warning("🔍 未找到任何包含qr相关class的元素")
+                    
+            except Exception as e:
+                logger.debug(f"搜索页面元素时出错: {e}")
+            
             qr_elements = []
             for selector in qr_selectors:
                 try:
@@ -449,12 +485,47 @@ class CarReportModifier:
                         qr_elements.extend(elements)
                         logger.info(f"选择器 '{selector}' 找到 {len(elements)} 个元素")
                         
-                        # 如果找到了元素，就停止查找
-                        if len(elements) > 0:
-                            break
+                        # 不要停止查找，收集所有选择器找到的元素
                 except Exception as e:
                     logger.debug(f"选择器 '{selector}' 查找失败: {e}")
                     continue
+            
+            # 去重并确保所有元素都被处理
+            qr_elements = list(set(qr_elements))
+            logger.info(f"🔍 总共找到 {len(qr_elements)} 个唯一的二维码容器元素")
+            
+            # 如果使用选择器没有找到元素，尝试使用JavaScript直接查找
+            if not qr_elements:
+                logger.info("🔍 选择器未找到元素，尝试使用JavaScript直接查找...")
+                try:
+                    js_result = await config.page.evaluate("""
+                        () => {
+                            const elements = [];
+                            
+                            // 查找所有包含qr-item或qrcode class的元素
+                            document.querySelectorAll('.qr-item, .qrcode').forEach(el => {
+                                elements.push({
+                                    element: el,
+                                    className: el.className || '',
+                                    hasCanvas: !!el.querySelector('canvas'),
+                                    hasImg: !!el.querySelector('img'),
+                                    textContent: el.textContent?.substring(0, 100) || ''
+                                });
+                            });
+                            
+                            return elements.length;
+                        }
+                    """)
+                    
+                    if js_result > 0:
+                        logger.info(f"🔍 JavaScript找到 {js_result} 个二维码容器")
+                        # 重新使用JavaScript查找元素
+                        qr_elements = await config.page.locator(".qr-item, .qrcode").all()
+                    else:
+                        logger.warning("🔍 JavaScript也未找到二维码容器")
+                        
+                except Exception as e:
+                    logger.debug(f"JavaScript查找失败: {e}")
             
             if not qr_elements:
                 logger.warning("未找到class='qrcode'或class='qr-item'的元素")
@@ -536,19 +607,25 @@ class CarReportModifier:
                     logger.info(f"处理第 {i+1} 个二维码容器，找到 {len(canvas_elements)} 个canvas，{len(img_elements)} 个img")
                     
                     # 如果找到img元素，检查是否已经是我们的目标图片
+                    has_target_image = False
                     if len(img_elements) > 0:
                         for img_idx, img in enumerate(img_elements):
                             try:
                                 img_src = await img.get_attribute("src")
                                 if img_src and file_url in img_src:
                                     logger.info(f"第 {i+1} 个容器的第 {img_idx+1} 个img已经是目标图片: {img_src}")
-                                    # 如果已经是目标图片，跳过这个容器
-                                    logger.info(f"第 {i+1} 个容器已包含目标图片，跳过处理")
-                                    continue
+                                    has_target_image = True
+                                    break
                                 else:
                                     logger.info(f"第 {i+1} 个容器的第 {img_idx+1} 个img的src: {img_src}")
                             except Exception as e:
                                 logger.debug(f"无法获取img src: {e}")
+                    
+                    # 如果容器已经有目标图片，记录但继续处理其他容器
+                    if has_target_image:
+                        logger.info(f"第 {i+1} 个容器已包含目标图片，但继续处理其他容器...")
+                    
+                    logger.info(f"🔄 继续处理第 {i+1} 个二维码容器...")
                     
                     # 调试：检查元素的HTML内容
                     try:
@@ -556,6 +633,11 @@ class CarReportModifier:
                         logger.info(f"第 {i+1} 个二维码容器的HTML内容: {element_html[:200]}...")
                     except Exception as e:
                         logger.debug(f"无法获取第 {i+1} 个元素的HTML内容: {e}")
+                    
+                    # 强制处理：即使容器已经有目标图片，也要确保所有canvas都被替换
+                    force_process = has_target_image and len(canvas_elements) > 0
+                    if force_process:
+                        logger.info(f"🔧 强制处理第 {i+1} 个容器，确保所有canvas都被替换...")
                     
                     # 如果没有找到canvas或img，尝试直接查找
                     if len(canvas_elements) == 0 and len(img_elements) == 0:
@@ -579,6 +661,8 @@ class CarReportModifier:
                     # 处理canvas元素 - 替换为图片
                     for j, canvas in enumerate(canvas_elements):
                         try:
+                            logger.info(f"🔄 处理第 {i+1} 个容器的第 {j+1} 个canvas元素...")
+                            
                             # 使用更可靠的方法替换canvas为img
                             # 通过选择器直接查找和替换，避免元素传递问题
                             canvas_selector = f"canvas:nth-of-type({j+1})"
@@ -628,19 +712,19 @@ class CarReportModifier:
                                             // 触发加载事件
                                             img.dispatchEvent(new Event('load', {{ bubbles: true }}));
                                             
-                                                                                    // 验证图片是否正确加载
-                                        setTimeout(() => {{
-                                            if (img.complete && img.naturalWidth > 0) {{
-                                                console.log('图片加载成功:', img.src, img.naturalWidth, 'x', img.naturalHeight);
-                                            }} else {{
-                                                console.log('图片加载失败:', img.src);
-                                                // 如果base64加载失败，尝试其他方法
-                                                if (img.src.startsWith('data:')) {{
-                                                    console.log('base64图片加载失败，尝试重新加载');
-                                                    img.src = img.src; // 重新设置src
+                                            // 验证图片是否正确加载
+                                            setTimeout(() => {{
+                                                if (img.complete && img.naturalWidth > 0) {{
+                                                    console.log('图片加载成功:', img.src, img.naturalWidth, 'x', img.naturalHeight);
+                                                }} else {{
+                                                    console.log('图片加载失败:', img.src);
+                                                    // 如果base64加载失败，尝试其他方法
+                                                    if (img.src.startsWith('data:')) {{
+                                                        console.log('base64图片加载失败，尝试重新加载');
+                                                        img.src = img.src; // 重新设置src
+                                                    }}
                                                 }}
-                                            }}
-                                        }}, 100);
+                                            }}, 100);
                                             
                                             return {{ success: true, width: width, height: height }};
                                         }}
@@ -651,8 +735,9 @@ class CarReportModifier:
                                 }}
                             """)
                             
+                            # 如果替换成功，记录并继续处理下一个canvas
                             if result and result.get('success'):
-                                logger.info(f"✅ 成功替换第 {j+1} 个canvas元素，尺寸: {result.get('width')}x{result.get('height')}")
+                                logger.info(f"✅ 成功替换第 {i+1} 个容器的第 {j+1} 个canvas元素，尺寸: {result.get('width')}x{result.get('height')}")
                                 modified_count += 1
                                 
                                 # 验证替换是否真的成功
@@ -683,7 +768,7 @@ class CarReportModifier:
                                     """)
                                     
                                     if verify_result and verify_result.get('success'):
-                                        logger.info(f"✅ 验证成功")
+                                        logger.info(f"✅ 验证成功：第 {i+1} 个容器的第 {j+1} 个canvas替换成功")
                                     else:
                                         error_msg = verify_result.get('error', 'unknown error') if verify_result else 'no result'
                                         logger.warning(f"⚠️ 替换后未找到对应的img元素: {error_msg}")
@@ -691,11 +776,11 @@ class CarReportModifier:
                                     logger.debug(f"验证替换结果时出错: {verify_e}")
                             else:
                                 error_msg = result.get('error', 'unknown error') if result else 'no result'
-                                logger.warning(f"替换第 {j+1} 个canvas失败: {error_msg}")
+                                logger.warning(f"替换第 {i+1} 个容器的第 {j+1} 个canvas失败: {error_msg}")
                                 
                                 # 如果上面的方法失败，尝试使用更直接的选择器
                                 try:
-                                    logger.info(f"尝试使用直接选择器替换第 {j+1} 个canvas...")
+                                    logger.info(f"尝试使用直接选择器替换第 {i+1} 个容器的第 {j+1} 个canvas...")
                                     direct_result = await config.page.evaluate(f"""
                                         () => {{
                                             try {{
@@ -756,7 +841,7 @@ class CarReportModifier:
                                     """)
                                     
                                     if direct_result and direct_result.get('success'):
-                                        logger.info(f"✅ 使用直接选择器成功替换第 {j+1} 个canvas元素")
+                                        logger.info(f"✅ 使用直接选择器成功替换第 {i+1} 个容器的第 {j+1} 个canvas元素")
                                         modified_count += 1
                                         
                                         # 验证备选替换是否真的成功
@@ -787,7 +872,7 @@ class CarReportModifier:
                                             """)
                                             
                                             if verify_result and verify_result.get('success'):
-                                                logger.info(f"✅ 备选方法验证成功：替换后的img元素")
+                                                logger.info(f"✅ 备选方法验证成功：第 {i+1} 个容器的第 {j+1} 个canvas替换后的img元素")
                                             else:
                                                 error_msg = verify_result.get('error', 'unknown error') if verify_result else 'no result'
                                                 logger.warning(f"⚠️ 备选方法替换后未找到对应的img元素: {error_msg}")
@@ -799,6 +884,9 @@ class CarReportModifier:
                                         
                                 except Exception as direct_e:
                                     logger.error(f"直接选择器替换出错: {direct_e}")
+                                
+                        except Exception as canvas_e:
+                            logger.error(f"替换第 {i+1} 个容器的第 {j+1} 个canvas时出错: {canvas_e}")
                                 
                         except Exception as canvas_e:
                             logger.error(f"替换第 {j+1} 个canvas时出错: {canvas_e}")
