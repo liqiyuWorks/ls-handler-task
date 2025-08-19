@@ -925,6 +925,25 @@ def delete_task(task_id):
         logger.error(f"删除任务失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/tasks/clear-all', methods=['DELETE'])
+def clear_all_tasks():
+    """清空所有任务记录"""
+    try:
+        # 检查Redis连接
+        if not redis_task_manager.is_redis_connected():
+            return jsonify({'error': 'Redis连接失败'}), 500
+        
+        # 清空所有任务
+        success = redis_task_manager.clear_all_tasks()
+        if success:
+            return jsonify({'message': '所有任务记录已清空'})
+        else:
+            return jsonify({'error': '清空任务记录失败'}), 500
+        
+    except Exception as e:
+        logger.error(f"清空所有任务失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # 创建必要的目录
     os.makedirs("static/screenshots", exist_ok=True)
