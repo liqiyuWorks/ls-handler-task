@@ -499,8 +499,8 @@ class CarReportModifier:
                             const img = document.createElement('img');
                             img.src = '{file_url}';
                             img.alt = '二维码';
-                            img.style.width = width + 'px';
-                            img.style.height = height + 'px';
+                            img.style.width = (width + 10) + 'px';
+                            img.style.height = (height + 10) + 'px';
                             img.style.display = 'block';
                             
                             // 复制canvas的样式
