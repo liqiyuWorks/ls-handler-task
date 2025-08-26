@@ -44,7 +44,19 @@ class CarReportModifier:
     async def get_report_url(self):
         """获取报告链接"""
         try:
-            # 优先尝试第一个接口获取报告链接
+            # 先尝试APP接口获取报告链接
+            logger.info(f"正在请求APP获取报告链接，VIN: {self.vin}")
+            response = requests.get(self.base_url, params=self.params)
+            response.raise_for_status()
+            data = response.json()
+            if data.get("Result") == 1 and data.get("Message") == "SUCCESS":
+                report_url = data.get("ReturnObj")
+                logger.info(f"APP接口成功获取报告链接: {report_url}")
+                return report_url
+            else:
+                logger.warning(f"APP接口未成功: {data}")
+
+            # 如果APP接口未获取到，再尝试API接口
             alt_base_url = "https://cxm.yimuzhiche.com/service/CustomerService.ashx"
             alt_params = {
                 "Method": "GenerateLinkURL",
@@ -64,19 +76,9 @@ class CarReportModifier:
                     logger.warning(f"API接口未成功: {alt_data}")
             except Exception as e:
                 logger.warning(f"API接口请求失败: {e}")
-            
-            logger.info(f"正在请求APP获取报告链接，VIN: {self.vin}")
-            response = requests.get(self.base_url, params=self.params)
-            response.raise_for_status()
-            
-            data = response.json()
-            if data.get("Result") == 1 and data.get("Message") == "SUCCESS":
-                report_url = data.get("ReturnObj")
-                logger.info(f"成功获取报告链接: {report_url}")
-                return report_url
-            else:
-                logger.error(f"API请求失败: {data}")
-                return None
+
+            logger.error("未能通过APP或API接口获取报告链接")
+            return None
         except Exception as e:
             logger.error(f"获取报告链接时出错: {e}")
             return None
