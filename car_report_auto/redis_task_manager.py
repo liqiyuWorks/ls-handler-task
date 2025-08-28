@@ -241,6 +241,40 @@ class RedisTaskManager:
             logger.error(f"删除任务失败: {task_id}, 错误: {e}")
             return False
 
+    def clear_all_tasks(self) -> bool:
+        """清空所有任务记录"""
+        try:
+            # 获取所有任务ID
+            task_ids = self.redis_client.zrange(self.TASK_LIST_KEY, 0, -1)
+            
+            if not task_ids:
+                logger.info("没有任务需要清空")
+                return True
+            
+            # 批量删除所有任务相关数据
+            pipeline = self.redis_client.pipeline()
+            
+            for task_id in task_ids:
+                # 删除任务数据
+                pipeline.delete(self._get_task_key(task_id))
+                # 删除状态数据
+                pipeline.delete(self._get_status_key(task_id))
+                # 删除结果数据
+                pipeline.delete(self._get_result_key(task_id))
+            
+            # 删除任务列表
+            pipeline.delete(self.TASK_LIST_KEY)
+            
+            # 执行批量删除
+            pipeline.execute()
+            
+            logger.info(f"成功清空 {len(task_ids)} 个任务记录")
+            return True
+            
+        except Exception as e:
+            logger.error(f"清空所有任务失败: {e}")
+            return False
+
 
 # 全局Redis任务管理器实例
 redis_task_manager = None

@@ -26,7 +26,7 @@ class PlaywrightConfig:
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
         
-        # 🚀 优化：精简浏览器启动参数，提高启动速度
+        # 🚀 优化：精简浏览器启动参数，提高启动速度，移动设备模式
         self.browser_args = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -38,17 +38,19 @@ class PlaywrightConfig:
             '--disable-translate',
             '--hide-scrollbars',
             '--mute-audio',
-            '--force-device-scale-factor=1.5',  # 平衡清晰度和性能
+            '--force-device-scale-factor=2',  # 提高设备缩放因子，获得更清晰的图片
             '--disable-web-security',  # 加速加载
             '--disable-background-networking',  # 减少后台网络
-            '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            '--touch-events=enabled',  # 启用触摸事件
+            '--enable-touch-drag-drop',  # 启用触摸拖拽
+            '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
         ]
         
-        # 浏览器上下文配置 - 平衡清晰度和文件大小
+        # 浏览器上下文配置 - 移动设备模式
         self.context_config = {
-            'viewport': {'width': 1366, 'height': 768},  # 降低分辨率减少文件大小
-            'device_scale_factor': 1.5,  # 适度缩放保证清晰度
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'viewport': {'width': 375, 'height': 812},  # iPhone X 尺寸
+            'device_scale_factor': 2,  # 提高设备缩放因子，获得更清晰的图片
+            'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
             'locale': 'zh-CN',
             'timezone_id': 'Asia/Shanghai',
             'extra_http_headers': {
@@ -56,7 +58,8 @@ class PlaywrightConfig:
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
                 'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache'
+                'Pragma': 'no-cache',
+                'X-Requested-With': 'XMLHttpRequest'
             }
         }
     
@@ -93,12 +96,81 @@ class PlaywrightConfig:
             self.page.set_default_timeout(15000)  # 15秒
             self.page.set_default_navigation_timeout(20000)  # 20秒
             
+            # 自动设置移动设备模式
+            await self.set_mobile_mode()
+            
             logger.info("Playwright 浏览器启动成功")
             
         except Exception as e:
             logger.error(f"启动 Playwright 浏览器失败: {e}")
             await self.cleanup()
             raise
+    
+    async def set_mobile_mode(self):
+        """设置移动设备模式"""
+        if not self.page:
+            logger.error("页面未初始化，无法设置移动模式")
+            return False
+        
+        try:
+            logger.info("设置移动设备模式...")
+            
+            # 设置移动设备视口
+            await self.page.set_viewport_size({'width': 375, 'height': 812})
+            
+            # 设置触摸事件
+            await self.page.add_init_script("""
+                Object.defineProperty(navigator, 'maxTouchPoints', {
+                    get: () => 5
+                });
+                
+                Object.defineProperty(navigator, 'userAgent', {
+                    get: () => 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+                });
+                
+                // 模拟触摸事件
+                if (!window.ontouchstart) {
+                    window.ontouchstart = null;
+                    window.ontouchmove = null;
+                    window.ontouchend = null;
+                }
+            """)
+            
+            # 设置移动设备特性
+            await self.context.add_init_script("""
+                // 设置移动设备相关属性
+                Object.defineProperty(navigator, 'platform', {
+                    get: () => 'iPhone'
+                });
+                
+                Object.defineProperty(navigator, 'vendor', {
+                    get: () => 'Apple Computer, Inc.'
+                });
+                
+                // 设置屏幕属性
+                Object.defineProperty(screen, 'width', {
+                    get: () => 375
+                });
+                
+                Object.defineProperty(screen, 'height', {
+                    get: () => 812
+                });
+                
+                Object.defineProperty(screen, 'availWidth', {
+                    get: () => 375
+                });
+                
+                Object.defineProperty(screen, 'availHeight', {
+                    get: () => 812
+                });
+            """)
+            
+            logger.info("✅ 移动设备模式设置成功")
+            return True
+            
+        except Exception as e:
+            logger.error(f"设置移动设备模式失败: {e}")
+            return False
     
     async def cleanup(self):
         """清理资源"""
@@ -159,7 +231,7 @@ class PlaywrightConfig:
             return False
     
     async def take_screenshot(self, prefix: str, full_page: bool = True, optimize_size: bool = True) -> Optional[str]:
-        """优化版截图方法 - 平衡清晰度和文件大小"""
+        """优化版截图方法 - 移动设备模式，平衡清晰度和文件大小"""
         if not self.page:
             logger.error("页面未初始化，无法截图")
             return None
@@ -172,26 +244,15 @@ class PlaywrightConfig:
             # 确保目录存在
             os.makedirs("static/screenshots", exist_ok=True)
             
-            # 根据优化选项设置截图配置
-            if optimize_size:
-                # 文件大小优化模式
-                screenshot_options = {
-                    'path': screenshot_path,
-                    'full_page': full_page,
-                    'type': 'png',
-                    'omit_background': False,
-                    'scale': 'css',  # 使用CSS缩放，文件更小
-                    'animations': 'disabled'  # 禁用动画减少文件大小
-                }
-            else:
-                # 高质量模式
-                screenshot_options = {
-                    'path': screenshot_path,
-                    'full_page': full_page,
-                    'type': 'png',
-                    'omit_background': False,
-                    'scale': 'device'  # 使用设备缩放，质量更高
-                }
+            # 移动设备截图高清晰度配置
+            screenshot_options = {
+                'path': screenshot_path,
+                'full_page': full_page,
+                'type': 'png',
+                'omit_background': False,
+                'scale': 'device',  # 使用设备缩放，获得更清晰的图片
+                'animations': 'disabled'  # 禁用动画确保截图稳定
+            }
             
             # 等待页面完全渲染
             await self.page.wait_for_timeout(2000)  # 减少等待时间
@@ -199,22 +260,74 @@ class PlaywrightConfig:
             # 等待网络空闲
             await self.page.wait_for_load_state('networkidle')
             
+            # 移动设备：确保页面在视口中心
+            if full_page:
+                await self.page.evaluate("window.scrollTo(0, 0)")
+                await self.page.wait_for_timeout(500)
+            
             # 截图
             await self.page.screenshot(**screenshot_options)
             
-            # 如果启用大小优化，则压缩图片
-            if optimize_size:
-                self.optimize_png_size(screenshot_path)
+            # 不压缩图片，保证清晰度
             
             # 检查文件大小并记录
             file_size = os.path.getsize(screenshot_path)
             file_size_mb = file_size / (1024 * 1024)
-            logger.info(f"截图已保存: {screenshot_path} (大小: {file_size_mb:.2f}MB)")
+            logger.info(f"📱 移动设备截图已保存: {screenshot_path} (大小: {file_size_mb:.2f}MB)")
             
             return screenshot_path
             
         except Exception as e:
             logger.error(f"截图失败: {e}")
+            return None
+    
+    async def take_mobile_screenshot(self, prefix: str, full_page: bool = True) -> Optional[str]:
+        """移动设备专用截图方法"""
+        if not self.page:
+            logger.error("页面未初始化，无法截图")
+            return None
+        
+        try:
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            screenshot_path = f"static/screenshots/mobile_{prefix}_{timestamp}.png"
+            
+            # 确保目录存在
+            os.makedirs("static/screenshots", exist_ok=True)
+            
+            # 移动设备截图高清晰度配置
+            screenshot_options = {
+                'path': screenshot_path,
+                'full_page': full_page,
+                'type': 'png',
+                'omit_background': False,
+                'scale': 'device',  # 使用设备缩放，获得更清晰的图片
+                'animations': 'disabled'  # 禁用动画确保截图稳定
+            }
+            
+            # 等待页面加载完成
+            await self.page.wait_for_load_state('networkidle')
+            await self.page.wait_for_timeout(1500)
+            
+            # 移动设备：滚动到顶部
+            if full_page:
+                await self.page.evaluate("window.scrollTo(0, 0)")
+                await self.page.wait_for_timeout(500)
+            
+            # 截图
+            await self.page.screenshot(**screenshot_options)
+            
+            # 不压缩图片，保证清晰度
+            
+            # 检查文件大小
+            file_size = os.path.getsize(screenshot_path)
+            file_size_mb = file_size / (1024 * 1024)
+            logger.info(f"📱 移动设备截图完成: {screenshot_path} (大小: {file_size_mb:.2f}MB)")
+            
+            return screenshot_path
+            
+        except Exception as e:
+            logger.error(f"移动设备截图失败: {e}")
             return None
     
     async def save_page_as_image(self, prefix: str = "page_save") -> Optional[str]:
@@ -264,7 +377,7 @@ class PlaywrightConfig:
                 'full_page': True,
                 'type': 'png',
                 'omit_background': False,  # 包含背景
-                'scale': 'css',  # 使用CSS缩放减少文件大小
+                'scale': 'device',  # 使用设备缩放，获得更清晰的图片
                 'animations': 'disabled'  # 禁用动画
             }
             
@@ -448,13 +561,13 @@ class PlaywrightConfig:
             # 4. 进行整页截图（类似getfireshot.com的处理方式）
             logger.info("开始整页截图...")
             
-            # 设置优化后的截图选项 - 平衡清晰度和文件大小
+            # 设置高清晰度截图选项 - 保证图片质量
             screenshot_options = {
                 'path': screenshot_path,
                 'full_page': True,  # 关键：启用整页截图
                 'type': 'png',
                 'omit_background': False,  # 保留背景
-                'scale': 'css',  # 使用CSS缩放减少文件大小
+                'scale': 'device',  # 使用设备缩放，获得更清晰的图片
                 'clip': None,  # 不裁剪，捕获整个页面
                 'animations': 'disabled'  # 禁用动画，确保截图稳定
                 # 注意：quality参数仅适用于JPEG格式，PNG格式不支持此参数
@@ -611,12 +724,12 @@ class PlaywrightConfig:
                 }
             """)
             
-            # 设置优化后的截图选项 - 平衡清晰度和文件大小
+            # 设置高清晰度截图选项 - 保证图片质量
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
                 'omit_background': False,  # 包含背景
-                'scale': 'css',  # 使用CSS缩放减少文件大小
+                'scale': 'device',  # 使用设备缩放，获得更清晰的图片
                 'animations': 'disabled'  # 禁用动画，确保截图稳定
             }
             
@@ -676,20 +789,19 @@ class PlaywrightConfig:
             # 滚动到元素
             await element.scroll_into_view_if_needed()
             
-            # 🚀 优化：快速截图设置 - 平衡清晰度和文件大小
+            # 🚀 优化：快速截图设置 - 高清晰度
             screenshot_options = {
                 'path': screenshot_path,
                 'type': 'png',
                 'omit_background': False,
-                'scale': 'css',  # 使用CSS缩放减少文件大小
+                'scale': 'device',  # 使用设备缩放，获得更清晰的图片
                 'animations': 'disabled'  # 禁用动画
             }
             
             # 截图
             await element.screenshot(**screenshot_options)
             
-            # 自动压缩图片以减少文件大小
-            self.optimize_png_size(screenshot_path)
+            # 不压缩图片，保证清晰度
             
             # 验证文件
             file_size = os.path.getsize(screenshot_path)
@@ -806,7 +918,7 @@ class PlaywrightConfig:
 
 # 使用示例
 async def example_usage():
-    """使用示例"""
+    """使用示例 - 移动设备模式"""
     async with PlaywrightConfig(headless=True) as config:
         # 导航到页面
         success = await config.navigate_to_page("https://example.com")
@@ -823,9 +935,42 @@ async def example_usage():
             # 修改文本
             await config.modify_element_text(element, "2024-01-01")
             
-            # 截图
-            await config.take_screenshot("example")
+            # 移动设备截图
+            await config.take_mobile_screenshot("example")
+            
+            # 或者使用普通截图方法（也会自动使用移动设备模式）
+            await config.take_screenshot("example_desktop")
+
+
+async def mobile_example_usage():
+    """移动设备模式专用示例"""
+    async with PlaywrightConfig(headless=True) as config:
+        # 导航到页面
+        success = await config.navigate_to_page("https://example.com")
+        if not success:
+            return
+        
+        # 确保移动设备模式已启用
+        await config.set_mobile_mode()
+        
+        # 等待页面适应移动设备布局
+        await config.page.wait_for_timeout(2000)
+        
+        # 移动设备截图
+        await config.take_mobile_screenshot("mobile_example", full_page=True)
+        
+        # 截取特定元素
+        element = await config.find_element(["//div[@class='content']"])
+        if element:
+            await config.save_element_as_image("//div[@class='content']", "mobile_element")
 
 
 if __name__ == "__main__":
-    asyncio.run(example_usage()) 
+    import sys
+    
+    if len(sys.argv) > 1 and sys.argv[1] == "mobile":
+        print("🚀 启动移动设备模式示例...")
+        asyncio.run(mobile_example_usage())
+    else:
+        print("🖥️ 启动桌面模式示例...")
+        asyncio.run(example_usage()) 
