@@ -3255,6 +3255,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def run(self):
         try:
             query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}, "perf_calculated": {"$ne": 0}}
+            # query_sql: Dict[str, Any] = {"mmsi": {"$exists": True}}
             # query_sql: Dict[str, Any] = {"mmsi": 414439000} # 调试
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
@@ -3263,7 +3264,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 logger.error("数据库连接失败")
                 return
 
-            # 计算10天前的时间戳
+            # 计算xxx天前的时间戳【用于测试】
             if self.time_days:
                 ten_days_ago = datetime.now() - timedelta(days=self.time_days)
                 log_debug(f"ten_days_ago: {ten_days_ago}")
