@@ -15,6 +15,9 @@ import threading
 import os
 import tempfile
 import shutil
+import time
+import signal
+import sys
 from playwright_config import PlaywrightConfig
 from redis_task_manager import get_redis_task_manager, init_redis_task_manager
 
@@ -26,6 +29,10 @@ app = Flask(__name__,
 
 # 初始化Redis任务管理器
 redis_task_manager = None
+
+# 进程监控和清理相关变量
+process_monitor_thread = None
+monitor_running = False
 
 class CarReportModifier:
     def __init__(self, vin, new_date=None, qr_code_url=None, headless=True):
@@ -729,6 +736,59 @@ class CarReportModifier:
             logger.error(f"详细错误信息: {traceback.format_exc()}")
             return False, None
 
+def process_monitor():
+    """进程监控和自动清理函数"""
+    global monitor_running
+    logger.info("🔍 启动进程监控线程...")
+    
+    while monitor_running:
+        try:
+            # 检查Chrome进程数量
+            chrome_count = PlaywrightConfig.get_system_chrome_process_count()
+            
+            if chrome_count > 10:  # 如果Chrome进程超过10个，进行清理
+                logger.warning(f"⚠️ 检测到过多Chrome进程 ({chrome_count}个)，开始清理...")
+                asyncio.run(PlaywrightConfig.cleanup_all_chrome_processes())
+            
+            # 每30秒检查一次
+            time.sleep(30)
+            
+        except Exception as e:
+            logger.error(f"进程监控出错: {e}")
+            time.sleep(60)  # 出错时等待更长时间
+
+def start_process_monitor():
+    """启动进程监控"""
+    global process_monitor_thread, monitor_running
+    
+    if process_monitor_thread is None or not process_monitor_thread.is_alive():
+        monitor_running = True
+        process_monitor_thread = threading.Thread(target=process_monitor, daemon=True)
+        process_monitor_thread.start()
+        logger.info("✅ 进程监控已启动")
+
+def stop_process_monitor():
+    """停止进程监控"""
+    global monitor_running
+    monitor_running = False
+    logger.info("🛑 进程监控已停止")
+
+def signal_handler(signum, frame):
+    """信号处理器，确保程序退出时清理资源"""
+    logger.info(f"📡 收到信号 {signum}，开始清理资源...")
+    
+    # 停止进程监控
+    stop_process_monitor()
+    
+    # 清理所有Chrome进程
+    try:
+        asyncio.run(PlaywrightConfig.cleanup_all_chrome_processes())
+    except Exception as e:
+        logger.error(f"清理Chrome进程时出错: {e}")
+    
+    logger.info("✅ 资源清理完成，程序退出")
+    sys.exit(0)
+
 def run_async_task(task_id, vin, new_date, qr_code_url):
     """在后台运行异步任务"""
     try:
@@ -746,29 +806,49 @@ def run_async_task(task_id, vin, new_date, qr_code_url):
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
-        success, screenshot_path = loop.run_until_complete(modifier.run())
-        
-        logger.info(f"任务 {task_id} 执行完成，成功: {success}, 截图: {screenshot_path}")
-        
-        # 保存任务结果到Redis
-        if success and screenshot_path:
-            redis_task_manager.save_task_result(
-                task_id=task_id,
-                success=success,
-                screenshot_path=screenshot_path
-            )
-        else:
-            redis_task_manager.save_task_result(
-                task_id=task_id,
-                success=success,
-                screenshot_path=screenshot_path if screenshot_path else None
-            )
-        
-        loop.close()
+        try:
+            success, screenshot_path = loop.run_until_complete(modifier.run())
+            
+            logger.info(f"任务 {task_id} 执行完成，成功: {success}, 截图: {screenshot_path}")
+            
+            # 保存任务结果到Redis
+            if success and screenshot_path:
+                redis_task_manager.save_task_result(
+                    task_id=task_id,
+                    success=success,
+                    screenshot_path=screenshot_path
+                )
+            else:
+                redis_task_manager.save_task_result(
+                    task_id=task_id,
+                    success=success,
+                    screenshot_path=screenshot_path if screenshot_path else None
+                )
+        finally:
+            # 🚀 新增：任务完成后强制清理Chrome进程
+            try:
+                logger.info(f"🧹 任务 {task_id} 完成，开始清理Chrome进程...")
+                loop.run_until_complete(PlaywrightConfig.cleanup_all_chrome_processes())
+                logger.info(f"✅ 任务 {task_id} Chrome进程清理完成")
+            except Exception as cleanup_error:
+                logger.error(f"清理Chrome进程时出错: {cleanup_error}")
+            
+            # 关闭事件循环
+            loop.close()
+            
     except Exception as e:
         logger.error(f"任务执行失败: {e}")
         import traceback
         logger.error(f"详细错误信息: {traceback.format_exc()}")
+        
+        # 🚀 新增：即使任务失败也要清理Chrome进程
+        try:
+            logger.info(f"🧹 任务 {task_id} 失败，开始清理Chrome进程...")
+            asyncio.run(PlaywrightConfig.cleanup_all_chrome_processes())
+            logger.info(f"✅ 任务 {task_id} Chrome进程清理完成")
+        except Exception as cleanup_error:
+            logger.error(f"清理Chrome进程时出错: {cleanup_error}")
+        
         # 保存失败结果到Redis
         redis_task_manager.save_task_result(
             task_id=task_id,
@@ -946,10 +1026,52 @@ def clear_all_tasks():
         logger.error(f"清空所有任务失败: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/system/process-status')
+def get_process_status():
+    """获取系统进程状态"""
+    try:
+        chrome_count = PlaywrightConfig.get_system_chrome_process_count()
+        chrome_processes = PlaywrightConfig().get_chrome_processes()
+        
+        return jsonify({
+            'chrome_process_count': chrome_count,
+            'chrome_processes': chrome_processes,
+            'monitor_running': monitor_running,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"获取进程状态失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/system/cleanup-chrome', methods=['POST'])
+def cleanup_chrome_processes():
+    """手动清理Chrome进程"""
+    try:
+        logger.info("🧹 收到手动清理Chrome进程请求")
+        asyncio.run(PlaywrightConfig.cleanup_all_chrome_processes())
+        
+        # 获取清理后的状态
+        chrome_count = PlaywrightConfig.get_system_chrome_process_count()
+        
+        return jsonify({
+            'message': 'Chrome进程清理完成',
+            'remaining_chrome_count': chrome_count,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"手动清理Chrome进程失败: {e}")
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # 创建必要的目录
     os.makedirs("static/screenshots", exist_ok=True)
     os.makedirs("templates", exist_ok=True)
+    
+    # 注册信号处理器
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
     
     # 初始化Redis任务管理器
     redis_task_manager = init_redis_task_manager()
@@ -960,4 +1082,25 @@ if __name__ == '__main__':
     else:
         logger.info("Redis连接成功")
     
-    app.run(debug=True, host='0.0.0.0', port=8090) 
+    # 启动进程监控
+    start_process_monitor()
+    
+    # 启动时清理可能存在的僵尸Chrome进程
+    try:
+        logger.info("🧹 启动时清理现有Chrome进程...")
+        asyncio.run(PlaywrightConfig.cleanup_all_chrome_processes())
+        logger.info("✅ 启动时Chrome进程清理完成")
+    except Exception as e:
+        logger.warning(f"启动时清理Chrome进程失败: {e}")
+    
+    logger.info("🚀 车辆报告修改Web服务启动中...")
+    logger.info("📊 进程监控已启用，将自动清理Chrome僵尸进程")
+    
+    try:
+        app.run(debug=True, host='0.0.0.0', port=8090)
+    except KeyboardInterrupt:
+        logger.info("📡 收到键盘中断信号")
+        signal_handler(signal.SIGINT, None)
+    except Exception as e:
+        logger.error(f"服务启动失败: {e}")
+        signal_handler(signal.SIGTERM, None) 

@@ -6,6 +6,9 @@ Playwright 配置类 - Docker 容器优化版本
 
 import os
 import asyncio
+import psutil
+import signal
+import subprocess
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from loguru import logger
 from typing import Optional, Dict, Any
@@ -25,8 +28,10 @@ class PlaywrightConfig:
         self.browser: Optional[Browser] = None
         self.context: Optional[BrowserContext] = None
         self.page: Optional[Page] = None
+        self.browser_process: Optional[psutil.Process] = None
+        self.chrome_pids: list = []
         
-        # 🚀 优化：精简浏览器启动参数，提高启动速度，移动设备模式
+        # 🚀 优化：精简浏览器启动参数，提高启动速度，减少资源占用，防止僵尸进程
         self.browser_args = [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -43,7 +48,31 @@ class PlaywrightConfig:
             '--disable-background-networking',  # 减少后台网络
             '--touch-events=enabled',  # 启用触摸事件
             '--enable-touch-drag-drop',  # 启用触摸拖拽
-            '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+            '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+            # 🚀 新增：防止僵尸进程和资源泄漏的参数
+            '--single-process',  # 单进程模式，减少子进程
+            '--no-zygote',  # 禁用zygote进程
+            '--disable-background-timer-throttling',  # 禁用后台定时器节流
+            '--disable-backgrounding-occluded-windows',  # 禁用被遮挡窗口的后台处理
+            '--disable-renderer-backgrounding',  # 禁用渲染器后台处理
+            '--disable-features=TranslateUI',  # 禁用翻译UI
+            '--disable-ipc-flooding-protection',  # 禁用IPC洪水保护
+            '--disable-hang-monitor',  # 禁用挂起监控
+            '--disable-prompt-on-repost',  # 禁用重新提交提示
+            '--disable-domain-reliability',  # 禁用域可靠性
+            '--disable-component-extensions-with-background-pages',  # 禁用带后台页面的组件扩展
+            '--disable-background-mode',  # 禁用后台模式
+            '--disable-client-side-phishing-detection',  # 禁用客户端钓鱼检测
+            '--disable-sync-preferences',  # 禁用同步首选项
+            '--disable-default-apps',  # 禁用默认应用
+            '--disable-plugins',  # 禁用插件
+            '--disable-images',  # 禁用图片加载（可选，根据需要调整）
+            '--disable-javascript',  # 禁用JavaScript（可选，根据需要调整）
+            '--memory-pressure-off',  # 关闭内存压力检测
+            '--max_old_space_size=512',  # 限制V8堆内存大小
+            '--disable-logging',  # 禁用日志记录
+            '--silent',  # 静默模式
+            '--log-level=3',  # 只记录错误
         ]
         
         # 浏览器上下文配置 - 移动设备模式
@@ -86,6 +115,15 @@ class PlaywrightConfig:
                 executable_path=None  # 使用系统安装的 Chromium
             )
             
+            # 🚀 新增：记录浏览器进程PID
+            try:
+                if hasattr(self.browser, '_browser_process') and self.browser._browser_process:
+                    self.browser_process = psutil.Process(self.browser._browser_process.pid)
+                    self.chrome_pids.append(self.browser_process.pid)
+                    logger.info(f"📝 记录浏览器主进程PID: {self.browser_process.pid}")
+            except Exception as e:
+                logger.debug(f"无法获取浏览器进程PID: {e}")
+            
             # 创建浏览器上下文
             self.context = await self.browser.new_context(**self.context_config)
             
@@ -99,12 +137,31 @@ class PlaywrightConfig:
             # 自动设置移动设备模式
             await self.set_mobile_mode()
             
+            # 🚀 新增：记录所有Chrome子进程
+            await self.record_chrome_processes()
+            
             logger.info("Playwright 浏览器启动成功")
             
         except Exception as e:
             logger.error(f"启动 Playwright 浏览器失败: {e}")
             await self.cleanup()
             raise
+    
+    async def record_chrome_processes(self):
+        """记录Chrome相关进程PID"""
+        try:
+            await asyncio.sleep(2)  # 等待进程启动
+            
+            current_chrome = self.get_chrome_processes()
+            for proc in current_chrome:
+                if proc['pid'] not in self.chrome_pids:
+                    self.chrome_pids.append(proc['pid'])
+                    logger.debug(f"📝 记录Chrome子进程PID: {proc['pid']} ({proc['name']})")
+            
+            logger.info(f"📊 当前Chrome进程总数: {len(self.chrome_pids)}")
+            
+        except Exception as e:
+            logger.debug(f"记录Chrome进程时出错: {e}")
     
     async def set_mobile_mode(self):
         """设置移动设备模式"""
@@ -200,6 +257,162 @@ class PlaywrightConfig:
                 await self.playwright.stop()
         except Exception as e:
             logger.warning(f"停止 Playwright 时出错: {e}")
+        
+        # 🚀 新增：强制清理Chrome进程
+        await self.force_cleanup_chrome_processes()
+    
+    async def force_cleanup_chrome_processes(self):
+        """强制清理Chrome相关进程，防止僵尸进程"""
+        try:
+            logger.info("🧹 开始强制清理Chrome进程...")
+            
+            # 1. 清理已知的Chrome进程PID
+            for pid in self.chrome_pids:
+                try:
+                    if psutil.pid_exists(pid):
+                        process = psutil.Process(pid)
+                        if 'chrome' in process.name().lower() or 'chromium' in process.name().lower():
+                            logger.info(f"🔪 强制终止Chrome进程 PID: {pid}")
+                            process.terminate()
+                            try:
+                                process.wait(timeout=3)
+                            except psutil.TimeoutExpired:
+                                logger.warning(f"进程 {pid} 未响应，强制杀死")
+                                process.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                    logger.debug(f"进程 {pid} 已不存在或无权限访问: {e}")
+            
+            # 2. 查找并清理所有Chrome相关进程
+            chrome_processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    proc_info = proc.info
+                    if proc_info['name'] and ('chrome' in proc_info['name'].lower() or 'chromium' in proc_info['name'].lower()):
+                        chrome_processes.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            if chrome_processes:
+                logger.info(f"🔍 发现 {len(chrome_processes)} 个Chrome相关进程")
+                for proc in chrome_processes:
+                    try:
+                        logger.info(f"🔪 终止Chrome进程: PID={proc.pid}, Name={proc.name()}")
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=2)
+                        except psutil.TimeoutExpired:
+                            logger.warning(f"进程 {proc.pid} 未响应，强制杀死")
+                            proc.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                        logger.debug(f"无法终止进程 {proc.pid}: {e}")
+            
+            # 3. 使用系统命令强制清理（备用方案）
+            try:
+                subprocess.run(['pkill', '-f', 'chrome'], check=False, timeout=5)
+                subprocess.run(['pkill', '-f', 'chromium'], check=False, timeout=5)
+                logger.info("✅ 使用系统命令清理Chrome进程完成")
+            except Exception as e:
+                logger.debug(f"系统命令清理失败: {e}")
+            
+            # 4. 等待进程完全清理
+            await asyncio.sleep(1)
+            
+            # 5. 验证清理结果
+            remaining_chrome = []
+            for proc in psutil.process_iter(['pid', 'name']):
+                try:
+                    if proc.info['name'] and ('chrome' in proc.info['name'].lower() or 'chromium' in proc.info['name'].lower()):
+                        remaining_chrome.append(proc.info['pid'])
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            if remaining_chrome:
+                logger.warning(f"⚠️ 仍有 {len(remaining_chrome)} 个Chrome进程未清理: {remaining_chrome}")
+            else:
+                logger.info("✅ Chrome进程清理完成")
+                
+        except Exception as e:
+            logger.error(f"强制清理Chrome进程时出错: {e}")
+    
+    def get_chrome_processes(self):
+        """获取当前Chrome进程列表"""
+        chrome_processes = []
+        try:
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'status']):
+                try:
+                    proc_info = proc.info
+                    if proc_info['name'] and ('chrome' in proc_info['name'].lower() or 'chromium' in proc_info['name'].lower()):
+                        chrome_processes.append({
+                            'pid': proc_info['pid'],
+                            'name': proc_info['name'],
+                            'status': proc_info['status'],
+                            'cmdline': ' '.join(proc_info['cmdline']) if proc_info['cmdline'] else ''
+                        })
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception as e:
+            logger.error(f"获取Chrome进程列表失败: {e}")
+        
+        return chrome_processes
+    
+    @staticmethod
+    async def cleanup_all_chrome_processes():
+        """静态方法：清理所有Chrome进程（用于定期清理）"""
+        try:
+            logger.info("🧹 开始定期清理所有Chrome进程...")
+            
+            chrome_processes = []
+            for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+                try:
+                    proc_info = proc.info
+                    if proc_info['name'] and ('chrome' in proc_info['name'].lower() or 'chromium' in proc_info['name'].lower()):
+                        chrome_processes.append(proc)
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            
+            if chrome_processes:
+                logger.info(f"🔍 发现 {len(chrome_processes)} 个Chrome进程需要清理")
+                for proc in chrome_processes:
+                    try:
+                        logger.info(f"🔪 清理Chrome进程: PID={proc.pid}, Name={proc.name()}")
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=2)
+                        except psutil.TimeoutExpired:
+                            logger.warning(f"进程 {proc.pid} 未响应，强制杀死")
+                            proc.kill()
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+                        logger.debug(f"无法清理进程 {proc.pid}: {e}")
+                
+                # 使用系统命令强制清理
+                try:
+                    subprocess.run(['pkill', '-f', 'chrome'], check=False, timeout=5)
+                    subprocess.run(['pkill', '-f', 'chromium'], check=False, timeout=5)
+                except Exception as e:
+                    logger.debug(f"系统命令清理失败: {e}")
+                
+                logger.info("✅ 定期清理Chrome进程完成")
+            else:
+                logger.debug("✅ 没有发现需要清理的Chrome进程")
+                
+        except Exception as e:
+            logger.error(f"定期清理Chrome进程时出错: {e}")
+    
+    @staticmethod
+    def get_system_chrome_process_count():
+        """获取系统中Chrome进程数量"""
+        try:
+            count = 0
+            for proc in psutil.process_iter(['name']):
+                try:
+                    if proc.info['name'] and ('chrome' in proc.info['name'].lower() or 'chromium' in proc.info['name'].lower()):
+                        count += 1
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+            return count
+        except Exception as e:
+            logger.error(f"获取Chrome进程数量失败: {e}")
+            return 0
     
     def optimize_png_size(self, image_path: str) -> bool:
         """优化PNG文件大小"""
