@@ -1,0 +1,43 @@
+{
+  "vessels": [
+    {
+      "mmsi": "367560102",
+      "name": "货轮001",
+      "speed_threshold": 1.0,
+      "slow_down_threshold": 5.0,
+      "normal_speed": 12.0,
+      "check_interval": 30,
+      "alert_cooldown": 300
+    },
+    {
+      "mmsi": "414281000", 
+      "name": "货轮002",
+      "speed_threshold": 0.5,
+      "slow_down_threshold": 3.0,
+      "normal_speed": 15.0,
+      "check_interval": 60,
+      "alert_cooldown": 600
+    }
+  ],
+  "notification": {
+    "email": {
+      "enabled": false,
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "username": "your_email@gmail.com",
+      "password": "your_password",
+      "recipients": ["operator@company.com"]
+    },
+    "webhook": {
+      "enabled": false,
+      "url": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+      "channel": "#vessel-alerts"
+    }
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "vessel_monitor.log",
+    "max_size_mb": 10,
+    "backup_count": 5
+  }
+}
