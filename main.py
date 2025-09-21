@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os
+import sys
+import getopt
+import time
+import logging
+import logging.handlers
+from pkg.db.redis import RdsQueue
+from pkg.public.thread import MultiThread
+from tasks.task_dic import get_task_dic
+from pkg.public.scheduler import CustomScheduler
+import json
+import traceback
+
+LOG_FILE = "./log/run.log"
+QUEUE_PREFIX = os.getenv('QUEUE_PREFIX', "handler")
+IS_CONSUMER = int(os.getenv('IS_CONSUMER', 0))
+RUN_ONCE = int(os.getenv('RUN_ONCE', 0))
+IS_OPEN_RDS = int(os.getenv('IS_OPEN_RDS', 1))
+
+
+def init_log():
+    logger = logging.getLogger()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s')
+    sh = logging.StreamHandler()  # 往屏幕上输出
+    sh.setFormatter(formatter)  # 设置屏幕上显示的格式
+    th = logging.handlers.TimedRotatingFileHandler(
+        LOG_FILE, when='H', interval=1, backupCount=40)
+    th.setFormatter(formatter)
+    logger.addHandler(sh)
+    logger.addHandler(th)
+    logger.setLevel(logging.INFO)
+
+
+def rds_distributed_sys(task_dict, task_type):
+    # print(f"任务列表: {task_dict}")
+    rds = RdsQueue()
+    if rds.rds:
+        try:
+            while True:
+                try:
+                    # 从队列获取任务'
+                    task_rds_key = f"{QUEUE_PREFIX}_{task_type}"
+                    task = rds.pop(task_rds_key)
+                    if task is None:
+                        time.sleep(1)
+                        continue
+
+                    if isinstance(task, str):
+                        try:
+                            task = json.loads(task)
+                        except Exception as e:
+                            task = {"task_type": f"{QUEUE_PREFIX}_{task_type}"}
+                    logging.info(task)
+
+                    # run_task_type = task.get('task_type', task_type)
+                    # run_task_type = run_task_type.replace("handler_","")
+                    run_task_type = task_type
+                    if task_dict.get(run_task_type):
+                        print(f"\n @@@*** START CONSUMER {run_task_type} *** ")
+                        task_dict[run_task_type]().run(task, rds.rds)
+                        print(f" @@@*** END CONSUMER {run_task_type} *** \n")
+                    else:
+                        logging.info('还未实现相关功能！')
+                except Exception as e:
+                    print("出现错误 => ", str(e))
+        except Exception as e:
+            logging.error(f'循环报错，已退出，错误原因是:{e}')
+        finally:
+            RdsQueue.close_pool()
+            logging.info("已关闭redis消费队列连接池")
+
+    else:
+        logging.info("Thread redis end...!")
+
+
+def main():
+    TASK_DICT = get_task_dic()
+    opts, args = getopt.getopt(sys.argv, "h", ["help"])  # python main.py list
+    if len(args) < 2:
+        task_type = os.getenv('TASK_TYPE')
+    else:
+        task_type = args[1]
+
+    if task_type == "list" or task_type is None:
+        sys.exit(-1)
+
+    if IS_CONSUMER:
+        if "," in task_type:
+            task_type_list = task_type.split(",")
+            # 加入 分布式 redis读取任务的 线程
+            multi_handler = MultiThread()
+            for task_type in task_type_list:
+                logging.info(f">> current consume func is {task_type}")
+                multi_handler.run_arg_handler(
+                    rds_distributed_sys, TASK_DICT, task_type)
+            multi_handler.close()
+        else:
+            # 仅开启 redis 循环消费
+            rds_distributed_sys(TASK_DICT, task_type)
+    else:
+        if "," in task_type:
+            task_type_list = task_type.split(",")
+            handlers = {}
+            for task_type in task_type_list:
+                handlers[task_type] = CustomScheduler(TASK_DICT[task_type]).run
+            multi_handler = MultiThread(handlers)
+            multi_handler.run()
+            # 加入 分布式 redis读取任务的 线程
+            if IS_OPEN_RDS:
+                for task_type in task_type_list:
+                    multi_handler.run_arg_handler(
+                        rds_distributed_sys, TASK_DICT, task_type)
+            multi_handler.close()
+        else:
+            if TASK_DICT.get(task_type):
+                multi_handler = MultiThread()
+                if RUN_ONCE:
+                    try:
+                        TASK_DICT[task_type]().run()
+                    except Exception as e:
+                        logging.info(f'当前运行的是非run()的函数,eg: history()...{e}')
+                        traceback.print_exc()
+                else:
+                    # 加入 分布式 redis读取任务的 线程
+                    multi_handler.run_handler(CustomScheduler(
+                        TASK_DICT[task_type]).run)  # 加入 定时器
+
+                if IS_OPEN_RDS:
+                    multi_handler.run_arg_handler(
+                        rds_distributed_sys, TASK_DICT, task_type)
+                # 等待结束
+                multi_handler.close()
+            else:
+                logging.info('还未实现相关功能！')
+
+
+if __name__ == '__main__':
+    init_log()
+    main()

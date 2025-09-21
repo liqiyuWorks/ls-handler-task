@@ -1,0 +1,6 @@
+export REDIS_TASK_HOST=139.9.115.225
+export REDIS_TASK_PORT=21603
+export REDIS_TASK_PASSWORD=Rds123
+export SCHEDULER_FLAG=1
+export RUN_ONCE=1
+export TASK_TYPE=del_pika_cams_sfc

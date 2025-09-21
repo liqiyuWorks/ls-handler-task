@@ -1,0 +1,6 @@
+export REDIS_HOST=124.70.86.179
+export REDIS_PORT=21600
+export REDIS_PASSWORD=Rds123
+export IS_OPEN_RDS=0
+export IS_CONSUMER=0
+export RUN_ONCE=1

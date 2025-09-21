@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>车辆报告修改系统</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+            padding: 20px;
+            color: #1a202c;
+        }
+
+        .main-container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 12px;
+        }
+
+        .header p {
+            color: #718096;
+            font-size: 16px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            padding: 32px;
+            margin-bottom: 32px;
+        }
+
+        .form-section {
+            margin-bottom: 32px;
+        }
+
+        .input-group {
+            margin-bottom: 24px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+        }
+
+        .input-field {
+            flex: 1;
+        }
+
+        .input-field input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.2s ease;
+            background: #fafafa;
+        }
+
+        .input-field input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            white-space: nowrap;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .btn-primary {
+            width: 100%;
+            padding: 16px;
+            font-size: 16px;
+            margin-top: 16px;
+        }
+
+        .btn-success {
+            background: #10b981;
+        }
+
+        .btn-success:hover {
+            background: #059669;
+        }
+
+        .preview-section {
+            background: #f0f9ff;
+            border: 2px solid #bae6fd;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .preview-section.show {
+            display: block;
+            animation: slideDown 0.3s ease-out;
+        }
+
+        .preview-title {
+            color: #0369a1;
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .report-link {
+            display: block;
+            color: #0284c7;
+            text-decoration: none;
+            padding: 12px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #bae6fd;
+            margin: 12px 0;
+            font-size: 14px;
+            word-break: break-all;
+        }
+
+        .report-link:hover {
+            background: #f0f9ff;
+            text-decoration: underline;
+        }
+
+        .preview-actions {
+            margin-top: 12px;
+        }
+
+        .status-message {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-success {
+            background: #ecfdf5;
+            color: #065f46;
+            border: 1px solid #a7f3d0;
+        }
+
+        .status-error {
+            background: #fef2f2;
+            color: #991b1b;
+            border: 1px solid #fecaca;
+        }
+
+        .status-info {
+            background: #eff6ff;
+            color: #1e40af;
+            border: 1px solid #dbeafe;
+        }
+
+        .tasks-section {
+            margin-top: 32px;
+        }
+
+        .tasks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .tasks-header h3 {
+            color: #374151;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .task-actions-header {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .refresh-btn {
+            background: #6b7280;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            background: #4b5563;
+        }
+
+        .clear-all-btn {
+            background: #dc2626;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clear-all-btn:hover {
+            background: #b91c1c;
+        }
+
+        .task-item {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .task-item:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .task-vin {
+            font-weight: 600;
+            color: #1f2937;
+            font-size: 16px;
+        }
+
+        .task-status {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-running {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-failed {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .task-progress {
+            margin: 12px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+
+        .progress-text {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+
+        .task-details {
+            color: #6b7280;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+        }
+
+        .task-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .task-time {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .delete-btn:hover {
+            background: #dc2626;
+        }
+
+        .screenshot-link {
+            color: #059669;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .screenshot-link:hover {
+            text-decoration: underline;
+        }
+
+        .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="header">
+            <h1>🚗 车辆报告修改系统</h1>
+            <p>输入VIN码 → 查询报告 → 预览链接 → 修改数据</p>
+        </div>
+
+        <div class="card">
+            <form id="modifyForm">
+                <div class="form-section">
+                    <div class="input-group">
+                        <label for="vin">VIN码</label>
+                        <div class="input-row">
+                            <div class="input-field">
+                                <input type="text" id="vin" name="vin" placeholder="请输入17位VIN码" required>
+                            </div>
+                            <button type="button" class="btn btn-success" id="queryBtn" onclick="queryReport()">
+                                <span id="queryText">查询报告</span>
+                                <span id="querySpinner" class="loading-spinner" style="display: none;"></span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="reportPreview" class="preview-section">
+                        <div class="preview-title">
+                            ✅ 报告链接获取成功
+                        </div>
+                        <a id="reportLink" href="#" target="_blank" class="report-link">点击查看报告</a>
+                        <div class="preview-actions">
+                            <button type="button" class="btn" onclick="openReportPreview()">在新窗口预览</button>
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="date">修改日期</label>
+                        <div class="input-field">
+                            <input type="date" id="date" name="date">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <span id="submitText">开始修改报告</span>
+                        <span id="loadingSpinner" class="loading-spinner" style="display: none;"></span>
+                    </button>
+                </div>
+            </form>
+
+            <div id="status" class="status-message"></div>
+        </div>
+
+        <div class="card tasks-section">
+            <div class="tasks-header">
+                <h3>任务列表</h3>
+                <div class="task-actions-header">
+                    <button class="clear-all-btn" onclick="clearAllTasks()">清空所有</button>
+                    <button class="refresh-btn" onclick="refreshTasks()">刷新</button>
+                </div>
+            </div>
+            <div id="taskItems"></div>
+        </div>
+    </div>
+
+    <script>
+        // 设置默认日期为今天
+        document.getElementById('date').value = new Date().toISOString().split('T')[0];
+
+        // 查询报告链接
+        async function queryReport() {
+            const vin = document.getElementById('vin').value.trim();
+            
+            if (!vin) {
+                showStatus('请输入VIN码', 'error');
+                return;
+            }
+            
+            // 显示加载状态
+            const queryBtn = document.getElementById('queryBtn');
+            const queryText = document.getElementById('queryText');
+            const querySpinner = document.getElementById('querySpinner');
+            const reportPreview = document.getElementById('reportPreview');
+            
+            queryBtn.disabled = true;
+            queryText.textContent = '查询中...';
+            querySpinner.style.display = 'inline-block';
+            reportPreview.classList.remove('show');
+            
+            try {
+                const response = await fetch('/api/query-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        vin: vin
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok && data.report_url) {
+                    // 显示报告预览
+                    const reportLink = document.getElementById('reportLink');
+                    reportLink.href = data.report_url;
+                    reportLink.textContent = data.report_url;
+                    reportPreview.classList.add('show');
+                    
+                    showStatus('报告链接获取成功！', 'success');
+                } else {
+                    showStatus(`错误: ${data.error || '获取报告链接失败'}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`网络错误: ${error.message}`, 'error');
+            } finally {
+                // 恢复按钮状态
+                queryBtn.disabled = false;
+                queryText.textContent = '查询报告';
+                querySpinner.style.display = 'none';
+            }
+        }
+
+        // 在新窗口预览报告
+        function openReportPreview() {
+            const reportLink = document.getElementById('reportLink');
+            if (reportLink.href && reportLink.href !== '#') {
+                window.open(reportLink.href, '_blank');
+            }
+        }
+
+        // 表单提交处理
+        document.getElementById('modifyForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const vin = document.getElementById('vin').value.trim();
+            const date = document.getElementById('date').value;
+            
+            if (!vin) {
+                showStatus('请输入VIN码', 'error');
+                return;
+            }
+            
+            // 显示加载状态
+            const submitBtn = document.getElementById('submitBtn');
+            const submitText = document.getElementById('submitText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            
+            submitBtn.disabled = true;
+            submitText.textContent = '正在处理...';
+            loadingSpinner.style.display = 'inline-block';
+            
+            try {
+                const response = await fetch('/api/modify', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        vin: vin,
+                        date: date
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showStatus(`任务已启动，任务ID: ${data.task_id}`, 'info');
+                    // 开始轮询任务状态
+                    pollTaskStatus(data.task_id);
+                    // 立即刷新任务列表
+                    refreshTasks();
+                } else {
+                    showStatus(`错误: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`网络错误: ${error.message}`, 'error');
+            } finally {
+                // 恢复按钮状态
+                submitBtn.disabled = false;
+                submitText.textContent = '开始修改报告';
+                loadingSpinner.style.display = 'none';
+            }
+        });
+
+        // 显示状态信息
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status-message status-${type}`;
+            statusDiv.style.display = 'block';
+            
+            // 根据类型设置不同的自动隐藏时间
+            let hideDelay = 0;
+            if (type === 'success') {
+                hideDelay = 5000; // 成功消息显示5秒
+            } else if (type === 'info') {
+                hideDelay = 3000; // 信息消息显示3秒
+            }
+            // error消息不自动隐藏，需要用户手动关闭或被新消息覆盖
+            
+            if (hideDelay > 0) {
+                setTimeout(() => {
+                    // 只有在消息没有被新消息覆盖时才隐藏
+                    if (statusDiv.textContent === message) {
+                        statusDiv.style.display = 'none';
+                    }
+                }, hideDelay);
+            }
+        }
+
+        // 轮询任务状态
+        function pollTaskStatus(taskId) {
+            let pollCount = 0;
+            const maxPolls = 150; // 最多轮询150次（5分钟）
+            
+            const pollInterval = setInterval(async () => {
+                pollCount++;
+                
+                try {
+                    const response = await fetch(`/api/status/${taskId}`);
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        if (data.status === 'completed') {
+                            if (data.success) {
+                                showStatus('🎉 任务完成！报告修改成功', 'success');
+                                // 播放完成提示音
+                                playNotificationSound();
+                                // 高亮显示完成的任务
+                                highlightCompletedTask(taskId);
+                                // 显示桌面通知
+                                showDesktopNotification('任务完成', '车辆报告修改成功！');
+                            } else {
+                                showStatus('❌ 任务完成但修改失败', 'error');
+                                showDesktopNotification('任务失败', '报告修改失败，请检查错误信息');
+                            }
+                            clearInterval(pollInterval);
+                            // 立即刷新任务列表
+                            await refreshTasks();
+                            // 滚动到任务列表
+                            scrollToTaskList();
+                            
+                        } else if (data.status === 'failed') {
+                            showStatus('❌ 任务执行失败！', 'error');
+                            clearInterval(pollInterval);
+                            await refreshTasks();
+                            scrollToTaskList();
+                            
+                        } else if (data.status === 'running') {
+                            showStatus('🔄 任务正在执行中...', 'info');
+                            // 更新任务列表以显示最新状态
+                            await refreshTasks();
+                        }
+                    }
+                } catch (error) {
+                    console.error('轮询任务状态失败:', error);
+                }
+                
+                // 达到最大轮询次数时停止
+                if (pollCount >= maxPolls) {
+                    clearInterval(pollInterval);
+                    showStatus('⏰ 任务监控超时，请手动刷新查看状态', 'info');
+                }
+            }, 2000);
+            
+            // 显示轮询开始信息
+            showStatus('🔍 开始监控任务执行状态...', 'info');
+        }
+
+        // 高亮显示完成的任务
+        function highlightCompletedTask(taskId) {
+            setTimeout(() => {
+                const taskElement = document.querySelector(`[data-task-id="${taskId}"]`);
+                if (taskElement) {
+                    taskElement.style.border = '2px solid #10b981';
+                    taskElement.style.boxShadow = '0 0 20px rgba(16, 185, 129, 0.3)';
+                    taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // 3秒后移除高亮
+                    setTimeout(() => {
+                        taskElement.style.border = '';
+                        taskElement.style.boxShadow = '';
+                    }, 3000);
+                }
+            }, 500);
+        }
+
+        // 滚动到任务列表
+        function scrollToTaskList() {
+            const taskList = document.getElementById('taskItems');
+            if (taskList) {
+                taskList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        // 播放通知音效
+        function playNotificationSound() {
+            try {
+                // 创建音频上下文并播放简短的提示音
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.5);
+            } catch (error) {
+                console.log('无法播放提示音:', error);
+            }
+        }
+
+        // 显示桌面通知
+        function showDesktopNotification(title, body) {
+            if ('Notification' in window) {
+                if (Notification.permission === 'granted') {
+                    new Notification(title, {
+                        body: body,
+                        icon: '/static/icon.png', // 如果有图标的话
+                        badge: '/static/badge.png'
+                    });
+                } else if (Notification.permission !== 'denied') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission === 'granted') {
+                            new Notification(title, {
+                                body: body,
+                                icon: '/static/icon.png'
+                            });
+                        }
+                    });
+                }
+            }
+        }
+
+        // 刷新任务列表
+        async function refreshTasks() {
+            try {
+                const response = await fetch('/api/tasks');
+                const tasks = await response.json();
+                
+                const taskItems = document.getElementById('taskItems');
+                taskItems.innerHTML = '';
+                
+                const taskArray = Object.entries(tasks).map(([taskId, task]) => ({
+                    ...task,
+                    task_id: taskId
+                }));
+                
+                if (taskArray.length === 0) {
+                    taskItems.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <p>暂无任务记录</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // 按创建时间排序，最新的在前
+                taskArray.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+                
+                taskArray.forEach(task => {
+                    const taskId = task.task_id;
+                    const taskDiv = document.createElement('div');
+                    taskDiv.className = 'task-item';
+                    taskDiv.setAttribute('data-task-id', taskId);
+                    
+                    // 确定状态样式
+                    let statusClass = 'status-pending';
+                    let statusText = '等待中';
+                    let progress = 0;
+                    let progressText = '等待开始';
+                    
+                    if (task.status === 'running') {
+                        statusClass = 'status-running';
+                        statusText = '运行中';
+                        progress = 50;
+                        progressText = '正在处理...';
+                    } else if (task.status === 'completed' && task.success) {
+                        statusClass = 'status-completed';
+                        statusText = '已完成';
+                        progress = 100;
+                        progressText = '修改完成';
+                    } else if (task.status === 'completed' && !task.success) {
+                        statusClass = 'status-failed';
+                        statusText = '失败';
+                        progress = 100;
+                        progressText = '处理失败';
+                    }
+                    
+                    // 格式化时间
+                    const createdTime = task.created_at ? 
+                        new Date(task.created_at).toLocaleString('zh-CN') : '未知时间';
+                    
+                    // 截图链接
+                    let screenshotHtml = '';
+                    if (task.screenshot_path) {
+                        screenshotHtml = `<br><a href="/${task.screenshot_path}" target="_blank" class="screenshot-link">查看修改后的报告 📸</a>`;
+                    }
+                    
+                    taskDiv.innerHTML = `
+                        <div class="task-header">
+                            <div class="task-vin">VIN: ${task.vin || '未知'}</div>
+                            <div class="task-status ${statusClass}">${statusText}</div>
+                        </div>
+                        <div class="task-progress">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: ${progress}%"></div>
+                            </div>
+                            <div class="progress-text">${progressText}</div>
+                        </div>
+                        <div class="task-details">
+                            日期: ${task.new_date || '未指定'}<br>
+                            任务ID: ${taskId}${screenshotHtml}
+                        </div>
+                        <div class="task-actions">
+                            <div class="task-time">创建时间: ${createdTime}</div>
+                            <button class="delete-btn" onclick="deleteTask('${taskId}')">删除</button>
+                        </div>
+                    `;
+                    
+                    taskItems.appendChild(taskDiv);
+                });
+            } catch (error) {
+                console.error('刷新任务列表失败:', error);
+            }
+        }
+
+        // 删除任务
+        async function deleteTask(taskId) {
+            if (!confirm('确定要删除这个任务吗？')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    showStatus('任务删除成功', 'success');
+                    refreshTasks();
+                } else {
+                    const data = await response.json();
+                    showStatus(`删除失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`删除失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 清空所有任务
+        async function clearAllTasks() {
+            if (!confirm('确定要清空所有任务吗？这将删除所有历史任务记录。')) {
+                return;
+            }
+            try {
+                const response = await fetch('/api/tasks/clear-all', {
+                    method: 'DELETE'
+                });
+                if (response.ok) {
+                    showStatus('所有任务已清空', 'success');
+                    refreshTasks();
+                } else {
+                    const data = await response.json();
+                    showStatus(`清空失败: ${data.error}`, 'error');
+                }
+            } catch (error) {
+                showStatus(`清空失败: ${error.message}`, 'error');
+            }
+        }
+
+        // 页面加载时刷新任务列表
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshTasks();
+            // 每30秒自动刷新任务列表
+            setInterval(refreshTasks, 30000);
+            
+            // 请求通知权限
+            if ('Notification' in window && Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+            
+            // 显示欢迎信息
+            console.log('🚗 车辆报告修改系统已加载');
+        });
+    </script>
+</body>
+</html>

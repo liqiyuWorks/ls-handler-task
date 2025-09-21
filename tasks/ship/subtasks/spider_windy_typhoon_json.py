@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+import os
+import sys
+import datetime
+import requests
+from pkg.util.format import check_create_path
+from pkg.public.decorator import decorate
+from pkg.public.models import BaseModel
+
+OUTPUT_PATH = os.getenv(
+    'OUTPUT_PATH', "/Users/jiufangkeji/Documents/JiufangCodes/LS-handler-task/output/")
+
+
+class SpiderWindyTyphoonJson(BaseModel):
+    @decorate.exception_capture_close_datebase
+    def run(self):
+        date_now = datetime.datetime.now().strftime("%Y%m%d%H%M")
+        day = date_now[:8]
+        print(f'当前启动任务，下载== {date_now} ==')
+        res = requests.get(url="https://node.windy.com/tc/storms")
+
+        if res.status_code == 200:
+            file_path = f"{OUTPUT_PATH}/{day}/{date_now}.json"
+            check_create_path(file_path)
+            with open(file_path, "w") as f:
+                f.write(res.text)
+                print(f'当前下载 windy typhoon 成功!')

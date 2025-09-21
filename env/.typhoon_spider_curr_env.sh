@@ -1,0 +1,14 @@
+export MONGO_HOST=119.3.248.125
+export MONGO_PORT=21617
+export MONGO_DB=typhoon
+export MONGO_PASSWORD=Hello1234
+export MONGO_USER=mgo
+export REDIS_HOST=119.3.248.125
+export REDIS_PORT=21600
+export REDIS_PASSWORD=Rds123
+export SCHEDULER_MODE=interval
+export INTERVAL_MINUTE=5
+export SCHEDULER_FLAG=1
+export RUN_ONCE=1
+# export INTERVAL_START_TIME="2022-05-05 00:10:00"
+export TASK_TYPE=spider_currMerger2json

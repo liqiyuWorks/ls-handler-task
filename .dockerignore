@@ -1,0 +1,149 @@
+# Python cache files
+*/__pycache__
+*/*/__pycache__
+*/*/*/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Logs
+log/
+logs/
+*.log
+
+# Environment files
+.env
+.env.sh
+.env.local
+.env.development
+.env.test
+.env.production
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS system files
+.DS_Store
+**/.DS_Store
+pkg/.DS_Store
+tasks/.DS_Store
+
+# Windows system files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux system files
+*~
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Data directories (can be mounted as volumes)
+input/
+output/
+gfs/
+assets/
+zscripts/
+tiles/
+env/
+
+# Test and development files
+.pytest_cache/
+__pycache__/
+.coverage
+htmlcov/
+.tox/
+.nox/
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation
+*.md
+README*
+docs/
+
+# Build and deployment scripts
+build.sh
+build_playwright.sh
+restart_calculate_vp.sh
+run_miniforge3.sh
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+.dockerignore
+
+# Model files (if they're large and not needed in container)
+*.h5
+*.pkl
+*.pth
+*.onnx
+*.pb
+
+# Data files
+*.xlsx
+*.csv
+*.json
+*.xml
+*.yaml
+*.yml
+
+# Archive files
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+
+# Media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+*.tiff
+*.mp4
+*.avi
+*.mov
+
+# Specific project directories that might not be needed in container
+tasks/testapi/
+scripts/
+mfwam25/
+2023/
+
+# Node.js (if any)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Java (if any)
+*.class
+*.jar
+target/
+
+# Other common development files
+.editorconfig
+.eslintrc*
+.prettierrc*
+tsconfig.json
+package.json
+package-lock.json
+yarn.lock
