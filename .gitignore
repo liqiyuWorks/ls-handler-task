@@ -69,3 +69,19 @@ zscripts
 *.temp
 *.bak
 *.backup
+
+# 模型文件
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.pb
+*.joblib
+*.model
+*.bin
+*.safetensors
+
+
