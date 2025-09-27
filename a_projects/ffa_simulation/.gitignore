@@ -1,0 +1,89 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 日志文件
+*.log
+logs/
+log/
+
+# 数据库文件
+*.db
+*.sqlite
+*.sqlite3
+ffa_simulation.db
+
+# 测试文件
+test_*.py
+*_test.py
+debug_*.py
+simple_*.py
+final_*.py
+
+# 临时文件
+*.tmp
+*.temp
+.tmp/
+
+# 数据文件
+data/
+*.csv
+*.xlsx
+*.xls
+
+# 文档文件（保留重要的）
+*.md
+!README.md
+!DEPLOYMENT.md
+*.docx
+*.pdf
+
+# Docker
+.dockerignore
+
+# 其他
+.coverage
+.pytest_cache/
+.mypy_cache/
