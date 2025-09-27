@@ -5,7 +5,7 @@ services:
     build: .
     container_name: ffa-simulation
     ports:
-      - "8000:8000"
+      - "10008:8000"
     environment:
       - PYTHONPATH=/app
       - PYTHONUNBUFFERED=1
