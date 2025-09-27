@@ -69,7 +69,6 @@ zscripts
 *.temp
 *.bak
 *.backup
-
 # 模型文件
 *.pkl
 *.pickle
@@ -98,4 +97,5 @@ a_projects/fuel_predict/data/*.csv
 **/outputs/*.png
 **/outputs/*.jpg
 
-
+# FFA Simulation database files
+a_projects/ffa_simulation/*.db

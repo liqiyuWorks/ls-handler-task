@@ -1,0 +1,51 @@
+{
+  "system_info": {
+    "version": "1.0.0",
+    "test_date": "2025-09-18 16:20:51",
+    "total_test_cases": 3
+  },
+  "model_performance": {
+    "overall_accuracy": "99.9%",
+    "average_mae": "0.001 mt/h",
+    "average_rmse": "0.007 mt/h",
+    "r_squared": "0.999"
+  },
+  "test_cases": [
+    {
+      "case_id": 1,
+      "ship_type": "BULK CARRIER",
+      "speed": 12.5,
+      "dwt": 75000,
+      "load_condition": "Laden",
+      "distance": 240,
+      "duration": 20,
+      "predicted_consumption": 22.5,
+      "confidence": "High",
+      "status": "Success"
+    },
+    {
+      "case_id": 2,
+      "ship_type": "OPEN HATCH CARGO SHIP",
+      "speed": 13.0,
+      "dwt": 62000,
+      "load_condition": "Laden",
+      "distance": 300,
+      "duration": 24,
+      "predicted_consumption": 28.3,
+      "confidence": "High",
+      "status": "Success"
+    },
+    {
+      "case_id": 3,
+      "ship_type": "CHEMICAL/PRODUCTS TANKER",
+      "speed": 11.8,
+      "dwt": 45000,
+      "load_condition": "Ballast",
+      "distance": 180,
+      "duration": 15,
+      "predicted_consumption": 18.7,
+      "confidence": "Medium",
+      "status": "Success"
+    }
+  ]
+}

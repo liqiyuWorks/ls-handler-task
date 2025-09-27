@@ -1,0 +1,2458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FFA模拟交易系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-attachment: fixed;
+        }
+        .main-container {
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            margin: 20px auto;
+            padding: 30px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 25px;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            border-radius: 15px;
+            padding: 25px;
+        }
+        .header h1 {
+            color: #333;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        .card {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            margin-bottom: 25px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.15);
+        }
+        .card-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            font-weight: 600;
+            padding: 20px 25px;
+            border-bottom: none;
+        }
+        .form-control, .form-select {
+            border-radius: 12px;
+            border: 2px solid #e9ecef;
+            padding: 15px 20px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+        }
+        .form-control:focus, .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.3rem rgba(102, 126, 234, 0.25);
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 12px;
+            padding: 15px 35px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            background: linear-gradient(45deg, #5a6fd8, #6a4190);
+        }
+        .btn-danger {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            border-radius: 12px;
+            padding: 15px 35px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+        }
+        .btn-danger:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.4);
+            background: linear-gradient(45deg, #ff5252, #d63031);
+        }
+        .table {
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        .table thead th {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            font-weight: 600;
+            color: white;
+            padding: 20px 15px;
+            text-align: center;
+        }
+        .table tbody tr {
+            transition: all 0.3s ease;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        .table tbody tr:hover {
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        .summary-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+        }
+        .summary-item {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .summary-item h6 {
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        .language-switcher {
+            margin-left: 20px;
+        }
+        .language-switcher .btn-group .btn {
+            border-color: rgba(255, 255, 255, 0.5);
+            color: rgba(255, 255, 255, 0.8);
+        }
+        .language-switcher .btn-group .btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.8);
+            color: white;
+        }
+        .language-switcher .btn-group .btn.active {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: white;
+            color: white;
+        }
+        .summary-item h4 {
+            font-weight: 700;
+            margin-bottom: 0;
+        }
+        .nav-tabs {
+            border-bottom: 3px solid #e9ecef;
+            margin-bottom: 30px;
+        }
+        .nav-tabs .nav-link {
+            border-radius: 12px 12px 0 0;
+            border: none;
+            color: #666;
+            font-weight: 600;
+            padding: 15px 25px;
+            margin-right: 8px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(10px);
+        }
+        .nav-tabs .nav-link:hover {
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            color: #333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .nav-tabs .nav-link.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        /* 盈亏曲线模块样式 */
+        .bg-gradient-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card.shadow-lg {
+            box-shadow: 0 1rem 3rem rgba(0,0,0,.175) !important;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
+        
+        .chart-container canvas {
+            max-height: 100%;
+            max-width: 100%;
+        }
+        
+        /* 图表卡片样式 */
+        .chart-card {
+            border: none;
+            border-radius: 15px;
+            overflow: hidden;
+            transition: transform 0.3s ease;
+        }
+        
+        .chart-card:hover {
+            transform: translateY(-2px);
+        }
+        
+        .chart-card .card-header {
+            border: none;
+            padding: 1.5rem;
+        }
+        
+        .chart-card .card-body {
+            padding: 1.5rem;
+        }
+        
+        /* 盈亏曲线占位符样式 */
+        #pnlPlaceholder {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+            border-radius: 15px;
+            border: 2px dashed rgba(102, 126, 234, 0.2);
+            transition: all 0.3s ease;
+        }
+        
+        #pnlPlaceholder:hover {
+            border-color: rgba(102, 126, 234, 0.4);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+        }
+        
+        #pnlPlaceholder i {
+            color: #667eea !important;
+            opacity: 0.6;
+        }
+        .spinner-border {
+            color: #667eea;
+        }
+        .alert {
+            border-radius: 8px;
+            border: none;
+        }
+        .trade-id {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="main-container">
+            <!-- 头部 -->
+            <div class="header">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1><i class="fas fa-ship"></i> <span data-translate="title">FFA模拟交易系统</span></h1>
+                        <p data-translate="subtitle">Forward Freight Agreement 模拟交易平台</p>
+                    </div>
+                    <div class="language-switcher">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-light btn-sm" onclick="switchLanguage('zh')" id="lang-zh">
+                                <i class="fas fa-flag"></i> 中文
+                            </button>
+                            <button type="button" class="btn btn-outline-light btn-sm" onclick="switchLanguage('en')" id="lang-en">
+                                <i class="fas fa-flag"></i> English
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 账户汇总 -->
+            <div class="summary-card">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="summary-item">
+                            <h6 data-translate="initial_equity">初始权益</h6>
+                            <h4 id="initialEquity">¥1,000,000</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="summary-item">
+                            <h6 data-translate="current_equity">当前权益</h6>
+                            <h4 id="currentEquity">¥1,000,000</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="summary-item">
+                            <h6 data-translate="total_pnl">累计盈亏</h6>
+                            <h4 id="totalPnl">¥0</h4>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="summary-item">
+                            <h6 data-translate="recommended_volume">推荐手数</h6>
+                            <h4 id="recommendedVolume">100</h4>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 账户管理区域 -->
+            </div>
+
+            <!-- 导航标签 -->
+            <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="trade-tab" data-bs-toggle="tab" data-bs-target="#trade" type="button" role="tab">
+                        <i class="fas fa-exchange-alt"></i> <span data-translate="place_order">交易下单</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="positions-tab" data-bs-toggle="tab" data-bs-target="#positions" type="button" role="tab">
+                        <i class="fas fa-chart-line"></i> <span data-translate="position_summary">持仓汇总</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">
+                        <i class="fas fa-history"></i> <span data-translate="trade_history">交易记录</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="settlement-tab" data-bs-toggle="tab" data-bs-target="#settlement" type="button" role="tab">
+                        <i class="fas fa-file-invoice"></i> <span data-translate="settlement_statement">结算单</span>
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pnl-curve-tab" data-bs-toggle="tab" data-bs-target="#pnl-curve" type="button" role="tab">
+                        <i class="fas fa-chart-line"></i> <span data-translate="pnl_curve">盈亏曲线</span>
+                    </button>
+                </li>
+            </ul>
+
+            <!-- 标签内容 -->
+            <div class="tab-content" id="mainTabContent">
+                <!-- 交易下单 -->
+                <div class="tab-pane fade show active" id="trade" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-plus-circle"></i> <span data-translate="new_trade">新建交易</span></h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="tradeForm">
+                                <!-- 第一行：合约代码和合约期限 -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="contract">合约代码 <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="contract" required>
+                                                <option value="" data-translate="select_contract">请选择合约代码</option>
+                                                <option value="PMX">PMX (巴拿马型船)</option>
+                                                <option value="C5TC">C5TC (好望角型船)</option>
+                                                <option value="P4TC">P4TC (巴拿马型船)</option>
+                                                <option value="S5TC">S5TC (超灵便型船)</option>
+                                                <option value="C7TC">C7TC (好望角型船)</option>
+                                                <option value="C3TC">C3TC (好望角型船)</option>
+                                                <option value="C4TC">C4TC (好望角型船)</option>
+                                                <option value="C6TC">C6TC (好望角型船)</option>
+                                                <option value="C8TC">C8TC (好望角型船)</option>
+                                                <option value="C9TC">C9TC (好望角型船)</option>
+                                                <option value="C10TC">C10TC (好望角型船)</option>
+                                                <option value="C11TC">C11TC (好望角型船)</option>
+                                                <option value="C12TC">C12TC (好望角型船)</option>
+                                            </select>
+                                            <div class="form-text" data-translate="contract_help">选择FFA合约类型，不同船型对应不同的运价指数</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="month">合约期限 <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="month" required>
+                                                <option value="" data-translate="select_month">请选择期限</option>
+                                                <option value="1月">1月</option>
+                                                <option value="2月">2月</option>
+                                                <option value="3月">3月</option>
+                                                <option value="4月">4月</option>
+                                                <option value="5月">5月</option>
+                                                <option value="6月">6月</option>
+                                                <option value="7月">7月</option>
+                                                <option value="8月">8月</option>
+                                                <option value="9月">9月</option>
+                                                <option value="10月">10月</option>
+                                                <option value="11月">11月</option>
+                                                <option value="12月">12月</option>
+                                                <option value="Q1">Q1 (第一季度)</option>
+                                                <option value="Q2">Q2 (第二季度)</option>
+                                                <option value="Q3">Q3 (第三季度)</option>
+                                                <option value="Q4">Q4 (第四季度)</option>
+                                                <option value="年度">年度</option>
+                                            </select>
+                                            <div class="form-text" data-translate="month_help">选择合约到期月份或季度</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 第二行：交易日期和交易类型 -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="trade_date">交易日期</label>
+                                            <input type="date" class="form-control" id="tradeDate">
+                                            <small class="form-text text-muted" data-translate="auto_date">自动设置成当日日期，用户可选择调整</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="strategy">交易类型 <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="strategy" required>
+                                                <option value="" data-translate="select_trade_type">请选择交易类型</option>
+                                                <option value="Future">期货 (Future)</option>
+                                                <option value="Call">看涨期权 (Call Option)</option>
+                                                <option value="Put">看跌期权 (Put Option)</option>
+                                                <option value="Swap">掉期 (Swap)</option>
+                                                <option value="Spread">价差交易 (Spread)</option>
+                                            </select>
+                                            <div class="form-text" data-translate="strategy_help">选择交易策略类型，期货为最常用的FFA交易方式</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 第三行：操作和交易方向 -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="action">操作 <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="action" required>
+                                                <option value="" data-translate="select_action">请选择操作</option>
+                                                <option value="开仓">开仓 (Open Position)</option>
+                                                <option value="平仓">平仓 (Close Position)</option>
+                                                <option value="加仓">加仓 (Add Position)</option>
+                                                <option value="减仓">减仓 (Reduce Position)</option>
+                                            </select>
+                                            <div class="form-text" data-translate="action_help">开仓建立新头寸，平仓了结现有头寸</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="buy_sell">交易方向 <span class="text-danger">*</span></label>
+                                            <select class="form-select" id="buySell" required>
+                                                <option value="" data-translate="select_direction">请选择方向</option>
+                                                <option value="多头">多头 (Long)</option>
+                                                <option value="空头">空头 (Short)</option>
+                                            </select>
+                                            <div class="form-text" data-translate="direction_help">多头看涨运价，空头看跌运价</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 第四行：开仓价格和交易量 -->
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="future_price">开仓价格 <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="futurePrice" step="0.01" min="0" required placeholder="输入运价">
+                                                <span class="input-group-text">USD/天</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="opening_price_help">开仓时标的价格，单位为美元/天</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="volume">交易量/手 <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="volume" min="1" required placeholder="输入手数">
+                                                <span class="input-group-text">手</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="volume_help">每手代表一艘船一个月的运力</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="commissions">手续费</label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="commissions" step="0.01" min="0" value="0" placeholder="自动计算">
+                                                <span class="input-group-text">USD</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="commissions_help">场外交易+经纪费+交易所手续费+清算费</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 第五行：期权相关字段 -->
+                                <div class="row" id="optionFields" style="display: none;">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="strike_price">行权价 <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="strikePrice" step="0.01" min="0" placeholder="输入行权价">
+                                                <span class="input-group-text">USD/天</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="strike_price_help">期权合约的行权价格</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="premium">权利金 <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="premium" step="0.01" min="0" placeholder="输入权利金">
+                                                <span class="input-group-text">USD/天</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="premium_help">期权合约的权利金价格</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 第六行：空头和多头交易量 -->
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="short_volume">空头交易量</label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="shortVolume" min="0" value="0" placeholder="自动计算">
+                                                <span class="input-group-text">手</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="short_volume_help">空头方向的交易手数</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="long_volume">多头交易量</label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="longVolume" min="0" value="0" placeholder="自动计算">
+                                                <span class="input-group-text">手</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="long_volume_help">多头方向的交易手数</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                
+                                <!-- 第六行：手续费 -->
+                                <div class="row">
+                                    <div class="col-md-12">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="commissions">手续费</label>
+                                            <input type="number" class="form-control" id="commissions" step="0.01" min="0" value="0">
+                                            <small class="form-text text-muted" data-translate="commissions_help">场外交易+经纪费+交易所手续费+清算费</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 兼容性字段 (隐藏) -->
+                                <input type="hidden" id="contractType">
+                                <input type="hidden" id="contractMonth">
+                                <input type="hidden" id="contractName">
+                                <input type="hidden" id="price">
+                                
+                                <!-- 风险提示 -->
+                                <div class="row" id="riskWarning" style="display: none;">
+                                    <div class="col-12">
+                                        <div class="alert alert-warning" role="alert">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            <strong>风险提示：</strong>
+                                            <span id="riskMessage"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="text-center">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-paper-plane"></i> <span data-translate="submit">提交交易</span>
+                                    </button>
+                                    <button type="button" class="btn btn-danger btn-lg ms-3" onclick="clearForm()">
+                                        <i class="fas fa-trash"></i> <span data-translate="clear_form">清空表单</span>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- 交易结果 -->
+                    <div class="card" id="tradeResultCard" style="display: none;">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-check-circle"></i> 交易结果</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="tradeResult"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 持仓汇总 -->
+                <div class="tab-pane fade" id="positions" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-chart-line"></i> 当前持仓</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="loading" id="positionsLoading">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <p class="mt-2">正在加载持仓信息...</p>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="positionsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>合约代码</th>
+                                            <th>合约期限</th>
+                                            <th>策略</th>
+                                            <th>交易方向</th>
+                                            <th>开仓价格</th>
+                                            <th>行权价</th>
+                                            <th>权利金</th>
+                                            <th>持仓量</th>
+                                            <th>结算价</th>
+                                            <th>浮动盈亏</th>
+                                            <th>手续费</th>
+                                            <th>更新时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- 动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 交易记录 -->
+                <div class="tab-pane fade" id="history" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-history"></i> 交易历史</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="loading" id="historyLoading">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <p class="mt-2">正在加载交易记录...</p>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="historyTable">
+                                    <thead>
+                                        <tr>
+                                            <th>No.</th>
+                                            <th>Date</th>
+                                            <th>合约</th>
+                                            <th>操作</th>
+                                            <th>交易方向</th>
+                                            <th>策略</th>
+                                            <th>Future</th>
+                                            <th>Strike</th>
+                                            <th>Premium</th>
+                                            <th>Short Volume</th>
+                                            <th>Long Volume</th>
+                                            <th>PNL</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- 动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 结算单 -->
+                <div class="tab-pane fade" id="settlement" role="tabpanel">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0"><i class="fas fa-file-invoice"></i> <span data-translate="settlement_statement">结算单</span></h5>
+                            <button class="btn btn-primary btn-sm" onclick="showCreateSettlementModal()">
+                                <i class="fas fa-plus"></i> <span data-translate="create_settlement">创建结算单</span>
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div class="loading" id="settlementLoading">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">加载中...</span>
+                                </div>
+                                <p class="mt-2" data-translate="loading">正在加载结算单...</p>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="settlementTable">
+                                    <thead>
+                                        <tr>
+                                            <th data-translate="statement_period">结算单周期</th>
+                                            <th data-translate="beginning_equity">期初权益</th>
+                                            <th data-translate="deposits">期间入金</th>
+                                            <th data-translate="withdrawals">期间出金</th>
+                                            <th data-translate="realized_pnl">平仓盈亏</th>
+                                            <th data-translate="unrealized_pnl">浮动盈亏</th>
+                                            <th data-translate="commissions">手续费</th>
+                                            <th data-translate="ending_equity">期末权益</th>
+                                            <th data-translate="created_at">创建时间</th>
+                                            <th data-translate="actions">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="settlementTableBody">
+                                        <tr>
+                                            <td colspan="10" class="text-center text-muted" data-translate="no_settlements">暂无结算单</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 盈亏曲线 -->
+                <div class="tab-pane fade" id="pnl-curve" role="tabpanel">
+        <!-- 初始占位符 -->
+        <div id="pnlPlaceholder" class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-chart-line fa-4x text-muted opacity-50"></i>
+            </div>
+            <h5 class="text-muted mb-3" data-translate="click_to_load_charts">点击上方标签加载盈亏曲线</h5>
+            <p class="text-muted" data-translate="pnl_placeholder_description">实时监控您的交易盈亏变化趋势</p>
+        </div>
+        
+        <!-- 加载状态 -->
+        <div class="loading" id="pnlLoading" style="display: none;">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden" data-translate="loading">加载中...</span>
+            </div>
+            <p class="mt-2" data-translate="loading_charts">正在加载图表数据...</p>
+        </div>
+        
+        <!-- 图表容器 - 点击盈亏曲线标签后只显示这两个图表 -->
+        <div id="pnlChartsContainer" style="display: none;">
+            <!-- 图表1：实时浮动盈亏曲线 -->
+            <div class="row mb-4" id="floatingChartContainer">
+                <div class="col-12">
+                    <div class="card chart-card shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-chart-area"></i> <span data-translate="floating_pnl_curve">实时浮动盈亏曲线</span></h6>
+                            <small class="text-light" data-translate="floating_pnl_description">显示所有未平仓头寸的浮动盈亏变化</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="floatingPnLChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 图表2：累计实际盈亏曲线 -->
+            <div class="row" id="cumulativeChartContainer">
+                <div class="col-12">
+                    <div class="card chart-card shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="fas fa-chart-line"></i> <span data-translate="cumulative_pnl_curve">累计实际盈亏曲线</span></h6>
+                            <small class="text-light" data-translate="cumulative_pnl_description">显示已平仓交易的累计盈亏变化</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="cumulativePnLChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 创建结算单模态框 -->
+    <div class="modal fade" id="createSettlementModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" data-translate="create_settlement">创建结算单</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="settlementForm">
+                        <div class="mb-3">
+                            <label for="statementPeriod" class="form-label" data-translate="statement_period">结算单周期</label>
+                            <input type="text" class="form-control" id="statementPeriod" placeholder="例如: 2025-01-27" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="periodStart" class="form-label" data-translate="period_start">周期开始时间</label>
+                            <input type="datetime-local" class="form-control" id="periodStart" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="periodEnd" class="form-label" data-translate="period_end">周期结束时间</label>
+                            <input type="datetime-local" class="form-control" id="periodEnd" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-translate="cancel">取消</button>
+                    <button type="button" class="btn btn-primary" onclick="createSettlement()" data-translate="create">创建</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 结算单详情模态框 -->
+    <div class="modal fade" id="settlementDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" data-translate="settlement_detail">结算单详情</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="settlementDetailContent">
+                        <!-- 动态加载内容 -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-translate="close">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 交易明细模态框 -->
+    <div class="modal fade" id="settlementTradesModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" data-translate="transaction_details">交易明细（已平仓交易记录）</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="settlementTradesContent">
+                        <!-- 动态加载内容 -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-translate="close">关闭</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        // 全局变量
+        let accountData = null;
+        let currentUser = null;
+        let floatingPnLChart = null;
+        let cumulativePnLChart = null;
+        let authToken = null;
+        let currentAccountId = null;
+        let currentLanguage = localStorage.getItem('language') || 'zh';
+        
+        // 语言翻译数据
+        const translations = {
+            zh: {
+                title: 'FFA模拟交易系统',
+                subtitle: 'Forward Freight Agreement 模拟交易平台',
+                initial_equity: '初始权益',
+                current_equity: '当前权益',
+                total_pnl: '累计盈亏',
+                recommended_volume: '推荐手数',
+                account_management: '账户管理',
+                reset_data: '恢复原始数据',
+                warning: '注意：',
+                reset_warning: '恢复原始数据将清除所有交易记录和持仓，将账户重置到初始状态。此操作不可撤销！',
+                place_order: '交易下单',
+                position_summary: '持仓汇总',
+                trade_history: '交易记录',
+                contract: '合约代码',
+                month: '合约期限',
+                trade_date: '交易日期',
+                strategy: '策略',
+                action: '操作',
+                buy_sell: '交易方向',
+                future_price: '开仓价格',
+                strike_price: '行权价',
+                premium: '权利金',
+                volume: '交易量/手',
+                short_volume: '空头交易量',
+                long_volume: '多头交易量',
+                commissions: '手续费',
+                submit: '提交交易',
+                clear_form: '清空表单',
+                no_trades: '暂无交易记录',
+                no_positions: '暂无持仓',
+                no_settlements: '暂无结算单',
+                loading: '加载中...',
+                settlement_statement: '结算单',
+                create_settlement: '创建结算单',
+                statement_period: '结算单周期',
+                period_start: '周期开始时间',
+                period_end: '周期结束时间',
+                beginning_equity: '期初权益',
+                deposits: '期间入金',
+                withdrawals: '期间出金',
+                realized_pnl: '平仓盈亏',
+                unrealized_pnl: '浮动盈亏',
+                ending_equity: '期末权益',
+                created_at: '创建时间',
+                actions: '操作',
+                cancel: '取消',
+                create: '创建',
+                view_detail: '查看详情',
+                view_trades: '交易明细',
+                settlement_detail: '结算单详情',
+                transaction_details: '交易明细（已平仓交易记录）',
+                close: '关闭',
+                closing_date: '平仓日期',
+                contract_name: '合约名称',
+                contract_term: '合约期限',
+                trade_direction: '交易方向',
+                open_date: '开仓日期',
+                open_price: '开仓价格',
+                close_price: '平仓价格',
+                open_premium: '开仓权利金',
+                close_premium: '平仓权利金',
+                trade_volume: '交易量',
+                total_trades: '总交易数',
+                total_volume: '总交易量',
+                avg_pnl: '平均盈亏',
+                account_summary: '账户总结',
+                transaction_summary: '交易汇总',
+                no_closed_trades: '暂无已平仓交易记录',
+                pnl_curve: '盈亏曲线',
+                pnl_curve_description: '实时监控交易盈亏变化趋势',
+                click_to_load_charts: '点击上方标签加载盈亏曲线',
+                pnl_placeholder_description: '实时监控您的交易盈亏变化趋势',
+                refresh: '刷新',
+                last_7_days: '最近7天',
+                last_30_days: '最近30天',
+                last_90_days: '最近90天',
+                loading_charts: '正在加载图表数据...',
+                floating_pnl_curve: '实时浮动盈亏曲线',
+                floating_pnl_description: '显示所有未平仓头寸的浮动盈亏变化',
+                cumulative_pnl_curve: '累计实际盈亏曲线',
+                cumulative_pnl_description: '显示已平仓交易的累计盈亏变化',
+                time: '时间',
+                value: '数值',
+                floating_pnl: '浮动盈亏',
+                cumulative_pnl: '累计盈亏',
+                no_data: '暂无数据',
+                login: '登录',
+                logout: '退出登录',
+                select_contract: '请选择合约代码',
+                select_month: '请选择期限',
+                select_strategy: '请选择策略',
+                select_action: '请选择操作',
+                select_trade_type: '请选择交易类型',
+                select_direction: '请选择方向',
+                auto_date: '自动设置成当日日期,用户可选择调整',
+                opening_price_help: '开仓时标的价格，单位为美元/天',
+                commissions_help: '场外交易+经纪费+交易所手续费+清算费',
+                new_trade: '新建交易',
+                contract_help: '选择FFA合约类型，不同船型对应不同的运价指数',
+                month_help: '选择合约到期月份或季度',
+                strategy_help: '选择交易策略类型，期货为最常用的FFA交易方式',
+                action_help: '开仓建立新头寸，平仓了结现有头寸',
+                direction_help: '多头看涨运价，空头看跌运价',
+                volume_help: '每手代表一艘船一个月的运力',
+                short_volume_help: '空头方向的交易手数',
+                long_volume_help: '多头方向的交易手数',
+                strike_price_help: '期权合约的行权价格',
+                premium_help: '期权合约的权利金价格'
+            },
+            en: {
+                title: 'FFA Trading Simulation System',
+                subtitle: 'Forward Freight Agreement Trading Platform',
+                initial_equity: 'Initial Equity',
+                current_equity: 'Current Equity',
+                total_pnl: 'Total P&L',
+                recommended_volume: 'Recommended Volume',
+                account_management: 'Account Management',
+                reset_data: 'Reset Data',
+                warning: 'Warning:',
+                reset_warning: 'Resetting data will clear all trade records and positions, resetting the account to initial state. This operation cannot be undone!',
+                place_order: 'Place Order',
+                position_summary: 'Position Summary',
+                trade_history: 'Trade History',
+                contract: 'Contract Code',
+                month: 'Contract Term',
+                trade_date: 'Trade Date',
+                strategy: 'Strategy',
+                action: 'Operation',
+                buy_sell: 'Trade Direction',
+                future_price: 'Opening Price',
+                strike_price: 'Strike Price',
+                premium: 'Premium',
+                volume: 'Volume/Lots',
+                short_volume: 'Short Volume',
+                long_volume: 'Long Volume',
+                commissions: 'Commissions',
+                submit: 'Submit Trade',
+                clear_form: 'Clear Form',
+                no_trades: 'No trade records',
+                no_positions: 'No positions',
+                no_settlements: 'No settlement statements found',
+                loading: 'Loading...',
+                settlement_statement: 'Settlement Statement',
+                create_settlement: 'Create Settlement',
+                statement_period: 'Statement Period',
+                period_start: 'Period Start',
+                period_end: 'Period End',
+                beginning_equity: 'Beginning Equity',
+                deposits: 'Deposits',
+                withdrawals: 'Withdrawals',
+                realized_pnl: 'Realized P&L',
+                unrealized_pnl: 'Unrealized P&L',
+                ending_equity: 'Ending Equity',
+                created_at: 'Created At',
+                actions: 'Actions',
+                cancel: 'Cancel',
+                create: 'Create',
+                view_detail: 'View Detail',
+                view_trades: 'Trade Details',
+                settlement_detail: 'Settlement Detail',
+                transaction_details: 'Transaction Details (Closed Trades)',
+                close: 'Close',
+                closing_date: 'Closing Date',
+                contract_name: 'Contract Name',
+                contract_term: 'Contract Term',
+                trade_direction: 'Trade Direction',
+                open_date: 'Open Date',
+                open_price: 'Open Price',
+                close_price: 'Close Price',
+                open_premium: 'Open Premium',
+                close_premium: 'Close Premium',
+                trade_volume: 'Trade Volume',
+                total_trades: 'Total Trades',
+                total_volume: 'Total Volume',
+                avg_pnl: 'Average P&L',
+                account_summary: 'Account Summary',
+                transaction_summary: 'Transaction Summary',
+                no_closed_trades: 'No closed trade records',
+                pnl_curve: 'P&L Curve',
+                pnl_curve_description: 'Real-time monitoring of trading P&L trends',
+                click_to_load_charts: 'Click the tab above to load P&L curves',
+                pnl_placeholder_description: 'Monitor your trading P&L trends in real-time',
+                refresh: 'Refresh',
+                last_7_days: 'Last 7 Days',
+                last_30_days: 'Last 30 Days',
+                last_90_days: 'Last 90 Days',
+                loading_charts: 'Loading chart data...',
+                floating_pnl_curve: 'Real-time Floating P&L Curve',
+                floating_pnl_description: 'Shows floating P&L changes for all open positions',
+                cumulative_pnl_curve: 'Cumulative Realized P&L Curve',
+                cumulative_pnl_description: 'Shows cumulative P&L changes for closed trades',
+                time: 'Time',
+                value: 'Value',
+                floating_pnl: 'Floating P&L',
+                cumulative_pnl: 'Cumulative P&L',
+                no_data: 'No Data',
+                login: 'Login',
+                logout: 'Logout',
+                select_contract: 'Please select contract code',
+                select_month: 'Please select term',
+                select_strategy: 'Please select strategy',
+                select_action: 'Please select operation',
+                select_trade_type: 'Please select trade type',
+                select_direction: 'Please select direction',
+                auto_date: 'Automatically set to current date, user can adjust',
+                opening_price_help: 'Price at opening position, unit is USD/day',
+                commissions_help: 'OTC transaction + brokerage fee + exchange handling fee + clearing fee',
+                new_trade: 'New Trade',
+                contract_help: 'Select FFA contract type, different ship types correspond to different freight indices',
+                month_help: 'Select contract expiry month or quarter',
+                strategy_help: 'Select trading strategy type, futures is the most common FFA trading method',
+                action_help: 'Open position to establish new position, close position to liquidate existing position',
+                direction_help: 'Long bullish on freight rates, short bearish on freight rates',
+                volume_help: 'Each lot represents one ship for one month capacity',
+                short_volume_help: 'Short direction trading lots',
+                long_volume_help: 'Long direction trading lots',
+                strike_price_help: 'Strike price of option contract',
+                premium_help: 'Premium price of option contract'
+            }
+        };
+        
+        // 语言切换函数
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('language', lang);
+            updateLanguageButtons();
+            translatePage();
+        }
+        
+        // 更新语言按钮状态
+        function updateLanguageButtons() {
+            document.getElementById('lang-zh').classList.toggle('active', currentLanguage === 'zh');
+            document.getElementById('lang-en').classList.toggle('active', currentLanguage === 'en');
+        }
+        
+        // 翻译页面
+        function translatePage() {
+            const elements = document.querySelectorAll('[data-translate]');
+            elements.forEach(element => {
+                const key = element.getAttribute('data-translate');
+                if (translations[currentLanguage] && translations[currentLanguage][key]) {
+                    element.textContent = translations[currentLanguage][key];
+                }
+            });
+        }
+        
+        // 获取翻译文本的辅助函数
+        function getTranslation(key) {
+            if (translations[currentLanguage] && translations[currentLanguage][key]) {
+                return translations[currentLanguage][key];
+            }
+            return key; // 如果找不到翻译，返回键名
+        }
+        
+        // 结算单相关函数
+        function showCreateSettlementModal() {
+            const modal = new bootstrap.Modal(document.getElementById('createSettlementModal'));
+            
+            // 设置默认值
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const time = now.toTimeString().split(' ')[0].substring(0, 5);
+            
+            document.getElementById('statementPeriod').value = today;
+            document.getElementById('periodStart').value = `${today}T00:00`;
+            document.getElementById('periodEnd').value = `${today}T${time}`;
+            
+            modal.show();
+        }
+        
+        async function createSettlement() {
+            const statementPeriod = document.getElementById('statementPeriod').value;
+            const periodStart = document.getElementById('periodStart').value;
+            const periodEnd = document.getElementById('periodEnd').value;
+            
+            if (!statementPeriod || !periodStart || !periodEnd) {
+                showMessage('请填写所有必填字段', 'warning');
+                return;
+            }
+            
+            if (!currentAccountId) {
+                showMessage('请先选择账户', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/settlement-statements', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        account_id: currentAccountId,
+                        statement_period: statementPeriod,
+                        period_start: periodStart,
+                        period_end: periodEnd
+                    })
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    showMessage('结算单创建成功', 'success');
+                    
+                    // 关闭模态框
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('createSettlementModal'));
+                    modal.hide();
+                    
+                    // 刷新结算单列表
+                    loadSettlementStatements();
+                } else {
+                    const error = await response.json();
+                    showMessage('创建结算单失败: ' + (error.detail || '未知错误'), 'danger');
+                }
+            } catch (error) {
+                showMessage('网络错误: ' + error.message, 'danger');
+            }
+        }
+        
+        async function loadSettlementStatements() {
+            if (!currentAccountId) return;
+            
+            const loading = document.getElementById('settlementLoading');
+            const tableBody = document.getElementById('settlementTableBody');
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/settlement-statements?account_id=${currentAccountId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const statements = await response.json();
+                    
+                    tableBody.innerHTML = '';
+                    
+                    if (statements.length === 0) {
+                        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted" data-translate="no_settlements">暂无结算单</td></tr>';
+                    } else {
+                        statements.forEach(statement => {
+                            const createdDate = new Date(statement.created_at).toLocaleString();
+                            const row = `
+                                <tr>
+                                    <td>${statement.statement_period}</td>
+                                    <td>¥${statement.beginning_equity.toLocaleString()}</td>
+                                    <td>¥${statement.deposits.toLocaleString()}</td>
+                                    <td>¥${statement.withdrawals.toLocaleString()}</td>
+                                    <td class="${statement.realized_pnl >= 0 ? 'text-success' : 'text-danger'}">¥${statement.realized_pnl.toLocaleString()}</td>
+                                    <td class="${statement.unrealized_pnl >= 0 ? 'text-success' : 'text-danger'}">¥${statement.unrealized_pnl.toLocaleString()}</td>
+                                    <td>¥${statement.commissions.toLocaleString()}</td>
+                                    <td class="fw-bold">¥${statement.ending_equity.toLocaleString()}</td>
+                                    <td>${createdDate}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" onclick="viewSettlementDetail(${statement.id})">
+                                            <i class="fas fa-eye"></i> <span data-translate="view_detail">查看详情</span>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-info" onclick="viewSettlementTrades(${statement.id})">
+                                            <i class="fas fa-list"></i> <span data-translate="view_trades">交易明细</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            `;
+                            tableBody.innerHTML += row;
+                        });
+                    }
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">加载失败</td></tr>';
+                }
+            } catch (error) {
+                console.error('加载结算单失败:', error);
+                tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">加载失败</td></tr>';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        async function viewSettlementDetail(statementId) {
+            try {
+                const response = await fetch(`/api/settlement-statements/${statementId}/detail`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const detail = await response.json();
+                    showSettlementDetailModal(detail);
+                } else {
+                    showMessage('获取结算单详情失败', 'danger');
+                }
+            } catch (error) {
+                showMessage('网络错误: ' + error.message, 'danger');
+            }
+        }
+        
+        function showSettlementDetailModal(detail) {
+            const modal = new bootstrap.Modal(document.getElementById('settlementDetailModal'));
+            const content = document.getElementById('settlementDetailContent');
+            
+            const settlement = detail.settlement;
+            const closedTrades = detail.closed_trades;
+            
+            content.innerHTML = `
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6 data-translate="account_summary">账户总结</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td data-translate="statement_period">结算单周期:</td>
+                                <td>${settlement.statement_period}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="beginning_equity">期初权益:</td>
+                                <td>¥${settlement.beginning_equity.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="deposits">期间入金:</td>
+                                <td>¥${settlement.deposits.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="withdrawals">期间出金:</td>
+                                <td>¥${settlement.withdrawals.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="realized_pnl">平仓盈亏:</td>
+                                <td class="${settlement.realized_pnl >= 0 ? 'text-success' : 'text-danger'}">¥${settlement.realized_pnl.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="unrealized_pnl">浮动盈亏:</td>
+                                <td class="${settlement.unrealized_pnl >= 0 ? 'text-success' : 'text-danger'}">¥${settlement.unrealized_pnl.toLocaleString()}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="commissions">手续费:</td>
+                                <td>¥${settlement.commissions.toLocaleString()}</td>
+                            </tr>
+                            <tr class="table-primary">
+                                <td data-translate="ending_equity">期末权益:</td>
+                                <td class="fw-bold">¥${settlement.ending_equity.toLocaleString()}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6 data-translate="transaction_summary">交易汇总</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td data-translate="total_trades">总交易数:</td>
+                                <td>${detail.total_trades}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="total_volume">总交易量:</td>
+                                <td>${detail.total_volume}</td>
+                            </tr>
+                            <tr>
+                                <td data-translate="avg_pnl">平均盈亏:</td>
+                                <td class="${detail.avg_realized_pnl >= 0 ? 'text-success' : 'text-danger'}">¥${detail.avg_realized_pnl.toLocaleString()}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            modal.show();
+        }
+        
+        async function viewSettlementTrades(statementId) {
+            try {
+                const response = await fetch(`/api/settlement-statements/${statementId}/closed-trades`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const trades = await response.json();
+                    showSettlementTradesModal(trades);
+                } else {
+                    showMessage('获取交易明细失败', 'danger');
+                }
+            } catch (error) {
+                showMessage('网络错误: ' + error.message, 'danger');
+            }
+        }
+        
+        function showSettlementTradesModal(trades) {
+            const modal = new bootstrap.Modal(document.getElementById('settlementTradesModal'));
+            const content = document.getElementById('settlementTradesContent');
+            
+            if (trades.length === 0) {
+                content.innerHTML = '<div class="text-center text-muted" data-translate="no_closed_trades">暂无已平仓交易记录</div>';
+            } else {
+                let tableHtml = `
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th data-translate="closing_date">平仓日期</th>
+                                    <th data-translate="contract_name">合约名称</th>
+                                    <th data-translate="contract_term">合约期限</th>
+                                    <th data-translate="strategy">策略</th>
+                                    <th data-translate="trade_direction">交易方向</th>
+                                    <th data-translate="open_date">开仓日期</th>
+                                    <th data-translate="open_price">开仓价格</th>
+                                    <th data-translate="close_price">平仓价格</th>
+                                    <th data-translate="trade_volume">交易量</th>
+                                    <th data-translate="realized_pnl">平仓盈亏</th>
+                                    <th data-translate="commissions">手续费</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                trades.forEach(trade => {
+                    const closingDate = new Date(trade.closing_date).toLocaleDateString();
+                    const openDate = new Date(trade.open_date).toLocaleDateString();
+                    const contractName = `${trade.contract}${trade.month}`;
+                    
+                    tableHtml += `
+                        <tr>
+                            <td>${closingDate}</td>
+                            <td>${contractName}</td>
+                            <td>${trade.month}</td>
+                            <td>${trade.strategy}</td>
+                            <td>${trade.buy_sell}</td>
+                            <td>${openDate}</td>
+                            <td>¥${trade.open_future_price.toLocaleString()}</td>
+                            <td>¥${trade.close_future_price.toLocaleString()}</td>
+                            <td>${trade.volume}</td>
+                            <td class="${trade.realized_pnl >= 0 ? 'text-success' : 'text-danger'}">¥${trade.realized_pnl.toLocaleString()}</td>
+                            <td>¥${trade.commissions.toLocaleString()}</td>
+                        </tr>
+                    `;
+                });
+                
+                tableHtml += `
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+                
+                content.innerHTML = tableHtml;
+            }
+            
+            modal.show();
+        }
+
+        // 盈亏曲线相关函数
+        async function loadPnLCharts() {
+            console.log('loadPnLCharts called, currentAccountId:', currentAccountId);
+            
+            const placeholder = document.getElementById('pnlPlaceholder');
+            const loading = document.getElementById('pnlLoading');
+            const days = 30; // 固定使用30天数据
+            
+            console.log('Elements found:', {placeholder: !!placeholder, loading: !!loading});
+            
+            // 隐藏占位符，显示加载状态
+            if (placeholder) placeholder.style.display = 'none';
+            if (loading) loading.style.display = 'block';
+            
+            console.log('Loading state set');
+            
+            if (!currentAccountId) {
+                console.log('No currentAccountId, waiting for account to be loaded...');
+                // 等待账户加载完成
+                let attempts = 0;
+                const maxAttempts = 50; // 最多等待5秒
+                
+                while (!currentAccountId && attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!currentAccountId) {
+                    console.log('Account still not loaded after waiting, showing placeholder');
+                    if (placeholder) placeholder.style.display = 'block';
+                    if (loading) loading.style.display = 'none';
+                    return;
+                }
+            }
+            
+            console.log('Starting API request...');
+            try {
+                const response = await fetch(`/api/pnl-chart-data?account_id=${currentAccountId}&days=${days}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                console.log('API response received:', response.status);
+                
+                if (response.ok) {
+                    const chartData = await response.json();
+                    console.log('Chart data received:', chartData);
+                    renderPnLCharts(chartData);
+                } else {
+                    console.error('API error:', response.status);
+                    showMessage('获取图表数据失败', 'danger');
+                    // 显示占位符
+                    if (placeholder) placeholder.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('加载图表数据失败:', error);
+                showMessage('网络错误: ' + error.message, 'danger');
+                // 显示占位符
+                if (placeholder) placeholder.style.display = 'block';
+            } finally {
+                console.log('Finally block executed');
+                if (loading) loading.style.display = 'none';
+            }
+        }
+        
+        function renderPnLCharts(chartData) {
+            console.log('renderPnLCharts called with data:', chartData);
+            
+            // 渲染浮动盈亏曲线
+            console.log('Rendering floating P&L chart...');
+            renderFloatingPnLChart(chartData.floating_pnl_data);
+            
+            // 渲染累计盈亏曲线
+            console.log('Rendering cumulative P&L chart...');
+            renderCumulativePnLChart(chartData.cumulative_pnl_data);
+            
+            // 显示图表容器
+            const chartsContainer = document.getElementById('pnlChartsContainer');
+            console.log('Charts container found:', !!chartsContainer);
+            if (chartsContainer) {
+                chartsContainer.style.display = 'block';
+                console.log('Charts container displayed');
+            }
+            
+            // 隐藏占位符和加载状态
+            const placeholder = document.getElementById('pnlPlaceholder');
+            const loading = document.getElementById('pnlLoading');
+            if (placeholder) placeholder.style.display = 'none';
+            if (loading) loading.style.display = 'none';
+            console.log('renderPnLCharts completed');
+        }
+        
+        function renderFloatingPnLChart(floatingData) {
+            console.log('renderFloatingPnLChart called with data:', floatingData);
+            
+            const canvas = document.getElementById('floatingPnLChart');
+            if (!canvas) {
+                console.log('floatingPnLChart canvas not found');
+                return;
+            }
+            console.log('floatingPnLChart canvas found');
+            
+            const ctx = canvas.getContext('2d');
+            
+            // 销毁现有图表
+            if (typeof floatingPnLChart !== 'undefined' && floatingPnLChart) {
+                console.log('Destroying existing floating chart');
+                floatingPnLChart.destroy();
+            }
+            
+            if (floatingData.length === 0) {
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(getTranslation('no_data'), ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            const labels = floatingData.map(point => {
+                const date = new Date(point.timestamp);
+                return date.toLocaleString();
+            });
+            
+            const data = floatingData.map(point => point.total_floating_pnl);
+            
+            console.log('Creating floating chart with data:', data);
+            console.log('Chart.js available:', typeof Chart !== 'undefined');
+            
+            floatingPnLChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: getTranslation('floating_pnl'),
+                        data: data,
+                        borderColor: '#0d6efd',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#0d6efd',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: getTranslation('time'),
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getTranslation('value') + ' (¥)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#0d6efd',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return getTranslation('floating_pnl') + ': ¥' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderCumulativePnLChart(cumulativeData) {
+            console.log('renderCumulativePnLChart called with data:', cumulativeData);
+            
+            const canvas = document.getElementById('cumulativePnLChart');
+            if (!canvas) {
+                console.log('cumulativePnLChart canvas not found');
+                return;
+            }
+            console.log('cumulativePnLChart canvas found');
+            
+            const ctx = canvas.getContext('2d');
+            
+            // 销毁现有图表
+            if (typeof cumulativePnLChart !== 'undefined' && cumulativePnLChart) {
+                console.log('Destroying existing cumulative chart');
+                cumulativePnLChart.destroy();
+            }
+            
+            if (cumulativeData.length === 0) {
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(getTranslation('no_data'), ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            const labels = cumulativeData.map(point => {
+                const date = new Date(point.closing_date);
+                return date.toLocaleDateString();
+            });
+            
+            const data = cumulativeData.map(point => point.cumulative_pnl);
+            
+            console.log('Creating cumulative chart with data:', data);
+            console.log('Chart.js available for cumulative:', typeof Chart !== 'undefined');
+            
+            cumulativePnLChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: getTranslation('cumulative_pnl'),
+                        data: data,
+                        borderColor: '#198754',
+                        backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.4,
+                        fill: false,
+                        pointBackgroundColor: '#198754',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: getTranslation('time'),
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getTranslation('value') + ' (¥)',
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return '¥' + value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                font: {
+                                    size: 14,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#198754',
+                            borderWidth: 1,
+                            callbacks: {
+                                label: function(context) {
+                                    return getTranslation('cumulative_pnl') + ': ¥' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        
+        function hidePnLCharts() {
+            console.log('hidePnLCharts called');
+            
+            // 隐藏图表容器
+            const chartsContainer = document.getElementById('pnlChartsContainer');
+            if (chartsContainer) {
+                chartsContainer.style.display = 'none';
+                console.log('Charts container hidden');
+            }
+            
+            // 显示占位符
+            const placeholder = document.getElementById('pnlPlaceholder');
+            if (placeholder) {
+                placeholder.style.display = 'block';
+                console.log('Placeholder shown');
+            }
+            
+            // 隐藏加载状态
+            const loading = document.getElementById('pnlLoading');
+            if (loading) {
+                loading.style.display = 'none';
+                console.log('Loading state hidden');
+            }
+            
+            console.log('hidePnLCharts completed');
+        }
+
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateLanguageButtons();
+            translatePage();
+            checkAuthentication();
+            
+            
+            // 确保交易日期有默认值
+            const tradeDateInput = document.getElementById('tradeDate');
+            if (tradeDateInput && !tradeDateInput.value) {
+                const today = new Date().toISOString().split('T')[0];
+                tradeDateInput.value = today;
+            }
+        });
+        
+        // 检查认证状态
+        async function checkAuthentication() {
+            authToken = localStorage.getItem('authToken');
+            console.log('从localStorage获取的token:', authToken ? `${authToken.substring(0, 20)}...` : 'null');
+            
+            if (!authToken) {
+                console.log('未找到token，跳转到登录页面');
+                // 未登录，跳转到登录页面
+                window.location.href = '/login';
+                return;
+            }
+            
+            try {
+                // 验证token并获取用户信息
+                const response = await fetch('/api/me', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    currentUser = await response.json();
+                    updateUserInfo();
+                    await loadUserAccounts();
+                } else if (response.status === 401) {
+                    // Token无效或过期，跳转到登录页面
+                    console.log('Token无效或过期，清除本地存储并跳转到登录页面');
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                    window.location.href = '/login';
+                } else {
+                    console.error('认证检查失败，状态码:', response.status);
+                    localStorage.removeItem('authToken');
+                    window.location.href = '/login';
+                }
+            } catch (error) {
+                console.error('认证检查失败:', error);
+                localStorage.removeItem('authToken');
+                window.location.href = '/login';
+            }
+        }
+        
+        // 更新用户信息显示
+        function updateUserInfo() {
+            if (currentUser) {
+                // 在页面顶部显示用户信息
+                const userInfo = document.createElement('div');
+                userInfo.className = 'user-info';
+                userInfo.innerHTML = `
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <span class="text-muted">欢迎, </span>
+                            <strong>${currentUser.full_name || currentUser.username}</strong>
+                        </div>
+                        <div>
+                            <button class="btn btn-outline-warning btn-sm me-2" onclick="showResetConfirm()">
+                                <i class="fas fa-undo"></i> <span data-translate="reset_data">恢复原始数据</span>
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm me-2" onclick="showAccountSelector()">
+                                <i class="fas fa-user-circle"></i> 切换账户
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="logout()">
+                                <i class="fas fa-sign-out-alt"></i> 退出
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                // 在header后插入用户信息
+                const header = document.querySelector('.header');
+                header.parentNode.insertBefore(userInfo, header.nextSibling);
+            }
+        }
+        
+        // 加载用户账户
+        async function loadUserAccounts() {
+            try {
+                const response = await fetch('/api/users/me/accounts', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const accounts = await response.json();
+                    if (accounts.length > 0) {
+                        currentAccountId = accounts[0].id;
+                        loadAccountSummary();
+                        loadSettlementStatements();
+                        setupEventListeners();
+                    } else {
+                        showMessage('您还没有账户，请先创建账户', 'warning');
+                    }
+                }
+            } catch (error) {
+                console.error('加载账户失败:', error);
+                showMessage('加载账户失败', 'danger');
+            }
+        }
+        
+        // 显示账户选择器
+        function showAccountSelector() {
+            // 这里可以实现账户选择功能
+            alert('账户选择功能待实现');
+        }
+        
+        // 退出登录
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login';
+        }
+        
+        // 显示消息提示
+        function showMessage(message, type = 'info') {
+            // 创建消息元素
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            messageDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            // 插入到页面顶部
+            const container = document.querySelector('.container-fluid');
+            if (container) {
+                container.insertBefore(messageDiv, container.firstChild);
+                
+                // 3秒后自动消失
+                setTimeout(() => {
+                    if (messageDiv.parentNode) {
+                        messageDiv.remove();
+                    }
+                }, 3000);
+            }
+        }
+        
+        // 显示重置确认对话框
+        function showResetConfirm() {
+            // 检查是否有账户ID
+            if (!currentAccountId) {
+                showMessage('请先等待账户加载完成', 'warning');
+                return;
+            }
+            
+            if (confirm('⚠️ 确认要恢复原始数据吗？\n\n此操作将：\n• 清除所有交易记录\n• 清除所有持仓\n• 清除所有结算单\n• 重置账户到初始状态\n• 此操作不可撤销！\n\n请确认是否继续？')) {
+                resetAccountData();
+            }
+        }
+        
+        // 重置账户数据
+        async function resetAccountData() {
+            if (!currentAccountId) {
+                showMessage('没有可重置的账户', 'danger');
+                return;
+            }
+            
+            try {
+                showMessage('正在重置账户数据...', 'info');
+                
+                const response = await fetch(`/api/accounts/${currentAccountId}/reset`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showMessage('✅ 账户数据已成功重置到初始状态！\n• 交易记录已清除\n• 持仓数据已清除\n• 结算单已清除', 'success');
+                    
+                    // 重新加载所有数据
+                    await loadAccountSummary();
+            await loadPositions();
+            await loadTradeHistory();
+            await loadSettlementStatements();
+            // 盈亏曲线只在点击标签时加载
+                    
+                    // 显示重置结果
+                    setTimeout(() => {
+                        showMessage(`账户已重置：初始权益 ¥${result.initial_equity.toLocaleString()}，当前权益 ¥${result.current_equity.toLocaleString()}`, 'info');
+                    }, 1000);
+                } else {
+                    showMessage(`重置失败：${result.detail || '未知错误'}`, 'danger');
+                }
+            } catch (error) {
+                console.error('重置账户数据失败:', error);
+                showMessage('重置失败：网络错误', 'danger');
+            }
+        }
+        
+        // 设置事件监听器
+        function setupEventListeners() {
+            // 设置默认交易日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tradeDate').value = today;
+            
+            // 合约期限变化时自动生成合约名称
+            document.getElementById('month').addEventListener('change', function() {
+                const month = this.value;
+                const contract = document.getElementById('contract').value;
+                const contractName = document.getElementById('contractName');
+                if (month && contract) {
+                    contractName.value = contract + month + '合约';
+                } else {
+                    contractName.value = '';
+                }
+            });
+            
+            // 合约代码变化时自动生成合约名称
+            document.getElementById('contract').addEventListener('change', function() {
+                const contract = this.value;
+                const month = document.getElementById('month').value;
+                const contractName = document.getElementById('contractName');
+                if (month && contract) {
+                    contractName.value = contract + month + '合约';
+                } else {
+                    contractName.value = '';
+                }
+            });
+            
+            // 交易类型变化时显示/隐藏期权相关字段
+            document.getElementById('strategy').addEventListener('change', function() {
+                const strategy = this.value;
+                const optionFields = document.getElementById('optionFields');
+                const strikePrice = document.getElementById('strikePrice');
+                const premium = document.getElementById('premium');
+                
+                if (strategy === 'Call' || strategy === 'Put') {
+                    optionFields.style.display = 'block';
+                    strikePrice.required = true;
+                    premium.required = true;
+                } else {
+                    optionFields.style.display = 'none';
+                    strikePrice.required = false;
+                    premium.required = false;
+                    strikePrice.value = '';
+                    premium.value = '';
+                }
+                
+                // 检查风险
+                checkRisk();
+            });
+            
+            // 添加其他字段的风险检查
+            document.getElementById('volume').addEventListener('input', checkRisk);
+            document.getElementById('futurePrice').addEventListener('input', checkRisk);
+            document.getElementById('action').addEventListener('change', checkRisk);
+            document.getElementById('buySell').addEventListener('change', checkRisk);
+            
+            // 表单提交
+            document.getElementById('tradeForm').addEventListener('submit', handleTradeSubmit);
+            
+            // 标签切换时加载对应数据
+            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function(event) {
+                    const target = event.target.getAttribute('data-bs-target');
+                    console.log('Tab switched to:', target);
+                    
+                    if (target === '#positions') {
+                        console.log('Loading positions');
+                        hidePnLCharts(); // 隐藏盈亏曲线图表
+                        loadPositions();
+                    } else if (target === '#history') {
+                        console.log('Loading trade history');
+                        hidePnLCharts(); // 隐藏盈亏曲线图表
+                        loadTradeHistory();
+                    } else if (target === '#settlement') {
+                        console.log('Loading settlement statements');
+                        hidePnLCharts(); // 隐藏盈亏曲线图表
+                        loadSettlementStatements();
+                    } else if (target === '#pnl-curve') {
+                        console.log('Loading P&L charts');
+                        // 加载盈亏曲线图表
+                        loadPnLCharts();
+                    } else {
+                        console.log('Switching to other tab, hiding P&L charts');
+                        // 切换到其他标签时，隐藏盈亏曲线图表
+                        hidePnLCharts();
+                    }
+                });
+            });
+        }
+        
+        // 加载账户汇总信息
+        async function loadAccountSummary() {
+            if (!currentAccountId) return;
+            
+            try {
+                const response = await fetch(`/api/accounts/${currentAccountId}/summary`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                const data = await response.json();
+                
+                if (data) {
+                    document.getElementById('initialEquity').textContent = '¥' + data.account.initial_equity.toLocaleString();
+                    document.getElementById('currentEquity').textContent = '¥' + data.account.current_equity.toLocaleString();
+                    document.getElementById('totalPnl').textContent = '¥' + data.account.total_pnl.toLocaleString();
+                    document.getElementById('recommendedVolume').textContent = data.recommended_volume;
+                    
+                    accountData = data;
+                }
+            } catch (error) {
+                console.error('加载账户信息失败:', error);
+            }
+        }
+        
+        // 处理交易提交
+        async function handleTradeSubmit(event) {
+            event.preventDefault();
+            
+            // 收集新字段数据
+            const tradeDate = document.getElementById('tradeDate').value;
+            const formData = {
+                contract: document.getElementById('contract').value,
+                month: document.getElementById('month').value,
+                trade_date: tradeDate && tradeDate.trim() ? `${tradeDate}T00:00:00` : null,
+                strategy: document.getElementById('strategy').value,
+                action: document.getElementById('action').value,
+                buy_sell: document.getElementById('buySell').value,
+                future_price: parseFloat(document.getElementById('futurePrice').value),
+                volume: parseInt(document.getElementById('volume').value),
+                short_volume: parseInt(document.getElementById('shortVolume').value) || 0,
+                long_volume: parseInt(document.getElementById('longVolume').value) || 0,
+                commissions: parseFloat(document.getElementById('commissions').value) || 0
+            };
+            
+            // 表单验证
+            if (!formData.contract || formData.contract.trim() === '') {
+                showMessage('请选择合约代码', 'warning');
+                return;
+            }
+            if (!formData.month || formData.month.trim() === '') {
+                showMessage('请选择合约期限', 'warning');
+                return;
+            }
+            if (!formData.strategy || formData.strategy.trim() === '') {
+                showMessage('请选择交易类型', 'warning');
+                return;
+            }
+            if (!formData.action || formData.action.trim() === '') {
+                showMessage('请选择操作', 'warning');
+                return;
+            }
+            if (!formData.buy_sell || formData.buy_sell.trim() === '') {
+                showMessage('请选择交易方向', 'warning');
+                return;
+            }
+            if (!formData.future_price || formData.future_price <= 0 || isNaN(formData.future_price)) {
+                showMessage('请输入有效的开仓价格', 'warning');
+                return;
+            }
+            if (!formData.volume || formData.volume <= 0 || isNaN(formData.volume)) {
+                showMessage('请输入有效的交易量', 'warning');
+                return;
+            }
+            
+            // 期权相关字段
+            const strategy = formData.strategy;
+            if (strategy === 'Call' || strategy === 'Put') {
+                formData.strike_price = parseFloat(document.getElementById('strikePrice').value);
+                formData.premium = parseFloat(document.getElementById('premium').value);
+            }
+            
+            // 兼容性字段
+            formData.contract_type = formData.contract;
+            formData.contract_month = formData.month;
+            formData.contract_name = document.getElementById('contractName').value;
+            formData.price = formData.future_price;
+            
+            try {
+                console.log('提交交易数据:', formData); // 调试日志
+                console.log('使用的token:', authToken ? `${authToken.substring(0, 20)}...` : 'null');
+                console.log('当前账户ID:', currentAccountId);
+                
+                const response = await fetch(`/api/trades?account_id=${currentAccountId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                console.log('响应状态:', response.status); // 调试日志
+                
+                const result = await response.json();
+                console.log('响应结果:', result); // 调试日志
+                
+                if (response.ok) {
+                    showTradeResult(result, true);
+                    clearForm();
+                    loadAccountSummary(); // 刷新账户信息
+                    loadPositions(); // 刷新持仓
+                    loadTradeHistory(); // 刷新交易历史
+                    loadSettlementStatements(); // 刷新结算单
+                } else if (response.status === 401) {
+                    // Token无效或过期
+                    console.log('交易提交时token无效，跳转到登录页面');
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                    showMessage('登录已过期，请重新登录', 'warning');
+                    setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 2000);
+                } else {
+                    showTradeResult(result, false);
+                }
+            } catch (error) {
+                console.error('交易提交错误:', error); // 调试日志
+                showTradeResult({message: '网络错误: ' + error.message}, false);
+            }
+        }
+        
+        // 显示交易结果
+        function showTradeResult(result, success) {
+            const resultCard = document.getElementById('tradeResultCard');
+            const resultDiv = document.getElementById('tradeResult');
+            
+            if (success) {
+                resultDiv.innerHTML = `
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle"></i> 交易成功</h6>
+                        <p>${result.message || '交易执行成功'}</p>
+                        <small class="text-muted">交易ID: <span class="trade-id">${result.trade?.trade_id || 'N/A'}</span></small>
+                    </div>
+                `;
+            } else {
+                // 更好的错误信息处理
+                let errorMessage = '交易失败';
+                if (typeof result === 'string') {
+                    errorMessage = result;
+                } else if (result && typeof result === 'object') {
+                    if (result.detail) {
+                        errorMessage = result.detail;
+                    } else if (result.message) {
+                        errorMessage = result.message;
+                    } else if (result.error) {
+                        errorMessage = result.error;
+                    } else {
+                        // 如果是对象，尝试提取有用的信息
+                        errorMessage = JSON.stringify(result);
+                    }
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="alert alert-danger">
+                        <h6><i class="fas fa-exclamation-circle"></i> 交易失败</h6>
+                        <p>${errorMessage}</p>
+                    </div>
+                `;
+            }
+            
+            resultCard.style.display = 'block';
+            
+            // 3秒后自动隐藏
+            setTimeout(() => {
+                resultCard.style.display = 'none';
+            }, 5000);
+        }
+        
+        // 风险检查函数
+        function checkRisk() {
+            const riskWarning = document.getElementById('riskWarning');
+            const riskMessage = document.getElementById('riskMessage');
+            const volume = parseFloat(document.getElementById('volume').value) || 0;
+            const futurePrice = parseFloat(document.getElementById('futurePrice').value) || 0;
+            const action = document.getElementById('action').value;
+            const buySell = document.getElementById('buySell').value;
+            const strategy = document.getElementById('strategy').value;
+            
+            let warnings = [];
+            
+            // 检查交易量风险
+            if (volume > 100) {
+                warnings.push(`交易量过大 (${volume}手)，建议分批交易以控制风险`);
+            } else if (volume > 50) {
+                warnings.push(`交易量较大 (${volume}手)，请注意风险控制`);
+            }
+            
+            // 检查价格风险
+            if (futurePrice > 50000) {
+                warnings.push(`价格过高 ($${futurePrice.toLocaleString()}/天)，请确认价格正确性`);
+            } else if (futurePrice < 1000) {
+                warnings.push(`价格过低 ($${futurePrice.toLocaleString()}/天)，请确认价格正确性`);
+            }
+            
+            // 检查期权风险
+            if (strategy === 'Call' || strategy === 'Put') {
+                const strikePrice = parseFloat(document.getElementById('strikePrice').value) || 0;
+                const premium = parseFloat(document.getElementById('premium').value) || 0;
+                
+                if (strikePrice > 0 && futurePrice > 0) {
+                    const moneyness = (futurePrice - strikePrice) / strikePrice;
+                    if (Math.abs(moneyness) > 0.5) {
+                        warnings.push(`期权深度价外，风险较高 (价内程度: ${(moneyness * 100).toFixed(1)}%)`);
+                    }
+                }
+                
+                if (premium > futurePrice * 0.1) {
+                    warnings.push(`权利金过高，可能影响盈亏比`);
+                }
+            }
+            
+            // 检查平仓风险
+            if (action === '平仓' && volume > 0) {
+                warnings.push(`平仓操作将了结现有头寸，请确认操作正确`);
+            }
+            
+            // 显示风险提示
+            if (warnings.length > 0) {
+                riskMessage.innerHTML = warnings.join('<br>');
+                riskWarning.style.display = 'block';
+            } else {
+                riskWarning.style.display = 'none';
+            }
+        }
+        
+        // 清空表单
+        function clearForm() {
+            document.getElementById('tradeForm').reset();
+            
+            // 重置期权相关字段
+            const optionFields = document.getElementById('optionFields');
+            const strikePrice = document.getElementById('strikePrice');
+            const premium = document.getElementById('premium');
+            optionFields.style.display = 'none';
+            strikePrice.required = false;
+            premium.required = false;
+            
+            // 重置交易日期为今天
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tradeDate').value = today;
+            
+            // 清空合约名称
+            document.getElementById('contractName').value = '';
+            
+            // 隐藏风险提示
+            document.getElementById('riskWarning').style.display = 'none';
+        }
+        
+        // 加载持仓信息
+        async function loadPositions() {
+            const loading = document.getElementById('positionsLoading');
+            const tableBody = document.querySelector('#positionsTable tbody');
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/positions?account_id=${currentAccountId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                const positions = await response.json();
+                
+                tableBody.innerHTML = '';
+                
+                if (positions.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">暂无持仓</td></tr>';
+                } else {
+                    positions.forEach(position => {
+                        const row = `
+                            <tr>
+                                <td>${position.contract || position.contract_type || '-'}</td>
+                                <td>${position.month || position.contract_month || '-'}</td>
+                                <td>${position.strategy || '-'}</td>
+                                <td>${position.buy_sell || '-'}</td>
+                                <td>¥${(position.future_price || position.average_price || 0).toFixed(2)}</td>
+                                <td>${position.strike_price ? '¥' + position.strike_price.toFixed(2) : '-'}</td>
+                                <td>${position.premium ? '¥' + position.premium.toFixed(2) : '-'}</td>
+                                <td>${position.open_interest || position.position_volume || 0}</td>
+                                <td>¥${(position.daily_settlement_price || 0).toFixed(2)}</td>
+                                <td class="${position.unrealized_pnl >= 0 ? 'text-success' : 'text-danger'}">
+                                    ¥${position.unrealized_pnl.toFixed(2)}
+                                </td>
+                                <td>¥${(position.commissions || 0).toFixed(2)}</td>
+                                <td>${new Date(position.updated_at).toLocaleString()}</td>
+                            </tr>
+                        `;
+                        tableBody.innerHTML += row;
+                    });
+                }
+            } catch (error) {
+                tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-danger">加载失败</td></tr>';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        // 加载交易历史
+        async function loadTradeHistory() {
+            const loading = document.getElementById('historyLoading');
+            const tableBody = document.querySelector('#historyTable tbody');
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/trades?account_id=${currentAccountId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                const trades = await response.json();
+                
+                tableBody.innerHTML = '';
+                
+                if (trades.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-muted">暂无交易记录</td></tr>';
+                } else {
+                    trades.forEach((trade, index) => {
+                        const tradeDate = new Date(trade.trade_date || trade.created_at).toLocaleDateString();
+                        const contractName = `${trade.contract || trade.contract_type}${trade.month || trade.contract_month}`;
+                        const row = `
+                            <tr>
+                                <td>Sample${index + 1}</td>
+                                <td>${tradeDate}</td>
+                                <td>${contractName}</td>
+                                <td>${trade.action || '开仓'}</td>
+                                <td>${trade.buy_sell || '-'}</td>
+                                <td>${trade.strategy || '-'}</td>
+                                <td>${trade.future_price || trade.price || 0}</td>
+                                <td>${trade.strike_price || '-'}</td>
+                                <td>${trade.premium || '-'}</td>
+                                <td>${trade.short_volume || 0}</td>
+                                <td>${trade.long_volume || 0}</td>
+                                <td class="${trade.trade_pnl >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${trade.trade_pnl || 0}
+                                </td>
+                            </tr>
+                        `;
+                        tableBody.innerHTML += row;
+                    });
+                }
+            } catch (error) {
+                tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger">加载失败</td></tr>';
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
