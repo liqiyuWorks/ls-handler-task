@@ -458,6 +458,18 @@ async def delete_trade(trade_id: str, account_id: int = DEFAULT_ACCOUNT_ID):
 # 静态文件服务
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 健康检查端点
+@app.get("/health")
+async def health_check():
+    """健康检查端点"""
+    try:
+        # 检查数据库连接
+        db = next(get_db())
+        db.execute("SELECT 1")
+        return {"status": "healthy", "message": "服务正常运行"}
+    except Exception as e:
+        return {"status": "unhealthy", "message": f"服务异常: {str(e)}"}
+
 if __name__ == "__main__":
     uvicorn.run(
         "main:app", 
