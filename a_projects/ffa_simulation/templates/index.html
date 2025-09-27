@@ -234,6 +234,11 @@
                         <i class="fas fa-file-invoice"></i> <span data-translate="settlement_statement">结算单</span>
                     </button>
                 </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="pnl-curve-tab" data-bs-toggle="tab" data-bs-target="#pnl-curve" type="button" role="tab">
+                        <i class="fas fa-chart-line"></i> <span data-translate="pnl_curve">盈亏曲线</span>
+                    </button>
+                </li>
             </ul>
 
             <!-- 标签内容 -->
@@ -555,6 +560,67 @@
         </div>
     </div>
 
+    <!-- 盈亏曲线 -->
+    <div class="tab-pane fade" id="pnl-curve" role="tabpanel">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> <span data-translate="pnl_curve">盈亏曲线</span></h5>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-primary btn-sm" onclick="refreshPnLCharts()">
+                                <i class="fas fa-sync-alt"></i> <span data-translate="refresh">刷新</span>
+                            </button>
+                            <select class="form-select form-select-sm" id="pnlDaysSelect" onchange="loadPnLCharts()" style="width: auto;">
+                                <option value="7" data-translate="last_7_days">最近7天</option>
+                                <option value="30" selected data-translate="last_30_days">最近30天</option>
+                                <option value="90" data-translate="last_90_days">最近90天</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="loading" id="pnlLoading">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden" data-translate="loading">加载中...</span>
+                            </div>
+                            <p class="mt-2" data-translate="loading_charts">正在加载图表数据...</p>
+                        </div>
+                        
+                        <!-- 图表1：实时浮动盈亏曲线 -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-chart-area"></i> <span data-translate="floating_pnl_curve">实时浮动盈亏曲线</span></h6>
+                                        <small class="text-muted" data-translate="floating_pnl_description">显示所有未平仓头寸的浮动盈亏变化</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="floatingPnLChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 图表2：累计实际盈亏曲线 -->
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> <span data-translate="cumulative_pnl_curve">累计实际盈亏曲线</span></h6>
+                                        <small class="text-muted" data-translate="cumulative_pnl_description">显示已平仓交易的累计盈亏变化</small>
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="cumulativePnLChart" width="400" height="200"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- 创建结算单模态框 -->
     <div class="modal fade" id="createSettlementModal" tabindex="-1">
         <div class="modal-dialog">
@@ -630,10 +696,15 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script>
         // 全局变量
         let accountData = null;
         let currentUser = null;
+        let floatingPnLChart = null;
+        let cumulativePnLChart = null;
         let authToken = null;
         let currentAccountId = null;
         let currentLanguage = localStorage.getItem('language') || 'zh';
@@ -709,6 +780,21 @@
                 account_summary: '账户总结',
                 transaction_summary: '交易汇总',
                 no_closed_trades: '暂无已平仓交易记录',
+                pnl_curve: '盈亏曲线',
+                refresh: '刷新',
+                last_7_days: '最近7天',
+                last_30_days: '最近30天',
+                last_90_days: '最近90天',
+                loading_charts: '正在加载图表数据...',
+                floating_pnl_curve: '实时浮动盈亏曲线',
+                floating_pnl_description: '显示所有未平仓头寸的浮动盈亏变化',
+                cumulative_pnl_curve: '累计实际盈亏曲线',
+                cumulative_pnl_description: '显示已平仓交易的累计盈亏变化',
+                time: '时间',
+                value: '数值',
+                floating_pnl: '浮动盈亏',
+                cumulative_pnl: '累计盈亏',
+                no_data: '暂无数据',
                 login: '登录',
                 logout: '退出登录',
                 select_contract: '请选择合约代码',
@@ -791,6 +877,21 @@
                 account_summary: 'Account Summary',
                 transaction_summary: 'Transaction Summary',
                 no_closed_trades: 'No closed trade records',
+                pnl_curve: 'P&L Curve',
+                refresh: 'Refresh',
+                last_7_days: 'Last 7 Days',
+                last_30_days: 'Last 30 Days',
+                last_90_days: 'Last 90 Days',
+                loading_charts: 'Loading chart data...',
+                floating_pnl_curve: 'Real-time Floating P&L Curve',
+                floating_pnl_description: 'Shows floating P&L changes for all open positions',
+                cumulative_pnl_curve: 'Cumulative Realized P&L Curve',
+                cumulative_pnl_description: 'Shows cumulative P&L changes for closed trades',
+                time: 'Time',
+                value: 'Value',
+                floating_pnl: 'Floating P&L',
+                cumulative_pnl: 'Cumulative P&L',
+                no_data: 'No Data',
                 login: 'Login',
                 logout: 'Logout',
                 select_contract: 'Please select contract code',
@@ -1125,6 +1226,186 @@
             modal.show();
         }
 
+        // 盈亏曲线相关函数
+        async function loadPnLCharts() {
+            if (!currentAccountId) return;
+            
+            const loading = document.getElementById('pnlLoading');
+            const days = document.getElementById('pnlDaysSelect').value;
+            
+            loading.style.display = 'block';
+            
+            try {
+                const response = await fetch(`/api/pnl-chart-data?account_id=${currentAccountId}&days=${days}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    const chartData = await response.json();
+                    renderPnLCharts(chartData);
+                } else {
+                    showMessage('获取图表数据失败', 'danger');
+                }
+            } catch (error) {
+                console.error('加载图表数据失败:', error);
+                showMessage('网络错误: ' + error.message, 'danger');
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+        
+        function renderPnLCharts(chartData) {
+            // 渲染浮动盈亏曲线
+            renderFloatingPnLChart(chartData.floating_pnl_data);
+            
+            // 渲染累计盈亏曲线
+            renderCumulativePnLChart(chartData.cumulative_pnl_data);
+        }
+        
+        function renderFloatingPnLChart(floatingData) {
+            const ctx = document.getElementById('floatingPnLChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (floatingPnLChart) {
+                floatingPnLChart.destroy();
+            }
+            
+            if (floatingData.length === 0) {
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(getTranslation('no_data'), ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            const labels = floatingData.map(point => {
+                const date = new Date(point.timestamp);
+                return date.toLocaleString();
+            });
+            
+            const data = floatingData.map(point => point.total_floating_pnl);
+            
+            floatingPnLChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: getTranslation('floating_pnl'),
+                        data: data,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        tension: 0.1,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: getTranslation('time')
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getTranslation('value') + ' (¥)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return getTranslation('floating_pnl') + ': ¥' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function renderCumulativePnLChart(cumulativeData) {
+            const ctx = document.getElementById('cumulativePnLChart').getContext('2d');
+            
+            // 销毁现有图表
+            if (cumulativePnLChart) {
+                cumulativePnLChart.destroy();
+            }
+            
+            if (cumulativeData.length === 0) {
+                ctx.fillStyle = '#6c757d';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(getTranslation('no_data'), ctx.canvas.width / 2, ctx.canvas.height / 2);
+                return;
+            }
+            
+            const labels = cumulativeData.map(point => {
+                const date = new Date(point.closing_date);
+                return date.toLocaleDateString();
+            });
+            
+            const data = cumulativeData.map(point => point.cumulative_pnl);
+            
+            cumulativePnLChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: getTranslation('cumulative_pnl'),
+                        data: data,
+                        borderColor: 'rgb(255, 99, 132)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        tension: 0.1,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: getTranslation('time')
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: getTranslation('value') + ' (¥)'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return getTranslation('cumulative_pnl') + ': ¥' + context.parsed.y.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+        
+        function refreshPnLCharts() {
+            loadPnLCharts();
+        }
+
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             updateLanguageButtons();
@@ -1313,9 +1594,10 @@
                     
                     // 重新加载所有数据
                     await loadAccountSummary();
-                    await loadPositions();
-                    await loadTradeHistory();
-                    await loadSettlementStatements();
+            await loadPositions();
+            await loadTradeHistory();
+            await loadSettlementStatements();
+            await loadPnLCharts();
                     
                     // 显示重置结果
                     setTimeout(() => {

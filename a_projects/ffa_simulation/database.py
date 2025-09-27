@@ -513,3 +513,131 @@ class DatabaseManager:
             raise e
         finally:
             db.close()
+    
+    def get_floating_pnl_data(self, account_id: int, days: int = 30) -> List[dict]:
+        """获取浮动盈亏曲线数据"""
+        db = self.SessionLocal()
+        try:
+            from datetime import datetime, timedelta
+            
+            # 获取指定天数内的持仓数据
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=days)
+            
+            # 查询持仓数据，按更新时间排序
+            positions = db.query(Position).filter(
+                Position.account_id == account_id,
+                Position.updated_at >= start_date
+            ).order_by(Position.updated_at.asc()).all()
+            
+            # 按时间分组计算总浮动盈亏
+            floating_pnl_data = []
+            position_groups = {}
+            
+            for position in positions:
+                update_time = position.updated_at
+                time_key = update_time.strftime('%Y-%m-%d %H:%M')
+                
+                if time_key not in position_groups:
+                    position_groups[time_key] = {
+                        'timestamp': update_time,
+                        'total_floating_pnl': 0.0,
+                        'position_count': 0
+                    }
+                
+                position_groups[time_key]['total_floating_pnl'] += position.unrealized_pnl or 0.0
+                position_groups[time_key]['position_count'] += 1
+            
+            # 转换为列表并排序
+            for time_key in sorted(position_groups.keys()):
+                group = position_groups[time_key]
+                floating_pnl_data.append({
+                    'timestamp': group['timestamp'],
+                    'total_floating_pnl': group['total_floating_pnl'],
+                    'position_count': group['position_count']
+                })
+            
+            return floating_pnl_data
+        except SQLAlchemyError as e:
+            raise e
+        finally:
+            db.close()
+    
+    def get_cumulative_pnl_data(self, account_id: int, days: int = 30) -> List[dict]:
+        """获取累计实际盈亏曲线数据"""
+        db = self.SessionLocal()
+        try:
+            from datetime import datetime, timedelta
+            
+            # 获取指定天数内的平仓交易数据
+            end_date = datetime.utcnow()
+            start_date = end_date - timedelta(days=days)
+            
+            # 查询平仓交易数据，按平仓日期排序
+            closed_trades = db.query(Trade).filter(
+                Trade.account_id == account_id,
+                Trade.action == "平仓",
+                Trade.trade_date >= start_date,
+                Trade.trade_date <= end_date
+            ).order_by(Trade.trade_date.asc()).all()
+            
+            # 计算累计盈亏
+            cumulative_pnl_data = []
+            cumulative_pnl = 0.0
+            trade_count = 0
+            
+            for trade in closed_trades:
+                trade_pnl = trade.trade_pnl or 0.0
+                cumulative_pnl += trade_pnl
+                trade_count += 1
+                
+                cumulative_pnl_data.append({
+                    'closing_date': trade.trade_date or trade.created_at,
+                    'realized_pnl': trade_pnl,
+                    'cumulative_pnl': cumulative_pnl,
+                    'trade_count': trade_count
+                })
+            
+            return cumulative_pnl_data
+        except SQLAlchemyError as e:
+            raise e
+        finally:
+            db.close()
+    
+    def get_pnl_chart_data(self, account_id: int, days: int = 30) -> dict:
+        """获取盈亏曲线图表数据"""
+        try:
+            # 获取浮动盈亏数据
+            floating_pnl_data = self.get_floating_pnl_data(account_id, days)
+            
+            # 获取累计盈亏数据
+            cumulative_pnl_data = self.get_cumulative_pnl_data(account_id, days)
+            
+            # 计算当前浮动盈亏
+            current_floating_pnl = 0.0
+            if floating_pnl_data:
+                current_floating_pnl = floating_pnl_data[-1]['total_floating_pnl']
+            
+            # 计算总实际盈亏
+            total_realized_pnl = 0.0
+            if cumulative_pnl_data:
+                total_realized_pnl = cumulative_pnl_data[-1]['cumulative_pnl']
+            
+            # 计算最大值和最小值
+            max_floating_pnl = max([point['total_floating_pnl'] for point in floating_pnl_data], default=0.0)
+            min_floating_pnl = min([point['total_floating_pnl'] for point in floating_pnl_data], default=0.0)
+            max_cumulative_pnl = max([point['cumulative_pnl'] for point in cumulative_pnl_data], default=0.0)
+            min_cumulative_pnl = min([point['cumulative_pnl'] for point in cumulative_pnl_data], default=0.0)
+            
+            return {
+                'floating_pnl_data': floating_pnl_data,
+                'cumulative_pnl_data': cumulative_pnl_data,
+                'current_floating_pnl': current_floating_pnl,
+                'total_realized_pnl': total_realized_pnl,
+                'max_floating_pnl': max_floating_pnl,
+                'min_floating_pnl': min_floating_pnl,
+                'max_cumulative_pnl': max_cumulative_pnl,
+                'min_cumulative_pnl': min_cumulative_pnl
+            }
+        except Exception as e:
+            raise e

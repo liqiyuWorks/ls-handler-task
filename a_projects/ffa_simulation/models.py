@@ -390,3 +390,37 @@ class SettlementStatementDetail(BaseModel):
     
     class Config:
         from_attributes = True
+
+# 盈亏曲线相关模型
+class FloatingPnLPoint(BaseModel):
+    """浮动盈亏曲线数据点"""
+    timestamp: datetime  # 时间戳
+    total_floating_pnl: float  # 总浮动盈亏
+    position_count: int  # 持仓数量
+    
+    class Config:
+        from_attributes = True
+
+class CumulativePnLPoint(BaseModel):
+    """累计实际盈亏曲线数据点"""
+    closing_date: datetime  # 平仓日期
+    realized_pnl: float  # 单笔盈亏
+    cumulative_pnl: float  # 累计盈亏
+    trade_count: int  # 交易数量
+    
+    class Config:
+        from_attributes = True
+
+class PnLChartData(BaseModel):
+    """盈亏曲线数据"""
+    floating_pnl_data: List[FloatingPnLPoint]
+    cumulative_pnl_data: List[CumulativePnLPoint]
+    current_floating_pnl: float
+    total_realized_pnl: float
+    max_floating_pnl: float
+    min_floating_pnl: float
+    max_cumulative_pnl: float
+    min_cumulative_pnl: float
+    
+    class Config:
+        from_attributes = True
