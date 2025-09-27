@@ -56,9 +56,11 @@ class PnLCalculator:
         
         if is_long:
             # 买入看涨期权: Max(0, 结算价 - 行权价) × 手数 - 权利金
+            # 这里的premium是总权利金
             return intrinsic_value * volume - premium
         else:
             # 卖出看涨期权: 权利金 - Max(0, 结算价 - 行权价) × 手数
+            # 这里的premium是总权利金
             return premium - intrinsic_value * volume
     
     @staticmethod
@@ -82,9 +84,11 @@ class PnLCalculator:
         
         if is_long:
             # 买入看跌期权: Max(0, 行权价 - 结算价) × 手数 - 权利金
+            # 这里的premium是总权利金
             return intrinsic_value * volume - premium
         else:
             # 卖出看跌期权: 权利金 - Max(0, 行权价 - 结算价) × 手数
+            # 这里的premium是总权利金
             return premium - intrinsic_value * volume
     
     @classmethod

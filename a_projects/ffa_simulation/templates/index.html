@@ -373,11 +373,21 @@
                                             <label class="form-label" data-translate="contract">合约代码 <span class="text-danger">*</span></label>
                                             <select class="form-select" id="contract" required>
                                                 <option value="" data-translate="select_contract">请选择合约代码</option>
-                                                <option value="PMX">PMX</option>
-                                                <option value="C5TC">C5TC</option>
-                                                <option value="P4TC">P4TC</option>
-                                                <option value="S5TC">S5TC</option>
+                                                <option value="PMX">PMX (巴拿马型船)</option>
+                                                <option value="C5TC">C5TC (好望角型船)</option>
+                                                <option value="P4TC">P4TC (巴拿马型船)</option>
+                                                <option value="S5TC">S5TC (超灵便型船)</option>
+                                                <option value="C7TC">C7TC (好望角型船)</option>
+                                                <option value="C3TC">C3TC (好望角型船)</option>
+                                                <option value="C4TC">C4TC (好望角型船)</option>
+                                                <option value="C6TC">C6TC (好望角型船)</option>
+                                                <option value="C8TC">C8TC (好望角型船)</option>
+                                                <option value="C9TC">C9TC (好望角型船)</option>
+                                                <option value="C10TC">C10TC (好望角型船)</option>
+                                                <option value="C11TC">C11TC (好望角型船)</option>
+                                                <option value="C12TC">C12TC (好望角型船)</option>
                                             </select>
+                                            <div class="form-text" data-translate="contract_help">选择FFA合约类型，不同船型对应不同的运价指数</div>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -397,12 +407,13 @@
                                                 <option value="10月">10月</option>
                                                 <option value="11月">11月</option>
                                                 <option value="12月">12月</option>
-                                                <option value="Q1">Q1</option>
-                                                <option value="Q2">Q2</option>
-                                                <option value="Q3">Q3</option>
-                                                <option value="Q4">Q4</option>
+                                                <option value="Q1">Q1 (第一季度)</option>
+                                                <option value="Q2">Q2 (第二季度)</option>
+                                                <option value="Q3">Q3 (第三季度)</option>
+                                                <option value="Q4">Q4 (第四季度)</option>
                                                 <option value="年度">年度</option>
                                             </select>
+                                            <div class="form-text" data-translate="month_help">选择合约到期月份或季度</div>
                                         </div>
                                     </div>
                                 </div>
@@ -421,10 +432,13 @@
                                             <label class="form-label" data-translate="strategy">交易类型 <span class="text-danger">*</span></label>
                                             <select class="form-select" id="strategy" required>
                                                 <option value="" data-translate="select_trade_type">请选择交易类型</option>
-                                                <option value="Future">Future</option>
-                                                <option value="Call">Call</option>
-                                                <option value="Put">Put</option>
+                                                <option value="Future">期货 (Future)</option>
+                                                <option value="Call">看涨期权 (Call Option)</option>
+                                                <option value="Put">看跌期权 (Put Option)</option>
+                                                <option value="Swap">掉期 (Swap)</option>
+                                                <option value="Spread">价差交易 (Spread)</option>
                                             </select>
+                                            <div class="form-text" data-translate="strategy_help">选择交易策略类型，期货为最常用的FFA交易方式</div>
                                         </div>
                                     </div>
                                 </div>
@@ -436,9 +450,12 @@
                                             <label class="form-label" data-translate="action">操作 <span class="text-danger">*</span></label>
                                             <select class="form-select" id="action" required>
                                                 <option value="" data-translate="select_action">请选择操作</option>
-                                                <option value="开仓">开仓</option>
-                                                <option value="平仓">平仓</option>
+                                                <option value="开仓">开仓 (Open Position)</option>
+                                                <option value="平仓">平仓 (Close Position)</option>
+                                                <option value="加仓">加仓 (Add Position)</option>
+                                                <option value="减仓">减仓 (Reduce Position)</option>
                                             </select>
+                                            <div class="form-text" data-translate="action_help">开仓建立新头寸，平仓了结现有头寸</div>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -446,9 +463,10 @@
                                             <label class="form-label" data-translate="buy_sell">交易方向 <span class="text-danger">*</span></label>
                                             <select class="form-select" id="buySell" required>
                                                 <option value="" data-translate="select_direction">请选择方向</option>
-                                                <option value="多头">多头</option>
-                                                <option value="空头">空头</option>
+                                                <option value="多头">多头 (Long)</option>
+                                                <option value="空头">空头 (Short)</option>
                                             </select>
+                                            <div class="form-text" data-translate="direction_help">多头看涨运价，空头看跌运价</div>
                                         </div>
                                     </div>
                                 </div>
@@ -458,57 +476,83 @@
                                     <div class="col-md-4">
                                         <div class="mb-3">
                                             <label class="form-label" data-translate="future_price">开仓价格 <span class="text-danger">*</span></label>
-                                            <input type="number" class="form-control" id="futurePrice" step="0.01" min="0" required>
-                                            <small class="form-text text-muted" data-translate="opening_price_help">开仓时标的价格</small>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="futurePrice" step="0.01" min="0" required placeholder="输入运价">
+                                                <span class="input-group-text">USD/天</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="opening_price_help">开仓时标的价格，单位为美元/天</small>
                                         </div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="mb-3">
                                             <label class="form-label" data-translate="volume">交易量/手 <span class="text-danger">*</span></label>
-                                            <input type="number" class="form-control" id="volume" min="1" required>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="volume" min="1" required placeholder="输入手数">
+                                                <span class="input-group-text">手</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="volume_help">每手代表一艘船一个月的运力</small>
                                         </div>
                                     </div>
                                     <div class="col-md-4">
                                         <div class="mb-3">
                                             <label class="form-label" data-translate="commissions">手续费</label>
-                                            <input type="number" class="form-control" id="commissions" step="0.01" min="0" value="0">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="commissions" step="0.01" min="0" value="0" placeholder="自动计算">
+                                                <span class="input-group-text">USD</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="commissions_help">场外交易+经纪费+交易所手续费+清算费</small>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <!-- 第五行：空头和多头交易量 -->
+                                <!-- 第五行：期权相关字段 -->
+                                <div class="row" id="optionFields" style="display: none;">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="strike_price">行权价 <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="strikePrice" step="0.01" min="0" placeholder="输入行权价">
+                                                <span class="input-group-text">USD/天</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="strike_price_help">期权合约的行权价格</small>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label class="form-label" data-translate="premium">权利金 <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="premium" step="0.01" min="0" placeholder="输入权利金">
+                                                <span class="input-group-text">USD/天</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="premium_help">期权合约的权利金价格</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- 第六行：空头和多头交易量 -->
                                 <div class="row">
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label" data-translate="short_volume">空头交易量</label>
-                                            <input type="number" class="form-control" id="shortVolume" min="0" value="0">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="shortVolume" min="0" value="0" placeholder="自动计算">
+                                                <span class="input-group-text">手</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="short_volume_help">空头方向的交易手数</small>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label class="form-label" data-translate="long_volume">多头交易量</label>
-                                            <input type="number" class="form-control" id="longVolume" min="0" value="0">
+                                            <div class="input-group">
+                                                <input type="number" class="form-control" id="longVolume" min="0" value="0" placeholder="自动计算">
+                                                <span class="input-group-text">手</span>
+                                            </div>
+                                            <small class="form-text text-muted" data-translate="long_volume_help">多头方向的交易手数</small>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <!-- 第五行：行权价和权利金 (期权相关) -->
-                                <div class="row" id="optionsFields" style="display: none;">
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label" data-translate="strike_price">行权价</label>
-                                            <input type="number" class="form-control" id="strikePrice" step="0.01" min="0">
-                                            <small class="form-text text-muted">合约行权价 (期权涉及)</small>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="mb-3">
-                                            <label class="form-label" data-translate="premium">权利金</label>
-                                            <input type="number" class="form-control" id="premium" step="0.01" min="0">
-                                            <small class="form-text text-muted">合约权利金 (期权涉及)</small>
-                                        </div>
-                                    </div>
-                                </div>
                                 
                                 <!-- 第六行：手续费 -->
                                 <div class="row">
@@ -526,6 +570,18 @@
                                 <input type="hidden" id="contractMonth">
                                 <input type="hidden" id="contractName">
                                 <input type="hidden" id="price">
+                                
+                                <!-- 风险提示 -->
+                                <div class="row" id="riskWarning" style="display: none;">
+                                    <div class="col-12">
+                                        <div class="alert alert-warning" role="alert">
+                                            <i class="fas fa-exclamation-triangle"></i>
+                                            <strong>风险提示：</strong>
+                                            <span id="riskMessage"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div class="text-center">
                                     <button type="submit" class="btn btn-primary btn-lg">
                                         <i class="fas fa-paper-plane"></i> <span data-translate="submit">提交交易</span>
@@ -939,9 +995,19 @@
                 select_trade_type: '请选择交易类型',
                 select_direction: '请选择方向',
                 auto_date: '自动设置成当日日期,用户可选择调整',
-                opening_price_help: '开仓时标的价格',
+                opening_price_help: '开仓时标的价格，单位为美元/天',
                 commissions_help: '场外交易+经纪费+交易所手续费+清算费',
-                new_trade: '新建交易'
+                new_trade: '新建交易',
+                contract_help: '选择FFA合约类型，不同船型对应不同的运价指数',
+                month_help: '选择合约到期月份或季度',
+                strategy_help: '选择交易策略类型，期货为最常用的FFA交易方式',
+                action_help: '开仓建立新头寸，平仓了结现有头寸',
+                direction_help: '多头看涨运价，空头看跌运价',
+                volume_help: '每手代表一艘船一个月的运力',
+                short_volume_help: '空头方向的交易手数',
+                long_volume_help: '多头方向的交易手数',
+                strike_price_help: '期权合约的行权价格',
+                premium_help: '期权合约的权利金价格'
             },
             en: {
                 title: 'FFA Trading Simulation System',
@@ -1039,9 +1105,19 @@
                 select_trade_type: 'Please select trade type',
                 select_direction: 'Please select direction',
                 auto_date: 'Automatically set to current date, user can adjust',
-                opening_price_help: 'Price at opening position',
+                opening_price_help: 'Price at opening position, unit is USD/day',
                 commissions_help: 'OTC transaction + brokerage fee + exchange handling fee + clearing fee',
-                new_trade: 'New Trade'
+                new_trade: 'New Trade',
+                contract_help: 'Select FFA contract type, different ship types correspond to different freight indices',
+                month_help: 'Select contract expiry month or quarter',
+                strategy_help: 'Select trading strategy type, futures is the most common FFA trading method',
+                action_help: 'Open position to establish new position, close position to liquidate existing position',
+                direction_help: 'Long bullish on freight rates, short bearish on freight rates',
+                volume_help: 'Each lot represents one ship for one month capacity',
+                short_volume_help: 'Short direction trading lots',
+                long_volume_help: 'Long direction trading lots',
+                strike_price_help: 'Strike price of option contract',
+                premium_help: 'Premium price of option contract'
             }
         };
         
@@ -1899,22 +1975,31 @@
             // 交易类型变化时显示/隐藏期权相关字段
             document.getElementById('strategy').addEventListener('change', function() {
                 const strategy = this.value;
-                const optionsFields = document.getElementById('optionsFields');
+                const optionFields = document.getElementById('optionFields');
                 const strikePrice = document.getElementById('strikePrice');
                 const premium = document.getElementById('premium');
                 
                 if (strategy === 'Call' || strategy === 'Put') {
-                    optionsFields.style.display = 'block';
+                    optionFields.style.display = 'block';
                     strikePrice.required = true;
                     premium.required = true;
                 } else {
-                    optionsFields.style.display = 'none';
+                    optionFields.style.display = 'none';
                     strikePrice.required = false;
                     premium.required = false;
                     strikePrice.value = '';
                     premium.value = '';
                 }
+                
+                // 检查风险
+                checkRisk();
             });
+            
+            // 添加其他字段的风险检查
+            document.getElementById('volume').addEventListener('input', checkRisk);
+            document.getElementById('futurePrice').addEventListener('input', checkRisk);
+            document.getElementById('action').addEventListener('change', checkRisk);
+            document.getElementById('buySell').addEventListener('change', checkRisk);
             
             // 表单提交
             document.getElementById('tradeForm').addEventListener('submit', handleTradeSubmit);
@@ -2111,15 +2196,72 @@
             }, 5000);
         }
         
+        // 风险检查函数
+        function checkRisk() {
+            const riskWarning = document.getElementById('riskWarning');
+            const riskMessage = document.getElementById('riskMessage');
+            const volume = parseFloat(document.getElementById('volume').value) || 0;
+            const futurePrice = parseFloat(document.getElementById('futurePrice').value) || 0;
+            const action = document.getElementById('action').value;
+            const buySell = document.getElementById('buySell').value;
+            const strategy = document.getElementById('strategy').value;
+            
+            let warnings = [];
+            
+            // 检查交易量风险
+            if (volume > 100) {
+                warnings.push(`交易量过大 (${volume}手)，建议分批交易以控制风险`);
+            } else if (volume > 50) {
+                warnings.push(`交易量较大 (${volume}手)，请注意风险控制`);
+            }
+            
+            // 检查价格风险
+            if (futurePrice > 50000) {
+                warnings.push(`价格过高 ($${futurePrice.toLocaleString()}/天)，请确认价格正确性`);
+            } else if (futurePrice < 1000) {
+                warnings.push(`价格过低 ($${futurePrice.toLocaleString()}/天)，请确认价格正确性`);
+            }
+            
+            // 检查期权风险
+            if (strategy === 'Call' || strategy === 'Put') {
+                const strikePrice = parseFloat(document.getElementById('strikePrice').value) || 0;
+                const premium = parseFloat(document.getElementById('premium').value) || 0;
+                
+                if (strikePrice > 0 && futurePrice > 0) {
+                    const moneyness = (futurePrice - strikePrice) / strikePrice;
+                    if (Math.abs(moneyness) > 0.5) {
+                        warnings.push(`期权深度价外，风险较高 (价内程度: ${(moneyness * 100).toFixed(1)}%)`);
+                    }
+                }
+                
+                if (premium > futurePrice * 0.1) {
+                    warnings.push(`权利金过高，可能影响盈亏比`);
+                }
+            }
+            
+            // 检查平仓风险
+            if (action === '平仓' && volume > 0) {
+                warnings.push(`平仓操作将了结现有头寸，请确认操作正确`);
+            }
+            
+            // 显示风险提示
+            if (warnings.length > 0) {
+                riskMessage.innerHTML = warnings.join('<br>');
+                riskWarning.style.display = 'block';
+            } else {
+                riskWarning.style.display = 'none';
+            }
+        }
+        
         // 清空表单
         function clearForm() {
             document.getElementById('tradeForm').reset();
             
             // 重置期权相关字段
-            const optionsFields = document.getElementById('optionsFields');
+            const optionFields = document.getElementById('optionFields');
             const strikePrice = document.getElementById('strikePrice');
             const premium = document.getElementById('premium');
-            optionsFields.style.display = 'none';
+            optionFields.style.display = 'none';
             strikePrice.required = false;
             premium.required = false;
             
@@ -2129,6 +2271,9 @@
             
             // 清空合约名称
             document.getElementById('contractName').value = '';
+            
+            // 隐藏风险提示
+            document.getElementById('riskWarning').style.display = 'none';
         }
         
         // 加载持仓信息

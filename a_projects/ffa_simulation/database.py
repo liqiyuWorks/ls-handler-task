@@ -606,7 +606,7 @@ class DatabaseManager:
             from datetime import datetime, timedelta
             
             # 获取指定天数内的平仓交易数据
-            end_date = datetime.utcnow()
+            end_date = datetime.utcnow() + timedelta(days=1)  # 包含今天和明天
             start_date = end_date - timedelta(days=days)
             
             # 查询平仓交易数据，按平仓日期排序
