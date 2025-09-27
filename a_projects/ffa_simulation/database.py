@@ -8,8 +8,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 from config import DATABASE_CONFIG
-from models import Base, User, Account, Trade, Position
+from models import Base, User, Account, Trade, Position, SettlementStatement
 from datetime import datetime
+from typing import List, Optional
 import logging
 import hashlib
 import secrets
@@ -136,6 +137,9 @@ class DatabaseManager:
             
             # 删除所有持仓记录
             db.query(Position).filter(Position.account_id == account_id).delete()
+            
+            # 删除所有结算单
+            db.query(SettlementStatement).filter(SettlementStatement.account_id == account_id).delete()
             
             # 重置账户数据
             account.current_equity = initial_equity
@@ -328,6 +332,184 @@ class DatabaseManager:
             return False
         except SQLAlchemyError as e:
             db.rollback()
+            raise e
+        finally:
+            db.close()
+    
+    # 结算单相关方法
+    def create_settlement_statement(self, settlement_data: dict) -> SettlementStatement:
+        """创建结算单"""
+        db = self.SessionLocal()
+        try:
+            settlement = SettlementStatement(**settlement_data)
+            db.add(settlement)
+            db.commit()
+            db.refresh(settlement)
+            return settlement
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+    
+    def get_settlement_statements(self, account_id: int) -> List[SettlementStatement]:
+        """获取账户的结算单列表"""
+        db = self.SessionLocal()
+        try:
+            statements = db.query(SettlementStatement).filter(
+                SettlementStatement.account_id == account_id
+            ).order_by(SettlementStatement.created_at.desc()).all()
+            return statements
+        except SQLAlchemyError as e:
+            raise e
+        finally:
+            db.close()
+    
+    def get_settlement_statement(self, statement_id: int) -> Optional[SettlementStatement]:
+        """获取特定结算单"""
+        db = self.SessionLocal()
+        try:
+            statement = db.query(SettlementStatement).filter(
+                SettlementStatement.id == statement_id
+            ).first()
+            return statement
+        except SQLAlchemyError as e:
+            raise e
+        finally:
+            db.close()
+    
+    def calculate_settlement_data(self, account_id: int, period_start: datetime, period_end: datetime) -> dict:
+        """计算结算单数据"""
+        db = self.SessionLocal()
+        try:
+            # 获取账户信息
+            account = db.query(Account).filter(Account.id == account_id).first()
+            if not account:
+                raise ValueError("账户不存在")
+            
+            # 获取周期内的交易记录
+            trades = db.query(Trade).filter(
+                Trade.account_id == account_id,
+                Trade.trade_date >= period_start,
+                Trade.trade_date <= period_end
+            ).all()
+            
+            # 获取周期结束时的持仓
+            positions = db.query(Position).filter(Position.account_id == account_id).all()
+            
+            # 计算各项数据
+            beginning_equity = account.initial_equity  # 期初权益（简化处理）
+            deposits = 0.0  # 期间入金（暂时设为0）
+            withdrawals = 0.0  # 期间出金（暂时设为0）
+            
+            # 计算平仓盈亏
+            realized_pnl = sum(trade.trade_pnl or 0 for trade in trades if trade.action == "平仓")
+            
+            # 计算浮动盈亏
+            unrealized_pnl = sum(position.unrealized_pnl or 0 for position in positions)
+            
+            # 计算手续费
+            commissions = sum(trade.commissions or 0 for trade in trades)
+            
+            # 计算期末权益
+            ending_equity = beginning_equity + deposits - withdrawals + realized_pnl + unrealized_pnl - commissions
+            
+            return {
+                "beginning_equity": beginning_equity,
+                "deposits": deposits,
+                "withdrawals": withdrawals,
+                "realized_pnl": realized_pnl,
+                "unrealized_pnl": unrealized_pnl,
+                "commissions": commissions,
+                "ending_equity": ending_equity
+            }
+        except SQLAlchemyError as e:
+            raise e
+        finally:
+            db.close()
+    
+    def get_closed_trades_for_settlement(self, account_id: int, period_start: datetime, period_end: datetime) -> List[dict]:
+        """获取结算周期内的已平仓交易明细"""
+        db = self.SessionLocal()
+        try:
+            # 获取周期内的平仓交易
+            closed_trades = db.query(Trade).filter(
+                Trade.account_id == account_id,
+                Trade.action == "平仓",
+                Trade.trade_date >= period_start,
+                Trade.trade_date <= period_end
+            ).order_by(Trade.trade_date.desc()).all()
+            
+            trade_details = []
+            for trade in closed_trades:
+                # 查找对应的开仓交易
+                open_trade = db.query(Trade).filter(
+                    Trade.account_id == account_id,
+                    Trade.contract == trade.contract,
+                    Trade.month == trade.month,
+                    Trade.strategy == trade.strategy,
+                    Trade.buy_sell != trade.buy_sell,  # 相反方向
+                    Trade.action == "开仓",
+                    Trade.trade_date < trade.trade_date
+                ).order_by(Trade.trade_date.desc()).first()
+                
+                if open_trade:
+                    trade_detail = {
+                        "closing_date": trade.trade_date or trade.created_at,
+                        "contract": trade.contract or trade.contract_type or "",
+                        "month": trade.month or trade.contract_month or "",
+                        "strategy": trade.strategy or "",
+                        "buy_sell": trade.buy_sell or "",
+                        "open_date": open_trade.trade_date or open_trade.created_at,
+                        "open_future_price": open_trade.future_price or open_trade.price or 0.0,
+                        "strike_price": open_trade.strike_price,
+                        "open_premium": open_trade.premium,
+                        "close_future_price": trade.future_price or trade.price or 0.0,
+                        "close_premium": trade.premium,
+                        "realized_pnl": trade.trade_pnl or 0.0,
+                        "volume": trade.volume or 0,
+                        "commissions": trade.commissions or 0.0
+                    }
+                    trade_details.append(trade_detail)
+            
+            return trade_details
+        except SQLAlchemyError as e:
+            raise e
+        finally:
+            db.close()
+    
+    def get_settlement_statement_detail(self, statement_id: int) -> dict:
+        """获取结算单详情（包含交易明细）"""
+        db = self.SessionLocal()
+        try:
+            # 获取结算单
+            statement = db.query(SettlementStatement).filter(
+                SettlementStatement.id == statement_id
+            ).first()
+            
+            if not statement:
+                raise ValueError("结算单不存在")
+            
+            # 获取交易明细
+            closed_trades = self.get_closed_trades_for_settlement(
+                statement.account_id,
+                statement.period_start,
+                statement.period_end
+            )
+            
+            # 计算统计信息
+            total_trades = len(closed_trades)
+            total_volume = sum(trade["volume"] for trade in closed_trades)
+            avg_realized_pnl = sum(trade["realized_pnl"] for trade in closed_trades) / total_trades if total_trades > 0 else 0.0
+            
+            return {
+                "settlement": statement,
+                "closed_trades": closed_trades,
+                "total_trades": total_trades,
+                "total_volume": total_volume,
+                "avg_realized_pnl": avg_realized_pnl
+            }
+        except SQLAlchemyError as e:
             raise e
         finally:
             db.close()

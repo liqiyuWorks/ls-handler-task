@@ -67,6 +67,7 @@ class Account(Base):
     user = relationship("User", back_populates="accounts")
     trades = relationship("Trade", back_populates="account")
     positions = relationship("Position", back_populates="account")
+    settlement_statements = relationship("SettlementStatement", back_populates="account")
 
 class Trade(Base):
     """交易记录表"""
@@ -303,3 +304,89 @@ class TradeRequest(BaseModel):
     contract_type: Optional[str] = None
     contract_month: Optional[str] = None
     price: Optional[float] = None
+
+# 结算单相关模型
+class SettlementStatement(Base):
+    """结算单表"""
+    __tablename__ = "settlement_statements"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    account_id = Column(Integer, ForeignKey("accounts.id"))
+    statement_period = Column(String(50))  # 结算单周期 (如: 2025-01-27)
+    period_start = Column(DateTime)  # 周期开始时间
+    period_end = Column(DateTime)  # 周期结束时间
+    
+    # 账户总结字段
+    beginning_equity = Column(Float)  # 期初权益
+    deposits = Column(Float, default=0.0)  # 期间入金
+    withdrawals = Column(Float, default=0.0)  # 期间出金
+    realized_pnl = Column(Float, default=0.0)  # 平仓盈亏
+    unrealized_pnl = Column(Float, default=0.0)  # 浮动盈亏
+    commissions = Column(Float, default=0.0)  # 手续费
+    ending_equity = Column(Float)  # 期末权益
+    
+    # 时间戳
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # 关联
+    account = relationship("Account", back_populates="settlement_statements")
+
+class SettlementStatementRequest(BaseModel):
+    """结算单请求模型"""
+    account_id: int
+    statement_period: str  # 结算单周期
+    period_start: datetime
+    period_end: datetime
+
+class SettlementStatementResponse(BaseModel):
+    """结算单响应模型"""
+    id: int
+    account_id: int
+    statement_period: str
+    period_start: datetime
+    period_end: datetime
+    beginning_equity: float
+    deposits: float
+    withdrawals: float
+    realized_pnl: float
+    unrealized_pnl: float
+    commissions: float
+    ending_equity: float
+    created_at: datetime
+    updated_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+# 交易明细相关模型
+class ClosedTradeDetail(BaseModel):
+    """已平仓交易明细"""
+    closing_date: datetime  # 平仓日期
+    contract: str  # 合约名称
+    month: str  # 合约期限
+    strategy: str  # 策略
+    buy_sell: str  # 交易方向
+    open_date: datetime  # 交易日期
+    open_future_price: float  # 开仓价格
+    strike_price: Optional[float] = None  # 行权价
+    open_premium: Optional[float] = None  # 开仓权利金
+    close_future_price: float  # 平仓价格
+    close_premium: Optional[float] = None  # 平仓权利金
+    realized_pnl: float  # 平仓盈亏
+    volume: int  # 交易量
+    commissions: float  # 手续费
+    
+    class Config:
+        from_attributes = True
+
+class SettlementStatementDetail(BaseModel):
+    """结算单详情模型（包含交易明细）"""
+    settlement: SettlementStatementResponse
+    closed_trades: List[ClosedTradeDetail]
+    total_trades: int
+    total_volume: int
+    avg_realized_pnl: float
+    
+    class Config:
+        from_attributes = True
