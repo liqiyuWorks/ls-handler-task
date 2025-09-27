@@ -69,4 +69,34 @@ zscripts
 *.temp
 *.bak
 *.backup
+
+# 模型文件
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.pt
+*.pth
+*.onnx
+*.pb
+*.joblib
+*.model
+*.bin
+*.safetensors
+
+# 船舶油耗预测项目大文件 (特定忽略)
+a_projects/fuel_predict/models/*.pkl
+a_projects/fuel_predict/data/*.csv
+
+# 允许小的配置和文档文件
+!a_projects/fuel_predict/requirements.txt
+!a_projects/fuel_predict/*.md
+!a_projects/fuel_predict/*.py
+!a_projects/fuel_predict/*.sh
+
+# 其他大文件
+**/outputs/*.png
+**/outputs/*.jpg
+
+# FFA Simulation database files
 a_projects/ffa_simulation/*.db

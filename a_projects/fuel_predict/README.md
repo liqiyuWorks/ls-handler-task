@@ -1,130 +1,133 @@
-# 船舶油耗预测系统 v1.0.1
+# 船舶油耗预测系统 V3.0 - 简化版
 
-基于航运行业CP条款和专业知识的智能化船舶油耗预测系统
+## 🎯 项目概述
+
+本项目是基于NOON报告数据的高精度船舶油耗预测系统V3.0简化版，仅保留核心功能模块，包括V3模型训练、评估和API服务。
+
+### 🚀 核心功能
+- ✅ **V3模型训练**: 基于相关性分析的高精度预测模型
+- ✅ **模型评估**: 完整的模型性能评估和验证
+- ✅ **FastAPI服务**: RESTful API接口和Swagger文档
+- ✅ **多维度预测**: 支持12个输入特征的增强预测
+
+### 📊 技术指标
+- **预测精度**: R² = 0.8677, MAE < 1.0mt
+- **数据基础**: 35,289条NOON报告数据
+- **支持船型**: 7种主要商船类型
+- **API响应**: < 100ms响应时间
+
+## 📁 简化项目结构
+
+```
+fuel_predict_v3_simplified/
+├── api/                                # API模块
+│   ├── enhanced_fuel_predictor_v3.py   # V3模型训练和评估
+│   ├── enhanced_fuel_api_v3.py         # V3 API核心
+│   ├── data_processor_enhanced.py      # 数据处理器
+│   ├── fastapi_server.py               # FastAPI服务器
+│   └── test_api_client.py              # API测试客户端
+├── data/                               # 数据文件
+│   ├── processed_noon_data.csv         # 处理后训练数据
+│   └── ship_speed_summary.csv          # 船舶-速度汇总
+├── models/                             # 训练好的模型
+│   └── enhanced_fuel_model_v3_*.pkl    # V3预测模型
+├── docs/                               # 核心文档
+├── examples/                           # 使用示例
+├── README.md                           # 项目说明
+└── requirements.txt                    # 依赖列表
+```
 
 ## 🚀 快速开始
 
-### 环境要求
+### 1. 环境安装
 ```bash
-pip install pandas numpy scikit-learn matplotlib seaborn xgboost lightgbm
+pip install -r requirements.txt
 ```
 
-### 立即使用
+### 2. 启动API服务
 ```bash
-# 1. 简单演示 (推荐首次使用)
-python simple_demo.py
-
-# 2. 交互式菜单
-python run.py
-
-# 3. API功能测试
-python prediction_api.py
+cd api/
+python fastapi_server.py
 ```
 
-## 📁 项目结构
+### 3. 访问服务
+- **Swagger文档**: http://localhost:8080/docs
+- **服务首页**: http://localhost:8080
+- **健康检查**: http://localhost:8080/health
 
-```
-fuel_predict/
-├── 🔧 核心文件 (可直接运行)
-│   ├── prediction_api.py        # 预测API (主要接口)
-│   ├── model_loader.py          # 模型加载器
-│   ├── simple_demo.py           # 简单演示
-│   └── run.py                   # 交互式主程序
-├── 📂 src/                      # 源码模块
-│   ├── data_analyzer.py         # 数据分析
-│   ├── cp_clause_definitions.py # CP条款定义
-│   ├── feature_engineering.py   # 特征工程
-│   ├── fuel_prediction_models.py# 预测模型
-│   └── model_validation.py      # 模型验证
-├── 📂 data/                     # 数据文件
-│   └── 油耗数据ALL（0804）.csv  # 训练数据
-├── 📂 models/                   # 训练好的模型
-│   └── fuel_prediction_models.pkl
-├── 📂 outputs/                  # 预测结果
-│   ├── model_predictions.csv    # 预测结果表格
-│   └── model_predictions.json   # 详细预测结果
-├── 📂 reports/                  # 分析报告
-├── 📂 docs/                     # 项目文档
-├── 📂 examples/                 # 使用示例
-└── 📂 archive/                  # 归档文件
+### 4. 模型训练 (可选)
+```bash
+cd api/
+python enhanced_fuel_predictor_v3.py
 ```
 
-## 💡 核心功能
+## 🔧 核心模块说明
 
-### 1. 船舶油耗预测
+### 1. enhanced_fuel_predictor_v3.py
+- **功能**: V3模型训练和评估
+- **特点**: 基于相关性分析的特征选择
+- **输出**: 训练好的V3模型文件
+
+### 2. enhanced_fuel_api_v3.py  
+- **功能**: V3 API核心预测逻辑
+- **特点**: 支持12个输入特征的多维度预测
+- **接口**: 完整的预测和分析功能
+
+### 3. fastapi_server.py
+- **功能**: FastAPI Web服务器
+- **特点**: RESTful API + Swagger自动文档
+- **端口**: 8080 (可配置)
+
+### 4. data_processor_enhanced.py
+- **功能**: 增强数据处理器
+- **特点**: NOON报告数据筛选和特征工程
+- **输出**: 处理后的训练数据
+
+## 📡 API接口
+
+| 接口 | 方法 | 功能 |
+|------|------|------|
+| `/predict` | GET/POST | 油耗预测 |
+| `/predict/batch` | POST | 批量预测 |
+| `/analyze/load-comparison` | POST | 载重状态对比 |
+| `/analyze/ship-age` | POST | 船龄影响分析 |
+| `/status` | GET | 系统状态 |
+| `/ship-types` | GET | 船型列表 |
+| `/docs` | GET | Swagger文档 |
+
+## 💡 使用示例
+
+### Python调用
 ```python
-from prediction_api import FuelPredictionAPI
+import requests
 
-api = FuelPredictionAPI('models/fuel_prediction_models.pkl')
-result = api.predict_single_voyage(ship_data)
-print(f"预测油耗: {result['predicted_fuel_consumption']:.2f} mt/h")
+# 基础预测
+response = requests.get("http://localhost:8080/predict", params={
+    "ship_type": "Bulk Carrier",
+    "speed": 12.0,
+    "dwt": 75000
+})
+result = response.json()
+print(f"预测油耗: {result['predicted_consumption']}mt")
 ```
 
-### 2. 速度优化
-```python
-optimization = api.optimize_speed(ship_data, speed_range=(10, 16))
-print(f"最优速度: {optimization['optimal_speed']} kts")
+### cURL调用
+```bash
+# 基础预测
+curl "http://localhost:8080/predict?ship_type=Bulk Carrier&speed=12.0"
+
+# 增强预测
+curl -X POST "http://localhost:8080/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"ship_type": "Container Ship", "speed": 18.0, "dwt": 120000, "ship_age": 5}'
 ```
-
-### 3. CP条款分析
-```python
-from src.cp_clause_definitions import CPClauseCalculator, ShipType, LoadCondition
-
-calculator = CPClauseCalculator()
-warranted_speed = calculator.calculate_warranted_speed(
-    ShipType.BULK_CARRIER, LoadCondition.LADEN, 75000
-)
-```
-
-## 🎯 支持的船型
-
-- **散货船** (BULK CARRIER): 75,000+ 样本，R² > 0.99
-- **开舱口货船** (OPEN HATCH CARGO SHIP): 6,000+ 样本
-- **化学品油轮** (CHEMICAL/PRODUCTS TANKER): 2,000+ 样本
-- **杂货船** (GENERAL CARGO SHIP): 1,500+ 样本
-- **原油油轮** (CRUDE OIL TANKER): 600+ 样本
-
-## 📊 系统性能
-
-- **预测精度**: R² > 0.99, MAPE < 0.5%
-- **响应时间**: 8-11ms/次
-- **批量处理**: 500+ 预测/秒
-- **支持船型**: 9种主要船型
-
-## 🔧 主要文件说明
-
-### 核心可运行文件
-- **`prediction_api.py`** - 主要预测API接口
-- **`simple_demo.py`** - 快速演示脚本
-- **`run.py`** - 交互式主程序菜单
-- **`model_loader.py`** - 模型加载工具
-
-### 预测结果文件
-- **`outputs/model_predictions.csv`** - 7个测试用例的预测结果
-- **`outputs/model_predictions.json`** - 详细预测结果和分析
-
-## 🎉 使用示例
-
-### 预测结果示例
-| 船型 | 载重吨 | 速度 | 预测油耗 |
-|------|--------|------|----------|
-| 散货船 | 75,000 | 12.5kts | 22.15 mt/h |
-| 开舱口货船 | 62,000 | 13.0kts | 28.84 mt/h |
-| 化学品油轮 | 45,000 | 11.8kts | 12.59 mt/h |
-
-### CP条款分析示例
-- 保证航速: 11.5 kts
-- 保证日油耗: 29.9 mt/day
-- 性能指数: 77.5
 
 ## 📞 技术支持
 
-- 查看 `outputs/` 目录获取预测结果
-- 查看 `reports/` 目录获取分析报告
-- 运行 `python run.py` 获取交互式帮助
+如需技术支持或功能扩展，请联系开发团队。
 
 ---
 
-**系统状态**: ✅ 稳定运行  
-**版本**: v1.0.1  
-**最后更新**: 2025-09-18
+**版本**: V3.0 简化版  
+**更新时间**: 2025-09-21  
+**开发团队**: 船舶油耗预测系统开发组
