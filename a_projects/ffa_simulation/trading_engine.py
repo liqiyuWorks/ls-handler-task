@@ -46,18 +46,28 @@ class TradingEngine:
         """获取当前持仓"""
         return self.db_manager.get_position(account_id, contract_type, contract_month)
     
-    def calculate_position_change(self, strategy: str, volume: int, current_position: int) -> Tuple[int, int]:
+    def calculate_position_change(self, action: str, buy_sell: str, volume: int, current_position: int) -> Tuple[int, int]:
         """计算持仓变化"""
-        strategy_config = STRATEGY_CONFIG.get(strategy, {})
-        
-        if strategy in ["开多", "平空"]:
-            # 买入操作
+        if action == "开仓" and buy_sell == "多头":
+            # 开多仓
+            new_position = current_position + volume
+            position_change = volume
+        elif action == "开仓" and buy_sell == "空头":
+            # 开空仓
+            new_position = current_position - volume
+            position_change = -volume
+        elif action == "平仓" and buy_sell == "多头":
+            # 平多仓
+            new_position = current_position - volume
+            position_change = -volume
+        elif action == "平仓" and buy_sell == "空头":
+            # 平空仓
             new_position = current_position + volume
             position_change = volume
         else:
-            # 卖出操作
-            new_position = current_position - volume
-            position_change = -volume
+            # 默认情况
+            new_position = current_position
+            position_change = 0
         
         return new_position, position_change
     
@@ -84,17 +94,17 @@ class TradingEngine:
         current_volume = current_position.position_volume if current_position else 0
         
         # 检查平仓操作
-        if strategy == "平多" and current_volume <= 0:
+        if action == "平仓" and buy_sell == "多头" and current_volume <= 0:
             return False, "没有多头持仓可平"
         
-        if strategy == "平空" and current_volume >= 0:
+        if action == "平仓" and buy_sell == "空头" and current_volume >= 0:
             return False, "没有空头持仓可平"
         
         # 检查平仓数量
-        if strategy == "平多" and volume > current_volume:
+        if action == "平仓" and buy_sell == "多头" and volume > current_volume:
             return False, f"平仓数量({volume})不能超过持仓数量({current_volume})"
         
-        if strategy == "平空" and volume > abs(current_volume):
+        if action == "平仓" and buy_sell == "空头" and volume > abs(current_volume):
             return False, f"平仓数量({volume})不能超过持仓数量({abs(current_volume)})"
         
         return True, "验证通过"
@@ -132,7 +142,7 @@ class TradingEngine:
                 return False, message, None
             
             # 获取当前持仓
-            current_position = self.get_current_position(account_id, contract_type, contract_month)
+            current_position = self.get_current_position(account_id, contract, month)
             current_volume = current_position.position_volume if current_position else 0
             
             # 计算费用和总额
@@ -143,7 +153,7 @@ class TradingEngine:
             
             # 计算新持仓
             new_position_volume, position_change = self.calculate_position_change(
-                strategy, volume, current_volume
+                action, buy_sell, volume, current_volume
             )
             
             # 生成交易ID
@@ -236,8 +246,22 @@ class TradingEngine:
                 
                 self.db_manager.update_or_create_position(position_data)
             else:
-                # 平仓，删除持仓记录
+                # 平仓，计算盈亏并删除持仓记录
                 if current_position:
+                    # 计算平仓盈亏
+                    if action == "平仓":
+                        # 计算盈亏
+                        if current_position.buy_sell == "多头":
+                            # 多头平仓：平仓价格 - 开仓价格
+                            trade_pnl = (price - current_position.average_price) * volume
+                        else:
+                            # 空头平仓：开仓价格 - 平仓价格
+                            trade_pnl = (current_position.average_price - price) * volume
+                        
+                        # 更新交易记录的盈亏
+                        trade.trade_pnl = trade_pnl
+                        self.db_manager.update_trade(trade.id, {"trade_pnl": trade_pnl})
+                    
                     self.db_manager.delete_position(current_position.id)
             
             # 更新账户权益

@@ -8,91 +8,353 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: radial-gradient(ellipse at center, #667eea 0%, #764ba2 70%, #483d8b 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-attachment: fixed;
+            position: relative;
+            overflow-x: hidden;
         }
+        
+        /* 背景装饰 */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 119, 198, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(120, 219, 255, 0.2) 0%, transparent 50%);
+            animation: backgroundShift 20s ease-in-out infinite;
+        }
+        
+        @keyframes backgroundShift {
+            0%, 100% { transform: translateX(0) translateY(0); }
+            33% { transform: translateX(-20px) translateY(-10px); }
+            66% { transform: translateX(20px) translateY(10px); }
+        }
+        
         .login-container {
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
+            position: relative;
+            z-index: 1;
         }
+        
         .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 15px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
-            padding: 40px;
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 25px;
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.2);
+            padding: 50px 40px;
             width: 100%;
-            max-width: 400px;
+            max-width: 450px;
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            position: relative;
+            overflow: hidden;
         }
+        
+        .login-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+        }
+        
         .login-header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 40px;
+            position: relative;
         }
+        
+        .login-header .logo-section {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+        
+        .login-header .logo-icon {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .login-header .logo-icon i {
+            font-size: 28px;
+            color: white;
+        }
+        
         .login-header h1 {
-            color: #333;
-            font-weight: 700;
-            margin-bottom: 10px;
+            color: #2c3e50;
+            font-weight: 800;
+            margin: 0;
+            font-size: 2.2em;
+            letter-spacing: -0.5px;
         }
-        .login-header p {
-            color: #666;
+        
+        .login-header .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+            margin-top: 8px;
+            font-weight: 500;
+        }
+        
+        .language-switcher {
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+        
+        .language-switcher .btn-group .btn {
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            font-weight: 600;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .language-switcher .btn-group .btn.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .language-switcher .btn-group .btn:not(.active) {
+            background: rgba(255, 255, 255, 0.8);
+            color: #667eea;
+            border-color: #667eea;
+        }
+        
+        .language-switcher .btn-group .btn:not(.active):hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        .form-label {
+            color: #2c3e50;
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+        
+        .input-group {
+            position: relative;
+        }
+        
+        .input-group-text {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            border-radius: 12px 0 0 12px;
+            padding: 15px 18px;
             font-size: 1.1em;
         }
+        
         .form-control {
-            border-radius: 8px;
+            border-radius: 0 12px 12px 0;
             border: 2px solid #e9ecef;
-            padding: 12px 15px;
+            padding: 15px 18px;
+            font-size: 1em;
             transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.9);
         }
+        
         .form-control:focus {
             border-color: #667eea;
-            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+            box-shadow: 0 0 0 0.3rem rgba(102, 126, 234, 0.15);
+            background: white;
+            transform: translateY(-1px);
         }
-        .btn-login {
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            border: none;
-            border-radius: 8px;
-            padding: 12px 30px;
-            font-weight: 600;
-            color: white;
-            width: 100%;
+        
+        .form-control::placeholder {
+            color: #adb5bd;
+            font-style: italic;
+        }
+        
+        .form-check {
+            margin-bottom: 30px;
+        }
+        
+        .form-check-input {
+            width: 20px;
+            height: 20px;
+            border-radius: 6px;
+            border: 2px solid #e9ecef;
             transition: all 0.3s ease;
         }
+        
+        .form-check-input:checked {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: #667eea;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        .form-check-label {
+            color: #2c3e50;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+        
+        .btn-login {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 15px;
+            padding: 16px 30px;
+            font-weight: 700;
+            color: white;
+            width: 100%;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .btn-login::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+        
+        .btn-login:hover::before {
+            left: 100%;
+        }
+        
         .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
             color: white;
         }
+        
+        .btn-login:active {
+            transform: translateY(-1px);
+        }
+        
         .btn-register {
             background: transparent;
             border: 2px solid #667eea;
-            border-radius: 8px;
-            padding: 10px 30px;
+            border-radius: 15px;
+            padding: 14px 30px;
             font-weight: 600;
             color: #667eea;
             width: 100%;
+            font-size: 1em;
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
+        
+        .btn-register::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            transition: width 0.3s ease;
+            z-index: -1;
+        }
+        
+        .btn-register:hover::before {
+            width: 100%;
+        }
+        
         .btn-register:hover {
-            background: #667eea;
             color: white;
-        }
-        .alert {
-            border-radius: 8px;
-            border: none;
-        }
-        .form-check-input:checked {
-            background-color: #667eea;
             border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
         }
+        
+        .alert {
+            border-radius: 12px;
+            border: none;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+        
         .loading {
             display: none;
             text-align: center;
-            padding: 20px;
+            padding: 40px 20px;
         }
+        
         .spinner-border {
             color: #667eea;
+            width: 3rem;
+            height: 3rem;
+            border-width: 0.3em;
+        }
+        
+        .loading p {
+            color: #7f8c8d;
+            font-weight: 500;
+            margin-top: 15px;
+        }
+        
+        /* 响应式设计 */
+        @media (max-width: 576px) {
+            .login-card {
+                padding: 30px 25px;
+                margin: 10px;
+            }
+            
+            .login-header h1 {
+                font-size: 1.8em;
+            }
+            
+            .language-switcher {
+                position: static;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+        }
+        
+        /* 表单切换动画 */
+        .form-transition {
+            transition: all 0.3s ease;
+        }
+        
+        .form-hidden {
+            opacity: 0;
+            transform: translateX(-20px);
+        }
+        
+        .form-visible {
+            opacity: 1;
+            transform: translateX(0);
         }
     </style>
 </head>
@@ -100,106 +362,109 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h1><i class="fas fa-ship"></i> <span data-translate="title">FFA交易系统</span></h1>
-                        <p data-translate="user_login">用户登录</p>
+                <div class="logo-section">
+                    <div class="logo-icon">
+                        <i class="fas fa-ship"></i>
                     </div>
-                    <div class="language-switcher">
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="switchLanguage('zh')" id="lang-zh">
-                                <i class="fas fa-flag"></i> 中文
-                            </button>
-                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="switchLanguage('en')" id="lang-en">
-                                <i class="fas fa-flag"></i> English
-                            </button>
-                        </div>
+                    <div>
+                        <h1><span data-translate="title">FFA交易</span></h1>
+                        <div class="subtitle" data-translate="user_login">用户登录</div>
+                    </div>
+                </div>
+                <div class="language-switcher">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn" onclick="switchLanguage('zh')" id="lang-zh">
+                            <i class="fas fa-flag"></i> 中文
+                        </button>
+                        <button type="button" class="btn" onclick="switchLanguage('en')" id="lang-en">
+                            <i class="fas fa-flag"></i> English
+                        </button>
                     </div>
                 </div>
             </div>
 
             <!-- 登录表单 -->
-            <form id="loginForm">
-                <div class="mb-3">
+            <form id="loginForm" class="form-transition">
+                <div class="form-group">
                     <label for="username" class="form-label" data-translate="username">用户名</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user"></i></span>
-                        <input type="text" class="form-control" id="username" name="username" required>
+                        <input type="text" class="form-control" id="username" name="username" placeholder="请输入用户名" required>
                     </div>
                 </div>
                 
-                <div class="mb-3">
+                <div class="form-group">
                     <label for="password" class="form-label" data-translate="password">密码</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                        <input type="password" class="form-control" id="password" name="password" required>
+                        <input type="password" class="form-control" id="password" name="password" placeholder="请输入密码" required>
                     </div>
                 </div>
                 
-                <div class="mb-3 form-check">
+                <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="rememberMe">
-                    <label class="form-check-label" for="rememberMe">
+                    <label class="form-check-label" for="rememberMe" data-translate="remember_me">
                         记住我
                     </label>
                 </div>
                 
-                <button type="submit" class="btn btn-login mb-3">
-                    <i class="fas fa-sign-in-alt"></i> 登录
+                <button type="submit" class="btn btn-login">
+                    <i class="fas fa-sign-in-alt"></i> <span data-translate="login">登录</span>
                 </button>
                 
                 <button type="button" class="btn btn-register" onclick="showRegisterForm()">
-                    <i class="fas fa-user-plus"></i> 注册新账户
+                    <i class="fas fa-user-plus"></i> <span data-translate="register_new_account">注册新账户</span>
                 </button>
             </form>
 
             <!-- 注册表单 -->
-            <form id="registerForm" style="display: none;">
-                <div class="mb-3">
-                    <label for="reg_username" class="form-label">用户名</label>
+            <form id="registerForm" class="form-transition" style="display: none;">
+                <div class="form-group">
+                    <label for="reg_username" class="form-label" data-translate="username">用户名</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user"></i></span>
-                        <input type="text" class="form-control" id="reg_username" name="username" required>
+                        <input type="text" class="form-control" id="reg_username" name="username" placeholder="请输入用户名" required>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label for="reg_email" class="form-label">邮箱</label>
+                <div class="form-group">
+                    <label for="reg_email" class="form-label" data-translate="email">邮箱</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-                        <input type="email" class="form-control" id="reg_email" name="email" required>
+                        <input type="email" class="form-control" id="reg_email" name="email" placeholder="请输入邮箱地址" required>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label for="reg_full_name" class="form-label">姓名（可选）</label>
+                <div class="form-group">
+                    <label for="reg_full_name" class="form-label" data-translate="full_name">姓名（可选）</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-id-card"></i></span>
-                        <input type="text" class="form-control" id="reg_full_name" name="full_name">
+                        <input type="text" class="form-control" id="reg_full_name" name="full_name" placeholder="请输入真实姓名">
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label for="reg_password" class="form-label">密码</label>
+                <div class="form-group">
+                    <label for="reg_password" class="form-label" data-translate="password">密码</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                        <input type="password" class="form-control" id="reg_password" name="password" required>
+                        <input type="password" class="form-control" id="reg_password" name="password" placeholder="请输入密码" required>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <label for="reg_confirm_password" class="form-label">确认密码</label>
+                <div class="form-group">
+                    <label for="reg_confirm_password" class="form-label" data-translate="confirm_password">确认密码</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
-                        <input type="password" class="form-control" id="reg_confirm_password" name="confirm_password" required>
+                        <input type="password" class="form-control" id="reg_confirm_password" name="confirm_password" placeholder="请再次输入密码" required>
                     </div>
                 </div>
                 
-                <button type="submit" class="btn btn-login mb-3">
-                    <i class="fas fa-user-plus"></i> 注册
+                <button type="submit" class="btn btn-login">
+                    <i class="fas fa-user-plus"></i> <span data-translate="register">注册</span>
                 </button>
                 
                 <button type="button" class="btn btn-register" onclick="showLoginForm()">
-                    <i class="fas fa-sign-in-alt"></i> 返回登录
+                    <i class="fas fa-sign-in-alt"></i> <span data-translate="back_to_login">返回登录</span>
                 </button>
             </form>
 
@@ -228,14 +493,19 @@
         // 语言翻译数据
         const translations = {
             zh: {
-                title: 'FFA交易系统',
+                title: 'FFA交易',
                 user_login: '用户登录',
                 user_register: '用户注册',
                 username: '用户名',
                 email: '邮箱',
                 password: '密码',
+                full_name: '姓名（可选）',
+                confirm_password: '确认密码',
+                remember_me: '记住我',
                 login: '登录',
                 register: '注册',
+                register_new_account: '注册新账户',
+                back_to_login: '返回登录',
                 no_account: '还没有账户？立即注册',
                 have_account: '已有账户？立即登录',
                 login_success: '登录成功！',
@@ -245,14 +515,19 @@
                 please_wait: '请稍候...'
             },
             en: {
-                title: 'FFA Trading System',
+                title: 'FFA Trading',
                 user_login: 'User Login',
                 user_register: 'User Registration',
                 username: 'Username',
                 email: 'Email',
                 password: 'Password',
+                full_name: 'Full Name (Optional)',
+                confirm_password: 'Confirm Password',
+                remember_me: 'Remember Me',
                 login: 'Login',
                 register: 'Register',
+                register_new_account: 'Register New Account',
+                back_to_login: 'Back to Login',
                 no_account: 'No account? Register now',
                 have_account: 'Have an account? Login now',
                 login_success: 'Login successful!',
@@ -314,15 +589,37 @@
         
         // 显示登录表单
         function showLoginForm() {
-            document.getElementById('loginForm').style.display = 'block';
-            document.getElementById('registerForm').style.display = 'none';
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            
+            // 添加切换动画
+            registerForm.classList.add('form-hidden');
+            
+            setTimeout(() => {
+                registerForm.style.display = 'none';
+                loginForm.style.display = 'block';
+                loginForm.classList.remove('form-hidden');
+                loginForm.classList.add('form-visible');
+            }, 150);
+            
             clearMessages();
         }
         
         // 显示注册表单
         function showRegisterForm() {
-            document.getElementById('loginForm').style.display = 'none';
-            document.getElementById('registerForm').style.display = 'block';
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            
+            // 添加切换动画
+            loginForm.classList.add('form-hidden');
+            
+            setTimeout(() => {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                registerForm.classList.remove('form-hidden');
+                registerForm.classList.add('form-visible');
+            }, 150);
+            
             clearMessages();
         }
         

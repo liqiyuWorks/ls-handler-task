@@ -1070,6 +1070,14 @@
             });
         }
         
+        // 获取翻译文本的辅助函数
+        function getTranslation(key) {
+            if (translations[currentLanguage] && translations[currentLanguage][key]) {
+                return translations[currentLanguage][key];
+            }
+            return key; // 如果找不到翻译，返回键名
+        }
+        
         // 结算单相关函数
         function showCreateSettlementModal() {
             const modal = new bootstrap.Modal(document.getElementById('createSettlementModal'));
