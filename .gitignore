@@ -69,3 +69,4 @@ zscripts
 *.temp
 *.bak
 *.backup
+a_projects/ffa_simulation/*.db
