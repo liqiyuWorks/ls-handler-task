@@ -240,6 +240,24 @@ class DatabaseManager:
         finally:
             db.close()
     
+    def update_trade(self, trade_id: int, update_data: dict) -> bool:
+        """更新交易记录"""
+        db = self.SessionLocal()
+        try:
+            trade = db.query(Trade).filter(Trade.id == trade_id).first()
+            if trade:
+                for key, value in update_data.items():
+                    if hasattr(trade, key):
+                        setattr(trade, key, value)
+                db.commit()
+                return True
+            return False
+        except SQLAlchemyError as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+    
     def get_account_trades(self, account_id: int, limit: int = 10):
         """获取账户交易记录"""
         db = self.SessionLocal()
@@ -250,14 +268,14 @@ class DatabaseManager:
         finally:
             db.close()
     
-    def get_position(self, account_id: int, contract_type: str, contract_month: str):
+    def get_position(self, account_id: int, contract: str, month: str):
         """获取持仓"""
         db = self.SessionLocal()
         try:
             return db.query(Position).filter(
                 Position.account_id == account_id,
-                Position.contract_type == contract_type,
-                Position.contract_month == contract_month
+                Position.contract == contract,
+                Position.month == month
             ).first()
         finally:
             db.close()
@@ -530,32 +548,50 @@ class DatabaseManager:
                 Position.updated_at >= start_date
             ).order_by(Position.updated_at.asc()).all()
             
-            # 按时间分组计算总浮动盈亏
-            floating_pnl_data = []
-            position_groups = {}
-            
-            for position in positions:
-                update_time = position.updated_at
-                time_key = update_time.strftime('%Y-%m-%d %H:%M')
+            # 如果没有历史数据，使用当前持仓数据
+            if not positions:
+                current_positions = db.query(Position).filter(
+                    Position.account_id == account_id
+                ).all()
                 
-                if time_key not in position_groups:
-                    position_groups[time_key] = {
-                        'timestamp': update_time,
-                        'total_floating_pnl': 0.0,
-                        'position_count': 0
-                    }
+                if current_positions:
+                    # 创建当前时间的数据点
+                    current_time = datetime.utcnow()
+                    total_floating_pnl = sum(p.unrealized_pnl or 0.0 for p in current_positions)
+                    floating_pnl_data = [{
+                        'timestamp': current_time,
+                        'total_floating_pnl': total_floating_pnl,
+                        'position_count': len(current_positions)
+                    }]
+                else:
+                    floating_pnl_data = []
+            else:
+                # 按时间分组计算总浮动盈亏
+                floating_pnl_data = []
+                position_groups = {}
                 
-                position_groups[time_key]['total_floating_pnl'] += position.unrealized_pnl or 0.0
-                position_groups[time_key]['position_count'] += 1
-            
-            # 转换为列表并排序
-            for time_key in sorted(position_groups.keys()):
-                group = position_groups[time_key]
-                floating_pnl_data.append({
-                    'timestamp': group['timestamp'],
-                    'total_floating_pnl': group['total_floating_pnl'],
-                    'position_count': group['position_count']
-                })
+                for position in positions:
+                    update_time = position.updated_at
+                    time_key = update_time.strftime('%Y-%m-%d %H:%M')
+                    
+                    if time_key not in position_groups:
+                        position_groups[time_key] = {
+                            'timestamp': update_time,
+                            'total_floating_pnl': 0.0,
+                            'position_count': 0
+                        }
+                    
+                    position_groups[time_key]['total_floating_pnl'] += position.unrealized_pnl or 0.0
+                    position_groups[time_key]['position_count'] += 1
+                
+                # 转换为列表并排序
+                for time_key in sorted(position_groups.keys()):
+                    group = position_groups[time_key]
+                    floating_pnl_data.append({
+                        'timestamp': group['timestamp'],
+                        'total_floating_pnl': group['total_floating_pnl'],
+                        'position_count': group['position_count']
+                    })
             
             return floating_pnl_data
         except SQLAlchemyError as e:
