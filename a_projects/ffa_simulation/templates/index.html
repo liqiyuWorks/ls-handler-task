@@ -727,83 +727,61 @@
                         </div>
                     </div>
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- 盈亏曲线 -->
-    <div class="tab-pane fade" id="pnl-curve" role="tabpanel">
-        <div class="row">
-            <div class="col-12">
-                <div class="card shadow-lg">
-                    <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center">
-                        <div>
-                            <h4 class="mb-1"><i class="fas fa-chart-line me-2"></i><span data-translate="pnl_curve">盈亏曲线</span></h4>
-                            <p class="mb-0 text-light" data-translate="pnl_curve_description">实时监控交易盈亏变化趋势</p>
+                <!-- 盈亏曲线 -->
+                <div class="tab-pane fade" id="pnl-curve" role="tabpanel">
+        <!-- 初始占位符 -->
+        <div id="pnlPlaceholder" class="text-center py-5">
+            <div class="mb-4">
+                <i class="fas fa-chart-line fa-4x text-muted opacity-50"></i>
+            </div>
+            <h5 class="text-muted mb-3" data-translate="click_to_load_charts">点击上方标签加载盈亏曲线</h5>
+            <p class="text-muted" data-translate="pnl_placeholder_description">实时监控您的交易盈亏变化趋势</p>
+        </div>
+        
+        <!-- 加载状态 -->
+        <div class="loading" id="pnlLoading" style="display: none;">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden" data-translate="loading">加载中...</span>
+            </div>
+            <p class="mt-2" data-translate="loading_charts">正在加载图表数据...</p>
+        </div>
+        
+        <!-- 图表容器 - 点击盈亏曲线标签后只显示这两个图表 -->
+        <div id="pnlChartsContainer" style="display: none;">
+            <!-- 图表1：实时浮动盈亏曲线 -->
+            <div class="row mb-4" id="floatingChartContainer">
+                <div class="col-12">
+                    <div class="card chart-card shadow-sm">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0"><i class="fas fa-chart-area"></i> <span data-translate="floating_pnl_curve">实时浮动盈亏曲线</span></h6>
+                            <small class="text-light" data-translate="floating_pnl_description">显示所有未平仓头寸的浮动盈亏变化</small>
                         </div>
-                        <div class="btn-group" role="group">
-                            <button class="btn btn-light btn-sm" onclick="refreshPnLCharts()">
-                                <i class="fas fa-sync-alt"></i> <span data-translate="refresh">刷新</span>
-                            </button>
-                            <select class="form-select form-select-sm" id="pnlDaysSelect" onchange="loadPnLCharts()" style="width: auto;">
-                                <option value="7" data-translate="last_7_days">最近7天</option>
-                                <option value="30" selected data-translate="last_30_days">最近30天</option>
-                                <option value="90" data-translate="last_90_days">最近90天</option>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <!-- 初始占位符 -->
-                        <div id="pnlPlaceholder" class="text-center py-5">
-                            <div class="mb-4">
-                                <i class="fas fa-chart-line fa-4x text-muted opacity-50"></i>
-                            </div>
-                            <h5 class="text-muted mb-3" data-translate="click_to_load_charts">点击上方标签加载盈亏曲线</h5>
-                            <p class="text-muted" data-translate="pnl_placeholder_description">实时监控您的交易盈亏变化趋势</p>
-                        </div>
-                        
-                        <!-- 加载状态 -->
-                        <div class="loading" id="pnlLoading" style="display: none;">
-                            <div class="spinner-border" role="status">
-                                <span class="visually-hidden" data-translate="loading">加载中...</span>
-                            </div>
-                            <p class="mt-2" data-translate="loading_charts">正在加载图表数据...</p>
-                        </div>
-                        
-                        <!-- 图表1：实时浮动盈亏曲线 -->
-                        <div class="row mb-4" id="floatingChartContainer" style="display: none;">
-                            <div class="col-12">
-                                <div class="card chart-card shadow-sm">
-                                    <div class="card-header bg-primary text-white">
-                                        <h6 class="mb-0"><i class="fas fa-chart-area"></i> <span data-translate="floating_pnl_curve">实时浮动盈亏曲线</span></h6>
-                                        <small class="text-light" data-translate="floating_pnl_description">显示所有未平仓头寸的浮动盈亏变化</small>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="floatingPnLChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- 图表2：累计实际盈亏曲线 -->
-                        <div class="row" id="cumulativeChartContainer" style="display: none;">
-                            <div class="col-12">
-                                <div class="card chart-card shadow-sm">
-                                    <div class="card-header bg-success text-white">
-                                        <h6 class="mb-0"><i class="fas fa-chart-line"></i> <span data-translate="cumulative_pnl_curve">累计实际盈亏曲线</span></h6>
-                                        <small class="text-light" data-translate="cumulative_pnl_description">显示已平仓交易的累计盈亏变化</small>
-                                    </div>
-                                    <div class="card-body">
-                                        <div class="chart-container">
-                                            <canvas id="cumulativePnLChart"></canvas>
-                                        </div>
-                                    </div>
-                                </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="floatingPnLChart"></canvas>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
+            
+            <!-- 图表2：累计实际盈亏曲线 -->
+            <div class="row" id="cumulativeChartContainer">
+                <div class="col-12">
+                    <div class="card chart-card shadow-sm">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0"><i class="fas fa-chart-line"></i> <span data-translate="cumulative_pnl_curve">累计实际盈亏曲线</span></h6>
+                            <small class="text-light" data-translate="cumulative_pnl_description">显示已平仓交易的累计盈亏变化</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="cumulativePnLChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
                 </div>
             </div>
         </div>
@@ -1450,16 +1428,40 @@
 
         // 盈亏曲线相关函数
         async function loadPnLCharts() {
-            if (!currentAccountId) return;
+            console.log('loadPnLCharts called, currentAccountId:', currentAccountId);
             
             const placeholder = document.getElementById('pnlPlaceholder');
             const loading = document.getElementById('pnlLoading');
-            const days = document.getElementById('pnlDaysSelect').value;
+            const days = 30; // 固定使用30天数据
+            
+            console.log('Elements found:', {placeholder: !!placeholder, loading: !!loading});
             
             // 隐藏占位符，显示加载状态
             if (placeholder) placeholder.style.display = 'none';
-            loading.style.display = 'block';
+            if (loading) loading.style.display = 'block';
             
+            console.log('Loading state set');
+            
+            if (!currentAccountId) {
+                console.log('No currentAccountId, waiting for account to be loaded...');
+                // 等待账户加载完成
+                let attempts = 0;
+                const maxAttempts = 50; // 最多等待5秒
+                
+                while (!currentAccountId && attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!currentAccountId) {
+                    console.log('Account still not loaded after waiting, showing placeholder');
+                    if (placeholder) placeholder.style.display = 'block';
+                    if (loading) loading.style.display = 'none';
+                    return;
+                }
+            }
+            
+            console.log('Starting API request...');
             try {
                 const response = await fetch(`/api/pnl-chart-data?account_id=${currentAccountId}&days=${days}`, {
                     headers: {
@@ -1467,43 +1469,71 @@
                     }
                 });
                 
+                console.log('API response received:', response.status);
+                
                 if (response.ok) {
                     const chartData = await response.json();
+                    console.log('Chart data received:', chartData);
                     renderPnLCharts(chartData);
                 } else {
+                    console.error('API error:', response.status);
                     showMessage('获取图表数据失败', 'danger');
+                    // 显示占位符
+                    if (placeholder) placeholder.style.display = 'block';
                 }
             } catch (error) {
                 console.error('加载图表数据失败:', error);
                 showMessage('网络错误: ' + error.message, 'danger');
+                // 显示占位符
+                if (placeholder) placeholder.style.display = 'block';
             } finally {
-                loading.style.display = 'none';
+                console.log('Finally block executed');
+                if (loading) loading.style.display = 'none';
             }
         }
         
         function renderPnLCharts(chartData) {
+            console.log('renderPnLCharts called with data:', chartData);
+            
             // 渲染浮动盈亏曲线
+            console.log('Rendering floating P&L chart...');
             renderFloatingPnLChart(chartData.floating_pnl_data);
             
             // 渲染累计盈亏曲线
+            console.log('Rendering cumulative P&L chart...');
             renderCumulativePnLChart(chartData.cumulative_pnl_data);
             
             // 显示图表容器
-            const floatingContainer = document.getElementById('floatingChartContainer');
-            const cumulativeContainer = document.getElementById('cumulativeChartContainer');
-            if (floatingContainer) floatingContainer.style.display = 'block';
-            if (cumulativeContainer) cumulativeContainer.style.display = 'block';
+            const chartsContainer = document.getElementById('pnlChartsContainer');
+            console.log('Charts container found:', !!chartsContainer);
+            if (chartsContainer) {
+                chartsContainer.style.display = 'block';
+                console.log('Charts container displayed');
+            }
             
-            // 隐藏加载状态
+            // 隐藏占位符和加载状态
+            const placeholder = document.getElementById('pnlPlaceholder');
             const loading = document.getElementById('pnlLoading');
+            if (placeholder) placeholder.style.display = 'none';
             if (loading) loading.style.display = 'none';
+            console.log('renderPnLCharts completed');
         }
         
         function renderFloatingPnLChart(floatingData) {
-            const ctx = document.getElementById('floatingPnLChart').getContext('2d');
+            console.log('renderFloatingPnLChart called with data:', floatingData);
+            
+            const canvas = document.getElementById('floatingPnLChart');
+            if (!canvas) {
+                console.log('floatingPnLChart canvas not found');
+                return;
+            }
+            console.log('floatingPnLChart canvas found');
+            
+            const ctx = canvas.getContext('2d');
             
             // 销毁现有图表
-            if (floatingPnLChart) {
+            if (typeof floatingPnLChart !== 'undefined' && floatingPnLChart) {
+                console.log('Destroying existing floating chart');
                 floatingPnLChart.destroy();
             }
             
@@ -1521,6 +1551,9 @@
             });
             
             const data = floatingData.map(point => point.total_floating_pnl);
+            
+            console.log('Creating floating chart with data:', data);
+            console.log('Chart.js available:', typeof Chart !== 'undefined');
             
             floatingPnLChart = new Chart(ctx, {
                 type: 'line',
@@ -1611,10 +1644,20 @@
         }
         
         function renderCumulativePnLChart(cumulativeData) {
-            const ctx = document.getElementById('cumulativePnLChart').getContext('2d');
+            console.log('renderCumulativePnLChart called with data:', cumulativeData);
+            
+            const canvas = document.getElementById('cumulativePnLChart');
+            if (!canvas) {
+                console.log('cumulativePnLChart canvas not found');
+                return;
+            }
+            console.log('cumulativePnLChart canvas found');
+            
+            const ctx = canvas.getContext('2d');
             
             // 销毁现有图表
-            if (cumulativePnLChart) {
+            if (typeof cumulativePnLChart !== 'undefined' && cumulativePnLChart) {
+                console.log('Destroying existing cumulative chart');
                 cumulativePnLChart.destroy();
             }
             
@@ -1632,6 +1675,9 @@
             });
             
             const data = cumulativeData.map(point => point.cumulative_pnl);
+            
+            console.log('Creating cumulative chart with data:', data);
+            console.log('Chart.js available for cumulative:', typeof Chart !== 'undefined');
             
             cumulativePnLChart = new Chart(ctx, {
                 type: 'line',
@@ -1721,8 +1767,32 @@
             });
         }
         
-        function refreshPnLCharts() {
-            loadPnLCharts();
+        
+        function hidePnLCharts() {
+            console.log('hidePnLCharts called');
+            
+            // 隐藏图表容器
+            const chartsContainer = document.getElementById('pnlChartsContainer');
+            if (chartsContainer) {
+                chartsContainer.style.display = 'none';
+                console.log('Charts container hidden');
+            }
+            
+            // 显示占位符
+            const placeholder = document.getElementById('pnlPlaceholder');
+            if (placeholder) {
+                placeholder.style.display = 'block';
+                console.log('Placeholder shown');
+            }
+            
+            // 隐藏加载状态
+            const loading = document.getElementById('pnlLoading');
+            if (loading) {
+                loading.style.display = 'none';
+                console.log('Loading state hidden');
+            }
+            
+            console.log('hidePnLCharts completed');
         }
 
         // 页面加载完成后初始化
@@ -1731,16 +1801,6 @@
             translatePage();
             checkAuthentication();
             
-            // 添加标签页切换事件监听器
-            const pnlCurveTab = document.getElementById('pnl-curve-tab');
-            if (pnlCurveTab) {
-                pnlCurveTab.addEventListener('click', function() {
-                    // 延迟加载盈亏曲线，确保标签页切换完成
-                    setTimeout(() => {
-                        loadPnLCharts();
-                    }, 100);
-                });
-            }
             
             // 确保交易日期有默认值
             const tradeDateInput = document.getElementById('tradeDate');
@@ -2008,10 +2068,28 @@
             document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
                 tab.addEventListener('shown.bs.tab', function(event) {
                     const target = event.target.getAttribute('data-bs-target');
+                    console.log('Tab switched to:', target);
+                    
                     if (target === '#positions') {
+                        console.log('Loading positions');
+                        hidePnLCharts(); // 隐藏盈亏曲线图表
                         loadPositions();
                     } else if (target === '#history') {
+                        console.log('Loading trade history');
+                        hidePnLCharts(); // 隐藏盈亏曲线图表
                         loadTradeHistory();
+                    } else if (target === '#settlement') {
+                        console.log('Loading settlement statements');
+                        hidePnLCharts(); // 隐藏盈亏曲线图表
+                        loadSettlementStatements();
+                    } else if (target === '#pnl-curve') {
+                        console.log('Loading P&L charts');
+                        // 加载盈亏曲线图表
+                        loadPnLCharts();
+                    } else {
+                        console.log('Switching to other tab, hiding P&L charts');
+                        // 切换到其他标签时，隐藏盈亏曲线图表
+                        hidePnLCharts();
                     }
                 });
             });

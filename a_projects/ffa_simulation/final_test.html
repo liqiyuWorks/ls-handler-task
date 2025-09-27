@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>最终测试页面</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .debug-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            width: 350px;
+            max-height: 500px;
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            z-index: 9999;
+            overflow-y: auto;
+        }
+        .debug-panel h6 {
+            color: #00ff00;
+            margin-bottom: 10px;
+        }
+        .debug-log {
+            background: #000;
+            padding: 5px;
+            border-radius: 3px;
+            margin: 2px 0;
+            font-family: monospace;
+        }
+        .error { color: #ff6b6b; }
+        .success { color: #51cf66; }
+        .warning { color: #ffd43b; }
+        .info { color: #74c0fc; }
+        .test-button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4">
+        <h2>最终测试页面 - 盈亏曲线问题排查</h2>
+        <p class="text-muted">这个页面用于最终测试盈亏曲线标签的问题</p>
+        
+        <!-- 调试面板 -->
+        <div class="debug-panel">
+            <h6>🔍 实时调试信息</h6>
+            <div id="debugLogs"></div>
+            <button class="btn btn-sm btn-outline-light mt-2" onclick="clearLogs()">清空日志</button>
+        </div>
+        
+        <!-- 测试按钮 -->
+        <div class="mb-4">
+            <h5>测试按钮</h5>
+            <button class="btn btn-primary test-button" onclick="testLoadPnLCharts()">测试加载盈亏曲线</button>
+            <button class="btn btn-secondary test-button" onclick="testHidePnLCharts()">测试隐藏盈亏曲线</button>
+            <button class="btn btn-info test-button" onclick="checkElements()">检查元素状态</button>
+            <button class="btn btn-warning test-button" onclick="testTabSwitch()">测试标签切换</button>
+        </div>
+        
+        <!-- 标签导航 -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="positions-tab" data-bs-toggle="tab" data-bs-target="#positions" type="button" role="tab">
+                    持仓汇总
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#history" type="button" role="tab">
+                    交易记录
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="settlement-tab" data-bs-toggle="tab" data-bs-target="#settlement" type="button" role="tab">
+                    结算单
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="pnl-curve-tab" data-bs-toggle="tab" data-bs-target="#pnl-curve" type="button" role="tab">
+                    盈亏曲线
+                </button>
+            </li>
+        </ul>
+        
+        <!-- 标签内容 -->
+        <div class="tab-content" id="myTabContent">
+            <!-- 持仓汇总 -->
+            <div class="tab-pane fade" id="positions" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5>持仓汇总内容</h5>
+                        <p>这是持仓汇总页面的内容</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 交易记录 -->
+            <div class="tab-pane fade" id="history" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5>交易记录内容</h5>
+                        <p>这是交易记录页面的内容</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 结算单 -->
+            <div class="tab-pane fade" id="settlement" role="tabpanel">
+                <div class="card mt-3">
+                    <div class="card-body">
+                        <h5>结算单内容</h5>
+                        <p>这是结算单页面的内容</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 盈亏曲线 -->
+            <div class="tab-pane fade" id="pnl-curve" role="tabpanel">
+                <!-- 初始占位符 -->
+                <div id="pnlPlaceholder" class="text-center py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-chart-line fa-4x text-muted opacity-50"></i>
+                    </div>
+                    <h5 class="text-muted mb-3">点击上方标签加载盈亏曲线</h5>
+                    <p class="text-muted">实时监控您的交易盈亏变化趋势</p>
+                </div>
+                
+                <!-- 加载状态 -->
+                <div class="loading" id="pnlLoading" style="display: none;">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                    <p class="mt-2">正在加载图表数据...</p>
+                </div>
+                
+                <!-- 图表容器 -->
+                <div id="pnlChartsContainer" style="display: none;">
+                    <!-- 图表1：实时浮动盈亏曲线 -->
+                    <div class="row mb-4" id="floatingChartContainer">
+                        <div class="col-12">
+                            <div class="card chart-card shadow-sm">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-area"></i> 实时浮动盈亏曲线</h6>
+                                    <small class="text-light">显示所有未平仓头寸的浮动盈亏变化</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="floatingPnLChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 图表2：累计实际盈亏曲线 -->
+                    <div class="row" id="cumulativeChartContainer">
+                        <div class="col-12">
+                            <div class="card chart-card shadow-sm">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-chart-line"></i> 累计实际盈亏曲线</h6>
+                                    <small class="text-light">显示已平仓交易的累计盈亏变化</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="cumulativePnLChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let floatingPnLChart = null;
+        let cumulativePnLChart = null;
+        let currentAccountId = 1; // 模拟账户ID
+        let authToken = 'test-token'; // 模拟token
+        
+        // 调试日志函数
+        function logDebug(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logElement = document.createElement('div');
+            logElement.className = `debug-log ${type}`;
+            logElement.textContent = `[${timestamp}] ${message}`;
+            
+            const debugLogs = document.getElementById('debugLogs');
+            debugLogs.appendChild(logElement);
+            debugLogs.scrollTop = debugLogs.scrollHeight;
+            
+            console.log(`[DEBUG] ${message}`);
+        }
+        
+        function clearLogs() {
+            document.getElementById('debugLogs').innerHTML = '';
+        }
+        
+        // 模拟加载盈亏曲线图表
+        function loadPnLCharts() {
+            logDebug('=== loadPnLCharts 开始 ===', 'info');
+            logDebug(`currentAccountId: ${currentAccountId}`, 'info');
+            
+            const placeholder = document.getElementById('pnlPlaceholder');
+            const loading = document.getElementById('pnlLoading');
+            const chartsContainer = document.getElementById('pnlChartsContainer');
+            
+            // 检查元素是否存在
+            if (!placeholder) {
+                logDebug('❌ pnlPlaceholder 元素不存在', 'error');
+                return;
+            }
+            if (!loading) {
+                logDebug('❌ pnlLoading 元素不存在', 'error');
+                return;
+            }
+            if (!chartsContainer) {
+                logDebug('❌ pnlChartsContainer 元素不存在', 'error');
+                return;
+            }
+            
+            logDebug('✅ 所有必需元素都存在', 'success');
+            
+            // 隐藏占位符，显示加载状态
+            placeholder.style.display = 'none';
+            loading.style.display = 'block';
+            logDebug('✅ 显示加载状态，隐藏占位符', 'success');
+            
+            // 模拟API调用
+            setTimeout(() => {
+                // 显示图表容器
+                chartsContainer.style.display = 'block';
+                loading.style.display = 'none';
+                logDebug('✅ 显示图表容器，隐藏加载状态', 'success');
+                
+                // 创建模拟图表
+                createMockCharts();
+                
+                logDebug('=== loadPnLCharts 完成 ===', 'success');
+            }, 1000);
+        }
+        
+        // 隐藏盈亏曲线图表
+        function hidePnLCharts() {
+            logDebug('=== hidePnLCharts 开始 ===', 'info');
+            
+            const chartsContainer = document.getElementById('pnlChartsContainer');
+            const placeholder = document.getElementById('pnlPlaceholder');
+            const loading = document.getElementById('pnlLoading');
+            
+            if (chartsContainer) chartsContainer.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'block';
+            if (loading) loading.style.display = 'none';
+            
+            logDebug('✅ 隐藏图表，显示占位符', 'success');
+            logDebug('=== hidePnLCharts 完成 ===', 'info');
+        }
+        
+        // 创建模拟图表
+        function createMockCharts() {
+            logDebug('开始创建模拟图表', 'info');
+            
+            // 浮动盈亏图表
+            const floatingCtx = document.getElementById('floatingPnLChart');
+            if (floatingCtx) {
+                if (floatingPnLChart) floatingPnLChart.destroy();
+                floatingPnLChart = new Chart(floatingCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['10:00', '11:00', '12:00', '13:00', '14:00'],
+                        datasets: [{
+                            label: '浮动盈亏',
+                            data: [100, 150, 200, 180, 220],
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+                logDebug('✅ 浮动盈亏图表创建成功', 'success');
+            } else {
+                logDebug('❌ floatingPnLChart canvas 不存在', 'error');
+            }
+            
+            // 累计盈亏图表
+            const cumulativeCtx = document.getElementById('cumulativePnLChart');
+            if (cumulativeCtx) {
+                if (cumulativePnLChart) cumulativePnLChart.destroy();
+                cumulativePnLChart = new Chart(cumulativeCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['周一', '周二', '周三', '周四', '周五'],
+                        datasets: [{
+                            label: '累计盈亏',
+                            data: [500, 600, 550, 700, 800],
+                            borderColor: 'rgb(54, 162, 235)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+                logDebug('✅ 累计盈亏图表创建成功', 'success');
+            } else {
+                logDebug('❌ cumulativePnLChart canvas 不存在', 'error');
+            }
+        }
+        
+        // 测试函数
+        function testLoadPnLCharts() {
+            logDebug('🧪 手动测试加载盈亏曲线', 'warning');
+            loadPnLCharts();
+        }
+        
+        function testHidePnLCharts() {
+            logDebug('🧪 手动测试隐藏盈亏曲线', 'warning');
+            hidePnLCharts();
+        }
+        
+        function checkElements() {
+            logDebug('🔍 检查元素状态', 'info');
+            
+            const elements = [
+                'pnlPlaceholder',
+                'pnlLoading', 
+                'pnlChartsContainer',
+                'floatingChartContainer',
+                'cumulativeChartContainer',
+                'floatingPnLChart',
+                'cumulativePnLChart'
+            ];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    const display = window.getComputedStyle(element).display;
+                    logDebug(`${id}: 存在, display=${display}`, 'success');
+                } else {
+                    logDebug(`${id}: 不存在`, 'error');
+                }
+            });
+        }
+        
+        function testTabSwitch() {
+            logDebug('🧪 测试标签切换', 'warning');
+            
+            // 模拟点击盈亏曲线标签
+            const pnlTab = document.getElementById('pnl-curve-tab');
+            if (pnlTab) {
+                pnlTab.click();
+                logDebug('✅ 点击盈亏曲线标签', 'success');
+            } else {
+                logDebug('❌ 盈亏曲线标签不存在', 'error');
+            }
+        }
+        
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            logDebug('🚀 页面加载完成，初始化事件监听器', 'success');
+            
+            // 标签切换时加载对应数据
+            document.querySelectorAll('[data-bs-toggle="tab"]').forEach(tab => {
+                tab.addEventListener('shown.bs.tab', function(event) {
+                    const target = event.target.getAttribute('data-bs-target');
+                    logDebug(`🔄 切换到标签: ${target}`, 'info');
+                    
+                    if (target === '#positions') {
+                        logDebug('📊 加载持仓汇总数据', 'info');
+                    } else if (target === '#history') {
+                        logDebug('📋 加载交易记录数据', 'info');
+                    } else if (target === '#settlement') {
+                        logDebug('📄 加载结算单数据', 'info');
+                    } else if (target === '#pnl-curve') {
+                        logDebug('📈 加载盈亏曲线图表', 'info');
+                        loadPnLCharts();
+                    } else {
+                        logDebug('🔄 切换到其他标签，隐藏盈亏曲线图表', 'info');
+                        hidePnLCharts();
+                    }
+                });
+            });
+            
+            logDebug('✅ 事件监听器设置完成', 'success');
+        });
+    </script>
+</body>
+</html>
