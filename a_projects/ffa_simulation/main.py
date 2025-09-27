@@ -15,7 +15,7 @@ import uvicorn
 import os
 
 from database import get_db, create_tables, DatabaseManager
-from models import AccountCreate, TradeRequest, AccountResponse, TradeResponse, PositionResponse, AccountSummary, UserCreate, UserLogin, UserResponse, Token, User
+from models import AccountCreate, TradeRequest, AccountResponse, TradeResponse, PositionResponse, AccountSummary, UserCreate, UserLogin, UserResponse, Token, User, SettlementStatementRequest, SettlementStatementResponse, SettlementStatementDetail, ClosedTradeDetail
 from trading_engine import TradingEngine
 from auth import authenticate_user, create_access_token, get_current_active_user_dependency, ACCESS_TOKEN_EXPIRE_MINUTES
 from config import CONTRACT_CONFIG, STRATEGY_CONFIG, MONTH_CONFIG
@@ -202,6 +202,107 @@ async def get_account_summary(account_id: int, current_user: User = Depends(get_
     
     summary = trading_engine.get_account_summary(account_id)
     return summary
+
+# 结算单相关API
+@app.post("/api/settlement-statements", response_model=SettlementStatementResponse)
+async def create_settlement_statement(
+    settlement_request: SettlementStatementRequest,
+    current_user: User = Depends(get_current_active_user)
+):
+    """创建结算单"""
+    # 验证账户权限
+    account = db_manager.get_account(settlement_request.account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此账户")
+    
+    # 计算结算单数据
+    settlement_data = db_manager.calculate_settlement_data(
+        settlement_request.account_id,
+        settlement_request.period_start,
+        settlement_request.period_end
+    )
+    
+    # 创建结算单
+    settlement_data.update({
+        "account_id": settlement_request.account_id,
+        "statement_period": settlement_request.statement_period,
+        "period_start": settlement_request.period_start,
+        "period_end": settlement_request.period_end
+    })
+    
+    settlement = db_manager.create_settlement_statement(settlement_data)
+    return settlement
+
+@app.get("/api/settlement-statements", response_model=List[SettlementStatementResponse])
+async def get_settlement_statements(
+    account_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取账户的结算单列表"""
+    # 验证账户权限
+    account = db_manager.get_account(account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此账户")
+    
+    statements = db_manager.get_settlement_statements(account_id)
+    return statements
+
+@app.get("/api/settlement-statements/{statement_id}", response_model=SettlementStatementResponse)
+async def get_settlement_statement(
+    statement_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取特定结算单"""
+    statement = db_manager.get_settlement_statement(statement_id)
+    if not statement:
+        raise HTTPException(status_code=404, detail="结算单不存在")
+    
+    # 验证账户权限
+    account = db_manager.get_account(statement.account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此结算单")
+    
+    return statement
+
+@app.get("/api/settlement-statements/{statement_id}/detail", response_model=SettlementStatementDetail)
+async def get_settlement_statement_detail(
+    statement_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取结算单详情（包含交易明细）"""
+    statement = db_manager.get_settlement_statement(statement_id)
+    if not statement:
+        raise HTTPException(status_code=404, detail="结算单不存在")
+    
+    # 验证账户权限
+    account = db_manager.get_account(statement.account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此结算单")
+    
+    detail = db_manager.get_settlement_statement_detail(statement_id)
+    return detail
+
+@app.get("/api/settlement-statements/{statement_id}/closed-trades", response_model=List[ClosedTradeDetail])
+async def get_settlement_closed_trades(
+    statement_id: int,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取结算单的已平仓交易明细"""
+    statement = db_manager.get_settlement_statement(statement_id)
+    if not statement:
+        raise HTTPException(status_code=404, detail="结算单不存在")
+    
+    # 验证账户权限
+    account = db_manager.get_account(statement.account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此结算单")
+    
+    closed_trades = db_manager.get_closed_trades_for_settlement(
+        statement.account_id,
+        statement.period_start,
+        statement.period_end
+    )
+    return closed_trades
 
 @app.post("/api/trades")
 async def execute_trade(trade_request: TradeRequest, account_id: int, current_user: User = Depends(get_current_active_user)):

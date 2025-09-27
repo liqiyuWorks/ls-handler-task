@@ -100,14 +100,28 @@
     <div class="login-container">
         <div class="login-card">
             <div class="login-header">
-                <h1><i class="fas fa-ship"></i> FFA交易系统</h1>
-                <p>用户登录</p>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h1><i class="fas fa-ship"></i> <span data-translate="title">FFA交易系统</span></h1>
+                        <p data-translate="user_login">用户登录</p>
+                    </div>
+                    <div class="language-switcher">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="switchLanguage('zh')" id="lang-zh">
+                                <i class="fas fa-flag"></i> 中文
+                            </button>
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="switchLanguage('en')" id="lang-en">
+                                <i class="fas fa-flag"></i> English
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- 登录表单 -->
             <form id="loginForm">
                 <div class="mb-3">
-                    <label for="username" class="form-label">用户名</label>
+                    <label for="username" class="form-label" data-translate="username">用户名</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-user"></i></span>
                         <input type="text" class="form-control" id="username" name="username" required>
@@ -115,7 +129,7 @@
                 </div>
                 
                 <div class="mb-3">
-                    <label for="password" class="form-label">密码</label>
+                    <label for="password" class="form-label" data-translate="password">密码</label>
                     <div class="input-group">
                         <span class="input-group-text"><i class="fas fa-lock"></i></span>
                         <input type="password" class="form-control" id="password" name="password" required>
@@ -209,9 +223,76 @@
         // 全局变量
         let currentUser = null;
         let authToken = null;
+        let currentLanguage = localStorage.getItem('language') || 'zh';
+        
+        // 语言翻译数据
+        const translations = {
+            zh: {
+                title: 'FFA交易系统',
+                user_login: '用户登录',
+                user_register: '用户注册',
+                username: '用户名',
+                email: '邮箱',
+                password: '密码',
+                login: '登录',
+                register: '注册',
+                no_account: '还没有账户？立即注册',
+                have_account: '已有账户？立即登录',
+                login_success: '登录成功！',
+                register_success: '注册成功！',
+                login_failed: '登录失败',
+                register_failed: '注册失败',
+                please_wait: '请稍候...'
+            },
+            en: {
+                title: 'FFA Trading System',
+                user_login: 'User Login',
+                user_register: 'User Registration',
+                username: 'Username',
+                email: 'Email',
+                password: 'Password',
+                login: 'Login',
+                register: 'Register',
+                no_account: 'No account? Register now',
+                have_account: 'Have an account? Login now',
+                login_success: 'Login successful!',
+                register_success: 'Registration successful!',
+                login_failed: 'Login failed',
+                register_failed: 'Registration failed',
+                please_wait: 'Please wait...'
+            }
+        };
+        
+        // 语言切换函数
+        function switchLanguage(lang) {
+            currentLanguage = lang;
+            localStorage.setItem('language', lang);
+            updateLanguageButtons();
+            translatePage();
+        }
+        
+        // 更新语言按钮状态
+        function updateLanguageButtons() {
+            document.getElementById('lang-zh').classList.toggle('active', currentLanguage === 'zh');
+            document.getElementById('lang-en').classList.toggle('active', currentLanguage === 'en');
+        }
+        
+        // 翻译页面
+        function translatePage() {
+            const elements = document.querySelectorAll('[data-translate]');
+            elements.forEach(element => {
+                const key = element.getAttribute('data-translate');
+                if (translations[currentLanguage] && translations[currentLanguage][key]) {
+                    element.textContent = translations[currentLanguage][key];
+                }
+            });
+        }
         
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
+            updateLanguageButtons();
+            translatePage();
+            
             // 检查是否有保存的token
             authToken = localStorage.getItem('authToken');
             if (authToken) {
