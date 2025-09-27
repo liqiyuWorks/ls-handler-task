@@ -334,7 +334,7 @@ async def get_floating_pnl_data(
     floating_pnl_data = db_manager.get_floating_pnl_data(account_id, days)
     return floating_pnl_data
 
-@app.get("/api/cumulative-pnl-data", response_model=List[CumulativePnLPoint])
+@app.get("/api/cumulative-pnl-data")
 async def get_cumulative_pnl_data(
     account_id: int,
     days: int = 30,

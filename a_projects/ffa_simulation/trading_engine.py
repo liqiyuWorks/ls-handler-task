@@ -72,7 +72,7 @@ class TradingEngine:
         return new_position, position_change
     
     def validate_trade(self, account_id: int, strategy: str, volume: int, 
-                      contract_type: str, contract_month: str) -> Tuple[bool, str]:
+                      contract_type: str, contract_month: str, action: str = None, buy_sell: str = None) -> Tuple[bool, str]:
         """验证交易是否有效"""
         # 检查合约类型
         if contract_type not in CONTRACT_CONFIG:
@@ -94,18 +94,19 @@ class TradingEngine:
         current_volume = current_position.position_volume if current_position else 0
         
         # 检查平仓操作
-        if action == "平仓" and buy_sell == "多头" and current_volume <= 0:
-            return False, "没有多头持仓可平"
-        
-        if action == "平仓" and buy_sell == "空头" and current_volume >= 0:
-            return False, "没有空头持仓可平"
-        
-        # 检查平仓数量
-        if action == "平仓" and buy_sell == "多头" and volume > current_volume:
-            return False, f"平仓数量({volume})不能超过持仓数量({current_volume})"
-        
-        if action == "平仓" and buy_sell == "空头" and volume > abs(current_volume):
-            return False, f"平仓数量({volume})不能超过持仓数量({abs(current_volume)})"
+        if action and buy_sell:
+            if action == "平仓" and buy_sell == "多头" and current_volume <= 0:
+                return False, "没有多头持仓可平"
+            
+            if action == "平仓" and buy_sell == "空头" and current_volume >= 0:
+                return False, "没有空头持仓可平"
+            
+            # 检查平仓数量
+            if action == "平仓" and buy_sell == "多头" and volume > current_volume:
+                return False, f"平仓数量({volume})不能超过持仓数量({current_volume})"
+            
+            if action == "平仓" and buy_sell == "空头" and volume > abs(current_volume):
+                return False, f"平仓数量({volume})不能超过持仓数量({abs(current_volume)})"
         
         return True, "验证通过"
     
@@ -135,7 +136,7 @@ class TradingEngine:
             
             # 验证交易
             is_valid, message = self.validate_trade(
-                account_id, strategy, volume, contract_type, contract_month
+                account_id, strategy, volume, contract_type, contract_month, action, buy_sell
             )
             
             if not is_valid:
@@ -216,9 +217,11 @@ class TradingEngine:
                     weighted_avg_price = price
                 
                 # 计算当前浮动盈亏（使用当前价格作为结算价）
+                # 对于期权，premium是单价，需要乘以手数得到总权利金
+                total_premium = premium * abs(new_position_volume) if premium and strategy in ["Call", "Put"] else premium
                 current_pnl = PnLCalculator.calculate_position_pnl(
                     strategy, buy_sell, weighted_avg_price, price, abs(new_position_volume),
-                    strike_price, premium
+                    strike_price, total_premium
                 )
                 
                 position_data = {
@@ -250,13 +253,19 @@ class TradingEngine:
                 if current_position:
                     # 计算平仓盈亏
                     if action == "平仓":
-                        # 计算盈亏
-                        if current_position.buy_sell == "多头":
-                            # 多头平仓：平仓价格 - 开仓价格
-                            trade_pnl = (price - current_position.average_price) * volume
-                        else:
-                            # 空头平仓：开仓价格 - 平仓价格
-                            trade_pnl = (current_position.average_price - price) * volume
+                        # 使用PnLCalculator计算盈亏
+                        # 对于期权，premium是单价，需要乘以手数得到总权利金
+                        position_strategy = current_position.strategy or "Future"
+                        total_premium = current_position.premium * volume if current_position.premium and position_strategy in ["Call", "Put"] else current_position.premium
+                        trade_pnl = PnLCalculator.calculate_position_pnl(
+                            position_strategy,
+                            current_position.buy_sell or "多头",
+                            current_position.average_price,
+                            price,
+                            volume,
+                            current_position.strike_price,
+                            total_premium
+                        )
                         
                         # 更新交易记录的盈亏
                         trade.trade_pnl = trade_pnl
@@ -286,14 +295,18 @@ class TradingEngine:
         volume = position.open_interest if position.open_interest > 0 else abs(position.position_volume)
         opening_price = position.future_price if position.future_price > 0 else position.average_price
         
+        # 对于期权，premium是单价，需要乘以手数得到总权利金
+        position_strategy = position.strategy or "Future"
+        total_premium = position.premium * volume if position.premium and position_strategy in ["Call", "Put"] else position.premium
+        
         return PnLCalculator.calculate_position_pnl(
-            position.strategy or "Future",
+            position_strategy,
             position.buy_sell or "多头",
             opening_price,
             current_price,
             volume,
             position.strike_price,
-            position.premium
+            total_premium
         )
     
     def get_account_summary(self, account_id: int, current_prices: Dict = None) -> Dict:
