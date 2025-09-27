@@ -15,7 +15,7 @@ import uvicorn
 import os
 
 from database import get_db, create_tables, DatabaseManager
-from models import AccountCreate, TradeRequest, AccountResponse, TradeResponse, PositionResponse, AccountSummary, UserCreate, UserLogin, UserResponse, Token, User, SettlementStatementRequest, SettlementStatementResponse, SettlementStatementDetail, ClosedTradeDetail
+from models import AccountCreate, TradeRequest, AccountResponse, TradeResponse, PositionResponse, AccountSummary, UserCreate, UserLogin, UserResponse, Token, User, SettlementStatementRequest, SettlementStatementResponse, SettlementStatementDetail, ClosedTradeDetail, PnLChartData, FloatingPnLPoint, CumulativePnLPoint
 from trading_engine import TradingEngine
 from auth import authenticate_user, create_access_token, get_current_active_user_dependency, ACCESS_TOKEN_EXPIRE_MINUTES
 from config import CONTRACT_CONFIG, STRATEGY_CONFIG, MONTH_CONFIG
@@ -303,6 +303,51 @@ async def get_settlement_closed_trades(
         statement.period_end
     )
     return closed_trades
+
+@app.get("/api/pnl-chart-data", response_model=PnLChartData)
+async def get_pnl_chart_data(
+    account_id: int,
+    days: int = 30,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取盈亏曲线图表数据"""
+    # 验证账户权限
+    account = db_manager.get_account(account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此账户")
+    
+    chart_data = db_manager.get_pnl_chart_data(account_id, days)
+    return chart_data
+
+@app.get("/api/floating-pnl-data", response_model=List[FloatingPnLPoint])
+async def get_floating_pnl_data(
+    account_id: int,
+    days: int = 30,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取浮动盈亏曲线数据"""
+    # 验证账户权限
+    account = db_manager.get_account(account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此账户")
+    
+    floating_pnl_data = db_manager.get_floating_pnl_data(account_id, days)
+    return floating_pnl_data
+
+@app.get("/api/cumulative-pnl-data", response_model=List[CumulativePnLPoint])
+async def get_cumulative_pnl_data(
+    account_id: int,
+    days: int = 30,
+    current_user: User = Depends(get_current_active_user)
+):
+    """获取累计实际盈亏曲线数据"""
+    # 验证账户权限
+    account = db_manager.get_account(account_id)
+    if not account or account.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="无权访问此账户")
+    
+    cumulative_pnl_data = db_manager.get_cumulative_pnl_data(account_id, days)
+    return cumulative_pnl_data
 
 @app.post("/api/trades")
 async def execute_trade(trade_request: TradeRequest, account_id: int, current_user: User = Depends(get_current_active_user)):
