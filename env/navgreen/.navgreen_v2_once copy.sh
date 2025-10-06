@@ -12,9 +12,9 @@ export CACHE_REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 export REDIS_HOST=153.35.96.86
 export REDIS_PORT=6379
 export REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
-
-export IS_CONSUMER=1
-export TASK_TYPE=calculate_vessel_performance
-export RUN_ONCE=0
-
-export SELECTED_DIRECTORY=tf_arm
+export SELECTED_DIRECTORY=navgreen,report_pdf
+# export TASK_TYPE=calculate_vessel_performance
+export WMY_URL=http://153.35.96.86
+export IS_CONSUMER=0
+export RUN_ONCE=1
+export IS_OPEN_RDS=0
