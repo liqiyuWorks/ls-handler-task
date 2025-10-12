@@ -29,7 +29,7 @@ CONFIG = {
     # API配置
     "WINDY_API_BASE": "https://node.windy.com/tc/v2",
     "ZOOM_API_BASE": "https://zoom.earth/data/storms",
-    "NAVGREEN_API": "https://api.navgreen.cn/api/mete/forecast/storms/v1",
+    "NAVGREEN_API": "https://miniapi.navgreen.cn/api/mete/forecast/storms/v1",
     
     # 缓存配置
     "STORM_CACHE_KEY": "windy_current_storms",
