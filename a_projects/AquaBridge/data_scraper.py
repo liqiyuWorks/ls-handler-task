@@ -1,6 +1,6 @@
 """
 数据抓取器 - 重构版本
-支持配置化的多页面数据获取
+支持配置化的多页面数据获取，支持多浏览器环境
 """
 from playwright.sync_api import Playwright, sync_playwright, FrameLocator
 import json
@@ -9,56 +9,95 @@ import sys
 import time
 from typing import List, Optional, Dict
 from page_config import PageConfig, get_page_config, get_page_info
+from browser_config import (
+    BrowserConfig, BrowserType, get_browser_config,
+    list_available_browsers
+)
 
 
 class DataScraper:
-    """数据抓取器类"""
+    """数据抓取器类
     
-    def __init__(self, headless: bool = True):
-        self.headless = headless
+    支持多种浏览器：Chromium（生产环境）、Firefox（测试环境）、WebKit（可选）
+    """
+    
+    def __init__(
+        self,
+        headless: bool = True,
+        environment: str = None,
+        browser_type: str = None
+    ):
+        """初始化数据抓取器
+        
+        Args:
+            headless: 是否无头模式
+            environment: 环境名称 ("production", "testing", "development")
+            browser_type: 浏览器类型 ("chromium", "firefox", "webkit")
+                         如果指定，会覆盖环境配置
+        """
+        self.browser_config = get_browser_config(
+            environment=environment,
+            browser_type=browser_type,
+            headless=headless
+        )
         self.browser = None
         self.context = None
         self.page = None
         self.report_frame = None
         
     def create_browser(self, playwright: Playwright):
-        """创建浏览器实例"""
-        args = [
-            '--no-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor,TranslateUI',
-            '--disable-background-timer-throttling',
-            '--disable-renderer-backgrounding',
-            '--disable-extensions',
-            '--disable-sync',
-            '--disable-translate',
-            '--memory-pressure-off'
-        ]
+        """创建浏览器实例
         
-        self.browser = playwright.chromium.launch(headless=self.headless, args=args)
-        self.context = self.browser.new_context(
-            viewport={'width': 1280, 'height': 800},
-            ignore_https_errors=True
+        根据配置自动选择合适的浏览器（Chromium/Firefox/WebKit）
+        """
+        browser_type = self.browser_config.browser_type
+        
+        # 根据浏览器类型选择对应的启动器
+        if browser_type == BrowserType.CHROMIUM:
+            launcher = playwright.chromium
+        elif browser_type == BrowserType.FIREFOX:
+            launcher = playwright.firefox
+        elif browser_type == BrowserType.WEBKIT:
+            launcher = playwright.webkit
+        else:
+            raise ValueError(f"不支持的浏览器类型: {browser_type}")
+        
+        # 启动浏览器
+        self.browser = launcher.launch(
+            headless=self.browser_config.headless,
+            args=self.browser_config.args,
+            slow_mo=self.browser_config.slow_mo
         )
+        
+        # 创建浏览器上下文
+        self.context = self.browser.new_context(
+            viewport=self.browser_config.viewport,
+            ignore_https_errors=self.browser_config.ignore_https_errors
+        )
+        
+        print(f"✓ 浏览器已启动: {browser_type.value} (headless={self.browser_config.headless})")
         
     def try_click(self, frame: FrameLocator, selectors: List[str], operation: str = "click", 
                   text: str = None, timeout: int = 3000) -> bool:
-        """尝试多个选择器直到成功"""
+        """尝试多个选择器直到成功
+        
+        Args:
+            frame: iframe 定位器
+            selectors: 选择器列表
+            operation: 操作类型 ("click" 或 "fill")
+            text: 当 operation="fill" 时作为填充内容；当 operation="click" 时被忽略
+            timeout: 超时时间
+        """
         if isinstance(selectors, str):
             selectors = [selectors]
         
         for selector in selectors:
             try:
-                if text:
-                    # 文本匹配
-                    element = frame.locator(f"text='{text}'").first
-                else:
-                    element = frame.locator(selector).first
-                    
+                # 使用选择器定位元素
+                element = frame.locator(selector).first
                 element.wait_for(state="visible", timeout=timeout)
                 
+                # 根据操作类型执行不同动作
                 if operation == "fill" and text:
                     element.fill(text)
                 else:
@@ -149,10 +188,10 @@ class DataScraper:
             # 对于其他页面，使用配置化的导航
             for step in page_config.navigation_path:
                 print(f"  {step.description}")
+                # 直接使用选择器（选择器中已包含 text='...' 格式）
                 success = self.try_click(
                     self.report_frame, 
-                    step.selectors, 
-                    text=step.text
+                    step.selectors
                 )
                 
                 if not success:
@@ -244,8 +283,10 @@ class DataScraper:
             
             # 3. 等待登录完成
             print("3. 等待登录...")
-            # 直接使用原始脚本的逻辑，不等待特定元素
-            time.sleep(2)  # 给登录一些时间
+            # 等待导航图标出现，确认登录成功
+            self.report_frame.locator(".bi-f-c > .bi-icon-change-button").first.wait_for(
+                state="visible", timeout=10000
+            )
             
             # 4. 导航到目标页面
             if not self.navigate_to_page(page_config):
@@ -279,7 +320,7 @@ class DataScraper:
             return None
     
     def save_data(self, data: List[Dict], page_key: str, browser_name: str = "chromium") -> bool:
-        """保存提取的数据"""
+        """保存提取的数据到 output 文件夹"""
         if not data:
             print("✗ 无数据可保存")
             return False
@@ -290,8 +331,12 @@ class DataScraper:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         total_rows = sum(t.get("extracted_rows", 0) for t in data)
         
-        # 保存JSON文件
-        json_filename = f"{page_key}_data_{timestamp}.json"
+        # 确保 output 文件夹存在
+        import os
+        os.makedirs("output", exist_ok=True)
+        
+        # 保存JSON文件到 output 文件夹
+        json_filename = f"output/{page_key}_data_{timestamp}.json"
         with open(json_filename, "w", encoding="utf-8") as f:
             json.dump({
                 "timestamp": timestamp,
@@ -305,8 +350,8 @@ class DataScraper:
                 "tables": data
             }, f, ensure_ascii=False, indent=2)
         
-        # 保存TXT文件
-        txt_filename = f"{page_key}_data_{timestamp}.txt"
+        # 保存TXT文件到 output 文件夹
+        txt_filename = f"output/{page_key}_data_{timestamp}.txt"
         with open(txt_filename, "w", encoding="utf-8") as f:
             for table in data:
                 rows = table.get("rows", [])
@@ -314,7 +359,7 @@ class DataScraper:
                     f.write("\t".join(row) + "\n")
                 f.write("\n")  # 表格之间空行
         
-        print(f"\n✓ 数据已保存:")
+        print(f"\n✓ 数据已保存到 output 文件夹:")
         print(f"  - JSON: {json_filename}")
         print(f"  - TXT:  {txt_filename}")
         print(f"✓ {len(data)} 个表格, {total_rows} 行数据")
@@ -337,20 +382,93 @@ class DataScraper:
 
 
 def main():
-    """主函数"""
-    print("=== AquaBridge 数据抓取器 ===")
-    print("可用页面:")
+    """主函数
     
+    命令行参数:
+        python data_scraper.py [page_key] [--browser TYPE] [--env ENV] [--headless/--no-headless]
+    
+    示例:
+        # 使用默认配置（生产环境 Chromium）
+        python data_scraper.py
+        
+        # 指定页面
+        python data_scraper.py ffa_price_signals
+        
+        # 使用 Firefox 测试
+        python data_scraper.py --browser firefox
+        
+        # 使用测试环境配置
+        python data_scraper.py --env testing
+        
+        # 显示浏览器窗口
+        python data_scraper.py --no-headless
+    """
+    import argparse
+    
+    # 解析命令行参数
+    parser = argparse.ArgumentParser(
+        description="AquaBridge 数据抓取器 - 支持多浏览器环境",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    
+    parser.add_argument(
+        "page_key",
+        nargs="?",
+        default="p4tc_spot_decision",
+        help="页面键 (默认: p4tc_spot_decision)"
+    )
+    
+    parser.add_argument(
+        "--browser", "-b",
+        choices=list_available_browsers(),
+        help="浏览器类型 (chromium/firefox/webkit)"
+    )
+    
+    parser.add_argument(
+        "--env", "-e",
+        choices=["production", "testing", "development"],
+        help="环境类型 (production: Chromium, testing: Firefox)"
+    )
+    
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        default=None,
+        help="无头模式"
+    )
+    
+    parser.add_argument(
+        "--no-headless",
+        action="store_true",
+        help="显示浏览器窗口"
+    )
+    
+    args = parser.parse_args()
+    
+    # 处理 headless 参数
+    headless = True  # 默认无头模式
+    if args.no_headless:
+        headless = False
+    elif args.headless:
+        headless = True
+    
+    # 显示标题和配置
+    print("=== AquaBridge 数据抓取器 ===")
+    
+    # 显示浏览器配置信息
+    if args.env:
+        print(f"环境: {args.env}")
+    if args.browser:
+        print(f"浏览器: {args.browser}")
+    print(f"显示模式: {'窗口' if not headless else '无头'}")
+    print()
+    
+    print("可用页面:")
     page_info = get_page_info()
     for key, info in page_info.items():
         print(f"  {key}: {info['name']} - {info['description']}")
     
-    # 默认抓取P4TC现货应用决策
-    page_key = "p4tc_spot_decision"
-    
-    # 可以通过命令行参数指定页面
-    if len(sys.argv) > 1:
-        page_key = sys.argv[1]
+    page_key = args.page_key
     
     if page_key not in page_info:
         print(f"\n✗ 无效的页面键: {page_key}")
@@ -359,7 +477,12 @@ def main():
     
     try:
         with sync_playwright() as playwright:
-            scraper = DataScraper(headless=True)
+            # 创建抓取器，使用新的浏览器配置系统
+            scraper = DataScraper(
+                headless=headless,
+                environment=args.env,
+                browser_type=args.browser
+            )
             scraper.create_browser(playwright)
             scraper.page = scraper.context.new_page()
             scraper.page.set_default_timeout(12000)
@@ -386,6 +509,8 @@ def main():
         sys.exit(0)
     except Exception as e:
         print(f"\n启动失败: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
