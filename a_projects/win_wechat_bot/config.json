@@ -1,0 +1,24 @@
+{
+  "monitor_groups": ["win_wechat_bot_test"],
+  "save_messages": true,
+  "output_dir": "messages",
+  "log_level": "INFO",
+  "check_interval": 60,
+  "max_messages_per_file": 1000,
+  "message_filters": {
+    "keywords": ["S11TC"],
+    "exclude_keywords": [
+      "撤回了一条消息",
+      "拍了拍",
+      "加入了群聊",
+      "退出了群聊",
+      "修改群名为",
+      "邀请",
+      "开启了朋友验证"
+    ],
+    "sender_whitelist": [],
+    "sender_blacklist": []
+  },
+  "auto_save": true,
+  "export_format": "json"
+}

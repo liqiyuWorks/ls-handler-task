@@ -99,3 +99,4 @@ a_projects/fuel_predict/data/*.csv
 
 # FFA Simulation database files
 a_projects/ffa_simulation/*.db
+a_projects/win_wechat_bot/messages/*.json
