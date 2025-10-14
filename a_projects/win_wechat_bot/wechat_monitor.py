@@ -57,6 +57,10 @@ class WeChatGroupMonitor:
         self.mongodb_storage = None
         self._init_mongodb_storage()
         
+        # 消息去重和增量获取相关
+        self.last_message_timestamps = {}  # 记录每个群聊最后获取的消息时间戳
+        self.processed_message_hashes = set()  # 记录已处理的消息哈希，避免重复
+        
     def _load_config(self, config_file: str) -> Dict[str, Any]:
         """加载配置文件"""
         default_config = {
@@ -269,16 +273,16 @@ class WeChatGroupMonitor:
             self.logger.error(f"获取群聊列表失败: {e}")
             return []
     
-    def get_group_messages(self, group_name: str, limit: int = 20) -> List[GroupMessage]:
+    def get_group_messages(self, group_name: str, limit: int = 3) -> List[GroupMessage]:
         """
-        获取指定群聊的消息
+        获取指定群聊的新消息（增量获取，避免重复）
         
         Args:
             group_name: 群聊名称
-            limit: 获取消息数量限制
+            limit: 获取含关键词消息的最大数量限制（默认3条）
             
         Returns:
-            List[GroupMessage]: 消息列表
+            List[GroupMessage]: 新消息列表
         """
         if not self.wx:
             self.logger.error("微信客户端未连接")
@@ -295,7 +299,7 @@ class WeChatGroupMonitor:
             # 方法1: 尝试 GetAllMessage
             try:
                 messages = self.wx.GetAllMessage()
-                self.logger.info(f"GetAllMessage() 获取到 {len(messages) if messages else 0} 条消息")
+                self.logger.debug(f"GetAllMessage() 获取到 {len(messages) if messages else 0} 条消息")
             except Exception as e:
                 self.logger.debug(f"GetAllMessage() 失败: {e}")
             
@@ -305,7 +309,7 @@ class WeChatGroupMonitor:
                     new_msg_data = self.wx.GetNextNewMessage()
                     if new_msg_data and 'msg' in new_msg_data:
                         messages = new_msg_data['msg']
-                        self.logger.info(f"GetNextNewMessage() 获取到 {len(messages)} 条消息")
+                        self.logger.debug(f"GetNextNewMessage() 获取到 {len(messages)} 条消息")
                 except Exception as e:
                     self.logger.debug(f"GetNextNewMessage() 失败: {e}")
             
@@ -315,59 +319,89 @@ class WeChatGroupMonitor:
                     more_messages = self.wx.LoadMoreMessage()
                     if more_messages and hasattr(more_messages, 'data'):
                         messages = more_messages.data
-                        self.logger.info(f"LoadMoreMessage() 获取到 {len(messages)} 条消息")
+                        self.logger.debug(f"LoadMoreMessage() 获取到 {len(messages)} 条消息")
                 except Exception as e:
                     self.logger.debug(f"LoadMoreMessage() 失败: {e}")
             
-            group_messages = []
-            if messages:
-                self.logger.info(f"获取到 {len(messages)} 条原始消息")
-                
-                # 处理消息对象
-                for i, msg in enumerate(messages[-limit:]):
-                    try:
-                        # 尝试不同的属性访问方式
-                        content = ""
-                        sender = ""
-                        msg_type = "text"
-                        
-                        # 检查消息对象的属性
-                        if hasattr(msg, 'content'):
-                            content = str(getattr(msg, 'content', ''))
-                        elif hasattr(msg, 'text'):
-                            content = str(getattr(msg, 'text', ''))
-                        elif hasattr(msg, 'msg'):
-                            content = str(getattr(msg, 'msg', ''))
-                        
-                        if hasattr(msg, 'sender'):
-                            sender = str(getattr(msg, 'sender', ''))
-                        elif hasattr(msg, 'from_user'):
-                            sender = str(getattr(msg, 'from_user', ''))
-                        elif hasattr(msg, 'user'):
-                            sender = str(getattr(msg, 'user', ''))
-                        
-                        if hasattr(msg, 'type'):
-                            msg_type = str(getattr(msg, 'type', 'text'))
-                        
-                        # 过滤空消息和系统消息
-                        if content and content.strip() and not self._is_system_message(content):
-                            if self._should_include_message(content, sender):
-                                group_message = GroupMessage(
-                                    timestamp=datetime.now().isoformat(),
-                                    sender=sender or "未知用户",
-                                    content=content,
-                                    group_name=group_name,
-                                    message_type=msg_type,
-                                    raw_data=str(msg)
-                                )
-                                group_messages.append(group_message)
-                    
-                    except Exception as msg_error:
-                        self.logger.debug(f"处理第 {i} 条消息时出错: {msg_error}")
-                        continue
+            if not messages:
+                self.logger.debug(f"群聊 '{group_name}' 中没有获取到任何消息")
+                return []
             
-            self.logger.info(f"从群 '{group_name}' 成功处理 {len(group_messages)} 条消息")
-            return group_messages
+            self.logger.debug(f"获取到 {len(messages)} 条原始消息")
+            
+            # 处理消息对象，只获取含关键词的新消息
+            new_messages = []
+            keyword_messages_count = 0
+            
+            # 从最新消息开始处理（倒序）
+            for msg in reversed(messages):
+                if keyword_messages_count >= limit:
+                    break
+                    
+                try:
+                    # 尝试不同的属性访问方式
+                    content = ""
+                    sender = ""
+                    msg_type = "text"
+                    
+                    # 检查消息对象的属性
+                    if hasattr(msg, 'content'):
+                        content = str(getattr(msg, 'content', ''))
+                    elif hasattr(msg, 'text'):
+                        content = str(getattr(msg, 'text', ''))
+                    elif hasattr(msg, 'msg'):
+                        content = str(getattr(msg, 'msg', ''))
+                    
+                    if hasattr(msg, 'sender'):
+                        sender = str(getattr(msg, 'sender', ''))
+                    elif hasattr(msg, 'from_user'):
+                        sender = str(getattr(msg, 'from_user', ''))
+                    elif hasattr(msg, 'user'):
+                        sender = str(getattr(msg, 'user', ''))
+                    
+                    if hasattr(msg, 'type'):
+                        msg_type = str(getattr(msg, 'type', 'text'))
+                    
+                    # 过滤空消息和系统消息
+                    if not content or not content.strip() or self._is_system_message(content):
+                        continue
+                    
+                    # 检查是否包含关键词
+                    if not self._should_include_message(content, sender):
+                        continue
+                    
+                    # 生成消息哈希，检查是否已处理过
+                    message_hash = self._generate_message_hash(content, sender, group_name)
+                    if self._is_message_processed(message_hash):
+                        self.logger.debug(f"消息已处理过，跳过: {content[:30]}...")
+                        continue
+                    
+                    # 创建消息对象
+                    group_message = GroupMessage(
+                        timestamp=datetime.now().isoformat(),
+                        sender=sender or "未知用户",
+                        content=content,
+                        group_name=group_name,
+                        message_type=msg_type,
+                        raw_data=str(msg)
+                    )
+                    
+                    new_messages.append(group_message)
+                    self._mark_message_processed(message_hash)
+                    keyword_messages_count += 1
+                    
+                    self.logger.info(f"发现新消息: [{sender}] {content[:50]}...")
+                
+                except Exception as msg_error:
+                    self.logger.debug(f"处理消息时出错: {msg_error}")
+                    continue
+            
+            # 更新最后获取时间戳
+            if new_messages:
+                self.last_message_timestamps[group_name] = datetime.now().isoformat()
+            
+            self.logger.info(f"从群 '{group_name}' 获取到 {len(new_messages)} 条新消息（含关键词）")
+            return new_messages
             
         except Exception as e:
             self.logger.error(f"获取群 '{group_name}' 消息失败: {e}")
@@ -411,6 +445,39 @@ class WeChatGroupMonitor:
                 return False
         
         return True
+    
+    def _generate_message_hash(self, content: str, sender: str, group_name: str) -> str:
+        """生成消息的唯一哈希值，用于去重"""
+        import hashlib
+        hash_string = f"{group_name}|{sender}|{content}"
+        return hashlib.md5(hash_string.encode('utf-8')).hexdigest()
+    
+    def _is_message_processed(self, message_hash: str) -> bool:
+        """检查消息是否已经处理过"""
+        return message_hash in self.processed_message_hashes
+    
+    def _mark_message_processed(self, message_hash: str):
+        """标记消息为已处理"""
+        self.processed_message_hashes.add(message_hash)
+        
+        # 限制已处理消息哈希集合的大小，避免内存无限增长
+        if len(self.processed_message_hashes) > 10000:
+            # 保留最近的一半
+            self.processed_message_hashes = set(list(self.processed_message_hashes)[-5000:])
+    
+    def reset_message_tracking(self):
+        """重置消息跟踪状态，清空已处理消息记录"""
+        self.processed_message_hashes.clear()
+        self.last_message_timestamps.clear()
+        self.logger.info("消息跟踪状态已重置")
+    
+    def get_tracking_stats(self) -> Dict[str, Any]:
+        """获取消息跟踪统计信息"""
+        return {
+            "processed_messages_count": len(self.processed_message_hashes),
+            "tracked_groups": list(self.last_message_timestamps.keys()),
+            "last_timestamps": self.last_message_timestamps.copy()
+        }
     
     def save_messages(self, messages: List[GroupMessage], group_name: str = None):
         """保存消息到文件和/或数据库"""
@@ -534,18 +601,30 @@ class WeChatGroupMonitor:
         
         try:
             while True:
+                total_new_messages = 0
+                
                 for group_name in self.monitored_groups:
                     try:
-                        messages = self.get_group_messages(group_name, limit=10)
+                        # 获取最多3条含关键词的新消息
+                        messages = self.get_group_messages(group_name, limit=3)
                         if messages:
                             self.save_messages(messages, group_name)
+                            total_new_messages += len(messages)
                             
                             # 打印新消息
                             for msg in messages:
                                 print(f"[{group_name}] {msg.sender}: {msg.content}")
+                        else:
+                            self.logger.debug(f"群聊 '{group_name}' 没有新消息")
                     
                     except Exception as e:
                         self.logger.error(f"监控群 '{group_name}' 时出错: {e}")
+                
+                # 显示本轮监控结果
+                if total_new_messages > 0:
+                    self.logger.info(f"本轮监控获取到 {total_new_messages} 条新消息")
+                else:
+                    self.logger.debug("本轮监控没有新消息")
                 
                 # 等待下次检查
                 time.sleep(self.config.get('check_interval', 5))

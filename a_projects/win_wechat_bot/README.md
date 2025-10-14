@@ -45,22 +45,23 @@ python config_manager.py
 
 专门用于管理配置文件，包括群聊列表、过滤条件等。
 
-### 2. 运行快速开始脚本
+### 2. 运行演示脚本
 
 ```bash
-python quick_start.py
+python demo.py
 ```
 
-### 3. 查看使用示例
+### 3. 启动监控
 
 ```bash
-python example.py
+python start_monitor.py
 ```
 
-### 4. 测试 MongoDB 集成
+### 4. 测试功能
 
 ```bash
-python test_mongodb.py
+python demo.py filter    # 测试消息过滤
+python demo.py stats     # 显示跟踪统计
 ```
 
 ### 5. 基本使用
@@ -222,11 +223,10 @@ win_wechat_bot/
 ├── mongodb_storage.py        # MongoDB 存储模块
 ├── group_manager.py          # 群聊管理工具
 ├── config_manager.py         # 配置管理工具
-├── test_mongodb.py          # MongoDB 测试脚本
+├── demo.py                   # 演示脚本
+├── start_monitor.py          # 监控启动脚本
 ├── config.json               # 配置文件
 ├── requirements.txt          # 依赖包列表
-├── quick_start.py           # 快速开始脚本
-├── example.py               # 使用示例
 ├── README.md                # 说明文档
 └── messages/                # 消息保存目录（自动创建）
 ```

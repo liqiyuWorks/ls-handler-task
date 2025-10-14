@@ -3,7 +3,7 @@
   "save_messages": true,
   "output_dir": "messages",
   "log_level": "INFO",
-  "check_interval": 10,
+  "check_interval": 60,
   "max_messages_per_file": 1000,
   "message_filters": {
     "keywords": ["S11TC"],
