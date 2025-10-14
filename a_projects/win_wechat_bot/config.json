@@ -3,7 +3,7 @@
   "save_messages": true,
   "output_dir": "messages",
   "log_level": "INFO",
-  "check_interval": 60,
+  "check_interval": 10,
   "max_messages_per_file": 1000,
   "message_filters": {
     "keywords": ["S11TC"],
@@ -20,5 +20,14 @@
     "sender_blacklist": []
   },
   "auto_save": true,
-  "export_format": "json"
+  "export_format": "json",
+  "mongodb": {
+    "enabled": true,
+    "host": "153.35.96.86",
+    "port": 27017,
+    "database": "aquabridge",
+    "username": "aquabridge",
+    "password": "Aquabridge#2025",
+    "collection": "wechat_messages"
+  }
 }

@@ -13,6 +13,8 @@
 - ⚙️ **灵活配置**: 通过配置文件自定义监控行为
 - 🛠️ **群聊管理**: 动态添加/移除监控群聊
 - 🎯 **图形界面**: 提供交互式群聊管理工具
+- 🗄️ **MongoDB 存储**: 支持外部数据库存储和去重
+- 📊 **数据统计**: 提供消息统计和分析功能
 
 ## 安装依赖
 
@@ -23,6 +25,7 @@ pip install -r requirements.txt
 主要依赖：
 - `wxauto>=3.9.0` - 微信自动化库
 - `dataclasses-json>=0.6.0` - 数据类JSON支持
+- `pymongo>=4.0.0` - MongoDB 数据库连接
 
 ## 快速开始
 
@@ -54,7 +57,13 @@ python quick_start.py
 python example.py
 ```
 
-### 4. 基本使用
+### 4. 测试 MongoDB 集成
+
+```bash
+python test_mongodb.py
+```
+
+### 5. 基本使用
 
 ```python
 from wechat_monitor import WeChatGroupMonitor
@@ -102,7 +111,16 @@ if monitor.connect_wechat():
     "sender_blacklist": []                    // 发送者黑名单
   },
   "auto_save": true,                          // 自动保存
-  "export_format": "json"                     // 导出格式
+  "export_format": "json",                    // 导出格式
+  "mongodb": {                                // MongoDB 配置
+    "enabled": true,                          // 是否启用 MongoDB
+    "host": "153.35.96.86",                   // 数据库主机
+    "port": 27017,                            // 数据库端口
+    "database": "aquabridge",                 // 数据库名称
+    "username": "aquabridge",                 // 用户名
+    "password": "Aquabridge#2025",            // 密码
+    "collection": "wechat_messages"           // 集合名称
+  }
 }
 ```
 
@@ -162,6 +180,19 @@ monitor.export_messages_to_csv(messages, "output.csv")
 monitor.start_monitoring()
 ```
 
+### 6. MongoDB 数据库功能
+
+```python
+# 获取数据库统计信息
+stats = monitor.get_database_statistics()
+
+# 从数据库获取消息
+messages = monitor.get_messages_from_database(group_name="群聊名称", limit=100)
+
+# 搜索数据库中的消息
+results = monitor.search_messages("关键词", "群聊名称")
+```
+
 ## 使用注意事项
 
 ### 环境要求
@@ -188,8 +219,10 @@ monitor.start_monitoring()
 ```
 win_wechat_bot/
 ├── wechat_monitor.py         # 主要监控模块
+├── mongodb_storage.py        # MongoDB 存储模块
 ├── group_manager.py          # 群聊管理工具
 ├── config_manager.py         # 配置管理工具
+├── test_mongodb.py          # MongoDB 测试脚本
 ├── config.json               # 配置文件
 ├── requirements.txt          # 依赖包列表
 ├── quick_start.py           # 快速开始脚本
@@ -252,6 +285,22 @@ python wechat_monitor.py  # 使用优化后的版本
 ### Q: 如何添加新的过滤条件？
 
 A: 修改 `config.json` 中的 `message_filters` 部分，添加相应的关键词或发送者列表。
+
+### Q: MongoDB 连接失败怎么办？
+
+A: 请检查：
+1. MongoDB 服务器是否可访问
+2. 用户名和密码是否正确
+3. 网络连接是否正常
+4. 可以运行 `python test_mongodb.py` 测试连接
+
+### Q: 如何禁用 MongoDB 存储？
+
+A: 在 `config.json` 中设置 `"mongodb": {"enabled": false}` 或删除 MongoDB 配置部分。
+
+### Q: 消息去重是如何实现的？
+
+A: 系统使用消息内容的 MD5 哈希值作为唯一标识，相同内容的消息只会保存一次到数据库中。
 
 ## 开发说明
 

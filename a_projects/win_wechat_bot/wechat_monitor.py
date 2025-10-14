@@ -17,6 +17,12 @@ except ImportError:
     print("请先安装 wxauto 库: pip install wxauto")
     raise
 
+try:
+    from mongodb_storage import MongoDBStorage
+except ImportError:
+    print("MongoDB 存储模块未找到，将使用文件存储")
+    MongoDBStorage = None
+
 
 @dataclass
 class GroupMessage:
@@ -46,6 +52,10 @@ class WeChatGroupMonitor:
         # 从配置文件加载监控群聊列表
         self.monitored_groups = set(self.config.get('monitor_groups', []))
         self.logger.info(f"从配置文件加载了 {len(self.monitored_groups)} 个监控群聊")
+        
+        # 初始化 MongoDB 存储
+        self.mongodb_storage = None
+        self._init_mongodb_storage()
         
     def _load_config(self, config_file: str) -> Dict[str, Any]:
         """加载配置文件"""
@@ -88,6 +98,37 @@ class WeChatGroupMonitor:
             logger.addHandler(handler)
         
         return logger
+    
+    def _init_mongodb_storage(self):
+        """初始化 MongoDB 存储"""
+        if not MongoDBStorage:
+            self.logger.warning("MongoDB 存储模块不可用")
+            return
+        
+        mongodb_config = self.config.get('mongodb', {})
+        if not mongodb_config.get('enabled', False):
+            self.logger.info("MongoDB 存储已禁用")
+            return
+        
+        try:
+            self.mongodb_storage = MongoDBStorage(
+                host=mongodb_config.get('host', '153.35.96.86'),
+                port=mongodb_config.get('port', 27017),
+                database=mongodb_config.get('database', 'aquabridge'),
+                username=mongodb_config.get('username', 'aquabridge'),
+                password=mongodb_config.get('password', 'Aquabridge#2025'),
+                collection=mongodb_config.get('collection', 'wechat_messages')
+            )
+            
+            if self.mongodb_storage.collection is not None:
+                self.logger.info("MongoDB 存储初始化成功")
+            else:
+                self.logger.warning("MongoDB 存储初始化失败")
+                self.mongodb_storage = None
+                
+        except Exception as e:
+            self.logger.error(f"初始化 MongoDB 存储时出错: {e}")
+            self.mongodb_storage = None
     
     def add_monitor_group(self, group_name: str) -> bool:
         """
@@ -248,8 +289,35 @@ class WeChatGroupMonitor:
             self.wx.ChatWith(group_name)
             time.sleep(3)  # 等待页面加载
             
-            # 获取消息
-            messages = self.wx.GetAllMessage()
+            # 获取消息 - 使用多种方法
+            messages = []
+            
+            # 方法1: 尝试 GetAllMessage
+            try:
+                messages = self.wx.GetAllMessage()
+                self.logger.info(f"GetAllMessage() 获取到 {len(messages) if messages else 0} 条消息")
+            except Exception as e:
+                self.logger.debug(f"GetAllMessage() 失败: {e}")
+            
+            # 方法2: 如果 GetAllMessage 失败，尝试 GetNextNewMessage
+            if not messages:
+                try:
+                    new_msg_data = self.wx.GetNextNewMessage()
+                    if new_msg_data and 'msg' in new_msg_data:
+                        messages = new_msg_data['msg']
+                        self.logger.info(f"GetNextNewMessage() 获取到 {len(messages)} 条消息")
+                except Exception as e:
+                    self.logger.debug(f"GetNextNewMessage() 失败: {e}")
+            
+            # 方法3: 尝试 LoadMoreMessage
+            if not messages:
+                try:
+                    more_messages = self.wx.LoadMoreMessage()
+                    if more_messages and hasattr(more_messages, 'data'):
+                        messages = more_messages.data
+                        self.logger.info(f"LoadMoreMessage() 获取到 {len(messages)} 条消息")
+                except Exception as e:
+                    self.logger.debug(f"LoadMoreMessage() 失败: {e}")
             
             group_messages = []
             if messages:
@@ -345,36 +413,71 @@ class WeChatGroupMonitor:
         return True
     
     def save_messages(self, messages: List[GroupMessage], group_name: str = None):
-        """保存消息到文件"""
-        if not self.config['save_messages'] or not messages:
+        """保存消息到文件和/或数据库"""
+        if not messages:
             return
         
-        # 创建输出目录
-        output_dir = self.config['output_dir']
-        os.makedirs(output_dir, exist_ok=True)
+        # 保存到 MongoDB（如果启用）
+        if self.mongodb_storage:
+            try:
+                result = self.mongodb_storage.save_messages(messages)
+                self.logger.info(f"MongoDB 保存结果: 新增 {result['saved']} 条, 重复 {result['duplicates']} 条, 错误 {result['errors']} 条")
+            except Exception as e:
+                self.logger.error(f"保存到 MongoDB 失败: {e}")
         
-        # 生成文件名
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if group_name:
-            filename = f"{group_name}_{timestamp}.json"
-        else:
-            filename = f"messages_{timestamp}.json"
-        
-        filepath = os.path.join(output_dir, filename)
-        
+        # 保存到文件（如果启用）
+        if self.config.get('save_messages', True):
+            self._save_messages_to_file(messages, group_name)
+    
+    def _save_messages_to_file(self, messages: List[GroupMessage], group_name: str = None):
+        """保存消息到文件"""
         try:
+            # 创建输出目录
+            output_dir = self.config.get('output_dir', 'messages')
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            if group_name:
+                filename = f"{group_name}_{timestamp}.json"
+            else:
+                filename = f"messages_{timestamp}.json"
+            
+            filepath = os.path.join(output_dir, filename)
+            
             # 转换为字典格式
             messages_data = [asdict(msg) for msg in messages]
             
             with open(filepath, 'w', encoding='utf-8') as f:
                 json.dump(messages_data, f, ensure_ascii=False, indent=2)
             
-            self.logger.info(f"消息已保存到: {filepath}")
+            self.logger.info(f"消息已保存到文件: {filepath}")
         except Exception as e:
-            self.logger.error(f"保存消息失败: {e}")
+            self.logger.error(f"保存消息到文件失败: {e}")
     
     def search_messages(self, keyword: str, group_name: str = None) -> List[GroupMessage]:
         """搜索包含关键词的消息"""
+        # 优先从 MongoDB 搜索
+        if self.mongodb_storage:
+            try:
+                db_messages = self.mongodb_storage.search_messages(keyword, group_name)
+                # 转换为 GroupMessage 对象
+                matched_messages = []
+                for msg_dict in db_messages:
+                    msg = GroupMessage(
+                        timestamp=msg_dict['timestamp'],
+                        sender=msg_dict['sender'],
+                        content=msg_dict['content'],
+                        group_name=msg_dict['group_name'],
+                        message_type=msg_dict.get('message_type', 'text'),
+                        raw_data=msg_dict.get('raw_data')
+                    )
+                    matched_messages.append(msg)
+                return matched_messages
+            except Exception as e:
+                self.logger.error(f"从 MongoDB 搜索消息失败: {e}")
+        
+        # 回退到本地搜索
         messages = self.get_group_messages(group_name) if group_name else []
         keyword_lower = keyword.lower()
         
@@ -451,6 +554,56 @@ class WeChatGroupMonitor:
             self.logger.info("监控已停止")
         except Exception as e:
             self.logger.error(f"监控过程中出错: {e}")
+    
+    def get_database_statistics(self) -> Dict[str, Any]:
+        """获取数据库统计信息"""
+        if not self.mongodb_storage:
+            return {"error": "MongoDB 存储未启用"}
+        
+        try:
+            return self.mongodb_storage.get_statistics()
+        except Exception as e:
+            self.logger.error(f"获取数据库统计信息失败: {e}")
+            return {"error": str(e)}
+    
+    def get_messages_from_database(self, 
+                                 group_name: str = None,
+                                 sender: str = None,
+                                 limit: int = 100) -> List[GroupMessage]:
+        """从数据库获取消息"""
+        if not self.mongodb_storage:
+            self.logger.warning("MongoDB 存储未启用")
+            return []
+        
+        try:
+            db_messages = self.mongodb_storage.get_messages(
+                group_name=group_name,
+                sender=sender,
+                limit=limit
+            )
+            
+            # 转换为 GroupMessage 对象
+            messages = []
+            for msg_dict in db_messages:
+                msg = GroupMessage(
+                    timestamp=msg_dict['timestamp'],
+                    sender=msg_dict['sender'],
+                    content=msg_dict['content'],
+                    group_name=msg_dict['group_name'],
+                    message_type=msg_dict.get('message_type', 'text'),
+                    raw_data=msg_dict.get('raw_data')
+                )
+                messages.append(msg)
+            
+            return messages
+        except Exception as e:
+            self.logger.error(f"从数据库获取消息失败: {e}")
+            return []
+    
+    def close(self):
+        """关闭连接"""
+        if self.mongodb_storage:
+            self.mongodb_storage.close()
 
 
 def main():

@@ -26,6 +26,7 @@ class GroupManager:
         print("6. 测试群聊消息")
         print("7. 开始监控")
         print("8. 重新加载配置")
+        print("9. 数据库统计")
         print("0. 退出")
         print("=" * 50)
     
@@ -198,11 +199,39 @@ class GroupManager:
         else:
             print("❌ 配置重新加载失败")
     
+    def show_database_statistics(self):
+        """显示数据库统计信息"""
+        print("正在获取数据库统计信息...")
+        
+        stats = self.monitor.get_database_statistics()
+        
+        if "error" in stats:
+            print(f"❌ 获取统计信息失败: {stats['error']}")
+            return
+        
+        print("\n📊 数据库统计信息:")
+        print(f"  总消息数: {stats.get('total_messages', 0)}")
+        print(f"  最近24小时消息数: {stats.get('recent_24h_messages', 0)}")
+        
+        # 群聊统计
+        group_stats = stats.get('group_statistics', [])
+        if group_stats:
+            print(f"\n📋 群聊统计 (前5个):")
+            for group in group_stats[:5]:
+                print(f"  {group['_id']}: {group['count']} 条消息")
+        
+        # 活跃发送者
+        sender_stats = stats.get('top_senders', [])
+        if sender_stats:
+            print(f"\n👥 活跃发送者 (前5个):")
+            for sender in sender_stats[:5]:
+                print(f"  {sender['_id']}: {sender['count']} 条消息")
+    
     def run(self):
         """运行管理器"""
         while True:
             self.show_menu()
-            choice = input("\n请选择操作 (0-8): ").strip()
+            choice = input("\n请选择操作 (0-9): ").strip()
             
             if choice == "0":
                 print("👋 再见!")
@@ -223,6 +252,8 @@ class GroupManager:
                 self.start_monitoring()
             elif choice == "8":
                 self.reload_config()
+            elif choice == "9":
+                self.show_database_statistics()
             else:
                 print("❌ 无效的选择，请重新输入")
             
