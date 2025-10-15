@@ -224,6 +224,50 @@ class DataScraper:
         
         return target_frame
     
+    def extract_swap_date_from_page(self, target_frame: FrameLocator) -> Optional[str]:
+        """从页面顶部提取掉期日期"""
+        try:
+            # 尝试多种选择器来找到掉期日期
+            selectors = [
+                "text='掉期日期'",
+                "*:has-text('掉期日期')",
+                "[class*='date']",
+                "[class*='swap']",
+                "div:has-text('2025-')",
+                "*:has-text('2025-10-15')",
+                "*:has-text('2025-10-14')"
+            ]
+            
+            for selector in selectors:
+                try:
+                    element = target_frame.locator(selector).first
+                    if element.is_visible(timeout=2000):
+                        text = element.inner_text(timeout=1000)
+                        # 使用正则表达式提取日期
+                        import re
+                        date_match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
+                        if date_match:
+                            return date_match.group(1)
+                except Exception:
+                    continue
+            
+            # 如果上述方法都失败，尝试在整个页面中搜索日期
+            try:
+                page_text = target_frame.locator("body").inner_text(timeout=3000)
+                import re
+                # 查找所有日期格式
+                dates = re.findall(r'(\d{4}-\d{2}-\d{2})', page_text)
+                if dates:
+                    # 返回最后一个找到的日期（通常是最新的）
+                    return dates[-1]
+            except Exception:
+                pass
+                
+            return None
+        except Exception as e:
+            print(f"提取掉期日期失败: {e}")
+            return None
+    
     def query_data(self, target_frame: FrameLocator, page_config: PageConfig) -> bool:
         """执行数据查询"""
         # 对于P4TC页面，使用原始脚本的查询逻辑
@@ -312,6 +356,22 @@ class DataScraper:
                 config.get("max_cells", 20)
             )
             
+            # 8. 提取掉期日期（从页面顶部）
+            print("8. 提取掉期日期...")
+            swap_date = self.extract_swap_date_from_page(target_frame)
+            if swap_date:
+                print(f"✓ 掉期日期: {swap_date}")
+                # 将掉期日期添加到第一个表格的元数据中
+                if table_data and len(table_data) > 0:
+                    table_data[0]["swap_date"] = swap_date
+            else:
+                # 如果没有找到掉期日期，使用当前日期
+                from datetime import datetime
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                print(f"⚠ 未找到掉期日期，使用当前日期: {current_date}")
+                if table_data and len(table_data) > 0:
+                    table_data[0]["swap_date"] = current_date
+            
             print(f"✓ 数据抓取完成: {len(table_data)} 个表格")
             return table_data
             
@@ -395,7 +455,7 @@ def main():
         python data_scraper.py ffa_price_signals
         
         # 使用 Firefox 测试
-        python data_scraper.py --browser firefox
+        python data_scraper.py ffa_price_signals --browser firefox --no-headless
         
         # 使用测试环境配置
         python data_scraper.py --env testing
