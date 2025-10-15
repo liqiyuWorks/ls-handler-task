@@ -5,7 +5,6 @@
     "port": 27017,
     "database": "aquabridge",
     "username": "aquabridge",
-    "password": "Aquabridge#2025",
-    "collection": "ffa_price_signals"
+    "password": "Aquabridge#2025"
   }
 }
