@@ -6,6 +6,7 @@ export MONGO_PASSWORD=Aquabridge#2025
 export MONGO_USER=aquabridge
 export SELECTED_DIRECTORY=aquabridge
 export RUN_ONCE=1
+export IS_OPEN_RDS=0  # 默认
 export SCHEDULER_FLAG=1
 export INTERVAL_START_TIME="2025-10-15 00:00:00"
 export SCHEDULER_MODE=interval
