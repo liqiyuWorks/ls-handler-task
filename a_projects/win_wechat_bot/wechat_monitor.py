@@ -33,6 +33,7 @@ class GroupMessage:
     group_name: str
     message_type: str = "text"
     raw_data: Optional[str] = None
+    keywords: List[str] = None  # 匹配的关键词列表
 
 
 class WeChatGroupMonitor:
@@ -370,6 +371,9 @@ class WeChatGroupMonitor:
                     if not self._should_include_message(content, sender):
                         continue
                     
+                    # 提取匹配的关键词
+                    matched_keywords = self._extract_matched_keywords(content)
+                    
                     # 生成消息哈希，检查是否已处理过
                     message_hash = self._generate_message_hash(content, sender, group_name)
                     if self._is_message_processed(message_hash):
@@ -383,7 +387,8 @@ class WeChatGroupMonitor:
                         content=content,
                         group_name=group_name,
                         message_type=msg_type,
-                        raw_data=str(msg)
+                        raw_data=str(msg),
+                        keywords=matched_keywords
                     )
                     
                     new_messages.append(group_message)
@@ -445,6 +450,19 @@ class WeChatGroupMonitor:
                 return False
         
         return True
+    
+    def _extract_matched_keywords(self, content: str) -> List[str]:
+        """提取消息中匹配的关键词"""
+        matched_keywords = []
+        content_lower = content.lower()
+        
+        # 检查配置中的关键词
+        if self.config['message_filters']['keywords']:
+            for keyword in self.config['message_filters']['keywords']:
+                if keyword.lower() in content_lower:
+                    matched_keywords.append(keyword)
+        
+        return matched_keywords
     
     def _generate_message_hash(self, content: str, sender: str, group_name: str) -> str:
         """生成消息的唯一哈希值，用于去重"""
@@ -537,7 +555,8 @@ class WeChatGroupMonitor:
                         content=msg_dict['content'],
                         group_name=msg_dict['group_name'],
                         message_type=msg_dict.get('message_type', 'text'),
-                        raw_data=msg_dict.get('raw_data')
+                        raw_data=msg_dict.get('raw_data'),
+                        keywords=msg_dict.get('keywords', [])
                     )
                     matched_messages.append(msg)
                 return matched_messages
@@ -555,6 +574,32 @@ class WeChatGroupMonitor:
         
         return matched_messages
     
+    def search_messages_by_keywords(self, keywords: List[str], group_name: str = None, limit: int = 100) -> List[GroupMessage]:
+        """根据关键词列表精确搜索消息（最高性能）"""
+        if not self.mongodb_storage:
+            self.logger.warning("MongoDB 存储未启用，无法使用关键词搜索")
+            return []
+        
+        try:
+            db_messages = self.mongodb_storage.search_by_keywords(keywords, group_name, limit)
+            # 转换为 GroupMessage 对象
+            matched_messages = []
+            for msg_dict in db_messages:
+                msg = GroupMessage(
+                    timestamp=msg_dict['timestamp'],
+                    sender=msg_dict['sender'],
+                    content=msg_dict['content'],
+                    group_name=msg_dict['group_name'],
+                    message_type=msg_dict.get('message_type', 'text'),
+                    raw_data=msg_dict.get('raw_data'),
+                    keywords=msg_dict.get('keywords', [])
+                )
+                matched_messages.append(msg)
+            return matched_messages
+        except Exception as e:
+            self.logger.error(f"根据关键词搜索消息失败: {e}")
+            return []
+    
     def export_messages_to_csv(self, messages: List[GroupMessage], filename: str = None):
         """导出消息到CSV文件"""
         if not messages:
@@ -568,7 +613,7 @@ class WeChatGroupMonitor:
         
         try:
             with open(filename, 'w', newline='', encoding='utf-8-sig') as csvfile:
-                fieldnames = ['timestamp', 'group_name', 'sender', 'content', 'message_type']
+                fieldnames = ['timestamp', 'group_name', 'sender', 'content', 'message_type', 'keywords']
                 writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
                 
                 writer.writeheader()
@@ -578,7 +623,8 @@ class WeChatGroupMonitor:
                         'group_name': msg.group_name,
                         'sender': msg.sender,
                         'content': msg.content,
-                        'message_type': msg.message_type
+                        'message_type': msg.message_type,
+                        'keywords': '|'.join(msg.keywords) if msg.keywords else ''
                     })
             
             self.logger.info(f"消息已导出到CSV文件: {filename}")
@@ -670,7 +716,8 @@ class WeChatGroupMonitor:
                     content=msg_dict['content'],
                     group_name=msg_dict['group_name'],
                     message_type=msg_dict.get('message_type', 'text'),
-                    raw_data=msg_dict.get('raw_data')
+                    raw_data=msg_dict.get('raw_data'),
+                    keywords=msg_dict.get('keywords', [])
                 )
                 messages.append(msg)
             

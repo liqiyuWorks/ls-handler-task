@@ -3,10 +3,10 @@
   "save_messages": true,
   "output_dir": "messages",
   "log_level": "INFO",
-  "check_interval": 60,
+  "check_interval": 3600,
   "max_messages_per_file": 1000,
   "message_filters": {
-    "keywords": ["S11TC"],
+    "keywords": ["Market closing 收盘小结","C5 index"],
     "exclude_keywords": [
       "撤回了一条消息",
       "拍了拍",

@@ -114,8 +114,14 @@ class MongoDBStorage:
             # 创建发送者索引
             self.collection.create_index("sender")
             
+            # 创建关键词索引（用于快速搜索）
+            self.collection.create_index("keywords")
+            
             # 创建复合索引：群聊名称 + 时间戳
             self.collection.create_index([("group_name", 1), ("timestamp", -1)])
+            
+            # 创建复合索引：关键词 + 群聊名称（用于关键词搜索优化）
+            self.collection.create_index([("keywords", 1), ("group_name", 1)])
             
             self.logger.info("数据库索引创建成功")
             
@@ -299,7 +305,7 @@ class MongoDBStorage:
     
     def search_messages(self, keyword: str, group_name: str = None, limit: int = 100) -> List[Dict]:
         """
-        搜索包含关键词的消息
+        搜索包含关键词的消息（优化版本，优先使用keywords字段）
         
         Args:
             keyword: 搜索关键词
@@ -314,15 +320,18 @@ class MongoDBStorage:
             return []
         
         try:
-            # 构建查询条件
+            # 构建查询条件 - 优先使用keywords字段进行精确匹配
             query = {
-                'content': {'$regex': keyword, '$options': 'i'}  # 不区分大小写
+                '$or': [
+                    {'keywords': {'$in': [keyword]}},  # 精确匹配keywords字段
+                    {'content': {'$regex': keyword, '$options': 'i'}}  # 回退到内容搜索
+                ]
             }
             
             if group_name:
                 query['group_name'] = group_name
             
-            # 查询消息
+            # 查询消息，按时间戳倒序
             cursor = self.collection.find(query).sort('timestamp', -1).limit(limit)
             messages = list(cursor)
             
@@ -337,6 +346,48 @@ class MongoDBStorage:
             
         except Exception as e:
             self.logger.error(f"搜索消息失败: {e}")
+            return []
+    
+    def search_by_keywords(self, keywords: List[str], group_name: str = None, limit: int = 100) -> List[Dict]:
+        """
+        根据关键词列表精确搜索消息（最高性能）
+        
+        Args:
+            keywords: 关键词列表
+            group_name: 群聊名称
+            limit: 限制数量
+            
+        Returns:
+            List[Dict]: 匹配的消息列表
+        """
+        if self.collection is None:
+            self.logger.error("数据库连接未建立")
+            return []
+        
+        try:
+            # 构建查询条件 - 使用keywords字段进行精确匹配
+            query = {
+                'keywords': {'$in': keywords}  # 匹配任意一个关键词
+            }
+            
+            if group_name:
+                query['group_name'] = group_name
+            
+            # 查询消息，按时间戳倒序
+            cursor = self.collection.find(query).sort('timestamp', -1).limit(limit)
+            messages = list(cursor)
+            
+            # 移除 MongoDB 的 _id 字段
+            for message in messages:
+                message.pop('_id', None)
+                message.pop('message_hash', None)
+                message.pop('created_at', None)
+            
+            self.logger.info(f"根据关键词 {keywords} 找到 {len(messages)} 条消息")
+            return messages
+            
+        except Exception as e:
+            self.logger.error(f"根据关键词搜索消息失败: {e}")
             return []
     
     def get_statistics(self) -> Dict[str, Any]:
