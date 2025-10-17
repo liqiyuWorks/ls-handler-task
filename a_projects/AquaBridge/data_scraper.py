@@ -183,6 +183,7 @@ class DataScraper:
             
             self.try_click(self.report_frame, "text='现货应用决策'")
             print("✓ 导航完成")
+            time.sleep(2)  # 增加等待时间，让页面完全加载
             return True
         else:
             # 对于其他页面，使用配置化的导航
@@ -206,23 +207,54 @@ class DataScraper:
     def find_target_frame(self) -> Optional[FrameLocator]:
         """找到目标iframe"""
         print("5. 等待数据加载...")
-        time.sleep(2)
+        time.sleep(5)  # 增加等待时间
         
-        inner_frames = self.report_frame.locator("iframe")
-        target_frame = None
-        
-        for i in range(inner_frames.count()):
+        try:
+            # 检查report_frame是否仍然有效
+            if not self.report_frame:
+                print("✗ report_frame已失效")
+                return None
+            
+            # 检查页面是否仍然有效
             try:
-                if inner_frames.nth(i).is_visible(timeout=2000):
-                    target_frame = self.report_frame.frame_locator("iframe").nth(i)
-                    break
-            except Exception:
-                continue
-        
-        if not target_frame:
-            target_frame = self.report_frame.frame_locator("iframe").first
-        
-        return target_frame
+                self.page.title()  # 测试页面是否仍然有效
+            except Exception as e:
+                print(f"✗ 页面已失效: {e}")
+                return None
+            
+            inner_frames = self.report_frame.locator("iframe")
+            frame_count = inner_frames.count()
+            print(f"发现 {frame_count} 个iframe")
+            
+            target_frame = None
+            
+            # 尝试找到可见的iframe
+            for i in range(frame_count):
+                try:
+                    frame_locator = inner_frames.nth(i)
+                    if frame_locator.is_visible(timeout=5000):
+                        target_frame = self.report_frame.frame_locator("iframe").nth(i)
+                        print(f"✓ 找到可见iframe: {i}")
+                        break
+                except Exception as e:
+                    print(f"iframe {i} 检查失败: {e}")
+                    continue
+            
+            # 如果没有找到可见的iframe，使用第一个
+            if not target_frame and frame_count > 0:
+                try:
+                    target_frame = self.report_frame.frame_locator("iframe").first
+                    print("✓ 使用第一个iframe")
+                except Exception as e:
+                    print(f"✗ 无法访问第一个iframe: {e}")
+            
+            return target_frame
+            
+        except Exception as e:
+            print(f"✗ 查找iframe失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
     
     def extract_swap_date_from_page(self, target_frame: FrameLocator) -> Optional[str]:
         """从页面顶部提取掉期日期"""
@@ -328,12 +360,18 @@ class DataScraper:
             # 3. 等待登录完成
             print("3. 等待登录...")
             # 等待导航图标出现，确认登录成功
-            self.report_frame.locator(".bi-f-c > .bi-icon-change-button").first.wait_for(
-                state="visible", timeout=10000
-            )
+            try:
+                self.report_frame.locator(".bi-f-c > .bi-icon-change-button").first.wait_for(
+                    state="visible", timeout=15000
+                )
+                print("✓ 登录成功")
+            except Exception as e:
+                print(f"✗ 登录验证失败: {e}")
+                return None
             
             # 4. 导航到目标页面
             if not self.navigate_to_page(page_config):
+                print("✗ 导航失败")
                 return None
             
             # 5. 找到目标iframe
@@ -377,6 +415,8 @@ class DataScraper:
             
         except Exception as e:
             print(f"✗ 抓取失败: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def save_data(self, data: List[Dict], page_key: str, browser_name: str = "chromium") -> bool:

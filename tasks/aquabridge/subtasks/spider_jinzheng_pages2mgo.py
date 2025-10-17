@@ -280,53 +280,50 @@ class SpiderJinzhengPages2mgo(BaseModel):
         print("开始处理所有页面（优化版本）")
         print(f"{'='*60}")
         
-        # 使用会话管理器进行批量处理
-        try:
-            with SessionManager(browser_type=browser, headless=headless) as session:
-                # 登录一次
-                if not session.login_once():
-                    print("✗ 登录失败，无法继续处理")
-                    return {page_key: False for page_key in self.supported_pages.keys()}
-                
-                # 批量抓取所有页面
-                page_keys = list(self.supported_pages.keys())
-                raw_data_results = session.scrape_multiple_pages(page_keys)
-                
-                # 处理每个页面的数据
-                for page_key in page_keys:
-                    try:
-                        raw_data = raw_data_results.get(page_key)
-                        if raw_data:
-                            # 格式化数据
-                            formatted_data = self.format_data(page_key, raw_data)
-                            if formatted_data:
-                                # 保存到文件
-                                if save_file:
-                                    self.save_to_file(page_key, formatted_data)
-                                
-                                # 存储到MongoDB
-                                if store_mongodb:
-                                    self.store_data(page_key, formatted_data)
-                                
-                                # 显示摘要
-                                self._display_summary(page_key, formatted_data)
-                                
-                                results[page_key] = True
-                                print(f"✓ 页面 {page_key} 处理完成")
-                            else:
-                                print(f"✗ 页面 {page_key} 数据格式化失败")
-                                results[page_key] = False
-                        else:
-                            print(f"✗ 页面 {page_key} 数据抓取失败")
-                            results[page_key] = False
-                            
-                    except Exception as e:
-                        print(f"✗ 处理页面 {page_key} 时发生异常: {e}")
-                        results[page_key] = False
+        # 为每个页面创建独立的会话进行处理
+        page_keys = list(self.supported_pages.keys())
         
-        except Exception as e:
-            print(f"✗ 批量处理异常: {e}")
-            results = {page_key: False for page_key in self.supported_pages.keys()}
+        for page_key in page_keys:
+            try:
+                print(f"\n=== 处理页面: {page_key} ===")
+                
+                # 为每个页面创建独立的会话
+                with SessionManager(browser_type=browser, headless=headless) as session:
+                    # 登录
+                    if not session.login_once():
+                        print(f"✗ 页面 {page_key} 登录失败")
+                        results[page_key] = False
+                        continue
+                    
+                    # 抓取数据
+                    raw_data = session.scrape_page(page_key)
+                    if raw_data:
+                        # 格式化数据
+                        formatted_data = self.format_data(page_key, raw_data)
+                        if formatted_data:
+                            # 保存到文件
+                            if save_file:
+                                self.save_to_file(page_key, formatted_data)
+                            
+                            # 存储到MongoDB
+                            if store_mongodb:
+                                self.store_data(page_key, formatted_data)
+                            
+                            # 显示摘要
+                            self._display_summary(page_key, formatted_data)
+                            
+                            results[page_key] = True
+                            print(f"✓ 页面 {page_key} 处理完成")
+                        else:
+                            print(f"✗ 页面 {page_key} 数据格式化失败")
+                            results[page_key] = False
+                    else:
+                        print(f"✗ 页面 {page_key} 数据抓取失败")
+                        results[page_key] = False
+                        
+            except Exception as e:
+                print(f"✗ 处理页面 {page_key} 时发生异常: {e}")
+                results[page_key] = False
         
         # 显示总体结果
         self._display_overall_results(results)

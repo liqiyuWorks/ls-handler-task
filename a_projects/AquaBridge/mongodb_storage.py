@@ -102,6 +102,19 @@ class MongoDBStorage:
                 logger.error("✗ 数据无效或缺少swap_date字段")
                 return False
             
+            # 根据页面类型选择存储方法
+            if self.page_key == "p4tc_spot_decision":
+                return self._store_p4tc_data(data, swap_date)
+            else:
+                return self._store_ffa_data(data, swap_date)
+                
+        except Exception as e:
+            logger.error(f"✗ 存储数据失败: {e}")
+            return False
+    
+    def _store_ffa_data(self, data: Dict[str, Any], swap_date: str) -> bool:
+        """存储FFA数据的内部方法"""
+        try:
             # 添加存储时间戳
             data['stored_at'] = datetime.now().isoformat()
             data['_id'] = swap_date  # 使用swap_date作为文档ID
@@ -122,11 +135,100 @@ class MongoDBStorage:
                 return True
                 
         except DuplicateKeyError:
-            logger.warning(f"⚠ 数据已存在，尝试更新: swap_date={data.get('swap_date')}")
+            logger.warning(f"⚠ 数据已存在，尝试更新: swap_date={swap_date}")
             return self.update_ffa_data(data)
         except Exception as e:
             logger.error(f"✗ 存储FFA数据失败: {e}")
             return False
+    
+    def _store_p4tc_data(self, data: Dict[str, Any], swap_date: str) -> bool:
+        """存储P4TC现货应用决策数据的内部方法"""
+        try:
+            # 提取核心数据并创建结构化的JSON文档
+            core_data = self._extract_p4tc_core_data(data)
+            
+            # 创建完整的文档结构
+            document = {
+                "_id": swap_date,
+                "swap_date": swap_date,
+                "timestamp": data.get("metadata", {}).get("timestamp", ""),
+                "stored_at": datetime.now().isoformat(),
+                "page_name": "P4TC现货应用决策",
+                "data_source": "AquaBridge",
+                "version": "1.0",
+                "core_data": core_data,
+                "raw_data": data  # 保留原始数据作为备份
+            }
+            
+            # 尝试插入或更新
+            result = self.collection.replace_one(
+                {"swap_date": swap_date},
+                document,
+                upsert=True
+            )
+            
+            if result.upserted_id or result.modified_count > 0:
+                logger.info(f"✓ P4TC数据存储成功: swap_date={swap_date}")
+                logger.info(f"✓ 核心数据: 盈亏比={core_data.get('profit_loss_ratio')}, 交易方向={core_data.get('recommended_direction')}")
+                return True
+            else:
+                logger.warning(f"⚠ P4TC数据未更新: swap_date={swap_date}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"✗ 存储P4TC数据失败: {e}")
+            return False
+    
+    def _extract_p4tc_core_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """提取P4TC核心数据"""
+        core_data = {
+            "trading_recommendation": {
+                "profit_loss_ratio": None,
+                "recommended_direction": None,
+                "direction_confidence": None
+            },
+            "current_forecast": {
+                "date": None,
+                "high_expected_value": None,
+                "price_difference_ratio": None,
+                "price_difference_range": None,
+                "forecast_value": None,
+                "probability": None
+            },
+            "statistics": {
+                "total_rows": 0,
+                "data_quality": "unknown"
+            }
+        }
+        
+        # 从contracts中提取数据
+        contracts = data.get("contracts", {})
+        
+        # 提取原始表格数据统计
+        raw_table_data = contracts.get("raw_table_data", {})
+        core_data["statistics"]["total_rows"] = raw_table_data.get("total_rows", 0)
+        core_data["statistics"]["data_quality"] = "high" if core_data["statistics"]["total_rows"] > 0 else "low"
+        
+        # 提取P4TC分析数据
+        p4tc_analysis = contracts.get("p4tc_analysis", {})
+        if p4tc_analysis:
+            trading_rec = p4tc_analysis.get("trading_recommendation", {})
+            current_forecast = p4tc_analysis.get("current_forecast", {})
+            
+            # 提取交易建议
+            core_data["trading_recommendation"]["profit_loss_ratio"] = trading_rec.get("profit_loss_ratio")
+            core_data["trading_recommendation"]["recommended_direction"] = trading_rec.get("recommended_direction")
+            core_data["trading_recommendation"]["direction_confidence"] = trading_rec.get("direction_confidence")
+            
+            # 提取当前预测
+            core_data["current_forecast"]["date"] = current_forecast.get("date")
+            core_data["current_forecast"]["high_expected_value"] = current_forecast.get("high_expected_value")
+            core_data["current_forecast"]["price_difference_ratio"] = current_forecast.get("price_difference_ratio")
+            core_data["current_forecast"]["price_difference_range"] = current_forecast.get("price_difference_range")
+            core_data["current_forecast"]["forecast_value"] = current_forecast.get("forecast_value")
+            core_data["current_forecast"]["probability"] = current_forecast.get("probability")
+        
+        return core_data
     
     def update_ffa_data(self, data: Dict[str, Any]) -> bool:
         """更新FFA数据
@@ -232,6 +334,60 @@ class MongoDBStorage:
             logger.error(f"✗ 删除FFA数据失败: {e}")
             return False
     
+    def get_p4tc_core_data(self, swap_date: str) -> Optional[Dict[str, Any]]:
+        """获取P4TC核心数据
+        
+        Args:
+            swap_date: 掉期日期
+            
+        Returns:
+            Dict: P4TC核心数据或None
+        """
+        try:
+            document = self.collection.find_one({"swap_date": swap_date})
+            if document and "core_data" in document:
+                core_data = document["core_data"]
+                logger.info(f"✓ 获取P4TC核心数据成功: swap_date={swap_date}")
+                return core_data
+            else:
+                logger.warning(f"⚠ 未找到P4TC核心数据: swap_date={swap_date}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"✗ 获取P4TC核心数据失败: {e}")
+            return None
+    
+    def list_p4tc_core_data(self, limit: int = 10) -> list:
+        """列出P4TC核心数据
+        
+        Args:
+            limit: 返回数量限制
+            
+        Returns:
+            list: P4TC核心数据列表
+        """
+        try:
+            cursor = self.collection.find(
+                {"core_data": {"$exists": True}},
+                {"swap_date": 1, "timestamp": 1, "core_data": 1, "stored_at": 1}
+            ).sort("timestamp", -1).limit(limit)
+            
+            data_list = []
+            for doc in cursor:
+                data_list.append({
+                    "swap_date": doc.get("swap_date"),
+                    "timestamp": doc.get("timestamp"),
+                    "stored_at": doc.get("stored_at"),
+                    "core_data": doc.get("core_data", {})
+                })
+            
+            logger.info(f"✓ 获取P4TC核心数据列表成功: 共{len(data_list)}条")
+            return data_list
+            
+        except Exception as e:
+            logger.error(f"✗ 获取P4TC核心数据列表失败: {e}")
+            return []
+
     def get_collection_stats(self) -> Dict[str, Any]:
         """获取集合统计信息
         
@@ -239,7 +395,8 @@ class MongoDBStorage:
             Dict: 统计信息
         """
         try:
-            stats = self.db.command("collStats", self.config['collection'])
+            collection_name = self.collection.name
+            stats = self.db.command("collStats", collection_name)
             return {
                 "count": stats.get('count', 0),
                 "size": stats.get('size', 0),

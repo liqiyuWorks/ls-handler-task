@@ -205,13 +205,42 @@ class EnhancedFormatter:
                 "last_updated": datetime.now().isoformat()
             }
         
-        # 使用专门的P4TC解析器
-        parser = P4TCParser()
-        parsed_data = parser.parse_p4tc_data(all_rows)
+        # 检查数据格式 - 更严格的检测逻辑
+        data_text = " ".join([" ".join(row) for row in all_rows])
         
-        if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'model_evaluation']):
-            # 将解析后的数据存储到contracts中
-            self.contracts["p4tc_analysis"] = parsed_data
+        # 检查是否包含P4TC特有的关键词
+        p4tc_keywords = ["做空胜率统计", "盈亏比", "建议交易方向", "价差比区间", "预测值", "出现概率"]
+        has_p4tc_keywords = any(keyword in data_text for keyword in p4tc_keywords)
+        
+        # 检查是否包含FFA特有的关键词
+        ffa_keywords = ["C5TC＋1", "P4TC＋1", "预测值", "当前值", "偏离度", "入场区间", "离场区间"]
+        has_ffa_keywords = any(keyword in data_text for keyword in ffa_keywords)
+        
+        print(f"数据检测: P4TC关键词={has_p4tc_keywords}, FFA关键词={has_ffa_keywords}")
+        print(f"数据行数: {len(all_rows)}")
+        
+        if has_ffa_keywords and not has_p4tc_keywords:
+            print("⚠ 检测到FFA格式数据，使用FFA解析器")
+            # 使用FFA解析器处理这种数据
+            self._extract_ffa_contracts(all_rows)
+        elif has_p4tc_keywords:
+            print("✓ 检测到P4TC格式数据，使用P4TC解析器")
+            # 使用专门的P4TC解析器
+            parser = P4TCParser()
+            parsed_data = parser.parse_p4tc_data(all_rows)
+            
+            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'model_evaluation']):
+                # 将解析后的数据存储到contracts中
+                self.contracts["p4tc_analysis"] = parsed_data
+        else:
+            print("⚠ 未检测到明确的页面格式，尝试P4TC解析器")
+            # 默认尝试P4TC解析器
+            parser = P4TCParser()
+            parsed_data = parser.parse_p4tc_data(all_rows)
+            
+            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'model_evaluation']):
+                # 将解析后的数据存储到contracts中
+                self.contracts["p4tc_analysis"] = parsed_data
     
     def _extract_generic_data(self, rows: List[List[str]]):
         """提取通用数据"""

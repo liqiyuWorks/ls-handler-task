@@ -4,6 +4,7 @@
 支持多页面复用，避免重复登录
 """
 
+import time
 from typing import Dict, Any, Optional, List
 from data_scraper import DataScraper
 from playwright.sync_api import sync_playwright, Playwright, Browser, BrowserContext, Page
@@ -179,6 +180,8 @@ class SessionManager:
             
             if data:
                 print(f"✓ 页面 {page_key} 数据抓取成功: {len(data)} 个表格")
+                
+                
                 return data
             else:
                 print(f"✗ 页面 {page_key} 数据抓取失败")

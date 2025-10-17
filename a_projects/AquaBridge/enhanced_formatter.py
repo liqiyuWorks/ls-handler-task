@@ -205,13 +205,20 @@ class EnhancedFormatter:
                 "last_updated": datetime.now().isoformat()
             }
         
-        # 使用专门的P4TC解析器
-        parser = P4TCParser()
-        parsed_data = parser.parse_p4tc_data(all_rows)
-        
-        if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'model_evaluation']):
-            # 将解析后的数据存储到contracts中
-            self.contracts["p4tc_analysis"] = parsed_data
+        # 检查数据格式 - 如果包含C5TC+1和P4TC+1，说明可能是FFA格式的数据
+        data_text = " ".join([" ".join(row) for row in all_rows])
+        if "C5TC＋1" in data_text or "P4TC＋1" in data_text:
+            print("⚠ 检测到FFA格式数据，使用FFA解析器")
+            # 使用FFA解析器处理这种数据
+            self._extract_ffa_contracts(all_rows)
+        else:
+            # 使用专门的P4TC解析器
+            parser = P4TCParser()
+            parsed_data = parser.parse_p4tc_data(all_rows)
+            
+            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'model_evaluation']):
+                # 将解析后的数据存储到contracts中
+                self.contracts["p4tc_analysis"] = parsed_data
     
     def _extract_generic_data(self, rows: List[List[str]]):
         """提取通用数据"""
