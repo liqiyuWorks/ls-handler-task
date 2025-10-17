@@ -10,6 +10,7 @@ import json
 import sys
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+import threading
 
 # 添加当前目录到Python路径，以便导入本地模块
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,6 +40,27 @@ class SpiderJinzhengPages2mgo(BaseModel):
         self.mongodb_enabled = self.config.get('enabled', False)
         self.storage = None
         
+        # 性能优化配置
+        self.timeout_config = {
+            'page_timeout': 6000,      # 页面超时 6秒
+            'navigation_timeout': 8000, # 导航超时 8秒
+            'element_timeout': 3000,    # 元素等待超时 3秒
+            'login_timeout': 6000       # 登录超时 6秒
+        }
+        
+        # 快速模式配置
+        self.fast_mode_config = {
+            'page_timeout': 4000,      # 快速模式页面超时 4秒
+            'navigation_timeout': 6000, # 快速模式导航超时 6秒
+            'element_timeout': 2000,    # 快速模式元素等待超时 2秒
+            'login_timeout': 4000       # 快速模式登录超时 4秒
+        }
+        
+        # 缓存机制
+        self.cache = {}
+        self.cache_lock = threading.Lock()
+        self.cache_ttl = 300  # 缓存5分钟
+        
         # 支持的页面配置
         self.supported_pages = {
             "ffa_price_signals": {
@@ -66,6 +88,29 @@ class SpiderJinzhengPages2mgo(BaseModel):
         if self.storage:
             self.storage.close()
             self.storage = None
+    
+    def _get_cache_key(self, page_key: str) -> str:
+        """生成缓存键"""
+        return f"{page_key}_{datetime.now().strftime('%Y%m%d_%H%M')}"
+    
+    def _get_cached_data(self, page_key: str) -> Optional[Dict]:
+        """获取缓存数据"""
+        with self.cache_lock:
+            cache_key = self._get_cache_key(page_key)
+            if cache_key in self.cache:
+                data, timestamp = self.cache[cache_key]
+                if datetime.now().timestamp() - timestamp < self.cache_ttl:
+                    return data
+                else:
+                    del self.cache[cache_key]
+        return None
+    
+    def _set_cached_data(self, page_key: str, data: Dict):
+        """设置缓存数据"""
+        with self.cache_lock:
+            cache_key = self._get_cache_key(page_key)
+            self.cache[cache_key] = (data, datetime.now().timestamp())
+    
     
     def _process_data(self, page_key: str, raw_data: List[Dict], save_file: bool, store_mongodb: bool) -> bool:
         """处理数据的公共方法"""
@@ -163,29 +208,106 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return False
     
     def process_all_pages(self, browser: str = "firefox", headless: bool = False,
-                         save_file: bool = True, store_mongodb: bool = True) -> Dict[str, bool]:
-        """处理所有支持的页面（优化版本，复用登录会话）"""
+                         save_file: bool = True, store_mongodb: bool = True, 
+                         parallel: bool = True, max_workers: int = 2, 
+                         fast_mode: bool = False) -> Dict[str, bool]:
+        """处理所有支持的页面（优化版本，避免多线程Playwright问题）"""
         results = {}
         page_keys = list(self.supported_pages.keys())
         
+        if parallel and len(page_keys) > 1:
+            # 使用进程池而不是线程池来避免Playwright线程安全问题
+            try:
+                from multiprocessing import Pool
+                
+                # 创建处理函数
+                def process_single_page_wrapper(args):
+                    page_key, browser, headless, save_file, store_mongodb, _ = args
+                    try:
+                        with SessionManager(browser_type=browser, headless=headless) as session:
+                            if not session.login_once():
+                                return page_key, False
+                            
+                            raw_data = session.scrape_page(page_key)
+                            success = self._process_data(page_key, raw_data, save_file, store_mongodb)
+                            return page_key, success
+                    except (ConnectionError, ValueError, KeyError, TimeoutError, ImportError):
+                        return page_key, False
+                
+                # 准备参数
+                args_list = [
+                    (page_key, browser, headless, save_file, store_mongodb, fast_mode)
+                    for page_key in page_keys
+                ]
+                
+                # 使用进程池处理
+                with Pool(processes=min(max_workers, len(page_keys))) as pool:
+                    results_list = pool.map(process_single_page_wrapper, args_list)
+                
+                # 转换结果格式
+                results = {page_key: success for page_key, success in results_list}
+                
+            except (ImportError, OSError, RuntimeError):
+                # 如果multiprocessing不可用或失败，回退到串行处理
+                results = self._process_pages_serially(page_keys, browser, headless, save_file, store_mongodb, fast_mode)
+        else:
+            # 串行处理
+            results = self._process_pages_serially(page_keys, browser, headless, save_file, store_mongodb, fast_mode)
+        
+        return results
+    
+    def _process_pages_serially(self, page_keys: List[str], browser: str, headless: bool, 
+                               save_file: bool, store_mongodb: bool, fast_mode: bool) -> Dict[str, bool]:
+        """串行处理页面"""
+        results = {}
         for page_key in page_keys:
             try:
-                # 为每个页面创建独立的会话
                 with SessionManager(browser_type=browser, headless=headless) as session:
-                    # 登录
                     if not session.login_once():
                         results[page_key] = False
                         continue
                     
-                    # 抓取数据
                     raw_data = session.scrape_page(page_key)
                     results[page_key] = self._process_data(page_key, raw_data, save_file, store_mongodb)
-                        
             except (ConnectionError, ValueError, KeyError, TimeoutError):
                 results[page_key] = False
-        
         return results
     
+    def process_all_pages_stable(self, browser: str = "firefox", headless: bool = False,
+                                save_file: bool = True, store_mongodb: bool = True, 
+                                fast_mode: bool = False) -> Dict[str, bool]:
+        """稳定的页面处理方法（串行处理，避免多线程问题）"""
+        return self._process_pages_serially(
+            list(self.supported_pages.keys()), 
+            browser, headless, save_file, store_mongodb, fast_mode
+        )
+    
+    def quick_run(self, page_key: str = 'all', browser: str = 'chromium') -> Dict[str, Any]:
+        """快速运行方法 - 使用最优配置"""
+        task = {
+            'page_key': page_key,
+            'browser': browser,
+            'headless': True,
+            'save_file': True,
+            'store_mongodb': True,
+            'parallel': True,
+            'max_workers': 2,
+            'fast_mode': True
+        }
+        return self.run(task)
+    
+    def get_performance_stats(self, results: Dict[str, bool]) -> Dict[str, Any]:
+        """获取性能统计信息"""
+        success_count = sum(1 for success in results.values() if success)
+        total_count = len(results)
+        success_rate = (success_count / total_count * 100) if total_count > 0 else 0
+        
+        return {
+            'success_count': success_count,
+            'total_count': total_count,
+            'success_rate': round(success_rate, 1),
+            'failed_pages': [k for k, v in results.items() if not v]
+        }
 
     @decorate.exception_capture_close_datebase
     def run(self, task=None):
@@ -198,26 +320,42 @@ class SpiderJinzhengPages2mgo(BaseModel):
         headless = task.get('headless', True)
         save_file = task.get('save_file', True)
         store_mongodb = task.get('store_mongodb', True)
+        parallel = task.get('parallel', False)  # 默认关闭并行处理，避免线程问题
+        max_workers = task.get('max_workers', 2)  # 默认最大2个进程
+        fast_mode = task.get('fast_mode', False)  # 默认关闭快速模式
+        stable_mode = task.get('stable_mode', True)  # 默认启用稳定模式
         
         try:
             if page_key == 'all':
                 # 处理所有页面
-                results = self.process_all_pages(
-                    browser=browser,
-                    headless=headless,
-                    save_file=save_file,
-                    store_mongodb=store_mongodb
-                )
+                if stable_mode:
+                    # 使用稳定模式（一次登录，串行处理）
+                    results = self.process_all_pages_stable(
+                        browser=browser,
+                        headless=headless,
+                        save_file=save_file,
+                        store_mongodb=store_mongodb,
+                        fast_mode=fast_mode
+                    )
+                else:
+                    # 使用并行模式（一次登录，多标签页并行处理）
+                    results = self.process_all_pages(
+                        browser=browser,
+                        headless=headless,
+                        save_file=save_file,
+                        store_mongodb=store_mongodb,
+                        parallel=parallel,
+                        max_workers=max_workers,
+                        fast_mode=fast_mode
+                    )
                 
                 # 返回处理结果
-                success_count = sum(1 for success in results.values() if success)
-                total_count = len(results)
+                stats = self.get_performance_stats(results)
                 
                 return {
-                    'status': 'success' if success_count > 0 else 'failed',
+                    'status': 'success' if stats['success_count'] > 0 else 'failed',
                     'results': results,
-                    'success_count': success_count,
-                    'total_count': total_count
+                    'stats': stats
                 }
                 
             elif page_key in self.supported_pages:
@@ -249,3 +387,40 @@ class SpiderJinzhengPages2mgo(BaseModel):
         finally:
             # 清理资源
             self._close_mongodb()
+
+
+# 使用示例
+if __name__ == "__main__":
+    # 创建实例
+    spider = SpiderJinzhengPages2mgo()
+    
+    # 默认运行（稳定模式，推荐）
+    result = spider.run()
+    print(f"默认模式结果: {result['stats']}")
+    
+    # 快速运行所有页面
+    result = spider.quick_run()
+    print(f"快速模式结果: {result['stats']}")
+    
+    # 稳定模式运行（推荐用于生产环境）
+    stable_task = {
+        'page_key': 'all',
+        'browser': 'chromium',
+        'headless': True,
+        'stable_mode': True,  # 使用稳定模式
+        'fast_mode': True
+    }
+    result = spider.run(stable_task)
+    print(f"稳定模式结果: {result['stats']}")
+    
+    # 进程并行模式运行（高性能，使用进程池避免线程问题）
+    parallel_task = {
+        'page_key': 'all',
+        'browser': 'chromium',
+        'headless': True,
+        'parallel': True,     # 使用进程池并行
+        'max_workers': 2,     # 最大2个进程
+        'fast_mode': True
+    }
+    result = spider.run(parallel_task)
+    print(f"进程并行模式结果: {result['stats']}")
