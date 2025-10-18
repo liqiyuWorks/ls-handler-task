@@ -16,7 +16,7 @@ import traceback
 LOG_FILE = "./log/run.log"
 QUEUE_PREFIX = os.getenv('QUEUE_PREFIX', "handler")
 IS_CONSUMER = int(os.getenv('IS_CONSUMER', 0))
-RUN_ONCE = int(os.getenv('RUN_ONCE', 0))
+RUN_ONCE = int(os.getenv('RUN_ONCE', 1))
 IS_OPEN_RDS = int(os.getenv('IS_OPEN_RDS', 0))
 
 

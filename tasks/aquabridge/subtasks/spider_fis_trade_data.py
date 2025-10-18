@@ -510,3 +510,225 @@ class SpiderAllFisTradeData:
                     spider.close()
             except (ValueError, TypeError, KeyError):
                 pass
+
+
+class SpiderFisMarketTrades(BaseModel):
+    """
+    爬取FIS市场交易数据:
+    获取已执行的交易数据，包含多个产品类型的交易记录。
+    """
+    
+    def __init__(self):
+        """初始化FIS市场交易数据爬虫"""
+        self.logger = logging.getLogger(__name__)
+        
+        # API配置
+        self.api_url = 'https://livepricing-prod2.azurewebsites.net/api/v1/executedTrade?productIds=1&productIds=12&productIds=90&productIds=39&productIds=0'
+        self.auth_token = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjA4MDQwMjUsImV4cCI6MTc2MDg5MDQyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.z7ClFGOP75GzMeqC-t9tryJ2CWl8BW2pFEnJMjTBbR1T6kOIgd5mkKbKaVJehKamNDRhp4qR13OaKu7h5zAl87NqpOy4I50wAmPCMhPf9PtqRbibWeGVoem-6mwnGfprdFQGYS3cQ6mRmuoRJxHfhgyIAMIcBcW01ifzUKgat5eZK1T2EOJYCHUDuIALXX-gCDnDX9eWkiehWASSWTo8oGqdRi-qB3XGI1O0rqGRO7fEQlGKVDvbZYBJIXxR9Y8Nk9F8YiemHTrD5_825FDVl4_acc4OVw-4OyoVVDrVaH3NRWz8fex_A8lP7G0FKZLToI9I80J1-ZsuOQgRlHVLWg'
+        
+        # 产品ID映射
+        self.product_id_mapping = {
+            1: 'C5TC',
+            12: 'P4TC', 
+            39: 'P5TC',
+            90: 'UNKNOWN_90',
+            0: 'UNKNOWN_0'
+        }
+        
+        # 数据库配置
+        self.collection_name = 'fis_market_trades'
+        self.uniq_idx = [('trade_id', pymongo.ASCENDING)]
+        
+        # 初始化数据库连接
+        try:
+            config = {
+                'collection': self.collection_name,
+                'uniq_idx': self.uniq_idx
+            }
+            # 调用父类BaseModel的初始化
+            super().__init__(config)
+            self.logger.info("FIS市场交易数据爬虫初始化成功")
+        except Exception as e:
+            self.logger.warning("MongoDB连接失败，将仅获取数据: %s", str(e))
+            self.mgo = None
+    
+    def _get_headers(self):
+        """获取API请求头"""
+        return {
+            'authorization': f'Bearer {self.auth_token}',
+            'content-type': 'application/json'
+        }
+    
+    def _fetch_market_trades_data(self):
+        """获取市场交易数据"""
+        try:
+            headers = self._get_headers()
+            response = requests.get(self.api_url, headers=headers, timeout=30)
+            response.raise_for_status()
+            
+            data = response.json()
+            # API直接返回交易记录列表
+            if isinstance(data, list):
+                self.logger.info("市场交易数据获取成功，记录数: %d", len(data))
+                return {'trades': data}
+            else:
+                self.logger.error("API返回数据格式错误，期望列表，实际: %s", type(data))
+                return None
+            
+        except requests.exceptions.RequestException as e:
+            self.logger.error("市场交易数据获取失败: %s", str(e))
+            return None
+        except (ValueError, TypeError, KeyError) as e:
+            self.logger.error("市场交易数据解析失败: %s", str(e))
+            return None
+    
+    def _format_market_trades_data(self, raw_data):
+        """格式化市场交易数据"""
+        try:
+            if not raw_data or 'trades' not in raw_data:
+                self.logger.error("原始数据格式错误")
+                return None
+            
+            trades = raw_data['trades']
+            if not trades:
+                self.logger.warning("没有交易数据")
+                return None
+            
+            formatted_trades = []
+            
+            for trade in trades:
+                try:
+                    # 提取基本信息
+                    trade_id = f"{trade.get('productId', 0)}_{trade.get('periodId', 0)}_{trade.get('tradedDate', '')}"
+                    product_id = trade.get('productId', 0)
+                    product_name = trade.get('productName', self.product_id_mapping.get(product_id, f'UNKNOWN_{product_id}'))
+                    
+                    # 提取时间信息
+                    trade_time = trade.get('tradedDate', '')
+                    if trade_time:
+                        # 解析时间格式，假设是ISO格式
+                        try:
+                            dt = datetime.fromisoformat(trade_time.replace('Z', '+00:00'))
+                            trade_date = dt.strftime('%Y-%m-%d')
+                            trade_time_formatted = dt.strftime('%Y-%m-%d %H:%M:%S')
+                        except (ValueError, TypeError):
+                            trade_date = trade_time[:10] if len(trade_time) >= 10 else ''
+                            trade_time_formatted = trade_time
+                    else:
+                        trade_date = ''
+                        trade_time_formatted = ''
+                    
+                    # 提取合约信息
+                    contract = trade.get('periodName', '')
+                    
+                    # 提取价格和数量信息
+                    price = trade.get('price', 0)
+                    volume = trade.get('volume', 0)
+                    
+                    # 提取交易所信息
+                    exchange = trade.get('provider', '')
+                    
+                    # 提取其他信息
+                    period_id = trade.get('periodId', 0)
+                    source_type = trade.get('sourceType', '')
+                    cleared_on_date = trade.get('clearedOnDate', '')
+                    
+                    # 构建格式化记录
+                    formatted_trade = {
+                        'trade_id': trade_id,
+                        'product_id': product_id,
+                        'product_name': product_name,
+                        'period_id': period_id,
+                        'trade_date': trade_date,
+                        'trade_time': trade_time_formatted,
+                        'contract': contract,
+                        'price': float(price) if price else 0.0,
+                        'volume': float(volume) if volume else 0.0,
+                        'exchange': exchange,
+                        'source_type': source_type,
+                        'cleared_on_date': cleared_on_date,
+                        'raw_data': trade,  # 保留原始数据
+                        'created_at': datetime.now().isoformat()
+                    }
+                    
+                    formatted_trades.append(formatted_trade)
+                    
+                except (ValueError, TypeError, KeyError) as e:
+                    self.logger.warning("格式化交易记录失败: %s", str(e))
+                    continue
+            
+            self.logger.info("市场交易数据格式化完成，有效记录数: %d", len(formatted_trades))
+            return formatted_trades
+            
+        except (ValueError, TypeError, KeyError) as e:
+            self.logger.error("市场交易数据格式化失败: %s", str(e))
+            return None
+    
+    def _save_market_trades_data(self, formatted_trades):
+        """保存市场交易数据"""
+        if not hasattr(self, 'mgo') or self.mgo is None:
+            self.logger.warning("MongoDB连接不可用，跳过数据保存")
+            return False
+        
+        try:
+            if not formatted_trades:
+                self.logger.warning("没有数据需要保存")
+                return False
+            
+            # 使用set方法保存每条交易记录，以trade_id为唯一键
+            success_count = 0
+            for trade in formatted_trades:
+                try:
+                    result = self.mgo.set(
+                        key={'trade_id': trade['trade_id']},
+                        data=trade
+                    )
+                    if result is not None:
+                        success_count += 1
+                except (ValueError, TypeError, KeyError, pymongo.errors.PyMongoError) as e:
+                    self.logger.warning("保存交易记录失败 %s: %s", trade.get('trade_id', 'unknown'), str(e))
+                    continue
+            
+            if success_count > 0:
+                self.logger.info("市场交易数据保存成功，成功保存记录数: %d/%d", success_count, len(formatted_trades))
+                return True
+            else:
+                self.logger.error("市场交易数据保存失败，没有记录被保存")
+                return False
+                
+        except (ValueError, TypeError, KeyError, pymongo.errors.PyMongoError) as e:
+            self.logger.error("MongoDB保存失败: %s", str(e))
+            return False
+    
+    @decorate.exception_capture_close_datebase
+    def run(self):
+        """主运行方法"""
+        self.logger.info("开始爬取FIS市场交易数据")
+        
+        # 获取原始数据
+        raw_data = self._fetch_market_trades_data()
+        
+        if raw_data is not None:
+            # 格式化数据
+            formatted_trades = self._format_market_trades_data(raw_data)
+            
+            if formatted_trades:
+                # 保存数据
+                save_success = self._save_market_trades_data(formatted_trades)
+                
+                if save_success:
+                    self.logger.info("FIS市场交易数据爬取和保存成功")
+                else:
+                    self.logger.error("FIS市场交易数据保存失败")
+            else:
+                self.logger.error("FIS市场交易数据格式化失败")
+        else:
+            self.logger.error("FIS市场交易数据获取失败")
+    
+    def close(self):
+        """关闭数据库连接"""
+        try:
+            if hasattr(self, 'mgo') and self.mgo:
+                self.mgo.close()
+        except (ValueError, TypeError, KeyError):
+            pass

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from tasks.aquabridge.subtasks.spider_jinzheng_pages2mgo import SpiderJinzhengPages2mgo
 from tasks.aquabridge.subtasks.handle_wechat_fis_content import HandleWechatFisContent
-from tasks.aquabridge.subtasks.spider_fis_trade_data import SpiderFisTradeData, SpiderAllFisTradeData
+from tasks.aquabridge.subtasks.spider_fis_trade_data import SpiderFisTradeData, SpiderAllFisTradeData, SpiderFisMarketTrades
 
 def get_task_dic():
     task_dict = {
@@ -16,5 +16,8 @@ def get_task_dic():
         
         # 兼容性任务（获取所有产品类型）
         "spider_fis_trade_data": (lambda: SpiderAllFisTradeData(), '爬取所有FIS交易数据（C5TC、P4TC、P5TC）'),
+        
+        # FIS市场交易数据爬取任务
+        "spider_fis_market_trades": (lambda: SpiderFisMarketTrades(), '爬取FIS市场交易数据（已执行交易）'),
     }
     return task_dict
