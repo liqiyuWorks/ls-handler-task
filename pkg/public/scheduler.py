@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from apscheduler.schedulers.blocking import BlockingScheduler
 import os
+from datetime import datetime
 
 class CustomScheduler:
     def __init__(self, obj, **kwargs):
@@ -22,10 +23,31 @@ class CustomScheduler:
         'hours': os.getenv('INTERVAL_HOUR'),
         'minutes': os.getenv('INTERVAL_MINUTE'),
         'seconds': os.getenv('INTERVAL_SECOND'),
-        'start_date': os.getenv('INTERVAL_START_TIME'),
+        'start_date': self._validate_start_date(os.getenv('INTERVAL_START_TIME')),
     }}
 
         return param_dic[scheduler_mode]
+    
+    def _validate_start_date(self, start_date_str):
+        """验证并格式化start_date字符串"""
+        if not start_date_str:
+            return None
+        
+        try:
+            # 尝试解析日期字符串
+            if 'T' in start_date_str:
+                # ISO格式: 2025-10-15T00:00:00
+                return datetime.fromisoformat(start_date_str)
+            elif ' ' in start_date_str:
+                # 空格格式: 2025-10-15 00:00:00
+                return datetime.strptime(start_date_str, '%Y-%m-%d %H:%M:%S')
+            else:
+                # 其他格式直接尝试解析
+                return datetime.fromisoformat(start_date_str)
+        except ValueError as e:
+            print(f"警告: 无效的日期格式 '{start_date_str}': {e}")
+            print("使用当前时间作为start_date")
+            return datetime.now()
 
     def add_job(self):
         scheduler_mode = os.getenv('SCHEDULER_MODE', 'cron')
