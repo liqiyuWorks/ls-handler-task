@@ -130,41 +130,74 @@ class EnhancedFormatter:
                         break
                 break
         
-        # 查找预测值和当前值
-        for i in range(contract_row, min(contract_row + 5, len(rows))):
+        # 查找预测值和当前值 - 改进逻辑
+        for i in range(contract_row, min(contract_row + 8, len(rows))):
             row = rows[i]
-            if "预测值" in ' '.join(row) and "当前值" in ' '.join(row):
+            row_text = ' '.join(row)
+            
+            # 查找包含预测值和当前值的行
+            if "预测值" in row_text and "当前值" in row_text:
                 # 下一行应该包含数值
                 if i + 1 < len(rows):
                     value_row = rows[i + 1]
-                    # 查找非空的数值
+                    values = []
                     for cell in value_row:
-                        if cell.strip() and cell.strip().isdigit():
-                            if not contract_data["predicted_value"]:
-                                contract_data["predicted_value"] = cell.strip()
-                            elif not contract_data["current_value"]:
-                                contract_data["current_value"] = cell.strip()
-                                break
+                        cell = cell.strip()
+                        # 查找数字（包括小数）
+                        if cell and re.match(r'^\d+(\.\d+)?$', cell):
+                            values.append(cell)
+                    
+                    if len(values) >= 2:
+                        contract_data["predicted_value"] = values[0]
+                        contract_data["current_value"] = values[1]
+                    elif len(values) == 1:
+                        contract_data["predicted_value"] = values[0]
                 break
         
-        # 查找偏离度和区间信息
-        for i in range(contract_row, min(contract_row + 10, len(rows))):
+        # 查找偏离度和区间信息 - 改进逻辑
+        for i in range(contract_row, min(contract_row + 12, len(rows))):
             row = rows[i]
-            if "偏离度" in ' '.join(row):
+            row_text = ' '.join(row)
+            
+            if "偏离度" in row_text:
                 # 下一行应该包含偏离度、区间和操作建议
                 if i + 1 < len(rows):
                     data_row = rows[i + 1]
+                    data_values = []
                     for cell in data_row:
                         cell = cell.strip()
+                        if cell:  # 收集所有非空值
+                            data_values.append(cell)
+                    
+                    # 解析数据值
+                    for cell in data_values:
                         if "%" in cell and not contract_data["deviation"]:
                             contract_data["deviation"] = cell
                         elif "<" in cell and not contract_data["entry_range"]:
                             contract_data["entry_range"] = cell
-                        elif ">" in cell and contract_data["entry_range"] and not contract_data["exit_range"]:
+                        elif ">" in cell and not contract_data["exit_range"]:
                             contract_data["exit_range"] = cell
-                        elif any(keyword in cell for keyword in ["持有多单", "空仓", "平空", "开多", "开空"]):
+                        elif any(keyword in cell for keyword in ["持有多单", "空仓", "平空", "开多", "开空", "平多"]):
                             contract_data["operation_suggestion"] = cell
                 break
+        
+        # 如果还没有找到预测值和当前值，尝试从其他行查找
+        if not contract_data["predicted_value"] or not contract_data["current_value"]:
+            for i in range(contract_row, min(contract_row + 8, len(rows))):
+                row = rows[i]
+                values = []
+                for cell in row:
+                    cell = cell.strip()
+                    # 查找数字（包括小数）
+                    if cell and re.match(r'^\d+(\.\d+)?$', cell):
+                        values.append(cell)
+                
+                if len(values) >= 2:
+                    if not contract_data["predicted_value"]:
+                        contract_data["predicted_value"] = values[0]
+                    if not contract_data["current_value"]:
+                        contract_data["current_value"] = values[1]
+                    break
         
         # 验证数据完整性
         if contract_data["predicted_value"] and contract_data["current_value"]:
