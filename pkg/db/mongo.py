@@ -40,19 +40,40 @@ def get_mgo():
 
     if mongo_db is None:
         return None, None
-    if mongo_host and mongo_port:
-        url = 'mongodb://{}:{}/'.format(mongo_host, mongo_port)
-
+    
+    # 构建连接字符串
+    url = None
     if mongo_replica_set_url:
-        url = f"mongodb://{mongo_replica_set_url}/?replicaSet=rs&readPreference=secondaryPreferred&connectTimeoutMS=300000"
+        # 使用副本集连接
+        if mongo_user and mongo_password:
+            url = f"mongodb://{mongo_user}:{mongo_password}@{mongo_replica_set_url}/{mongo_db}?replicaSet=rs&readPreference=secondaryPreferred&connectTimeoutMS=300000&authSource={mongo_db}"
+        else:
+            url = f"mongodb://{mongo_replica_set_url}/{mongo_db}?replicaSet=rs&readPreference=secondaryPreferred&connectTimeoutMS=300000"
+    elif mongo_host and mongo_port:
+        # 使用单机连接
+        if mongo_user and mongo_password:
+            url = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/{mongo_db}?authSource={mongo_db}"
+        else:
+            url = f"mongodb://{mongo_host}:{mongo_port}/{mongo_db}"
+    else:
+        # 使用默认连接（本地MongoDB）
+        if mongo_user and mongo_password:
+            url = f"mongodb://{mongo_user}:{mongo_password}@localhost:27017/{mongo_db}?authSource={mongo_db}"
+        else:
+            url = f"mongodb://localhost:27017/{mongo_db}"
 
-    mgo_client = pymongo.MongoClient(url)
+    if url is None:
+        return None, None
 
-    mgo_db = mgo_client[mongo_db]
-
-    if mongo_user is not None:
-        mgo_db.authenticate(mongo_user, mongo_password)
-    return mgo_client, mgo_db
+    try:
+        mgo_client = pymongo.MongoClient(url, serverSelectionTimeoutMS=5000)
+        # 测试连接
+        mgo_client.admin.command('ping')
+        mgo_db = mgo_client[mongo_db]
+        return mgo_client, mgo_db
+    except Exception as e:
+        logging.error(f"MongoDB连接失败: {e}")
+        return None, None
 
 
 class MgoStore(object):
