@@ -26,7 +26,7 @@ class BaseDecorate:
     def exception_capture_close_datebase(self, func):
         def wrapper(self, *args, **kwargs):
             try:
-                func(self, *args, **kwargs)
+                return func(self, *args, **kwargs)
             except Exception as e:
                 if RELEASE_MODE:
                     if str(self.__class__.__name__) not in ["NoaaSyncMgo"]:
@@ -35,6 +35,7 @@ class BaseDecorate:
                             msg=f"""报错: {self.__class__.__name__} 详情: {str(e)}""")
                     logging.error('run error {}'.format(e))
                     logging.error(traceback.format_exc())
+                return False
             finally:
                 # print("\n ===输出结束=== ")
                 self.close()

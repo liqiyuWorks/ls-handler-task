@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from tasks.aquabridge.subtasks.spider_jinzheng_pages2mgo import SpiderJinzhengPages2mgo
 from tasks.aquabridge.subtasks.handle_wechat_fis_content import HandleWechatFisContent
-from tasks.aquabridge.subtasks.spider_fis_trade_data import SpiderFisTradeData, SpiderAllFisTradeData, SpiderFisMarketTrades
+from tasks.aquabridge.subtasks.spider_fis_trade_data import SpiderFisTradeData, SpiderAllFisTradeData, SpiderFisMarketTrades, SpiderFisDailyTradeData, SpiderAllFisDailyTradeData
 
 def get_task_dic():
     task_dict = {
@@ -19,5 +19,14 @@ def get_task_dic():
         
         # FIS市场交易数据爬取任务
         "spider_fis_market_trades": (lambda: SpiderFisMarketTrades(), '爬取FIS市场交易数据（已执行交易）'),
+        
+        
+        # 获取fis的逐日交易数据（用于画图）
+        "spider_fis_daily_trade_data": (lambda: SpiderAllFisDailyTradeData(), '爬取FIS逐日交易数据（C5TC、P4TC、P5TC）'),
+        
+        # 单个产品类型的逐日交易数据爬取任务
+        # "spider_fis_daily_c5tc": (lambda: SpiderFisDailyTradeData("C5TC"), '爬取FIS C5TC逐日交易数据'),
+        # "spider_fis_daily_p4tc": (lambda: SpiderFisDailyTradeData("P4TC"), '爬取FIS P4TC逐日交易数据'),
+        # "spider_fis_daily_p5tc": (lambda: SpiderFisDailyTradeData("P5TC"), '爬取FIS P5TC逐日交易数据'),
     }
     return task_dict
