@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
+from tkinter import N
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 import pymongo
@@ -826,22 +827,7 @@ class SpiderFisMarketTrades(BaseModel):
                 trade_record['created_at'] = datetime.now().strftime(
                     '%Y-%m-%d %H:%M:%S')
 
-                # 使用tradeId作为唯一键
-                trade_id = trade_record.get('tradedDate')
-                if not trade_id:
-                    self.logger.warning("跳过没有tradeId字段的记录")
-                    continue
-
-                result = self.mgo.set(
-                    key={'tradeId': trade_id},
-                    data=trade_record
-                )
-
-                if result is not None:
-                    success_count += 1
-                    self.logger.debug(f"成功保存交易ID为 {trade_id} 的市场交易数据")
-                else:
-                    self.logger.warning(f"保存交易ID为 {trade_id} 的市场交易数据失败")
+                result = self.mgo.set(None, data=trade_record)
 
             if success_count > 0:
                 self.logger.info(f"成功保存 {success_count}/{total_count} 条市场交易数据")
