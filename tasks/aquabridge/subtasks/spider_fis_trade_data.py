@@ -17,35 +17,30 @@ class SpiderFisTradeData(BaseModel):
     每个产品类型使用独立的MongoDB集合进行存储，便于数据管理和查询。
     """
 
-    def __init__(self, product_type: str = "C5TC"):
+    def __init__(self, product_type: str = "C5TC", auth_token: str = None):
         """
         初始化FIS交易数据爬虫
         
         Args:
             product_type: 产品类型，如 'C5TC', 'P4TC', 'P5TC' 等
+            auth_token: 认证token，如果提供则直接使用，否则从Redis获取
         """
         # 设置日志
         self.logger = logging.getLogger(__name__)
         
-        # 设置产品类型和对应的配置
+        # 设置产品类型
         self.product_type = product_type.upper()
-        self.product_configs = self._get_product_configs()
-        
-        if self.product_type not in self.product_configs:
-            raise ValueError(f"不支持的产品类型: {self.product_type}。支持的类型: {list(self.product_configs.keys())}")
-        
-        # 获取当前产品的配置
-        product_config = self.product_configs[self.product_type]
         
         # 设置MongoDB配置 - 每个产品使用独立的集合，以date为唯一键
         config = {
+            'cache_rds': True,
             'collection': f'fis_{self.product_type.lower()}_trade_data',
             'uniq_idx': [
                 ('date', pymongo.ASCENDING)
             ]
         }
         
-        # 尝试初始化MongoDB连接
+        # 先初始化数据库连接（包括Redis）
         try:
             super(SpiderFisTradeData, self).__init__(config)
             if not hasattr(self, 'mgo') or self.mgo is None:
@@ -54,34 +49,109 @@ class SpiderFisTradeData(BaseModel):
             self.config = config
             self.mgo = None
         
+        # 在Redis连接初始化后获取产品配置
+        self.product_configs = self._get_product_configs(auth_token)
+        
+        if self.product_type not in self.product_configs:
+            raise ValueError(f"不支持的产品类型: {self.product_type}。支持的类型: {list(self.product_configs.keys())}")
+        
+        # 获取当前产品的配置
+        product_config = self.product_configs[self.product_type]
+        
         # 设置API配置
         self.api_url = product_config['api_url']
         self.auth_token = product_config['auth_token']
 
-    def _get_product_configs(self) -> Dict[str, Dict[str, str]]:
+    def _get_product_configs(self, auth_token: str = None) -> Dict[str, Dict[str, str]]:
         """获取所有支持的产品配置"""
+        # 如果提供了auth_token则直接使用，否则从Redis获取
+        if auth_token is None:
+            auth_token = self._get_fis_auth_token()
+        
         return {
             'C5TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/1/periods',
-                'auth_token': os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w'),
+                'auth_token': auth_token,
                 'description': '中国铁矿石期货合约'
             },
             'P4TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/12/periods',
-                'auth_token': os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w'),
+                'auth_token': auth_token,
                 'description': '巴拿马型散货船4条航线平均租金'
             },
             'P5TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/39/periods',
-                'auth_token': os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w'),
+                'auth_token': auth_token,
                 'description': '巴拿马型散货船5条航线平均租金'
             }
         }
 
+    def _get_fis_auth_token(self):
+        """从Redis缓存中获取fis-live的auth_token"""
+        try:
+            if hasattr(self, 'cache_rds') and self.cache_rds:
+                # 首先检查键是否存在
+                if not self.cache_rds.exists("fis-live"):
+                    self.logger.warning("Redis中不存在fis-live键")
+                    return self._get_fallback_token()
+                
+                # 检查键的类型
+                key_type = self.cache_rds.type("fis-live")
+                self.logger.info(f"Redis中fis-live键的类型: {key_type}")
+                
+                token = None
+                
+                if key_type == 'hash':
+                    # 如果是hash类型，尝试获取auth_token字段
+                    token = self.cache_rds.hget("fis-live", "auth_token")
+                    if not token:
+                        # 如果没有auth_token字段，尝试获取其他可能的字段
+                        all_fields = self.cache_rds.hgetall("fis-live")
+                        self.logger.info(f"fis-live hash中的所有字段: {list(all_fields.keys())}")
+                        
+                        # 尝试常见的token字段名
+                        for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
+                            if field_name in all_fields:
+                                token = all_fields[field_name]
+                                self.logger.info(f"从hash字段 '{field_name}' 获取到token")
+                                break
+                
+                elif key_type == 'string':
+                    # 如果是string类型，直接获取值
+                    token = self.cache_rds.get("fis-live")
+                    self.logger.info("从string类型的fis-live键获取到token")
+                
+                elif key_type == 'list':
+                    # 如果是list类型，获取第一个元素
+                    token = self.cache_rds.lindex("fis-live", 0)
+                    self.logger.info("从list类型的fis-live键获取到token")
+                
+                else:
+                    self.logger.warning(f"不支持的Redis键类型: {key_type}")
+                
+                if token:
+                    self.logger.info("从Redis缓存中获取到fis-live auth_token")
+                    return token
+                else:
+                    self.logger.warning("Redis缓存中未找到有效的fis-live auth_token")
+            else:
+                self.logger.warning("Redis缓存连接不可用")
+        except Exception as e:
+            self.logger.error("从Redis获取fis-live auth_token失败: %s", str(e))
+        
+        # 如果Redis中没有找到token，使用环境变量作为备选
+        return self._get_fallback_token()
+    
+    def _get_fallback_token(self):
+        """获取备选token"""
+        fallback_token = os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w')
+        self.logger.info("使用环境变量中的FIS_AUTH_TOKEN作为备选")
+        return fallback_token
+
     def _get_api_headers(self) -> Dict[str, str]:
         """获取API请求头"""
         return {
-            'authorization': f'Bearer {self.auth_token}',
+            'authorization': f'{self.auth_token}',
             'content-type': 'application/json'
         }
 
@@ -445,14 +515,91 @@ class SpiderAllFisTradeData:
         self.product_types = ['C5TC', 'P4TC', 'P5TC']
         self.spiders = {}
         
+        # 先获取一次auth_token，避免重复获取
+        self.auth_token = self._get_fis_auth_token_once()
+        
         # 为每个产品类型创建爬虫实例
         for product_type in self.product_types:
             try:
-                self.spiders[product_type] = SpiderFisTradeData(product_type)
+                self.spiders[product_type] = SpiderFisTradeData(product_type, auth_token=self.auth_token)
                 self.logger.info("初始化 %s 爬虫成功", product_type)
             except (ValueError, TypeError, KeyError) as e:
                 self.logger.error("初始化 %s 爬虫失败: %s", product_type, str(e))
                 self.spiders[product_type] = None
+    
+    def _get_fis_auth_token_once(self):
+        """只获取一次auth_token，避免重复操作"""
+        try:
+            # 创建临时Redis连接来获取token
+            import redis
+            import os
+            
+            host = os.getenv('CACHE_REDIS_HOST', '127.0.0.1')
+            port = int(os.getenv('CACHE_REDIS_PORT', '6379'))
+            password = os.getenv('CACHE_REDIS_PASSWORD', None)
+            cache_rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True, health_check_interval=30)
+            
+            # 检查键是否存在
+            if not cache_rds.exists("fis-live"):
+                self.logger.warning("Redis中不存在fis-live键")
+                return self._get_fallback_token()
+            
+            # 检查键的类型
+            key_type = cache_rds.type("fis-live")
+            self.logger.info(f"Redis中fis-live键的类型: {key_type}")
+            
+            token = None
+            
+            if key_type == 'hash':
+                # 如果是hash类型，尝试获取auth_token字段
+                token = cache_rds.hget("fis-live", "auth_token")
+                if not token:
+                    # 如果没有auth_token字段，尝试获取其他可能的字段
+                    all_fields = cache_rds.hgetall("fis-live")
+                    self.logger.info(f"fis-live hash中的所有字段: {list(all_fields.keys())}")
+                    
+                    # 尝试常见的token字段名
+                    for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
+                        if field_name in all_fields:
+                            token = all_fields[field_name]
+                            self.logger.info(f"从hash字段 '{field_name}' 获取到token")
+                            break
+            
+            elif key_type == 'string':
+                # 如果是string类型，直接获取值
+                token = cache_rds.get("fis-live")
+                self.logger.info("从string类型的fis-live键获取到token")
+            
+            elif key_type == 'list':
+                # 如果是list类型，获取第一个元素
+                token = cache_rds.lindex("fis-live", 0)
+                self.logger.info("从list类型的fis-live键获取到token")
+            
+            else:
+                self.logger.warning(f"不支持的Redis键类型: {key_type}")
+            
+            if token:
+                self.logger.info("从Redis缓存中获取到fis-live auth_token")
+                return token
+            else:
+                self.logger.warning("Redis缓存中未找到有效的fis-live auth_token")
+                return self._get_fallback_token()
+                
+        except Exception as e:
+            self.logger.error("从Redis获取fis-live auth_token失败: %s", str(e))
+            return self._get_fallback_token()
+        finally:
+            # 关闭临时连接
+            try:
+                cache_rds.close()
+            except:
+                pass
+    
+    def _get_fallback_token(self):
+        """获取备选token"""
+        fallback_token = os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w')
+        self.logger.info("使用环境变量中的FIS_AUTH_TOKEN作为备选")
+        return fallback_token
     
     def run(self):
         """主运行方法 - 获取所有产品类型的数据"""
@@ -525,7 +672,6 @@ class SpiderFisMarketTrades(BaseModel):
         
         # API配置
         self.api_url = 'https://livepricing-prod2.azurewebsites.net/api/v1/executedTrade?productIds=1&productIds=12&productIds=90&productIds=39&productIds=0'
-        self.auth_token = os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w')
         
         # 产品ID映射
         self.product_id_mapping = {
@@ -543,6 +689,7 @@ class SpiderFisMarketTrades(BaseModel):
         # 初始化数据库连接
         try:
             config = {
+                'cache_rds': True,
                 'collection': self.collection_name,
                 'uniq_idx': self.uniq_idx
             }
@@ -552,6 +699,71 @@ class SpiderFisMarketTrades(BaseModel):
         except Exception as e:
             self.logger.warning("MongoDB连接失败，将仅获取数据: %s", str(e))
             self.mgo = None
+        
+        # 从Redis缓存中获取fis-live的auth_token（在Redis连接初始化之后）
+        self.auth_token = self._get_fis_auth_token()
+    
+    def _get_fis_auth_token(self):
+        """从Redis缓存中获取fis-live的auth_token"""
+        try:
+            if hasattr(self, 'cache_rds') and self.cache_rds:
+                # 首先检查键是否存在
+                if not self.cache_rds.exists("fis-live"):
+                    self.logger.warning("Redis中不存在fis-live键")
+                    return self._get_fallback_token()
+                
+                # 检查键的类型
+                key_type = self.cache_rds.type("fis-live")
+                self.logger.info(f"Redis中fis-live键的类型: {key_type}")
+                
+                token = None
+                
+                if key_type == 'hash':
+                    # 如果是hash类型，尝试获取auth_token字段
+                    token = self.cache_rds.hget("fis-live", "auth_token")
+                    if not token:
+                        # 如果没有auth_token字段，尝试获取其他可能的字段
+                        all_fields = self.cache_rds.hgetall("fis-live")
+                        self.logger.info(f"fis-live hash中的所有字段: {list(all_fields.keys())}")
+                        
+                        # 尝试常见的token字段名
+                        for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
+                            if field_name in all_fields:
+                                token = all_fields[field_name]
+                                self.logger.info(f"从hash字段 '{field_name}' 获取到token")
+                                break
+                
+                elif key_type == 'string':
+                    # 如果是string类型，直接获取值
+                    token = self.cache_rds.get("fis-live")
+                    self.logger.info("从string类型的fis-live键获取到token")
+                
+                elif key_type == 'list':
+                    # 如果是list类型，获取第一个元素
+                    token = self.cache_rds.lindex("fis-live", 0)
+                    self.logger.info("从list类型的fis-live键获取到token")
+                
+                else:
+                    self.logger.warning(f"不支持的Redis键类型: {key_type}")
+                
+                if token:
+                    self.logger.info("从Redis缓存中获取到fis-live auth_token，token: %s", token)
+                    return token
+                else:
+                    self.logger.warning("Redis缓存中未找到有效的fis-live auth_token")
+            else:
+                self.logger.warning("Redis缓存连接不可用")
+        except Exception as e:
+            self.logger.error("从Redis获取fis-live auth_token失败: %s", str(e))
+        
+        # 如果Redis中没有找到token，使用环境变量作为备选
+        return self._get_fallback_token()
+    
+    def _get_fallback_token(self):
+        """获取备选token"""
+        fallback_token = os.getenv('FIS_AUTH_TOKEN','eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w')
+        self.logger.info("使用环境变量中的FIS_AUTH_TOKEN作为备选")
+        return fallback_token
     
     def _get_headers(self):
         """获取API请求头"""
@@ -560,28 +772,141 @@ class SpiderFisMarketTrades(BaseModel):
             'content-type': 'application/json'
         }
     
-    def _fetch_market_trades_data(self):
-        """获取市场交易数据"""
-        try:
-            headers = self._get_headers()
-            response = requests.get(self.api_url, headers=headers, timeout=30)
-            response.raise_for_status()
-            
-            data = response.json()
-            # API直接返回交易记录列表
-            if isinstance(data, list):
-                self.logger.info("市场交易数据获取成功，记录数: %d", len(data))
-                return {'trades': data}
-            else:
-                self.logger.error("API返回数据格式错误，期望列表，实际: %s", type(data))
+    def _fetch_market_trades_data(self, max_retries=3):
+        """获取市场交易数据，支持重试机制"""
+        import time
+        import ssl
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        for attempt in range(max_retries):
+            try:
+                # 创建会话并配置重试策略
+                session = requests.Session()
+                
+                # 配置重试策略 - 减少重试次数，避免过度重试
+                retry_strategy = Retry(
+                    total=2,  # 减少到2次重试
+                    backoff_factor=0.5,  # 减少退避时间
+                    status_forcelist=[429, 500, 502, 503, 504],
+                    allowed_methods=["HEAD", "GET", "OPTIONS"],
+                    raise_on_status=False  # 不自动抛出状态码异常
+                )
+                
+                # 配置适配器
+                adapter = HTTPAdapter(max_retries=retry_strategy)
+                session.mount("http://", adapter)
+                session.mount("https://", adapter)
+                
+                # 配置SSL设置
+                session.verify = True  # 启用SSL验证
+                
+                # 根据curl命令配置请求头
+                headers = {
+                    'authorization': f'Bearer {self.auth_token}',
+                    'content-type': 'application/json',
+                    'User-Agent': 'curl/7.68.0',  # 使用curl的User-Agent
+                    'Accept': '*/*',
+                    'Connection': 'keep-alive'
+                }
+                
+                self.logger.info(f"尝试获取市场交易数据 (第{attempt + 1}次)")
+                response = session.get(
+                    self.api_url, 
+                    headers=headers, 
+                    timeout=(30, 60),  # 增加超时时间：连接30秒，读取60秒
+                    stream=False,
+                    allow_redirects=True
+                )
+                
+                # 检查响应状态码
+                if response.status_code == 200:
+                    self.logger.info(f"API响应成功，状态码: {response.status_code}")
+                elif response.status_code == 401:
+                    self.logger.error("API认证失败，状态码: 401")
+                    return None
+                elif response.status_code == 403:
+                    self.logger.error("API访问被拒绝，状态码: 403")
+                    return None
+                elif response.status_code >= 500:
+                    self.logger.warning(f"服务器错误，状态码: {response.status_code}")
+                    if attempt < max_retries - 1:
+                        wait_time = 2 ** attempt
+                        self.logger.info(f"等待 {wait_time} 秒后重试...")
+                        time.sleep(wait_time)
+                        continue
+                    else:
+                        return None
+                else:
+                    self.logger.warning(f"API返回非200状态码: {response.status_code}")
+                    response.raise_for_status()
+                
+                # 检查响应内容类型
+                content_type = response.headers.get('content-type', '')
+                if 'application/json' not in content_type:
+                    self.logger.warning(f"响应内容类型不是JSON: {content_type}")
+                
+                data = response.json()
+                # API直接返回交易记录列表
+                if isinstance(data, list):
+                    self.logger.info("市场交易数据获取成功，记录数: %d", len(data))
+                    return {'trades': data}
+                else:
+                    self.logger.error("API返回数据格式错误，期望列表，实际: %s", type(data))
+                    return None
+                
+            except requests.exceptions.SSLError as e:
+                self.logger.warning(f"SSL连接错误 (第{attempt + 1}次): {str(e)}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # 指数退避
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    self.logger.error("SSL连接失败，已达到最大重试次数")
+                    return None
+                    
+            except requests.exceptions.ConnectionError as e:
+                self.logger.warning(f"连接错误 (第{attempt + 1}次): {str(e)}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    self.logger.error("连接失败，已达到最大重试次数")
+                    return None
+                    
+            except requests.exceptions.Timeout as e:
+                self.logger.warning(f"请求超时 (第{attempt + 1}次): {str(e)}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    self.logger.error("请求超时，已达到最大重试次数")
+                    return None
+                    
+            except requests.exceptions.RequestException as e:
+                self.logger.warning(f"请求异常 (第{attempt + 1}次): {str(e)}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    self.logger.info(f"等待 {wait_time} 秒后重试...")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    self.logger.error("请求失败，已达到最大重试次数")
+                    return None
+                    
+            except (ValueError, TypeError, KeyError) as e:
+                self.logger.error("市场交易数据解析失败: %s", str(e))
                 return None
-            
-        except requests.exceptions.RequestException as e:
-            self.logger.error("市场交易数据获取失败: %s", str(e))
-            return None
-        except (ValueError, TypeError, KeyError) as e:
-            self.logger.error("市场交易数据解析失败: %s", str(e))
-            return None
+            except Exception as e:
+                self.logger.error("未知错误: %s", str(e))
+                return None
+        
+        return None
     
     def _format_market_trades_data(self, raw_data):
         """格式化市场交易数据"""
