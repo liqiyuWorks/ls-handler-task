@@ -17,13 +17,12 @@ class SpiderFisTradeData(BaseModel):
     每个产品类型使用独立的MongoDB集合进行存储，便于数据管理和查询。
     """
 
-    def __init__(self, product_type: str = "C5TC", auth_token: str = None):
+    def __init__(self, product_type: str = "C5TC"):
         """
         初始化FIS交易数据爬虫
         
         Args:
             product_type: 产品类型，如 'C5TC', 'P4TC', 'P5TC' 等
-            auth_token: 认证token，如果提供则直接使用，否则从Redis获取
         """
         # 设置日志
         self.logger = logging.getLogger(__name__)
@@ -49,8 +48,8 @@ class SpiderFisTradeData(BaseModel):
             self.config = config
             self.mgo = None
         
-        # 在Redis连接初始化后获取产品配置
-        self.product_configs = self._get_product_configs(auth_token)
+        # 获取产品配置（不包含auth_token）
+        self.product_configs = self._get_product_configs()
         
         if self.product_type not in self.product_configs:
             raise ValueError(f"不支持的产品类型: {self.product_type}。支持的类型: {list(self.product_configs.keys())}")
@@ -58,30 +57,22 @@ class SpiderFisTradeData(BaseModel):
         # 获取当前产品的配置
         product_config = self.product_configs[self.product_type]
         
-        # 设置API配置
+        # 设置API配置（不设置auth_token，将在每次请求时获取）
         self.api_url = product_config['api_url']
-        self.auth_token = product_config['auth_token']
 
-    def _get_product_configs(self, auth_token: str = None) -> Dict[str, Dict[str, str]]:
+    def _get_product_configs(self) -> Dict[str, Dict[str, str]]:
         """获取所有支持的产品配置"""
-        # 如果提供了auth_token则直接使用，否则从Redis获取
-        if auth_token is None:
-            auth_token = self._get_fis_auth_token()
-        
         return {
             'C5TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/1/periods',
-                'auth_token': auth_token,
                 'description': '中国铁矿石期货合约'
             },
             'P4TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/12/periods',
-                'auth_token': auth_token,
                 'description': '巴拿马型散货船4条航线平均租金'
             },
             'P5TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/39/periods',
-                'auth_token': auth_token,
                 'description': '巴拿马型散货船5条航线平均租金'
             }
         }
@@ -149,9 +140,11 @@ class SpiderFisTradeData(BaseModel):
         return fallback_token
 
     def _get_api_headers(self) -> Dict[str, str]:
-        """获取API请求头"""
+        """获取API请求头，每次请求时获取最新的auth_token"""
+        # 每次请求前获取最新的auth_token
+        auth_token = self._get_fis_auth_token()
         return {
-            'authorization': f'{self.auth_token}',
+            'authorization': f'{auth_token}',
             'content-type': 'application/json'
         }
 
@@ -515,85 +508,15 @@ class SpiderAllFisTradeData:
         self.product_types = ['C5TC', 'P4TC', 'P5TC']
         self.spiders = {}
         
-        # 先获取一次auth_token，避免重复获取
-        self.auth_token = self._get_fis_auth_token_once()
-        
         # 为每个产品类型创建爬虫实例
         for product_type in self.product_types:
             try:
-                self.spiders[product_type] = SpiderFisTradeData(product_type, auth_token=self.auth_token)
+                self.spiders[product_type] = SpiderFisTradeData(product_type)
                 self.logger.info("初始化 %s 爬虫成功", product_type)
             except (ValueError, TypeError, KeyError) as e:
                 self.logger.error("初始化 %s 爬虫失败: %s", product_type, str(e))
                 self.spiders[product_type] = None
     
-    def _get_fis_auth_token_once(self):
-        """只获取一次auth_token，避免重复操作"""
-        try:
-            # 创建临时Redis连接来获取token
-            import redis
-            import os
-            
-            host = os.getenv('CACHE_REDIS_HOST', '127.0.0.1')
-            port = int(os.getenv('CACHE_REDIS_PORT', '6379'))
-            password = os.getenv('CACHE_REDIS_PASSWORD', None)
-            cache_rds = redis.Redis(host=host, port=port, db=0, password=password, decode_responses=True, health_check_interval=30)
-            
-            # 检查键是否存在
-            if not cache_rds.exists("fis-live"):
-                self.logger.warning("Redis中不存在fis-live键")
-                return self._get_fallback_token()
-            
-            # 检查键的类型
-            key_type = cache_rds.type("fis-live")
-            self.logger.info(f"Redis中fis-live键的类型: {key_type}")
-            
-            token = None
-            
-            if key_type == 'hash':
-                # 如果是hash类型，尝试获取auth_token字段
-                token = cache_rds.hget("fis-live", "auth_token")
-                if not token:
-                    # 如果没有auth_token字段，尝试获取其他可能的字段
-                    all_fields = cache_rds.hgetall("fis-live")
-                    self.logger.info(f"fis-live hash中的所有字段: {list(all_fields.keys())}")
-                    
-                    # 尝试常见的token字段名
-                    for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
-                        if field_name in all_fields:
-                            token = all_fields[field_name]
-                            self.logger.info(f"从hash字段 '{field_name}' 获取到token")
-                            break
-            
-            elif key_type == 'string':
-                # 如果是string类型，直接获取值
-                token = cache_rds.get("fis-live")
-                self.logger.info("从string类型的fis-live键获取到token")
-            
-            elif key_type == 'list':
-                # 如果是list类型，获取第一个元素
-                token = cache_rds.lindex("fis-live", 0)
-                self.logger.info("从list类型的fis-live键获取到token")
-            
-            else:
-                self.logger.warning(f"不支持的Redis键类型: {key_type}")
-            
-            if token:
-                self.logger.info("从Redis缓存中获取到fis-live auth_token")
-                return token
-            else:
-                self.logger.warning("Redis缓存中未找到有效的fis-live auth_token")
-                return self._get_fallback_token()
-                
-        except Exception as e:
-            self.logger.error("从Redis获取fis-live auth_token失败: %s", str(e))
-            return self._get_fallback_token()
-        finally:
-            # 关闭临时连接
-            try:
-                cache_rds.close()
-            except:
-                pass
     
     def _get_fallback_token(self):
         """获取备选token"""
@@ -699,9 +622,6 @@ class SpiderFisMarketTrades(BaseModel):
         except Exception as e:
             self.logger.warning("MongoDB连接失败，将仅获取数据: %s", str(e))
             self.mgo = None
-        
-        # 从Redis缓存中获取fis-live的auth_token（在Redis连接初始化之后）
-        self.auth_token = self._get_fis_auth_token()
     
     def _get_fis_auth_token(self):
         """从Redis缓存中获取fis-live的auth_token"""
@@ -766,16 +686,17 @@ class SpiderFisMarketTrades(BaseModel):
         return fallback_token
     
     def _get_headers(self):
-        """获取API请求头"""
+        """获取API请求头，每次请求时获取最新的auth_token"""
+        # 每次请求前获取最新的auth_token
+        auth_token = self._get_fis_auth_token()
         return {
-            'authorization': f'Bearer {self.auth_token}',
+            'authorization': f'{auth_token}',
             'content-type': 'application/json'
         }
     
     def _fetch_market_trades_data(self, max_retries=3):
         """获取市场交易数据，支持重试机制"""
         import time
-        import ssl
         from requests.adapters import HTTPAdapter
         from urllib3.util.retry import Retry
         
@@ -802,13 +723,12 @@ class SpiderFisMarketTrades(BaseModel):
                 session.verify = True  # 启用SSL验证
                 
                 # 根据curl命令配置请求头
-                headers = {
-                    'authorization': f'Bearer {self.auth_token}',
-                    'content-type': 'application/json',
+                headers = self._get_headers()
+                headers.update({
                     'User-Agent': 'curl/7.68.0',  # 使用curl的User-Agent
                     'Accept': '*/*',
                     'Connection': 'keep-alive'
-                }
+                })
                 
                 self.logger.info(f"尝试获取市场交易数据 (第{attempt + 1}次)")
                 response = session.get(
