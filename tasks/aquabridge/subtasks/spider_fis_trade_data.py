@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 from datetime import datetime
-from tkinter import N
 from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 import pymongo
