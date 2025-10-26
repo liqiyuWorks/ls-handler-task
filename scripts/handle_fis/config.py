@@ -33,7 +33,7 @@ class Config:
             
             # 浏览器配置
             'browser': {
-                'headless': os.getenv('FIS_HEADLESS', 'False').lower() == 'true',
+                'headless': os.getenv('FIS_HEADLESS', 'True').lower() == 'true',
                 'timeout': int(os.getenv('FIS_TIMEOUT', '30000')),  # 30秒
                 'user_agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             },

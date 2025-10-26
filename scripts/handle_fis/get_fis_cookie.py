@@ -155,6 +155,51 @@ class FISLoginManager:
         except Exception as e:
             self.logger.log_warning(f"等待登录完成时出现异常: {str(e)}")
     
+    def _is_page_fully_loaded(self, page) -> bool:
+        """检查页面是否完全加载"""
+        try:
+            # 检查页面状态
+            ready_state = page.evaluate("document.readyState")
+            if ready_state != "complete":
+                self.logger.debug(f"页面状态: {ready_state}")
+                return False
+            
+            # 检查是否有正在进行的网络请求
+            active_requests = page.evaluate("""
+                () => {
+                    if (window.performance && window.performance.getEntriesByType) {
+                        const requests = window.performance.getEntriesByType('resource');
+                        const now = Date.now();
+                        // 检查是否有最近5秒内的请求
+                        return requests.some(req => (now - req.startTime) < 5000);
+                    }
+                    return false;
+                }
+            """)
+            
+            if active_requests:
+                self.logger.debug("检测到活跃的网络请求")
+                return False
+            
+            # 检查是否有错误元素
+            error_elements = page.query_selector_all('.error, .alert-danger, [class*="error"]')
+            if error_elements:
+                self.logger.debug(f"检测到 {len(error_elements)} 个错误元素")
+                return False
+            
+            # 检查关键元素是否存在
+            key_elements = page.query_selector_all('body, main, [role="main"]')
+            if not key_elements:
+                self.logger.debug("未找到关键页面元素")
+                return False
+            
+            self.logger.debug("页面完全加载检查通过")
+            return True
+            
+        except Exception as e:
+            self.logger.debug(f"页面加载检查失败: {str(e)}")
+            return False
+    
     def _get_and_save_authorization(self, page, context) -> Dict:
         """获取并保存authorization信息"""
         self.logger.log_step("获取authorization信息")
@@ -162,43 +207,91 @@ class FISLoginManager:
         try:
             # 等待页面完全加载，使用更长的超时时间
             self.logger.log_step("等待页面完全加载...")
-            page.wait_for_load_state("networkidle", timeout=30000)
             
-            # 额外等待，确保所有JavaScript都执行完成
-            page.wait_for_timeout(5000)
+            # 添加页面刷新机制，确保页面完全加载
+            max_refresh_attempts = 3
+            for attempt in range(max_refresh_attempts):
+                try:
+                    self.logger.log_step(f"等待页面加载 (尝试 {attempt + 1}/{max_refresh_attempts})...")
+                    
+                    # 等待网络空闲状态
+                    page.wait_for_load_state("networkidle", timeout=30000)
+                    
+                    # 额外等待，确保所有JavaScript都执行完成
+                    page.wait_for_timeout(5000)
+                    
+                    # 检查页面是否真正加载完成
+                    if self._is_page_fully_loaded(page):
+                        self.logger.log_success("页面完全加载完成")
+                        break
+                    else:
+                        if attempt < max_refresh_attempts - 1:
+                            self.logger.log_warning(f"页面可能未完全加载，尝试刷新页面 (尝试 {attempt + 1}/{max_refresh_attempts})")
+                            page.reload()
+                            page.wait_for_timeout(3000)
+                        else:
+                            self.logger.log_warning("达到最大刷新次数，继续执行...")
+                            
+                except Exception as e:
+                    if attempt < max_refresh_attempts - 1:
+                        self.logger.log_warning(f"页面加载失败，尝试刷新页面: {str(e)}")
+                        try:
+                            page.reload()
+                            page.wait_for_timeout(3000)
+                        except:
+                            pass
+                    else:
+                        self.logger.log_error(f"页面加载最终失败: {str(e)}")
+                        raise
             
             # 尝试多种方法获取authorization信息
             auth_headers = {}
             
             # 定义提取方法列表，按优先级排序
             extraction_methods = [
-                ("从localStorage获取Auth0 token", self._extract_auth0_access_token),
-                ("从sessionStorage获取token", self._extract_session_storage_token),
-                ("从页面内容中搜索Bearer token", self._extract_bearer_token_from_content),
+                ("从localStorage获取Auth0 token", lambda: self._extract_auth0_access_token(page)),
+                ("从sessionStorage获取token", lambda: self._extract_session_storage_token(page)),
+                ("从页面内容中搜索Bearer token", lambda: self._extract_bearer_token_from_content(page)),
                 ("从网络请求中捕获authorization header", lambda: self._extract_auth_from_network_requests(page, context)),
-                ("从JavaScript变量中获取token", self._extract_token_from_js_variables),
+                ("从JavaScript变量中获取token", lambda: self._extract_token_from_js_variables(page)),
                 ("深度搜索所有可能的存储位置", lambda: self._deep_search_all_storages(page)),
                 ("主动触发API请求来获取token", lambda: self._trigger_api_requests(page, context)),
             ]
             
-            # 依次尝试各种方法
+            # 依次尝试各种方法，增加重试机制
             for method_name, method_func in extraction_methods:
-                try:
-                    self.logger.log_step(f"尝试{method_name}...")
-                    result = method_func()
-                    if result:
-                        auth_headers.update(result)
-                        self.logger.log_success(f"{method_name}成功")
-                        # 如果已经找到一个有效的token，可以选择继续或停止
-                        # 这里选择继续，以便收集所有可能的token
-                    else:
-                        self.logger.log_warning(f"{method_name}未找到结果")
-                except Exception as e:
-                    self.logger.log_warning(f"{method_name}失败: {str(e)}")
-                    continue
+                max_retries = 2
+                for retry in range(max_retries + 1):
+                    try:
+                        if retry > 0:
+                            self.logger.log_step(f"尝试{method_name}... (重试 {retry}/{max_retries})")
+                            # 重试前等待一段时间
+                            page.wait_for_timeout(2000)
+                        else:
+                            self.logger.log_step(f"尝试{method_name}...")
+                        
+                        result = method_func()
+                        if result:
+                            auth_headers.update(result)
+                            self.logger.log_success(f"{method_name}成功")
+                            # 如果已经找到一个有效的token，可以选择继续或停止
+                            # 这里选择继续，以便收集所有可能的token
+                            break  # 成功则跳出重试循环
+                        else:
+                            if retry < max_retries:
+                                self.logger.log_warning(f"{method_name}未找到结果，准备重试...")
+                            else:
+                                self.logger.log_warning(f"{method_name}未找到结果")
+                    except Exception as e:
+                        if retry < max_retries:
+                            self.logger.log_warning(f"{method_name}失败: {str(e)}，准备重试...")
+                        else:
+                            self.logger.log_warning(f"{method_name}失败: {str(e)}")
+                        continue
             
             # 验证获取到的token
             if auth_headers:
+                self.logger.log_success(f"成功获取到 {len(auth_headers)} 个authorization信息")
                 validated_headers = self._validate_authorization_tokens(auth_headers)
                 if validated_headers:
                     self.logger.log_success("成功获取到有效的authorization信息")
@@ -207,13 +300,36 @@ class FISLoginManager:
                     return validated_headers
                 else:
                     self.logger.log_warning("获取到的authorization信息无效")
+                    # 记录无效的token信息用于调试
+                    self.logger.debug(f"无效的token详情: {auth_headers}")
                     return {}
             else:
                 self.logger.log_warning("未找到authorization信息")
+                # 提供更多调试信息
+                self.logger.log_step("尝试获取页面调试信息...")
+                try:
+                    page_url = page.url
+                    page_title = page.title()
+                    self.logger.debug(f"当前页面URL: {page_url}")
+                    self.logger.debug(f"当前页面标题: {page_title}")
+                    
+                    # 检查页面是否有登录相关的元素
+                    login_elements = page.query_selector_all('input[type="password"], button:has-text("login"), button:has-text("sign in")')
+                    if login_elements:
+                        self.logger.log_warning("页面可能仍在登录状态，未完成登录流程")
+                    else:
+                        self.logger.log_warning("页面似乎已完成登录，但未找到authorization信息")
+                        
+                except Exception as debug_e:
+                    self.logger.debug(f"获取调试信息失败: {str(debug_e)}")
+                
                 return {}
                 
         except Exception as e:
             self.logger.log_error(f"获取authorization信息失败: {str(e)}")
+            # 记录更详细的错误信息
+            import traceback
+            self.logger.debug(f"详细错误信息: {traceback.format_exc()}")
             return {}
     
     def _extract_auth0_access_token(self, page) -> Dict:

@@ -827,7 +827,7 @@ class SpiderFisMarketTrades(BaseModel):
                 trade_record['created_at'] = datetime.now().strftime(
                     '%Y-%m-%d %H:%M:%S')
 
-                result = self.mgo.set(None, data=trade_record)
+                self.mgo.set(None, data=trade_record)
 
             if success_count > 0:
                 self.logger.info(f"成功保存 {success_count}/{total_count} 条市场交易数据")
@@ -852,14 +852,7 @@ class SpiderFisMarketTrades(BaseModel):
                 self.logger.error("FIS市场交易数据获取失败")
                 return False
 
-            save_success = self._save_market_trades(raw_data)
-
-            if save_success:
-                self.logger.info("FIS市场交易数据爬取成功")
-                return True
-            else:
-                self.logger.error("FIS市场交易数据保存失败")
-                return False
+            self._save_market_trades(raw_data)
 
         except Exception as e:
             self.logger.error(f"FIS市场交易数据爬取过程中发生错误: {str(e)}")
