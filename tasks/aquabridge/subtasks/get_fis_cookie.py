@@ -7,6 +7,7 @@ import json
 import logging
 from pathlib import Path
 import time
+from pkg.public.logger import logger
 
 # 添加当前目录到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -250,9 +251,9 @@ class GetFisCookie(BaseModel):
             try:
                 authorization = f"Bearer {token}"
                 self.cache_rds.set("fis-live", authorization)
-                self.logger.info(f"Token已保存到Redis缓存: {authorization}")
+                logger.info(f"Token已保存到Redis缓存: {authorization}")
             except Exception as e:
-                print(f"❌ 保存token失败: {str(e)}")
+                logger.error(f"❌ 保存token失败: {str(e)}")
             
             # 输出完整token
             return token
