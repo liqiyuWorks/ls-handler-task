@@ -71,6 +71,9 @@ class CustomScheduler:
         if not start_date_str:
             return None
         
+        # 去掉字符串两端的引号（如果存在）
+        start_date_str = start_date_str.strip().strip('"').strip("'")
+        
         try:
             # 尝试解析日期字符串
             if 'T' in start_date_str:
