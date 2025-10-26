@@ -208,122 +208,36 @@ class FISLoginManager:
             # 等待页面完全加载，使用更长的超时时间
             self.logger.log_step("等待页面完全加载...")
             
-            # 添加页面刷新机制，确保页面完全加载
-            max_refresh_attempts = 3
-            for attempt in range(max_refresh_attempts):
-                try:
-                    self.logger.log_step(f"等待页面加载 (尝试 {attempt + 1}/{max_refresh_attempts})...")
-                    
-                    # 等待网络空闲状态
-                    page.wait_for_load_state("networkidle", timeout=30000)
-                    
-                    # 额外等待，确保所有JavaScript都执行完成
-                    page.wait_for_timeout(5000)
-                    
-                    # 检查页面是否真正加载完成
-                    if self._is_page_fully_loaded(page):
-                        self.logger.log_success("页面完全加载完成")
-                        break
-                    else:
-                        if attempt < max_refresh_attempts - 1:
-                            self.logger.log_warning(f"页面可能未完全加载，尝试刷新页面 (尝试 {attempt + 1}/{max_refresh_attempts})")
-                            page.reload()
-                            page.wait_for_timeout(3000)
-                        else:
-                            self.logger.log_warning("达到最大刷新次数，继续执行...")
-                            
-                except Exception as e:
-                    if attempt < max_refresh_attempts - 1:
-                        self.logger.log_warning(f"页面加载失败，尝试刷新页面: {str(e)}")
-                        try:
-                            page.reload()
-                            page.wait_for_timeout(3000)
-                        except:
-                            pass
-                    else:
-                        self.logger.log_error(f"页面加载最终失败: {str(e)}")
-                        raise
-            
-            # 尝试多种方法获取authorization信息
-            auth_headers = {}
-            
-            # 定义提取方法列表，按优先级排序
-            extraction_methods = [
-                ("从localStorage获取Auth0 token", lambda: self._extract_auth0_access_token(page)),
-                ("从sessionStorage获取token", lambda: self._extract_session_storage_token(page)),
-                ("从页面内容中搜索Bearer token", lambda: self._extract_bearer_token_from_content(page)),
-                ("从网络请求中捕获authorization header", lambda: self._extract_auth_from_network_requests(page, context)),
-                ("从JavaScript变量中获取token", lambda: self._extract_token_from_js_variables(page)),
-                ("深度搜索所有可能的存储位置", lambda: self._deep_search_all_storages(page)),
-                ("主动触发API请求来获取token", lambda: self._trigger_api_requests(page, context)),
-            ]
-            
-            # 依次尝试各种方法，增加重试机制
-            for method_name, method_func in extraction_methods:
-                max_retries = 2
-                for retry in range(max_retries + 1):
-                    try:
-                        if retry > 0:
-                            self.logger.log_step(f"尝试{method_name}... (重试 {retry}/{max_retries})")
-                            # 重试前等待一段时间
-                            page.wait_for_timeout(2000)
-                        else:
-                            self.logger.log_step(f"尝试{method_name}...")
-                        
-                        result = method_func()
-                        if result:
-                            auth_headers.update(result)
-                            self.logger.log_success(f"{method_name}成功")
-                            # 如果已经找到一个有效的token，可以选择继续或停止
-                            # 这里选择继续，以便收集所有可能的token
-                            break  # 成功则跳出重试循环
-                        else:
-                            if retry < max_retries:
-                                self.logger.log_warning(f"{method_name}未找到结果，准备重试...")
-                            else:
-                                self.logger.log_warning(f"{method_name}未找到结果")
-                    except Exception as e:
-                        if retry < max_retries:
-                            self.logger.log_warning(f"{method_name}失败: {str(e)}，准备重试...")
-                        else:
-                            self.logger.log_warning(f"{method_name}失败: {str(e)}")
-                        continue
-            
-            # 验证获取到的token
-            if auth_headers:
-                self.logger.log_success(f"成功获取到 {len(auth_headers)} 个authorization信息")
-                validated_headers = self._validate_authorization_tokens(auth_headers)
-                if validated_headers:
-                    self.logger.log_success("成功获取到有效的authorization信息")
-                    self._print_authorization_details(validated_headers)
-                    self._save_authorization_to_file(validated_headers)
-                    return validated_headers
-                else:
-                    self.logger.log_warning("获取到的authorization信息无效")
-                    # 记录无效的token信息用于调试
-                    self.logger.debug(f"无效的token详情: {auth_headers}")
-                    return {}
-            else:
-                self.logger.log_warning("未找到authorization信息")
-                # 提供更多调试信息
-                self.logger.log_step("尝试获取页面调试信息...")
-                try:
-                    page_url = page.url
-                    page_title = page.title()
-                    self.logger.debug(f"当前页面URL: {page_url}")
-                    self.logger.debug(f"当前页面标题: {page_title}")
-                    
-                    # 检查页面是否有登录相关的元素
-                    login_elements = page.query_selector_all('input[type="password"], button:has-text("login"), button:has-text("sign in")')
-                    if login_elements:
-                        self.logger.log_warning("页面可能仍在登录状态，未完成登录流程")
-                    else:
-                        self.logger.log_warning("页面似乎已完成登录，但未找到authorization信息")
-                        
-                except Exception as debug_e:
-                    self.logger.debug(f"获取调试信息失败: {str(debug_e)}")
+            # 简化页面加载逻辑，直接进入授权获取流程
+            try:
+                self.logger.log_step("等待页面基本加载...")
+                # 等待DOM加载完成即可，不等待网络完全空闲
+                page.wait_for_load_state("domcontentloaded", timeout=5000)
                 
-                return {}
+                # 额外等待，确保JavaScript执行
+                page.wait_for_timeout(5000)
+                self.logger.log_success("页面基本加载完成")
+                
+            except Exception as e:
+                self.logger.log_warning(f"页面加载超时，继续执行: {str(e)}")
+                # 即使超时也继续执行
+                pass
+            
+            # 优先从特定API请求中获取authorization
+            self.logger.log_step("从特定API请求中获取authorization...")
+            auth_headers = self._extract_auth_from_specific_api(page, context)
+            
+            # 如果成功获取到，直接返回
+            if auth_headers:
+                self.logger.log_success("成功从API请求中获取到authorization")
+                # 直接使用获取到的authorization，不进行严格验证
+                self._print_authorization_details(auth_headers)
+                self._save_authorization_to_file(auth_headers)
+                return auth_headers
+            
+            # 如果未能获取到authorization，返回空字典
+            self.logger.log_error("未能从API请求中获取到authorization")
+            return {}
                 
         except Exception as e:
             self.logger.log_error(f"获取authorization信息失败: {str(e)}")
@@ -332,88 +246,93 @@ class FISLoginManager:
             self.logger.debug(f"详细错误信息: {traceback.format_exc()}")
             return {}
     
-    def _extract_auth0_access_token(self, page) -> Dict:
-        """从localStorage中提取Auth0 SPA JS的access_token"""
+    def _extract_auth_from_specific_api(self, page, context) -> Dict:
+        """监听特定的API请求并提取authorization参数"""
         try:
-            # 获取localStorage中的所有项目
-            storage_items = page.evaluate("""
-                () => {
-                    const items = {};
-                    for (let i = 0; i < localStorage.length; i++) {
-                        const key = localStorage.key(i);
-                        const value = localStorage.getItem(key);
-                        items[key] = value;
-                    }
-                    return items;
-                }
-            """)
+            self.logger.log_step("监听特定API请求以获取authorization...")
             
-            self.logger.debug(f"localStorage中共有 {len(storage_items)} 个项目")
+            # 目标API URL
+            target_api_url = "https://livepricing-prod2.azurewebsites.net/api/v1/product/1/periods"
             
-            # 打印所有localStorage键名以便调试
-            for key in storage_items.keys():
-                self.logger.debug(f"localStorage键名: {key}")
+            # 存储捕获到的authorization
+            captured_auth = None
             
-            # 查找Auth0 SPA JS的键名
-            auth0_key = None
-            for key in storage_items.keys():
-                if key.startswith('@@auth0spajs@@'):
-                    auth0_key = key
-                    self.logger.debug(f"找到Auth0 SPA JS键名: {key}")
-                    break
-            
-            # 如果没有找到Auth0键，尝试查找其他可能的token键
-            if not auth0_key:
-                self.logger.log_warning("未找到Auth0 SPA JS键名")
+            def handle_request(request):
+                """处理请求事件"""
+                nonlocal captured_auth
                 
-                # 查找包含token相关的键
-                for key in storage_items.keys():
-                    if any(keyword in key.lower() for keyword in ['token', 'auth', 'bearer', 'access', 'jwt']):
-                        self.logger.debug(f"找到可能的token键: {key}")
-                        try:
-                            value = storage_items[key]
-                            if value and value.startswith('eyJ'):
-                                self.logger.log_success(f"从localStorage提取到token: {value[:50]}...")
-                                return {'authorization': f'Bearer {value}'}
-                            elif value:
-                                # 尝试解析JSON
-                                try:
-                                    data = json.loads(value)
-                                    if isinstance(data, dict):
-                                        for sub_key, sub_value in data.items():
-                                            if 'token' in sub_key.lower() and sub_value and isinstance(sub_value, str) and sub_value.startswith('eyJ'):
-                                                self.logger.log_success(f"从localStorage JSON提取到token: {sub_value[:50]}...")
-                                                return {'authorization': f'Bearer {sub_value}'}
-                                except:
-                                    pass
-                        except:
-                            continue
-            
-            if not auth0_key:
-                return {}
-            
-            # 解析JSON数据
-            try:
-                auth0_data = json.loads(storage_items[auth0_key])
-                self.logger.debug(f"Auth0数据解析成功")
+                url = request.url
+                headers = request.headers
                 
-                # 提取access_token
-                if 'body' in auth0_data and 'access_token' in auth0_data['body']:
-                    access_token = auth0_data['body']['access_token']
-                    self.logger.log_success(f"成功提取access_token: {access_token[:50]}...")
+                # 检查是否是目标API
+                if target_api_url in url:
+                    self.logger.log_success(f"捕获到目标API请求: {url}")
                     
-                    # 格式化为authorization header
-                    return {'authorization': f'Bearer {access_token}'}
-                else:
-                    self.logger.log_warning("Auth0数据中未找到access_token")
-                    return {}
+                    # 检查是否有authorization header
+                    if 'authorization' in headers:
+                        auth_header = headers['authorization']
+                        if auth_header.startswith('Bearer '):
+                            captured_auth = auth_header
+                            self.logger.log_success(f"成功从API请求中获取到authorization: {auth_header[:50]}...")
+                            # 打印完整的authorization
+                            self.logger.info(f"完整的authorization值: {auth_header}")
                     
-            except json.JSONDecodeError as e:
-                self.logger.log_error(f"解析Auth0 JSON数据失败: {e}")
+                    # 也打印所有的请求头以便调试
+                    self.logger.debug(f"请求方法: {request.method}")
+                    self.logger.debug(f"请求URL: {url}")
+                    self.logger.debug(f"所有请求头: {json.dumps(headers, indent=2)}")
+            
+            def handle_response(response):
+                """处理响应事件"""
+                url = response.url
+                
+                # 检查是否是目标API
+                if target_api_url in url:
+                    self.logger.log_success(f"捕获到目标API响应: {url}")
+                    self.logger.debug(f"响应状态: {response.status}")
+            
+            # 设置事件监听器
+            page.on('request', handle_request)
+            page.on('response', handle_response)
+            
+            # 等待页面自动触发API请求
+            self.logger.log_step("等待页面触发API请求...")
+            page.wait_for_timeout(10000)  # 等待10秒
+            
+            # 返回结果
+            if captured_auth:
+                self.logger.log_success("成功从特定API请求中捕获到authorization")
+                return {'authorization': captured_auth}
+            else:
+                self.logger.log_warning("未能从特定API请求中捕获到authorization")
                 return {}
                 
         except Exception as e:
-            self.logger.log_error(f"提取Auth0 access_token失败: {str(e)}")
+            self.logger.log_error(f"监听特定API请求失败: {str(e)}")
+            return {}
+    
+    def _validate_authorization_tokens(self, auth_headers: Dict) -> Dict:
+        """验证authorization token的有效性"""
+        try:
+            validated_headers = {}
+            
+            for key, value in auth_headers.items():
+                # 简单验证：只要包含Bearer开头就接受
+                if isinstance(value, str) and value.startswith('Bearer '):
+                    # 基本验证：检查token长度
+                    token = value[7:]  # 移除 "Bearer " 前缀
+                    if len(token) > 50:  # JWT token通常很长
+                        validated_headers[key] = value
+                        self.logger.log_success(f"Token验证通过: {key}")
+                    else:
+                        self.logger.log_warning(f"Token太短: {key}")
+                else:
+                    self.logger.log_warning(f"无效的authorization格式: {key}")
+            
+            return validated_headers
+            
+        except Exception as e:
+            self.logger.log_error(f"验证authorization token失败: {str(e)}")
             return {}
     
     def _extract_session_storage_token(self, page) -> Dict:
@@ -954,23 +873,26 @@ class FISLoginManager:
         """验证JWT token的基本格式"""
         try:
             if not token or len(token) < 50:
+                self.logger.debug(f"Token太短: {len(token) if token else 0}")
                 return False
             
             # JWT token通常由三部分组成，用点分隔
             parts = token.split('.')
             if len(parts) != 3:
+                self.logger.debug(f"Token部分数量不正确: {len(parts)}")
                 return False
             
             # 检查每个部分是否都是base64编码的
             import base64
-            for part in parts:
+            for i, part in enumerate(parts):
                 try:
                     # 添加必要的填充
                     missing_padding = len(part) % 4
                     if missing_padding:
                         part += '=' * (4 - missing_padding)
                     base64.b64decode(part)
-                except:
+                except Exception as e:
+                    self.logger.debug(f"Token第{i+1}部分base64解码失败: {e}")
                     return False
             
             return True
@@ -1080,12 +1002,24 @@ class FISLoginManager:
             return []
         finally:
             # 清理资源
-            if page:
-                page.close()
-            if context:
-                context.close()
-            if browser:
-                browser.close()
+            try:
+                if page:
+                    page.close()
+            except Exception as e:
+                self.logger.debug(f"关闭页面失败: {e}")
+            
+            try:
+                if context:
+                    context.close()
+            except Exception as e:
+                self.logger.debug(f"关闭上下文失败: {e}")
+            
+            try:
+                if browser:
+                    browser.close()
+            except Exception as e:
+                self.logger.debug(f"关闭浏览器失败: {e}")
+            
             self.logger.info("浏览器已关闭")
 
 
