@@ -3,6 +3,7 @@
 from tasks.aquabridge.subtasks.spider_jinzheng_pages2mgo import SpiderJinzhengPages2mgo
 from tasks.aquabridge.subtasks.handle_wechat_fis_content import HandleWechatFisContent
 from tasks.aquabridge.subtasks.spider_fis_trade_data import SpiderFisTradeData, SpiderAllFisTradeData, SpiderFisMarketTrades, SpiderFisDailyTradeData, SpiderAllFisDailyTradeData
+from tasks.aquabridge.subtasks.get_fis_cookie import GetFisCookie
 
 def get_task_dic():
     task_dict = {
