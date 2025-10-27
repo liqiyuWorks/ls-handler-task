@@ -46,22 +46,52 @@ class BaseModel:
         return MgoStore(self.config)  # 初始化
 
     def close(self):
-        if hasattr(self, 'mgo_client'):
-            if self.mgo_client:
+        """关闭所有数据库连接（支持重复调用）"""
+        closed_connections = []
+        
+        # 关闭 MongoDB 连接
+        if hasattr(self, 'mgo_client') and self.mgo_client:
+            try:
                 self.mgo_client.close()
-            logging.debug('close mgo databases ok!')
+                closed_connections.append('MongoDB')
+            except Exception as e:
+                logging.debug(f'关闭MongoDB连接失败: {e}')
+            finally:
+                self.mgo_client = None
 
-        if hasattr(self, 'rds'):
-            self.rds.close()
-            logging.debug('close rds databases ok!')
+        # 关闭 Redis Task Queue
+        if hasattr(self, 'rds') and self.rds:
+            try:
+                self.rds.close()
+                closed_connections.append('Redis Queue')
+            except Exception as e:
+                logging.debug(f'关闭Redis Queue连接失败: {e}')
+            finally:
+                self.rds = None
 
-        if hasattr(self, 'cache_rds'):
-            self.cache_rds.close()
-            logging.debug('close cache_rds databases ok!')
+        # 关闭 Redis Cache
+        if hasattr(self, 'cache_rds') and self.cache_rds:
+            try:
+                self.cache_rds.close()
+                closed_connections.append('Redis Cache')
+            except Exception as e:
+                logging.debug(f'关闭Redis Cache连接失败: {e}')
+            finally:
+                self.cache_rds = None
 
-        if hasattr(self, 'ck_client'):
-            self.ck_client.close()
-            logging.debug('close ck_client databases ok!')
+        # 关闭 ClickHouse 连接
+        if hasattr(self, 'ck_client') and self.ck_client:
+            try:
+                self.ck_client.close()
+                closed_connections.append('ClickHouse')
+            except Exception as e:
+                logging.debug(f'关闭ClickHouse连接失败: {e}')
+            finally:
+                self.ck_client = None
+        
+        # 如果有关闭的连接，显示信息
+        if closed_connections:
+            logging.info(f'关闭数据库连接: {", ".join(closed_connections)}')
 
     def history(self):
         pass

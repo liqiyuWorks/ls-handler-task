@@ -616,39 +616,42 @@ class SpiderAllFisTradeData:
         auth_token = self._get_fis_auth_token_once()
 
         for product_type in self.product_types:
+            spider = None
             try:
                 self.logger.info("正在处理 %s 数据...", product_type)
 
                 # 每次运行时创建新的爬虫实例，确保使用最新的token
                 spider = SpiderFisTradeData(product_type, auth_token=auth_token)
 
-                try:
-                    # 获取原始数据
-                    raw_data = spider._fetch_trade_data()
-                    if raw_data is None:
-                        self.logger.error("%s 数据获取失败", product_type)
-                        continue
+                # 获取原始数据
+                raw_data = spider._fetch_trade_data()
+                if raw_data is None:
+                    self.logger.error("%s 数据获取失败", product_type)
+                    continue
 
-                    # 格式化数据为分层结构
-                    formatted_record = spider._format_trade_data(raw_data)
-                    if formatted_record is None:
-                        self.logger.error("%s 数据格式化失败", product_type)
-                        continue
+                # 格式化数据为分层结构
+                formatted_record = spider._format_trade_data(raw_data)
+                if formatted_record is None:
+                    self.logger.error("%s 数据格式化失败", product_type)
+                    continue
 
-                    # 保存分层数据
-                    save_success = spider._save_trade_data(formatted_record)
-                    if save_success:
-                        self.logger.info("%s 数据获取和保存成功", product_type)
-                        success_count += 1
-                    else:
-                        self.logger.error("%s 数据保存失败", product_type)
-
-                finally:
-                    # 确保关闭爬虫连接
-                    spider.close()
+                # 保存分层数据
+                save_success = spider._save_trade_data(formatted_record)
+                if save_success:
+                    self.logger.info("%s 数据获取和保存成功", product_type)
+                    success_count += 1
+                else:
+                    self.logger.error("%s 数据保存失败", product_type)
 
             except (ValueError, TypeError, KeyError, requests.exceptions.RequestException) as e:
                 self.logger.error("%s 处理失败: %s", product_type, str(e))
+            finally:
+                # 确保关闭爬虫连接
+                if spider is not None:
+                    try:
+                        spider.close()
+                    except Exception as e:
+                        self.logger.debug(f"关闭 {product_type} 爬虫连接时出错: {e}")
 
         self.logger.info("所有FIS交易数据爬取完成: %d/%d 成功", success_count, total_count)
         return success_count == total_count
@@ -1168,20 +1171,28 @@ class SpiderAllFisDailyTradeData:
         
         # 每次运行时重新创建爬虫实例，确保从Redis动态获取最新token
         for product_type in self.product_types:
+            spider = None
             try:
                 # 创建新的爬虫实例，每次都会从Redis获取最新的token
                 spider = SpiderFisDailyTradeData(product_type)
                 
-                try:
-                    success = spider.run()
-                    results[product_type] = success
-                finally:
-                    # 确保关闭数据库连接
-                    spider.close()
+                # run() 方法有装饰器 @decorate.exception_capture_close_datebase
+                # 会自动在 finally 块中调用 close()，确保数据库连接正确关闭
+                success = spider.run()
+                results[product_type] = success
                     
             except Exception as e:
                 self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
                 results[product_type] = False
+            finally:
+                # 作为额外的保险措施，确保关闭连接（即使装饰器已经处理）
+                if spider is not None:
+                    try:
+                        # 装饰器应该已经调用了 close()，但如果出现异常，再次调用也没问题
+                        # 因为 close() 方法现在支持重复调用
+                        spider.close()
+                    except Exception as e:
+                        self.logger.debug(f"重复关闭 {product_type} 爬虫连接时出错: {e}")
 
         # 统计结果
         success_count = sum(1 for success in results.values() if success)
@@ -1204,20 +1215,26 @@ class SpiderAllFisDailyTradeData:
             self.logger.error(f"不支持的产品类型: {product_type}")
             return False
 
+        spider = None
         try:
             # 每次运行时创建新的爬虫实例，确保从Redis获取最新的token
             spider = SpiderFisDailyTradeData(product_type)
             
-            try:
-                success = spider.run()
-                return success
-            finally:
-                # 确保关闭数据库连接
-                spider.close()
+            # run() 方法有装饰器 @decorate.exception_capture_close_datebase
+            # 会自动在 finally 块中调用 close()，确保数据库连接正确关闭
+            success = spider.run()
+            return success
                 
         except Exception as e:
             self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
             return False
+        finally:
+            # 作为额外的保险措施，确保关闭连接
+            if spider is not None:
+                try:
+                    spider.close()
+                except Exception as e:
+                    self.logger.debug(f"重复关闭 {product_type} 爬虫连接时出错: {e}")
 
     def run(self, task=None):
         """运行所有产品的数据爬取（兼容main.py调用）"""
