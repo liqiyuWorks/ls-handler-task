@@ -936,7 +936,6 @@ class SpiderFisDailyTradeData(BaseModel):
 
         try:
             super(SpiderFisDailyTradeData, self).__init__(config)
-            self.logger.info(f"{self.product_type} 爬虫初始化成功")
         except Exception as e:
             self.logger.error(f"{self.product_type} 爬虫初始化失败: {str(e)}")
             # 即使数据库连接失败，也允许继续运行（仅获取数据）
@@ -953,7 +952,6 @@ class SpiderFisDailyTradeData(BaseModel):
 
                 # 检查键的类型
                 key_type = self.cache_rds.type("fis-live")
-                self.logger.info(f"Redis中fis-live键的类型: {key_type}")
 
                 token = None
 
@@ -963,32 +961,24 @@ class SpiderFisDailyTradeData(BaseModel):
                     if not token:
                         # 如果没有auth_token字段，尝试获取其他可能的字段
                         all_fields = self.cache_rds.hgetall("fis-live")
-                        self.logger.info(
-                            f"fis-live hash中的所有字段: {list(all_fields.keys())}")
-
                         # 尝试常见的token字段名
                         for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
                             if field_name in all_fields:
                                 token = all_fields[field_name]
-                                self.logger.info(
-                                    f"从hash字段 '{field_name}' 获取到token")
                                 break
 
                 elif key_type == 'string':
                     # 如果是string类型，直接获取值
                     token = self.cache_rds.get("fis-live")
-                    self.logger.info("从string类型的fis-live键获取到token")
 
                 elif key_type == 'list':
                     # 如果是list类型，获取第一个元素
                     token = self.cache_rds.lindex("fis-live", 0)
-                    self.logger.info("从list类型的fis-live键获取到token")
 
                 else:
                     self.logger.warning(f"不支持的Redis键类型: {key_type}")
 
                 if token:
-                    self.logger.info("从Redis缓存中获取到fis-live auth_token")
                     return token
                 else:
                     self.logger.warning(
@@ -1025,17 +1015,13 @@ class SpiderFisDailyTradeData(BaseModel):
         for attempt in range(max_retries):
             try:
                 headers = self._get_api_headers()
-                self.logger.info(
-                    f"正在请求 {self.product_type} API: {self.api_url}")
-                self.logger.debug(f"请求头: {headers}")
-
                 response = requests.get(
                     self.api_url, headers=headers, timeout=30)
 
                 if response.status_code == 200:
                     data = response.json()
                     self.logger.info(
-                        f"成功获取 {self.product_type} 数据，记录数: {len(data) if isinstance(data, list) else 'N/A'}")
+                        f"获取 {self.product_type} 数据成功: {len(data) if isinstance(data, list) else 'N/A'} 条")
                     return data
                 elif response.status_code == 401:
                     self.logger.error(
@@ -1145,7 +1131,7 @@ class SpiderFisDailyTradeData(BaseModel):
 
             if success_count > 0:
                 self.logger.info(
-                    f"成功保存 {self.product_type} {success_count}/{total_count} 条逐日交易数据")
+                    f"保存 {self.product_type} 数据: {success_count}/{total_count} 条")
                 return True
             else:
                 self.logger.error(f"没有成功保存任何 {self.product_type} 数据")
@@ -1158,29 +1144,26 @@ class SpiderFisDailyTradeData(BaseModel):
     @decorate.exception_capture_close_datebase
     def run(self, task=None):
         """主运行方法"""
-        self.logger.info(f"开始爬取FIS {self.product_type} 逐日交易数据")
-
         try:
             # 获取原始数据
             raw_data = self._fetch_daily_trade_data()
 
             if raw_data is None:
-                self.logger.error(f"FIS {self.product_type} 逐日交易数据获取失败")
+                self.logger.error(f"{self.product_type} 数据获取失败")
                 return False
 
             # 保存数据
             save_success = self._save_daily_trade_data(raw_data)
 
             if save_success:
-                self.logger.info(f"FIS {self.product_type} 逐日交易数据爬取成功")
                 return True
             else:
-                self.logger.error(f"FIS {self.product_type} 逐日交易数据保存失败")
+                self.logger.error(f"{self.product_type} 数据保存失败")
                 return False
 
         except Exception as e:
             self.logger.error(
-                f"FIS {self.product_type} 逐日交易数据爬取过程中发生错误: {str(e)}")
+                f"{self.product_type} 爬取过程中发生错误: {str(e)}")
             return False
 
 
@@ -1198,30 +1181,23 @@ class SpiderAllFisDailyTradeData:
             try:
                 self.spiders[product_type] = SpiderFisDailyTradeData(
                     product_type)
-                self.logger.info(f"初始化 {product_type} 爬虫成功")
             except Exception as e:
                 self.logger.error(f"初始化 {product_type} 爬虫失败: {str(e)}")
                 self.spiders[product_type] = None
 
     def run_all(self):
         """运行所有产品的数据爬取"""
-        self.logger.info("开始爬取所有FIS逐日交易数据")
+        self.logger.info("开始爬取 FIS 逐日交易数据")
         results = {}
         for product_type in self.product_types:
             spider = self.spiders.get(product_type)
             if spider is None:
-                self.logger.error(f"{product_type} 爬虫不可用，跳过")
                 results[product_type] = False
                 continue
 
             try:
-                self.logger.info(f"开始爬取 {product_type} 数据")
                 success = spider.run()
                 results[product_type] = success
-                if success:
-                    self.logger.info(f"{product_type} 数据爬取完成")
-                else:
-                    self.logger.error(f"{product_type} 数据爬取失败")
             except Exception as e:
                 self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
                 results[product_type] = False
@@ -1229,14 +1205,13 @@ class SpiderAllFisDailyTradeData:
         # 统计结果
         success_count = sum(1 for success in results.values() if success)
         total_count = len(results)
-
-        self.logger.info(
-            f"所有FIS逐日交易数据爬取完成: {success_count}/{total_count} 个产品成功")
-
-        # 打印详细结果
+        
+        # 打印结果摘要
         for product_type, success in results.items():
-            status = "成功" if success else "失败"
+            status = "✓" if success else "✗"
             self.logger.info(f"  {product_type}: {status}")
+        
+        self.logger.info(f"完成: {success_count}/{total_count}")
 
         return results
 
@@ -1254,9 +1229,7 @@ class SpiderAllFisDailyTradeData:
             return False
 
         try:
-            self.logger.info(f"开始爬取 {product_type} 数据")
             success = spider.run()
-            self.logger.info(f"{product_type} 数据爬取完成")
             return success
         except Exception as e:
             self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")

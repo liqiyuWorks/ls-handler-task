@@ -49,19 +49,19 @@ class BaseModel:
         if hasattr(self, 'mgo_client'):
             if self.mgo_client:
                 self.mgo_client.close()
-            logging.info('close mgo databases ok!')
+            logging.debug('close mgo databases ok!')
 
         if hasattr(self, 'rds'):
             self.rds.close()
-            logging.info('close rds databases ok!')
+            logging.debug('close rds databases ok!')
 
         if hasattr(self, 'cache_rds'):
             self.cache_rds.close()
-            logging.info('close cache_rds databases ok!')
+            logging.debug('close cache_rds databases ok!')
 
         if hasattr(self, 'ck_client'):
             self.ck_client.close()
-            logging.info('close ck_client databases ok!')
+            logging.debug('close ck_client databases ok!')
 
     def history(self):
         pass

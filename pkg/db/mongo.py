@@ -97,13 +97,17 @@ class MgoStore(object):
         
         # 智能处理唯一索引
         try:
-            # 转换 uniq_idx 为可比较的格式
-            expected_keys = sorted([field[0] for field in self.uniq_idx])
+            # 转换 uniq_idx 为可比较的格式（提取字段名）
+            expected_keys = sorted([field[0] if isinstance(field, tuple) else field for field in self.uniq_idx])
             
             # 检查现有索引
             if index_name in index_dic:
                 existing_index = index_dic[index_name]
-                existing_keys = sorted([field for field in existing_index.get('key', {})])
+                # 从现有的 key 中提取字段名（MongoDB 索引格式为 [('field_name', direction)])
+                existing_keys = sorted([
+                    field[0] if isinstance(field, tuple) else field 
+                    for field in existing_index.get('key', [])
+                ])
                 
                 # 如果索引结构不同，需要删除旧索引
                 if existing_keys != expected_keys:
@@ -114,14 +118,17 @@ class MgoStore(object):
                         logging.info(f"成功删除旧索引: {index_name}")
                     except Exception as e:
                         logging.warning(f"删除旧索引失败: {e}")
+                else:
+                    logging.debug(f"索引结构一致，无需更新: {index_name}")
+                    return  # 索引已存在且结构正确，无需创建
             else:
-                logging.info(f"索引 {index_name} 不存在，将创建新索引")
+                logging.debug(f"索引 {index_name} 不存在，将创建新索引")
             
             # 尝试创建或更新索引
             self.mgo_coll.create_index(self.uniq_idx,
                                        unique=True,
                                        name=index_name)
-            logging.info(f"成功创建/更新索引: {index_name}")
+            logging.debug(f"成功创建/更新索引: {index_name}")
         except pymongo.errors.OperationFailure as e:
             if 'duplicate key' in str(e) or 'IndexKeySpecsConflict' in str(e):
                 logging.warning(f"索引冲突: {e}")
