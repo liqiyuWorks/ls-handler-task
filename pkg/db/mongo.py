@@ -93,9 +93,50 @@ class MgoStore(object):
 
         # 检查索引是否创建
         index_dic = self.mgo_coll.index_information()
-        self.mgo_coll.create_index(self.uniq_idx,
-                                   unique=True,
-                                   name='{}_uniq_idx'.format(self.collection))
+        index_name = '{}_uniq_idx'.format(self.collection)
+        
+        # 智能处理唯一索引
+        try:
+            # 转换 uniq_idx 为可比较的格式
+            expected_keys = sorted([field[0] for field in self.uniq_idx])
+            
+            # 检查现有索引
+            if index_name in index_dic:
+                existing_index = index_dic[index_name]
+                existing_keys = sorted([field for field in existing_index.get('key', {})])
+                
+                # 如果索引结构不同，需要删除旧索引
+                if existing_keys != expected_keys:
+                    logging.warning(f"检测到索引结构变化: {existing_keys} -> {expected_keys}")
+                    logging.info(f"正在删除旧索引并创建新索引...")
+                    try:
+                        self.mgo_coll.drop_index(index_name)
+                        logging.info(f"成功删除旧索引: {index_name}")
+                    except Exception as e:
+                        logging.warning(f"删除旧索引失败: {e}")
+            else:
+                logging.info(f"索引 {index_name} 不存在，将创建新索引")
+            
+            # 尝试创建或更新索引
+            self.mgo_coll.create_index(self.uniq_idx,
+                                       unique=True,
+                                       name=index_name)
+            logging.info(f"成功创建/更新索引: {index_name}")
+        except pymongo.errors.OperationFailure as e:
+            if 'duplicate key' in str(e) or 'IndexKeySpecsConflict' in str(e):
+                logging.warning(f"索引冲突: {e}")
+                # 尝试删除旧索引并重新创建
+                try:
+                    self.mgo_coll.drop_index(index_name)
+                    self.mgo_coll.create_index(self.uniq_idx,
+                                               unique=True,
+                                               name=index_name)
+                    logging.info(f"成功恢复索引: {index_name}")
+                except Exception as e2:
+                    logging.error(f"恢复索引失败: {e2}")
+            else:
+                logging.error(f"创建索引失败: {e}")
+        
         for idx_name, idx in self.idx_dic.items():
             if idx_name in index_dic:
                 continue

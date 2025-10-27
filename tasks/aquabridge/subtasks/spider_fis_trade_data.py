@@ -688,7 +688,12 @@ class SpiderFisMarketTrades(BaseModel):
         self.collection_name = 'fis_market_trades'
 
         # 数据库配置
-        self.uniq_idx = [('tradedDate', pymongo.ASCENDING)]
+        self.uniq_idx = [
+            ('tradedDate', pymongo.ASCENDING),
+            ('sourceType', pymongo.ASCENDING),
+            ('periodName', pymongo.ASCENDING),
+            ('productName', pymongo.ASCENDING)
+        ]
         config = {
             'cache_rds': True,
             'collection': self.collection_name,
@@ -822,11 +827,37 @@ class SpiderFisMarketTrades(BaseModel):
                     self.logger.warning("跳过非字典格式的记录")
                     continue
 
+                # 提取用于去重的关键字段
+                traded_date = trade_record.get('tradedDate')
+                source_type = trade_record.get('sourceType')
+                period_name = trade_record.get('periodName')
+                product_name = trade_record.get('productName')
+
+                # 检查必需字段是否存在
+                if not all([traded_date, source_type, period_name, product_name]):
+                    self.logger.warning(
+                        f"记录缺少必需的字段，跳过。tradedDate: {traded_date}, sourceType: {source_type}, periodName: {period_name}, productName: {product_name}")
+                    continue
+
                 # 添加创建时间
                 trade_record['created_at'] = datetime.now().strftime(
                     '%Y-%m-%d %H:%M:%S')
 
-                self.mgo.set(None, data=trade_record)
+                # 使用组合键作为唯一标识
+                key = {
+                    'tradedDate': traded_date,
+                    'sourceType': source_type,
+                    'periodName': period_name,
+                    'productName': product_name
+                }
+
+                result = self.mgo.set(key=key, data=trade_record)
+
+                if result is not None:
+                    success_count += 1
+                    self.logger.debug(f"成功保存记录: {key}")
+                else:
+                    self.logger.warning(f"保存记录失败: {key}")
 
             if success_count > 0:
                 self.logger.info(f"成功保存 {success_count}/{total_count} 条市场交易数据")
