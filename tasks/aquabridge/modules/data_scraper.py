@@ -8,11 +8,18 @@ from datetime import datetime
 import sys
 import time
 from typing import List, Optional, Dict
-from page_config import PageConfig, get_page_config, get_page_info
-from browser_config import (
-    BrowserConfig, BrowserType, get_browser_config,
-    list_available_browsers
-)
+try:
+    from .page_config import PageConfig, get_page_config, get_page_info
+    from .browser_config import (
+        BrowserConfig, BrowserType, get_browser_config,
+        list_available_browsers
+    )
+except ImportError:
+    from page_config import PageConfig, get_page_config, get_page_info
+    from browser_config import (
+        BrowserConfig, BrowserType, get_browser_config,
+        list_available_browsers
+    )
 
 
 class DataScraper:

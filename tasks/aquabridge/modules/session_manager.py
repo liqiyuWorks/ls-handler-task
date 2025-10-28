@@ -6,8 +6,12 @@
 
 import time
 from typing import Dict, Any, Optional, List
-from data_scraper import DataScraper
 from playwright.sync_api import sync_playwright, Playwright, Browser, BrowserContext, Page
+# 导入data_scraper，注意这里是相对导入
+try:
+    from .data_scraper import DataScraper
+except ImportError:
+    from data_scraper import DataScraper
 
 
 class SessionManager:
@@ -130,7 +134,10 @@ class SessionManager:
             self.scraper.page = self.current_page
             
             # 获取页面配置
-            from page_config import get_page_config
+            try:
+                from .page_config import get_page_config
+            except ImportError:
+                from page_config import get_page_config
             page_config = get_page_config(page_key)
             if not page_config:
                 print(f"✗ 未找到页面配置: {page_key}")

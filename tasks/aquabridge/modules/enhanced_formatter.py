@@ -8,7 +8,10 @@ import json
 import re
 from typing import Dict, List, Any, Optional
 from datetime import datetime
-from p4tc_parser import P4TCParser
+try:
+    from .p4tc_parser import P4TCParser
+except ImportError:
+    from p4tc_parser import P4TCParser
 
 
 class EnhancedFormatter:

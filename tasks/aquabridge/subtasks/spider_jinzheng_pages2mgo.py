@@ -21,9 +21,13 @@ from pkg.public.models import BaseModel
 from pkg.public.decorator import decorate
 
 # 导入本地模块
-from enhanced_formatter import EnhancedFormatter
-from mongodb_storage import MongoDBStorage, load_config
-from session_manager import SessionManager
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from modules.enhanced_formatter import EnhancedFormatter
+from modules.mongodb_storage import MongoDBStorage, load_config
+from modules.session_manager import SessionManager
 
 
 class SpiderJinzhengPages2mgo(BaseModel):
