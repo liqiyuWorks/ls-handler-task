@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+export MONGO_HOST=153.35.96.86
+export MONGO_PORT=27017
+export MONGO_DB=navgreen
+export MONGO_PASSWORD=Navgreen#0817
+export MONGO_USER=navgreen
+
+export CACHE_REDIS_HOST=153.35.96.86
+export CACHE_REDIS_PORT=6379
+export CACHE_REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
+
+export REDIS_HOST=153.35.96.86
+export REDIS_PORT=6379
+export REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
+
+export SELECTED_DIRECTORY=axsmarine
+export RUN_ONCE=1
+export SCHEDULER_FLAG=1
+export INTERVAL_START_TIME="2025-10-15T00:00:00"
+export SCHEDULER_MODE=interval
+export INTERVAL_HOUR=6
+export TASK_TYPE=spider_live_bunkers_prices
