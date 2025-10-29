@@ -84,6 +84,21 @@ class SpiderFisTradeData(BaseModel):
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/39/periods',
                 'auth_token': auth_token,
                 'description': '巴拿马型散货船5条航线平均租金'
+            },
+            'C5': {
+                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/25/periods',
+                'auth_token': auth_token,
+                'description': 'C5航线期货合约'
+            },
+            'S10TC': {
+                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/28/periods',
+                'auth_token': auth_token,
+                'description': 'S10TC期货合约'
+            },
+            'HS7TC': {
+                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/product/87/periods',
+                'auth_token': auth_token,
+                'description': 'HS7TC期货合约'
             }
         }
 
@@ -153,8 +168,13 @@ class SpiderFisTradeData(BaseModel):
 
     def _get_api_headers(self) -> Dict[str, str]:
         """获取API请求头"""
+        # 确保token格式正确，如果没有Bearer前缀则添加
+        token = self.auth_token
+        if token and not token.startswith('Bearer '):
+            token = f'Bearer {token}'
+        
         return {
-            'authorization': f'{self.auth_token}',
+            'authorization': token,
             'content-type': 'application/json'
         }
 
@@ -518,13 +538,13 @@ class SpiderFisTradeData(BaseModel):
 class SpiderAllFisTradeData:
     """
     爬取所有FIS交易数据:
-    支持C5TC、P4TC、P5TC等所有产品类型的交易信息获取和分表存储。
+    支持C5TC、P4TC、P5TC、C5、S10TC、HS7TC等所有产品类型的交易信息获取和分表存储。
     """
 
     def __init__(self):
         """初始化所有FIS交易数据爬虫"""
         self.logger = logging.getLogger(__name__)
-        self.product_types = ['C5TC', 'P4TC', 'P5TC']
+        self.product_types = ['C5TC', 'P4TC', 'P5TC', 'C5', 'S10TC', 'HS7TC']
         # 不再在初始化时创建爬虫实例，而是在每次运行时动态创建
         # 这样可以确保每次都从Redis获取最新的token
 
@@ -933,7 +953,7 @@ class SpiderFisMarketTrades(BaseModel):
 class SpiderFisDailyTradeData(BaseModel):
     """
     爬取FIS逐日交易数据:
-    获取C5TC、P4TC、P5TC等产品的逐日交易数据，用于图表展示和趋势分析。
+    获取C5TC、P4TC、P5TC、C5、S10TC、HS7TC等产品的逐日交易数据，用于图表展示和趋势分析。
     每个产品类型使用独立的MongoDB集合进行存储。
     """
 
@@ -954,6 +974,18 @@ class SpiderFisDailyTradeData(BaseModel):
             'P5TC': {
                 'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/39/405/F/null/null',
                 'collection_name': 'fis_daily_p5tc_trade_data'
+            },
+            'C5': {
+                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/25/405/F/null/null',
+                'collection_name': 'fis_daily_c5_trade_data'
+            },
+            'S10TC': {
+                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/28/405/F/null/null',
+                'collection_name': 'fis_daily_s10tc_trade_data'
+            },
+            'HS7TC': {
+                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/87/405/F/null/null',
+                'collection_name': 'fis_daily_hs7tc_trade_data'
             }
         }
 
@@ -1218,12 +1250,12 @@ class SpiderFisDailyTradeData(BaseModel):
 class SpiderAllFisDailyTradeData:
     """
     爬取所有FIS逐日交易数据:
-    同时获取C5TC、P4TC、P5TC三个产品类型的逐日交易数据。
+    同时获取C5TC、P4TC、P5TC、C5、S10TC、HS7TC六个产品类型的逐日交易数据。
     """
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.product_types = ['C5TC', 'P4TC', 'P5TC']
+        self.product_types = ['C5TC', 'P4TC', 'P5TC', 'C5', 'S10TC', 'HS7TC']
         # 不再在初始化时创建爬虫实例，而是在每次运行时动态创建
         # 这样可以确保每次都从Redis获取最新的token
 
