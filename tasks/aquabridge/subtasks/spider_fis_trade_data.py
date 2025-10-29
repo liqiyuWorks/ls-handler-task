@@ -17,13 +17,12 @@ class SpiderFisTradeData(BaseModel):
     每个产品类型使用独立的MongoDB集合进行存储，便于数据管理和查询。
     """
 
-    def __init__(self, product_type: str = "C5TC", auth_token: str = None):
+    def __init__(self, product_type: str = "C5TC"):
         """
         初始化FIS交易数据爬虫
 
         Args:
             product_type: 产品类型，如 'C5TC', 'P4TC', 'P5TC' 等
-            auth_token: 认证token，如果提供则直接使用，否则从Redis获取
         """
         # 设置日志
         self.logger = logging.getLogger(__name__)
@@ -50,7 +49,7 @@ class SpiderFisTradeData(BaseModel):
             self.mgo = None
 
         # 在Redis连接初始化后获取产品配置
-        self.product_configs = self._get_product_configs(auth_token)
+        self.product_configs = self._get_product_configs()
 
         if self.product_type not in self.product_configs:
             raise ValueError(
@@ -63,11 +62,10 @@ class SpiderFisTradeData(BaseModel):
         self.api_url = product_config['api_url']
         self.auth_token = product_config['auth_token']
 
-    def _get_product_configs(self, auth_token: str = None) -> Dict[str, Dict[str, str]]:
+    def _get_product_configs(self) -> Dict[str, Dict[str, str]]:
         """获取所有支持的产品配置"""
-        # 如果提供了auth_token则直接使用，否则从Redis获取
-        if auth_token is None:
-            auth_token = self._get_fis_auth_token()
+        # 从Redis获取auth_token
+        auth_token = self._get_fis_auth_token()
 
         return {
             'C5TC': {
@@ -103,17 +101,16 @@ class SpiderFisTradeData(BaseModel):
         }
 
     def _get_fis_auth_token(self):
-        """从Redis缓存中获取fis-live的auth_token"""
+        """获取FIS认证token"""
         try:
             if hasattr(self, 'cache_rds') and self.cache_rds:
                 # 首先检查键是否存在
                 if not self.cache_rds.exists("fis-live"):
-                    self.logger.warning("Redis中不存在fis-live键")
+                    self.logger.warning("Redis中不存在fis-live键，使用fallback token")
                     return self._get_fallback_token()
 
                 # 检查键的类型
                 key_type = self.cache_rds.type("fis-live")
-                self.logger.info(f"Redis中fis-live键的类型: {key_type}")
 
                 token = None
 
@@ -123,48 +120,48 @@ class SpiderFisTradeData(BaseModel):
                     if not token:
                         # 如果没有auth_token字段，尝试获取其他可能的字段
                         all_fields = self.cache_rds.hgetall("fis-live")
-                        self.logger.info(
-                            f"fis-live hash中的所有字段: {list(all_fields.keys())}")
-
                         # 尝试常见的token字段名
                         for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
                             if field_name in all_fields:
                                 token = all_fields[field_name]
-                                self.logger.info(
-                                    f"从hash字段 '{field_name}' 获取到token")
                                 break
 
                 elif key_type == 'string':
                     # 如果是string类型，直接获取值
                     token = self.cache_rds.get("fis-live")
-                    self.logger.info("从string类型的fis-live键获取到token")
 
                 elif key_type == 'list':
                     # 如果是list类型，获取第一个元素
                     token = self.cache_rds.lindex("fis-live", 0)
-                    self.logger.info("从list类型的fis-live键获取到token")
 
                 else:
                     self.logger.warning(f"不支持的Redis键类型: {key_type}")
 
                 if token:
-                    self.logger.info("从Redis缓存中获取到fis-live auth_token")
                     return token
                 else:
-                    self.logger.warning("Redis缓存中未找到有效的fis-live auth_token")
+                    self.logger.warning(
+                        "Redis缓存中未找到有效的fis-live auth_token，使用fallback token")
+                    return self._get_fallback_token()
             else:
-                self.logger.warning("Redis缓存连接不可用")
+                self.logger.warning("Redis连接不可用，使用fallback token")
+                return self._get_fallback_token()
         except Exception as e:
-            self.logger.error("从Redis获取fis-live auth_token失败: %s", str(e))
-
-        # 如果Redis中没有找到token，使用环境变量作为备选
-        return self._get_fallback_token()
+            self.logger.error(f"获取FIS认证token时发生错误: {str(e)}，使用fallback token")
+            return self._get_fallback_token()
 
     def _get_fallback_token(self):
-        """获取备选token"""
-        fallback_token = os.getenv('FIS_AUTH_TOKEN', 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w')
-        self.logger.info("使用环境变量中的FIS_AUTH_TOKEN作为备选")
-        return fallback_token
+        """获取FIS备用token"""
+        # 首先尝试从环境变量获取
+        fallback_token = os.getenv('FIS_AUTH_TOKEN')
+        if fallback_token:
+            self.logger.info("使用环境变量中的FIS_AUTH_TOKEN")
+            return fallback_token
+
+        # 如果没有环境变量，使用硬编码的token（仅用于测试）
+        hardcoded_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w"
+        self.logger.warning("使用硬编码的fallback token（仅用于测试）")
+        return hardcoded_token
 
     def _get_api_headers(self) -> Dict[str, str]:
         """获取API请求头"""
@@ -523,16 +520,25 @@ class SpiderFisTradeData(BaseModel):
     @decorate.exception_capture_close_datebase
     def run(self):
         """主运行方法"""
-        raw_data = self._fetch_trade_data()
+        try:
+            raw_data = self._fetch_trade_data()
 
-        if raw_data is not None:
-            formatted_record = self._format_trade_data(raw_data)
-            save_success = self._save_trade_data(formatted_record)
+            if raw_data is not None:
+                formatted_record = self._format_trade_data(raw_data)
+                save_success = self._save_trade_data(formatted_record)
 
-            if not save_success:
-                self.logger.error("%s 数据保存失败", self.product_type)
-        else:
-            self.logger.error("%s 数据获取失败", self.product_type)
+                if save_success:
+                    self.logger.info("%s 数据获取和保存成功", self.product_type)
+                    return True
+                else:
+                    self.logger.error("%s 数据保存失败", self.product_type)
+                    return False
+            else:
+                self.logger.error("%s 数据获取失败", self.product_type)
+                return False
+        except Exception as e:
+            self.logger.error("%s 爬取过程中发生错误: %s", self.product_type, str(e))
+            return False
 
 
 class SpiderAllFisTradeData:
@@ -548,134 +554,77 @@ class SpiderAllFisTradeData:
         # 不再在初始化时创建爬虫实例，而是在每次运行时动态创建
         # 这样可以确保每次都从Redis获取最新的token
 
-    def _get_fis_auth_token_once(self):
-        """只获取一次auth_token，避免重复操作"""
-        try:
-            # 创建临时Redis连接来获取token
-            import redis
-            import os
+    def run_all(self):
+        """运行所有产品的数据爬取"""
+        self.logger.info("开始爬取 FIS 交易数据")
+        results = {}
 
-            host = os.getenv('CACHE_REDIS_HOST', '127.0.0.1')
-            port = int(os.getenv('CACHE_REDIS_PORT', '6379'))
-            password = os.getenv('CACHE_REDIS_PASSWORD', None)
-            cache_rds = redis.Redis(host=host, port=port, db=0, password=password,
-                                    decode_responses=True, health_check_interval=30)
-
-            # 检查键是否存在
-            if not cache_rds.exists("fis-live"):
-                self.logger.warning("Redis中不存在fis-live键")
-                return self._get_fallback_token()
-
-            # 检查键的类型
-            key_type = cache_rds.type("fis-live")
-            self.logger.info(f"Redis中fis-live键的类型: {key_type}")
-
-            token = None
-
-            if key_type == 'hash':
-                # 如果是hash类型，尝试获取auth_token字段
-                token = cache_rds.hget("fis-live", "auth_token")
-                if not token:
-                    # 如果没有auth_token字段，尝试获取其他可能的字段
-                    all_fields = cache_rds.hgetall("fis-live")
-                    self.logger.info(
-                        f"fis-live hash中的所有字段: {list(all_fields.keys())}")
-
-                    # 尝试常见的token字段名
-                    for field_name in ['token', 'access_token', 'authorization', 'auth_token']:
-                        if field_name in all_fields:
-                            token = all_fields[field_name]
-                            self.logger.info(
-                                f"从hash字段 '{field_name}' 获取到token")
-                            break
-
-            elif key_type == 'string':
-                # 如果是string类型，直接获取值
-                token = cache_rds.get("fis-live")
-                self.logger.info("从string类型的fis-live键获取到token")
-
-            elif key_type == 'list':
-                # 如果是list类型，获取第一个元素
-                token = cache_rds.lindex("fis-live", 0)
-                self.logger.info("从list类型的fis-live键获取到token")
-
-            else:
-                self.logger.warning(f"不支持的Redis键类型: {key_type}")
-
-            if token:
-                self.logger.info("从Redis缓存中获取到fis-live auth_token")
-                return token
-            else:
-                self.logger.warning("Redis缓存中未找到有效的fis-live auth_token")
-                return self._get_fallback_token()
-
-        except Exception as e:
-            self.logger.error("从Redis获取fis-live auth_token失败: %s", str(e))
-            return self._get_fallback_token()
-        finally:
-            # 关闭临时连接
-            try:
-                cache_rds.close()
-            except:
-                pass
-
-    def _get_fallback_token(self):
-        """获取备选token"""
-        fallback_token = os.getenv('FIS_AUTH_TOKEN', 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IkVEejFQRlh5VnRGOUdkOWtaR04zSyJ9.eyJodHRwczovL2Zpcy1saXZlL2VtYWlsIjoidGVycnlAYXF1YWJyaWRnZS5haSIsImh0dHBzOi8vZmlzLWxpdmUvYWNjZXNzTGV2ZWwiOjEwLCJodHRwczovL2Zpcy1saXZlL2FjY2VwdFRlcm1zIjp0cnVlLCJpc3MiOiJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS8iLCJzdWIiOiJhdXRoMHw2ODA5ZTViZDliY2JkOTI0ZTMwZTEwMzkiLCJhdWQiOlsiaHR0cHM6Ly9maXNwcm9kMmJhY2tlbmQiLCJodHRwczovL2Zpcy1saXZlLmV1LmF1dGgwLmNvbS91c2VyaW5mbyJdLCJpYXQiOjE3NjEwMjU0MjUsImV4cCI6MTc2MTExMTgyNSwic2NvcGUiOiJvcGVuaWQgcHJvZmlsZSBlbWFpbCIsImF6cCI6InJ1MlluQTN4N0dwVThja29iZ1dSWWxlZHJoNm1YTEVDIn0.urQaNPtTQYXm-c_nTpEhDY_tVINtCKpdg7X04EFsujSNU1ie1GD-_tjtsg9Ge7k4VkfYDt3Eg9lzIARqFvDGqwb5dggPU8AL9anIYcrcPY-fMVX7biVPTLlIl7t_3VY7Z-j9JQDUge9HS2lZFkDGMP4LJpu2tzZrQ1JiQ7oeVsvYLwgia8HgKtYvUM6iVkrACnOZTmDUEcMA2kn9Q1c68tDGJvbg7cmPasVDrzRx_2fKlR_OEbVCt78YEbCVs_hRlvr4NFPu2Ck6kkpLB2joKl1-p-bLQMxPGhydXKZsPjlMQ_W8SXfZwMKcfcpg9Ti4nC-Kt9gJcfOwW2q764AK-w')
-        self.logger.info("使用环境变量中的FIS_AUTH_TOKEN作为备选")
-        return fallback_token
-
-    def run(self):
-        """主运行方法 - 获取所有产品类型的数据"""
-        self.logger.info("开始爬取所有FIS交易数据")
-
-        success_count = 0
-        total_count = len(self.product_types)
-
-        # 每次运行时获取最新的token
-        auth_token = self._get_fis_auth_token_once()
-
+        # 每次运行时重新创建爬虫实例，确保从Redis动态获取最新token
         for product_type in self.product_types:
             spider = None
             try:
-                self.logger.info("正在处理 %s 数据...", product_type)
+                # 创建新的爬虫实例，每次都会从Redis获取最新的token
+                spider = SpiderFisTradeData(product_type)
 
-                # 每次运行时创建新的爬虫实例，确保使用最新的token
-                spider = SpiderFisTradeData(
-                    product_type, auth_token=auth_token)
+                # run() 方法有装饰器 @decorate.exception_capture_close_datebase
+                # 会自动在 finally 块中调用 close()，确保数据库连接正确关闭
+                success = spider.run()
+                results[product_type] = success
 
-                # 获取原始数据
-                raw_data = spider._fetch_trade_data()
-                if raw_data is None:
-                    self.logger.error("%s 数据获取失败", product_type)
-                    continue
-
-                # 格式化数据为分层结构
-                formatted_record = spider._format_trade_data(raw_data)
-                if formatted_record is None:
-                    self.logger.error("%s 数据格式化失败", product_type)
-                    continue
-
-                # 保存分层数据
-                save_success = spider._save_trade_data(formatted_record)
-                if save_success:
-                    self.logger.info("%s 数据获取和保存成功", product_type)
-                    success_count += 1
-                else:
-                    self.logger.error("%s 数据保存失败", product_type)
-
-            except (ValueError, TypeError, KeyError, requests.exceptions.RequestException) as e:
-                self.logger.error("%s 处理失败: %s", product_type, str(e))
-            finally:
-                # 确保关闭爬虫连接
+            except Exception as e:
+                self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
+                results[product_type] = False
+                # 如果异常发生在创建实例后但 run() 之前，需要手动关闭
                 if spider is not None:
                     try:
                         spider.close()
-                    except Exception as e:
-                        self.logger.debug(f"关闭 {product_type} 爬虫连接时出错: {e}")
+                    except Exception as close_e:
+                        self.logger.debug(f"关闭 {product_type} 爬虫连接时出错: {close_e}")
 
-        self.logger.info("所有FIS交易数据爬取完成: %d/%d 成功", success_count, total_count)
-        return success_count == total_count
+        # 统计结果
+        success_count = sum(1 for success in results.values() if success)
+        total_count = len(results)
+
+        # 打印结果摘要
+        for product_type, success in results.items():
+            status = "✓" if success else "✗"
+            self.logger.info(f"  {product_type}: {status}")
+
+        self.logger.info(f"完成: {success_count}/{total_count}")
+
+        return results
+
+    def run_single(self, product_type: str):
+        """运行单个产品的数据爬取"""
+        product_type = product_type.upper()
+
+        if product_type not in self.product_types:
+            self.logger.error(f"不支持的产品类型: {product_type}")
+            return False
+
+        spider = None
+        try:
+            # 每次运行时创建新的爬虫实例，确保从Redis获取最新的token
+            spider = SpiderFisTradeData(product_type)
+
+            # run() 方法有装饰器 @decorate.exception_capture_close_datebase
+            # 会自动在 finally 块中调用 close()，确保数据库连接正确关闭
+            success = spider.run()
+            return success
+
+        except Exception as e:
+            self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
+            # 如果异常发生在创建实例后但 run() 之前，需要手动关闭
+            if spider is not None:
+                try:
+                    spider.close()
+                except Exception as close_e:
+                    self.logger.debug(f"关闭 {product_type} 爬虫连接时出错: {close_e}")
+            return False
+
+    def run(self, task=None):
+        """运行所有产品的数据爬取（兼容main.py调用）"""
+        return self.run_all()
 
     def close(self):
         """关闭所有爬虫连接（已优化为每次运行时动态创建，无需关闭）"""
@@ -1279,15 +1228,12 @@ class SpiderAllFisDailyTradeData:
             except Exception as e:
                 self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
                 results[product_type] = False
-            finally:
-                # 作为额外的保险措施，确保关闭连接（即使装饰器已经处理）
+                # 如果异常发生在创建实例后但 run() 之前，需要手动关闭
                 if spider is not None:
                     try:
-                        # 装饰器应该已经调用了 close()，但如果出现异常，再次调用也没问题
-                        # 因为 close() 方法现在支持重复调用
                         spider.close()
-                    except Exception as e:
-                        self.logger.debug(f"重复关闭 {product_type} 爬虫连接时出错: {e}")
+                    except Exception as close_e:
+                        self.logger.debug(f"关闭 {product_type} 爬虫连接时出错: {close_e}")
 
         # 统计结果
         success_count = sum(1 for success in results.values() if success)
@@ -1322,14 +1268,13 @@ class SpiderAllFisDailyTradeData:
 
         except Exception as e:
             self.logger.error(f"爬取 {product_type} 数据时发生错误: {str(e)}")
-            return False
-        finally:
-            # 作为额外的保险措施，确保关闭连接
+            # 如果异常发生在创建实例后但 run() 之前，需要手动关闭
             if spider is not None:
                 try:
                     spider.close()
-                except Exception as e:
-                    self.logger.debug(f"重复关闭 {product_type} 爬虫连接时出错: {e}")
+                except Exception as close_e:
+                    self.logger.debug(f"关闭 {product_type} 爬虫连接时出错: {close_e}")
+            return False
 
     def run(self, task=None):
         """运行所有产品的数据爬取（兼容main.py调用）"""
