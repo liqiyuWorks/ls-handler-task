@@ -511,10 +511,21 @@ class SpiderFisTradeData(BaseModel):
                 key={'date': formatted_record['date']},
                 data=formatted_record
             )
-            return result is not None
+            
+            if result is not None:
+                # 检查是否是新增记录
+                if 'upserted' in result:
+                    self.logger.info("[交易数据] %s 新增数据", self.product_type)
+                elif result.get('nModified', 0) > 0:
+                    self.logger.debug("[交易数据] %s 更新数据", self.product_type)
+                else:
+                    self.logger.debug("[交易数据] %s 数据已存在", self.product_type)
+                return True
+            
+            return False
 
         except (ValueError, TypeError, KeyError, pymongo.errors.PyMongoError) as e:
-            self.logger.error("保存 %s 数据失败: %s", self.product_type, str(e))
+            self.logger.error("[交易数据] %s 保存失败: %s", self.product_type, str(e))
             return False
 
     @decorate.exception_capture_close_datebase
@@ -652,19 +663,17 @@ class SpiderFisMarketTrades(BaseModel):
         try:
             # 如果Redis连接不存在，尝试重新建立连接
             if not self.cache_rds:
-                self.logger.warning("Redis连接不存在，尝试重新建立连接")
+                self.logger.debug("[市场交易] Redis连接不存在，尝试重新建立连接")
                 try:
                     self.cache_rds = self.get_cache_rds()
                     if not self.cache_rds:
-                        self.logger.error("无法重新建立Redis连接")
+                        self.logger.error("[市场交易] 无法重新建立Redis连接")
                         return None
                 except Exception as e:
-                    self.logger.error(f"重新建立Redis连接失败: {str(e)}")
+                    self.logger.error(f"[市场交易] 重新建立Redis连接失败: {str(e)}")
                     return None
 
             key_type = self.cache_rds.type("fis-live")
-            self.logger.info(f"Redis中fis-live键的类型: {key_type}")
-
             token = None
             if key_type == 'hash':
                 token = self.cache_rds.hget("fis-live", "auth_token")
@@ -679,22 +688,19 @@ class SpiderFisMarketTrades(BaseModel):
             elif key_type == 'list':
                 token = self.cache_rds.lindex("fis-live", 0)
 
-            if token:
-                self.logger.info("从Redis缓存中获取到fis-live auth_token")
-                return token
-            else:
-                self.logger.warning("Redis中未找到fis-live token")
-                return None
+            if not token:
+                self.logger.warning("[市场交易] Redis中未找到fis-live token")
+            return token
                 
         except Exception as e:
-            self.logger.error(f"获取FIS认证token时发生错误: {str(e)}")
+            self.logger.error(f"[市场交易] 获取FIS认证token时发生错误: {str(e)}")
             return None
 
     def _get_api_headers(self):
         """获取API请求头"""
         token = self._get_fis_auth_token()
         if not token:
-            self.logger.error("无法获取FIS认证token")
+            self.logger.error("[市场交易] 无法获取FIS认证token")
             return {'Authorization': 'None'}
             
         return {'Authorization': token}
@@ -704,13 +710,12 @@ class SpiderFisMarketTrades(BaseModel):
         for attempt in range(max_retries):
             try:
                 headers = self._get_api_headers()
-                self.logger.debug(f"API请求头: {headers}")
 
                 # 检查token是否有效
                 if headers.get('Authorization') == 'None':
-                    self.logger.error("Token无效，无法继续请求")
+                    self.logger.error("[市场交易] Token无效，无法继续请求")
                     if attempt < max_retries - 1:
-                        self.logger.info(f"等待重试 {attempt + 1}/{max_retries}")
+                        self.logger.debug(f"[市场交易] 等待重试 {attempt + 1}/{max_retries}")
                         import time
                         time.sleep(2)  # 等待2秒后重试
                         continue
@@ -721,111 +726,76 @@ class SpiderFisMarketTrades(BaseModel):
                     'productIds': [1, 12, 90, 39, 0, 25, 28, 87]  # 对应C5TC、P4TC、P5TC等产品
                 }
 
-                self.logger.info(f"正在请求市场交易API: {self.api_url}")
-                self.logger.info(f"查询参数: {params}")
-
                 response = requests.get(
                     self.api_url, headers=headers, params=params, timeout=30)
 
                 if response.status_code == 200:
                     data = response.json()
-                    self.logger.info(
-                        f"成功获取市场交易数据，记录数: {len(data) if isinstance(data, list) else 'N/A'}")
+                    self.logger.debug(
+                        f"[市场交易] 获取成功: {len(data) if isinstance(data, list) else 'N/A'} 条")
                     return data
                 elif response.status_code == 401:
-                    self.logger.error("市场交易API认证失败 (401) - Token可能已过期")
-                    self.logger.error(f"请求URL: {self.api_url}")
-                    self.logger.error(f"请求头: {headers}")
-                    self.logger.error(f"查询参数: {params}")
-                    self.logger.error(f"响应状态码: {response.status_code}")
-                    self.logger.error(f"响应头: {dict(response.headers)}")
-                    try:
-                        response_text = response.text
-                        self.logger.error(f"响应内容: {response_text}")
-                    except Exception as e:
-                        self.logger.error(f"无法读取响应内容: {str(e)}")
-
-                    # 检查token来源和有效性
-                    token = self._get_fis_auth_token()
-                    if token:
-                        self.logger.error(
-                            f"当前使用的Token: {token[:50]}...{token[-20:] if len(token) > 70 else token}")
-                        # 尝试解析JWT token（如果可能）
-                        try:
-                            import base64
-                            import json
-                            # JWT token通常有三部分，用.分隔
-                            parts = token.split('.')
-                            if len(parts) == 3:
-                                # 解码payload部分（第二部分）
-                                payload = parts[1]
-                                # 添加padding如果需要
-                                payload += '=' * (4 - len(payload) % 4)
-                                decoded = base64.b64decode(payload)
-                                payload_data = json.loads(decoded)
-                                self.logger.error(
-                                    f"Token payload信息: {payload_data}")
-                        except Exception as e:
-                            self.logger.error(f"无法解析Token payload: {str(e)}")
-                    else:
-                        self.logger.error("无法获取Token")
-
+                    self.logger.error("[市场交易] API认证失败 (401) - Token可能已过期")
+                    
                     # 如果是第一次401错误，尝试重新获取token
                     if attempt == 0:
-                        self.logger.info("尝试重新获取token...")
+                        self.logger.debug("[市场交易] 尝试重新获取token...")
                         # 强制重新建立Redis连接
                         try:
                             self.cache_rds = self.get_cache_rds()
+                            old_token = self._get_fis_auth_token()
                             new_token = self._get_fis_auth_token()
-                            if new_token and new_token != token:
-                                self.logger.info("成功获取新token，将在下次重试时使用")
+                            if new_token and new_token != old_token:
+                                self.logger.debug("[市场交易] 成功获取新token，将在下次重试时使用")
                                 continue
                         except Exception as e:
-                            self.logger.error(f"重新获取token失败: {str(e)}")
+                            self.logger.error(f"[市场交易] 重新获取token失败: {str(e)}")
 
                     return None
                 else:
                     self.logger.warning(
-                        f"市场交易API请求失败，状态码: {response.status_code}")
+                        f"[市场交易] API请求失败，状态码: {response.status_code}")
                     if attempt < max_retries - 1:
-                        self.logger.info(f"重试 {attempt + 1}/{max_retries}")
+                        self.logger.debug(f"[市场交易] 重试 {attempt + 1}/{max_retries}")
                         continue
                     return None
 
             except requests.exceptions.RequestException as e:
-                self.logger.error(f"市场交易API请求异常: {str(e)}")
+                self.logger.error(f"[市场交易] API请求异常: {str(e)}")
                 if attempt < max_retries - 1:
-                    self.logger.info(f"重试 {attempt + 1}/{max_retries}")
+                    self.logger.debug(f"[市场交易] 重试 {attempt + 1}/{max_retries}")
                     continue
                 return None
             except Exception as e:
-                self.logger.error(f"获取市场交易数据时发生未知错误: {str(e)}")
+                self.logger.error(f"[市场交易] 获取数据时发生未知错误: {str(e)}")
                 return None
 
-        self.logger.error(f"市场交易数据获取失败，已重试 {max_retries} 次")
+        self.logger.error(f"[市场交易] 数据获取失败，已重试 {max_retries} 次")
         return None
 
     def _save_market_trades(self, raw_data):
         """保存市场交易数据"""
         if not hasattr(self, 'mgo') or self.mgo is None:
-            self.logger.warning("MongoDB连接不可用，跳过数据保存")
+            self.logger.warning("[市场交易] MongoDB连接不可用，跳过数据保存")
             return False
 
         try:
             if not isinstance(raw_data, list):
-                self.logger.error("数据格式错误，期望列表格式")
+                self.logger.error("[市场交易] 数据格式错误，期望列表格式")
                 return False
 
             if not raw_data:
-                self.logger.warning("数据为空，跳过保存")
+                self.logger.debug("[市场交易] 数据为空，跳过保存")
                 return False
 
             success_count = 0
+            new_count = 0  # 新增记录数
+            update_count = 0  # 更新记录数
             total_count = len(raw_data)
 
             for trade_record in raw_data:
                 if not isinstance(trade_record, dict):
-                    self.logger.warning("跳过非字典格式的记录")
+                    self.logger.debug("[市场交易] 跳过非字典格式的记录")
                     continue
 
                 # 提取用于去重的关键字段
@@ -836,8 +806,7 @@ class SpiderFisMarketTrades(BaseModel):
 
                 # 检查必需字段是否存在
                 if not all([traded_date, source_type, period_name, product_name]):
-                    self.logger.warning(
-                        f"记录缺少必需的字段，跳过。tradedDate: {traded_date}, sourceType: {source_type}, periodName: {period_name}, productName: {product_name}")
+                    self.logger.debug("[市场交易] 记录缺少必需字段，跳过")
                     continue
 
                 # 添加创建时间
@@ -856,37 +825,52 @@ class SpiderFisMarketTrades(BaseModel):
 
                 if result is not None:
                     success_count += 1
-                    self.logger.debug(f"成功保存记录: {key}")
-                else:
-                    self.logger.warning(f"保存记录失败: {key}")
+                    # 检查是否是新增记录（upserted）还是更新记录（nModified）
+                    if 'upserted' in result:
+                        new_count += 1
+                    elif result.get('nModified', 0) > 0:
+                        update_count += 1
 
             if success_count > 0:
-                self.logger.info(f"成功保存 {success_count}/{total_count} 条市场交易数据")
+                status_parts = []
+                if new_count > 0:
+                    status_parts.append(f"新增 {new_count} 条")
+                if update_count > 0:
+                    status_parts.append(f"更新 {update_count} 条")
+                if success_count > new_count + update_count:
+                    existing_count = success_count - new_count - update_count
+                    status_parts.append(f"已存在 {existing_count} 条")
+                
+                status_str = "，".join(status_parts) if status_parts else f"处理 {success_count} 条"
+                self.logger.info(f"[市场交易] {status_str}（共 {total_count} 条）")
                 return True
             else:
-                self.logger.error("没有成功保存任何市场交易数据")
+                self.logger.warning("[市场交易] 没有保存任何数据")
                 return False
 
         except Exception as e:
-            self.logger.error(f"保存市场交易数据时发生错误: {str(e)}")
+            self.logger.error(f"[市场交易] 保存数据时发生错误: {str(e)}")
             return False
 
     @decorate.exception_capture_close_datebase
     def run(self, task=None):
         """主运行方法"""
-        self.logger.info("开始爬取FIS市场交易数据")
-
         try:
+            self.logger.info("[市场交易] 开始爬取")
+            
             raw_data = self._fetch_market_trades()
 
             if raw_data is None:
-                self.logger.error("FIS市场交易数据获取失败")
+                self.logger.error("[市场交易] 数据获取失败")
                 return False
 
-            self._save_market_trades(raw_data)
+            save_success = self._save_market_trades(raw_data)
+            
+            # _save_market_trades 内部已输出详细统计信息，这里只需要返回成功/失败
+            return save_success
 
         except Exception as e:
-            self.logger.error(f"FIS市场交易数据爬取过程中发生错误: {str(e)}")
+            self.logger.error(f"[市场交易] 爬取过程中发生错误: {str(e)}")
             return False
 
 
@@ -1116,6 +1100,8 @@ class SpiderFisDailyTradeData(BaseModel):
                 return False
 
             success_count = 0
+            new_count = 0  # 新增记录数
+            update_count = 0  # 更新记录数
             total_count = len(raw_data)
 
             for trade_record in raw_data:
@@ -1141,12 +1127,26 @@ class SpiderFisDailyTradeData(BaseModel):
 
                 if result is not None:
                     success_count += 1
+                    # 检查是否是新增记录（upserted）还是更新记录（nModified）
+                    if 'upserted' in result:
+                        new_count += 1
+                    elif result.get('nModified', 0) > 0:
+                        update_count += 1
                 else:
                     self.logger.debug(f"[逐日数据] {self.product_type} 日期 {date_value} 保存失败（可能已存在）")
 
             if success_count > 0:
-                self.logger.debug(
-                    f"[逐日数据] {self.product_type} 保存: {success_count}/{total_count} 条")
+                status_parts = []
+                if new_count > 0:
+                    status_parts.append(f"新增 {new_count} 条")
+                if update_count > 0:
+                    status_parts.append(f"更新 {update_count} 条")
+                if success_count > new_count + update_count:
+                    existing_count = success_count - new_count - update_count
+                    status_parts.append(f"已存在 {existing_count} 条")
+                
+                status_str = "，".join(status_parts) if status_parts else f"处理 {success_count} 条"
+                self.logger.info(f"[逐日数据] {self.product_type} {status_str}（共 {total_count} 条）")
                 return True
             else:
                 self.logger.warning(f"[逐日数据] {self.product_type} 没有保存任何数据")
