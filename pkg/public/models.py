@@ -82,9 +82,9 @@ class BaseModel:
                 logging.debug(f'关闭ClickHouse连接失败: {e}')
 
         
-        # 如果有关闭的连接，显示信息
+        # 如果有关闭的连接，显示信息（使用debug级别减少日志噪音）
         if closed_connections:
-            logging.info(f'关闭数据库连接: {", ".join(closed_connections)}')
+            logging.debug(f'关闭数据库连接: {", ".join(closed_connections)}')
 
     def history(self):
         pass
