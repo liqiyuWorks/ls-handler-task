@@ -767,6 +767,40 @@ class SpiderFisMarketTrades(BaseModel):
                     return data
                 elif response.status_code == 401:
                     self.logger.error("市场交易API认证失败 (401) - Token可能已过期")
+                    self.logger.error(f"请求URL: {self.api_url}")
+                    self.logger.error(f"请求头: {headers}")
+                    self.logger.error(f"查询参数: {params}")
+                    self.logger.error(f"响应状态码: {response.status_code}")
+                    self.logger.error(f"响应头: {dict(response.headers)}")
+                    try:
+                        response_text = response.text
+                        self.logger.error(f"响应内容: {response_text}")
+                    except Exception as e:
+                        self.logger.error(f"无法读取响应内容: {str(e)}")
+                    
+                    # 检查token来源和有效性
+                    token = self._get_fis_auth_token()
+                    if token:
+                        self.logger.error(f"当前使用的Token: {token[:50]}...{token[-20:] if len(token) > 70 else token}")
+                        # 尝试解析JWT token（如果可能）
+                        try:
+                            import base64
+                            import json
+                            # JWT token通常有三部分，用.分隔
+                            parts = token.split('.')
+                            if len(parts) == 3:
+                                # 解码payload部分（第二部分）
+                                payload = parts[1]
+                                # 添加padding如果需要
+                                payload += '=' * (4 - len(payload) % 4)
+                                decoded = base64.b64decode(payload)
+                                payload_data = json.loads(decoded)
+                                self.logger.error(f"Token payload信息: {payload_data}")
+                        except Exception as e:
+                            self.logger.error(f"无法解析Token payload: {str(e)}")
+                    else:
+                        self.logger.error("无法获取Token")
+                    
                     return None
                 else:
                     self.logger.warning(
