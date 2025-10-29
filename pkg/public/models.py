@@ -56,8 +56,6 @@ class BaseModel:
                 closed_connections.append('MongoDB')
             except Exception as e:
                 logging.debug(f'关闭MongoDB连接失败: {e}')
-            finally:
-                self.mgo_client = None
 
         # 关闭 Redis Task Queue
         if hasattr(self, 'rds') and self.rds:
@@ -66,8 +64,6 @@ class BaseModel:
                 closed_connections.append('Redis Queue')
             except Exception as e:
                 logging.debug(f'关闭Redis Queue连接失败: {e}')
-            finally:
-                self.rds = None
 
         # 关闭 Redis Cache
         if hasattr(self, 'cache_rds') and self.cache_rds:
@@ -76,9 +72,7 @@ class BaseModel:
                 closed_connections.append('Redis Cache')
             except Exception as e:
                 logging.debug(f'关闭Redis Cache连接失败: {e}')
-            finally:
-                self.cache_rds = None
-
+                
         # 关闭 ClickHouse 连接
         if hasattr(self, 'ck_client') and self.ck_client:
             try:
@@ -86,8 +80,7 @@ class BaseModel:
                 closed_connections.append('ClickHouse')
             except Exception as e:
                 logging.debug(f'关闭ClickHouse连接失败: {e}')
-            finally:
-                self.ck_client = None
+
         
         # 如果有关闭的连接，显示信息
         if closed_connections:

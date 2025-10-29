@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 import time
 from pkg.public.logger import logger
+from pkg.public.decorator import decorate
 
 # 添加当前目录到Python路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -240,6 +241,7 @@ class GetFisCookie(BaseModel):
                 except:
                     pass
     
+    @decorate.exception_capture_close_datebase  
     def run(self):
         """运行任务，获取FIS token"""
         token = self.get_token()
