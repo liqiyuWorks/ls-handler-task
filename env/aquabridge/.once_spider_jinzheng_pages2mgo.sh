@@ -12,5 +12,5 @@ export RUN_ONCE=1
 export SCHEDULER_FLAG=1
 export INTERVAL_START_TIME="2025-10-15T00:00:00"
 export SCHEDULER_MODE=interval
-export INTERVAL_HOUR=6
+export INTERVAL_MINUTE=3
 export TASK_TYPE=spider_jinzheng_pages2mgo

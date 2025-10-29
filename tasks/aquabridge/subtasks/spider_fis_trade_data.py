@@ -702,18 +702,6 @@ class SpiderFisMarketTrades(BaseModel):
                     self.logger.error(f"重新建立Redis连接失败: {str(e)}")
                     return None
 
-            # 测试Redis连接是否可用
-            try:
-                self.cache_rds.ping()
-            except Exception as e:
-                self.logger.error(f"Redis连接不可用: {str(e)}，尝试重新连接")
-                try:
-                    self.cache_rds = self.get_cache_rds()
-                    self.cache_rds.ping()
-                except Exception as e2:
-                    self.logger.error(f"重新连接Redis失败: {str(e2)}")
-                    return None
-
             key_type = self.cache_rds.type("fis-live")
             self.logger.info(f"Redis中fis-live键的类型: {key_type}")
 
@@ -748,10 +736,6 @@ class SpiderFisMarketTrades(BaseModel):
         if not token:
             self.logger.error("无法获取FIS认证token")
             return {'Authorization': 'None'}
-        
-        # 确保token格式正确
-        if not token.startswith('Bearer '):
-            token = f'{token}'
             
         return {'Authorization': token}
 
