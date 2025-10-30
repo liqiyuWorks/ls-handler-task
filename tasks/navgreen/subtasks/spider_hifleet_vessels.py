@@ -210,7 +210,7 @@ class SpiderHifleetVessels(BaseModel):
                             # 优先使用 IMO 作为唯一键，跳过无效 IMO 的记录
                             imo_raw = item.get("imo")
                             try:
-                                imo_val = int(imo_raw)
+                                imo_val = int(float(imo_raw)) if imo_raw not in (None, "", "null") else None
                             except (TypeError, ValueError):
                                 imo_val = None
 
@@ -219,11 +219,14 @@ class SpiderHifleetVessels(BaseModel):
                                 continue
 
                             # 可选：规范化 mmsi 类型为 int（若存在且可转换）
+                            mmsi_raw = item.get("mmsi")
                             try:
-                                if item.get("mmsi") is not None:
-                                    item["mmsi"] = int(item["mmsi"])
+                                if mmsi_raw not in (None, "", "null"):
+                                    item["mmsi"] = int(float(mmsi_raw))
+                                else:
+                                    item["mmsi"] = None
                             except (TypeError, ValueError):
-                                pass
+                                item["mmsi"] = None
 
                             item["imo"] = imo_val
 

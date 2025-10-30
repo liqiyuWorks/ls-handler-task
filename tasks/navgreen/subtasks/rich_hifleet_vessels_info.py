@@ -51,15 +51,20 @@ class RichHifleetVesselsInfo(BaseModel):
             returned_mmsi_set = set()
             returned_imo_map = {}
             for item in res:
+                # 强制 imo/mmsi 均为 int 类型
                 imo_raw = item.get("imo")
                 mmsi_raw = item.get("mmsi")
                 if imo_raw is None or imo_raw == "" or mmsi_raw is None:
                     continue
                 try:
                     imo = int(imo_raw)
+                except Exception:
+                    print(f"imo 字段格式异常: {imo_raw}")
+                    continue
+                try:
                     mmsi = int(mmsi_raw)
                 except Exception:
-                    print(f"mmsi/imo 字段格式异常: imo={imo_raw}, mmsi={mmsi_raw}")
+                    print(f"mmsi 字段格式异常: {mmsi_raw}")
                     continue
                 item["imo"] = imo
                 item["mmsi"] = mmsi
@@ -122,6 +127,9 @@ class RichHifleetVesselsInfo(BaseModel):
 
             # 只依据信息更新时间 info_update 判定是否需要补数据
             def need_update(item):
+                # ③ 有特殊标志“未获取到详情”则不更新
+                if item.get("info_update_desc") == "未获取到详情":
+                    return False
                 # ① info_update 字段不存在
                 if "info_update" not in item:
                     return True
