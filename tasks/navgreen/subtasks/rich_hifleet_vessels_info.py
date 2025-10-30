@@ -32,7 +32,7 @@ class RichHifleetVesselsInfo(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
     def __init__(self):
-        self.batch_size = int(os.getenv('BATCH_SIZE', 500))
+        self.batch_size = int(os.getenv('BATCH_SIZE', 1000))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
         config = {
             'handle_db': 'mgo',
