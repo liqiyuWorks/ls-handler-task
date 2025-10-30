@@ -823,6 +823,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.time_sleep = os.getenv('TIME_SLEEP', "0.1")
         self.time_days = int(os.getenv('TIME_DAYS', "0"))
         self.calc_days = int(os.getenv('CALC_DAYS', "365"))
+        self.api_key = os.getenv('API_KEY', "266102ea-ca32-4ad8-8292-17c952a81a56")
 
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
@@ -1430,7 +1431,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         :param end_time: 结束时间戳（毫秒）
         :return: 轨迹数据列表
         """
-        url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace"
+        url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace?api_key={self.api_key}"
         # 构造请求体，使用当前vessel的mmsi，时间戳可根据需要调整
         data = {
             "mmsi": mmsi,
@@ -1503,7 +1504,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         error_msg = response_data.get(
                             'state', {}).get('message', '未知错误')
                         logger.error(
-                            f"API请求失败: {error_msg[:50]}{'...' if len(error_msg) > 50 else ''}")
+                            f"API请求失败: {error_msg}")
                     if attempt < max_retries - 1:
                         log_warning(f"重试第 {attempt + 1} 次...")
                         time.sleep(retry_delay)
@@ -1636,9 +1637,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                       "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
                         continue
 
-                    start_time = int(datetime.now().timestamp()
-                                     * 1000) - self.calc_days * 24 * 3600 * 1000
-                    end_time = int(datetime.now().timestamp() * 1000)
+                    start_time = int(datetime.now().timestamp()) - self.calc_days * 24 * 3600
+                    end_time = int(datetime.now().timestamp())
                     trace = self.get_vessel_trace(mmsi, start_time, end_time)
 
                     # 初始化性能数据变量
@@ -1719,8 +1719,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                 "imo": imo,
                                 "current_good_weather_performance": current_good_weather_performance,
                                 "current_bad_weather_performance": current_bad_weather_performance,
-                                # "captain_assessment": captain_assessment,
-                                # "trading_chartering_analysis": trading_chartering_analysis,
                                 "perf_calculated": 1,
                                 "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                             }}, upsert=True)
