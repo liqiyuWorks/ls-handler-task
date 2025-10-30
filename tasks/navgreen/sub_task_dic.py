@@ -6,14 +6,15 @@ from tasks.navgreen.subtasks.calc_vessel_performance_details import CalcVesselPe
 from tasks.navgreen.subtasks.spider_windy_zoom_storms import SpiderWindyZoomStorms
 from tasks.navgreen.subtasks.calc_vessel_performance_details_from_wmy import CalcVesselPerformanceDetailsFromWmy
 from tasks.navgreen.subtasks.spider_vessel_Lloyd_info import SpiderVesselsLloydInfo
-from tasks.navgreen.subtasks.spider_vessel_finder_vessels import SpiderVesselFinderVessels
-from tasks.navgreen.subtasks.rich_hifleet_vessels_info import RichHifleetVesselsInfo
+from tasks.navgreen.subtasks.rich_hifleet_vessels_info import RichHifleetVesselsInfo,ModifyVesselsInfoInMgo
 from tasks.navgreen.subtasks.spider_wni_ai_weather_analyze import SpiderWniAiWeatherAnalyze
 
 def get_task_dic():
     task_dict = {
         "spider_hifleet_vessels": (lambda: SpiderHifleetVessels(), 'Navgreen => 1、hifleet的船舶列表'),
         "rich_hifleet_vessels_info": (lambda: RichHifleetVesselsInfo(), 'Navgreen => 2、丰富hifleet的船舶详情档案'),
+        "modify_vessels_info_in_mgo": (lambda: ModifyVesselsInfoInMgo(), 'Navgreen => 3、修改mgo中的船舶详情档案'),
+        
         "spider_vessel_Lloyd_info": (lambda: SpiderVesselsLloydInfo(), 'Navgreen => ***查询船舶劳氏船级社的档案'),
         "calc_vessel_performance_details": (lambda: CalcVesselPerformanceDetails(), 'Navgreen：后台计算船舶性能详情'),
         "calc_vessel_performance_details_from_wmy": (lambda: CalcVesselPerformanceDetailsFromWmy(), '****Navgreen：从茂源那边获取 mmsi 去计算船舶性能详情'),
