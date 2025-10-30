@@ -55,9 +55,9 @@ class SpiderHifleetVessels(BaseModel):
     ]
 
     def __init__(self):
-        self.PAGE_START = int(os.getenv('PAGE_START', '175'))
-        self.PAGE_END = int(os.getenv('PAGE_END', '600'))
-        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '500'))
+        self.PAGE_START = int(os.getenv('PAGE_START', '1'))
+        self.PAGE_END = int(os.getenv('PAGE_END', '30'))  # 从114页开始（输入 115）
+        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '1000'))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
         
         # 代理配置（可选）
@@ -185,7 +185,9 @@ class SpiderHifleetVessels(BaseModel):
         try:
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
             print(dataTime)
-            for index in range(self.PAGE_START, self.PAGE_END):
+            # 从最后一页往前倒序遍历（PAGE_END-1 到 PAGE_START，含）
+            # for index in range(self.PAGE_END, self.PAGE_START): # 正序
+            for index in range(self.PAGE_END - 1, self.PAGE_START - 1, -1):  # 逆序
                 print(f"## 开始插入第 {index} 页的数据")
                 self.payload["offset"] = index
                 

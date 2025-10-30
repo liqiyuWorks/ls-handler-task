@@ -32,7 +32,7 @@ class RichHifleetVesselsInfo(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
     def __init__(self):
-        self.batch_size = int(os.getenv('BATCH_SIZE', 1000))
+        self.batch_size = int(os.getenv('BATCH_SIZE', 500))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
         config = {
             'handle_db': 'mgo',
@@ -47,6 +47,8 @@ class RichHifleetVesselsInfo(BaseModel):
     def update_hifleet_vessels(self, mmsi_list):
         try:
             res = request_wmy_detail(mmsi_list)
+            if res is None:
+                res = []
             print("接口返回数据条数:", len(res))
             returned_mmsi_set = set()
             returned_imo_map = {}
@@ -111,6 +113,7 @@ class RichHifleetVesselsInfo(BaseModel):
                     )
         except Exception:
             traceback.print_exc()
+            print("res:", res)
             print("error in update_hifleet_vessels")
 
     @decorate.exception_capture_close_datebase
@@ -145,6 +148,8 @@ class RichHifleetVesselsInfo(BaseModel):
 
             # 只补缺失/不完整字段/超时的数据，也可以全量同步（如需全量查 imo_list = ...）
             need_sync_list = [item for item in existing_record_list if need_update(item)]
+            # 按 imo 升序排序，确保need_sync_list顺序一致
+            need_sync_list = sorted(need_sync_list, key=lambda x: x.get("imo", 0))
             mmsi_list = [item["mmsi"] for item in need_sync_list]
             print("需补字段船只数量:", len(mmsi_list))
 
