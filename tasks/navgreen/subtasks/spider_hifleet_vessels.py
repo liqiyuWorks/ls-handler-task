@@ -8,6 +8,9 @@ from pkg.public.models import BaseModel
 import traceback
 import time
 import os
+import random
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 def get_check_svc_token(cache_rds):
@@ -32,7 +35,8 @@ def request_svc_detail(token, mmsi_list):
     response = requests.post(
         url=url,
         headers=headers,
-        json=payload)
+        json=payload,
+        timeout=30)
 
     return response.json().get("data", [])
 
@@ -40,11 +44,26 @@ def request_svc_detail(token, mmsi_list):
 class SpiderHifleetVessels(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
+    # 多个不同的 User-Agent 轮换使用
+    USER_AGENTS = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0",
+    ]
+
     def __init__(self):
-        self.PAGE_START = int(os.getenv('PAGE_START', 87))
-        self.PAGE_END = int(os.getenv('PAGE_END', 600))
-        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', 200))
-        self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
+        self.PAGE_START = int(os.getenv('PAGE_START', '87'))
+        self.PAGE_END = int(os.getenv('PAGE_END', '600'))
+        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '200'))
+        self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
+        
+        # 代理配置（可选）
+        self.use_proxy = os.getenv('USE_PROXY', 'false').lower() == 'true'
+        self.proxy_url = os.getenv('PROXY_URL', '')
+        
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -78,7 +97,8 @@ class SpiderHifleetVessels(BaseModel):
             }
         }
 
-        self.headers = {
+        # 基础 headers 模板，动态生成
+        self.base_headers = {
             "Accept": "application/json, text/javascript, */*; q=0.01",
             "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
             "Connection": "keep-alive",
@@ -88,14 +108,47 @@ class SpiderHifleetVessels(BaseModel):
             "Sec-Fetch-Dest": "empty",
             "Sec-Fetch-Mode": "cors",
             "Sec-Fetch-Site": "same-origin",
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36",
-            "X-Requested-With": "XMLHttpRequest",
             "Accept-Encoding": "gzip, deflate, br",
-            "Cache-Control": "no-cache",
-            "Host": "www.hifleet.com",
-            "Content-Length": "474"
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "X-Requested-With": "XMLHttpRequest",
         }
+        
         super(SpiderHifleetVessels, self).__init__(config)
+        
+        # 创建带重试机制的 session
+        self.session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["POST"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy)
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+    
+    def get_random_headers(self):
+        """生成随机的 headers，每次请求都不同"""
+        headers = self.base_headers.copy()
+        
+        # 随机选择 User-Agent
+        headers["User-Agent"] = random.choice(self.USER_AGENTS)
+        
+        # 移除 Host 和 Content-Length（由 requests 自动处理）
+        headers.pop("Host", None)
+        headers.pop("Content-Length", None)
+        
+        return headers
+    
+    def get_proxy_dict(self):
+        """获取代理配置（如果需要）"""
+        if self.use_proxy and self.proxy_url:
+            return {
+                "http": self.proxy_url,
+                "https": self.proxy_url
+            }
+        return None
 
     def update_hifleet_vessels(self, token, mmsi):
         try:
@@ -119,14 +172,40 @@ class SpiderHifleetVessels(BaseModel):
             for index in range(self.PAGE_START, self.PAGE_END):
                 print(f"## 开始插入第 {index} 页的数据")
                 self.payload["offset"] = index
-                response = requests.request(
-                    "POST", self.HIFLEET_VESSELS_LIST_URL, json=self.payload, headers=self.headers)
-                if response.status_code == 200:
-                    data = response.json().get("data", [])
-                    if data == [] or data == None:
-                        print("读取完成，运行结束...",response.text)
-                        break
-                    else:
+                
+                # 使用动态 headers 和代理
+                headers = self.get_random_headers()
+                proxies = self.get_proxy_dict()
+                
+                try:
+                    response = self.session.post(
+                        self.HIFLEET_VESSELS_LIST_URL,
+                        json=self.payload,
+                        headers=headers,
+                        proxies=proxies,
+                        timeout=30
+                    )
+                    
+                    # 如果是 429 或 401，增加等待时间
+                    if response.status_code == 429:
+                        print("收到 429 限流响应，等待 60 秒...")
+                        time.sleep(60)
+                        continue
+                    elif response.status_code == 401:
+                        print("收到 401 未授权响应，可能被检测为爬虫，增加等待时间...")
+                        time.sleep(self.time_sleep_seconds * 2)
+                        continue
+                    
+                    if response.status_code == 200:
+                        data = response.json().get("data", [])
+                        status = response.json().get("status", "")
+                        
+                        # 检查是否被拒绝
+                        if status == "402" or data == [] or data == None:
+                            print(f"读取完成，运行结束... 响应: {response.text}")
+                            break
+                        
+                        # 处理数据
                         for item in data:
                             # 优先使用 IMO 作为唯一键，跳过无效 IMO 的记录
                             imo_raw = item.get("imo")
@@ -154,11 +233,21 @@ class SpiderHifleetVessels(BaseModel):
                                 print(f"插入新记录: imo={imo_val}")
                             else:
                                 print(f"已存在，不插入，imo={imo_val}")
-                            # else:
-                            #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
-                            #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
+                        # else:
+                        #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
+                        #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
+                    else:
+                        print(f"请求失败，状态码: {response.status_code}, 响应: {response.text}")
+                        
+                except requests.exceptions.RequestException as e:
+                    print(f"请求异常: {e}")
+                    time.sleep(self.time_sleep_seconds)
 
-                time.sleep(self.time_sleep_seconds)
+                # 添加随机延迟，模拟人类行为
+                sleep_time = self.time_sleep_seconds + random.uniform(1, 5)
+                print(f"等待 {sleep_time:.2f} 秒后继续...")
+                time.sleep(sleep_time)
 
         except Exception as e:
             print("error:", e)
+            traceback.print_exc()
