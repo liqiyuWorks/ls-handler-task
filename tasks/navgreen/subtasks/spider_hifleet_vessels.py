@@ -41,17 +41,16 @@ class SpiderHifleetVessels(BaseModel):
     HIFLEET_VESSELS_LIST_URL = "https://www.hifleet.com/particulars/getShipDatav3"
 
     def __init__(self):
-        self.PAGE_START = int(os.getenv('PAGE_START', 1))
-        self.PAGE_END = int(os.getenv('PAGE_END', 5))
+        self.PAGE_START = int(os.getenv('PAGE_START', 87))
+        self.PAGE_END = int(os.getenv('PAGE_END', 600))
         self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', 200))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
-            'collection': 'hifleet_vessels',
+            'collection': 'global_vessels',
             'uniq_idx': [
-                ('imo', pymongo.ASCENDING),
-                ('mmsi', pymongo.ASCENDING),
+                ('imo', pymongo.ASCENDING)
             ]
         }
         self.payload = {
@@ -129,20 +128,37 @@ class SpiderHifleetVessels(BaseModel):
                         break
                     else:
                         for item in data:
-                            existing_record = self.mgo_db["hifleet_vessels"].find_one(
-                                {"mmsi": int(item.get("mmsi"))})
+                            # 优先使用 IMO 作为唯一键，跳过无效 IMO 的记录
+                            imo_raw = item.get("imo")
+                            try:
+                                imo_val = int(imo_raw)
+                            except (TypeError, ValueError):
+                                imo_val = None
+
+                            if not imo_val or imo_val <= 0:
+                                print(f"跳过无效IMO记录: imo={imo_raw}, shipname={item.get('shipname')}")
+                                continue
+
+                            # 可选：规范化 mmsi 类型为 int（若存在且可转换）
+                            try:
+                                if item.get("mmsi") is not None:
+                                    item["mmsi"] = int(item["mmsi"])
+                            except (TypeError, ValueError):
+                                pass
+
+                            item["imo"] = imo_val
+
+                            existing_record = self.mgo_db["global_vessels"].find_one({"imo": imo_val})
                             if not existing_record:
-                                print(item)
-                                item["mmsi"] = int(item["mmsi"])
                                 self.mgo.set(None, item)
-                                print(f"插入新记录: mmsi={item.get('mmsi')}")
+                                print(f"插入新记录: imo={imo_val}")
                             else:
-                                print(f"已存在，不插入，mmsi={item.get('mmsi')}")
+                                print(f"已存在，不插入，imo={imo_val}")
                             # else:
                             #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
                             #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
 
-            time.sleep(self.time_sleep_seconds)
+                time.sleep(self.time_sleep_seconds)
 
         except Exception as e:
             print("error:", e)

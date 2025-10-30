@@ -14,7 +14,6 @@ def get_task_dic():
     task_dict = {
         "spider_hifleet_vessels": (lambda: SpiderHifleetVessels(), 'Navgreen => 1、hifleet的船舶列表'),
         "rich_hifleet_vessels_info": (lambda: RichHifleetVesselsInfo(), 'Navgreen => 2、丰富hifleet的船舶详情档案'),
-        # "spider_vessel_finder_vessels": (lambda: SpiderVesselFinderVessels(), 'Navgreen => vesselfinder的列表'),
         "spider_vessel_Lloyd_info": (lambda: SpiderVesselsLloydInfo(), 'Navgreen => ***查询船舶劳氏船级社的档案'),
         "calc_vessel_performance_details": (lambda: CalcVesselPerformanceDetails(), 'Navgreen：后台计算船舶性能详情'),
         "calc_vessel_performance_details_from_wmy": (lambda: CalcVesselPerformanceDetailsFromWmy(), '****Navgreen：从茂源那边获取 mmsi 去计算船舶性能详情'),
