@@ -248,6 +248,7 @@ class GetFisCookie(BaseModel):
         
         if token:
             print("✅ Token获取成功")
+            logger.info(f"Token: {token}")
             
             # 保存token到cache_rds
             try:
