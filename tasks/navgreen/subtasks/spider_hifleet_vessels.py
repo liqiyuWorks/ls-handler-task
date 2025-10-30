@@ -55,9 +55,9 @@ class SpiderHifleetVessels(BaseModel):
     ]
 
     def __init__(self):
-        self.PAGE_START = int(os.getenv('PAGE_START', '173'))
+        self.PAGE_START = int(os.getenv('PAGE_START', '175'))
         self.PAGE_END = int(os.getenv('PAGE_END', '600'))
-        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '200'))
+        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '500'))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
         
         # 代理配置（可选）
@@ -120,6 +120,8 @@ class SpiderHifleetVessels(BaseModel):
         self.session = requests.Session()
         retry_strategy = Retry(
             total=3,
+            connect=3,      # 新增，连接失败自动重试
+            read=3,         # 新增，读取时重试
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
             allowed_methods=["POST"]
@@ -142,12 +144,26 @@ class SpiderHifleetVessels(BaseModel):
         return headers
     
     def get_proxy_dict(self):
-        """获取代理配置（如果需要）"""
+        """获取代理配置，自动适配操作系统环境变量，优先用 self.proxy_url"""
+        # 优先使用 self.proxy_url 指定的代理
         if self.use_proxy and self.proxy_url:
             return {
                 "http": self.proxy_url,
                 "https": self.proxy_url
             }
+        # 检查常用环境变量（系统代理）
+        env_proxies = {}
+        for key in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]:
+            proxy_val = os.environ.get(key)
+            if proxy_val:
+                scheme = key.lower().replace('_proxy','')
+                if 'http' in scheme:
+                    env_proxies['http'] = proxy_val
+                if 'https' in scheme or 'all' in scheme:
+                    env_proxies['https'] = proxy_val
+        if env_proxies:
+            return env_proxies
+        # 返回 None 代表让 requests 自动使用系统代理机制
         return None
 
     def update_hifleet_vessels(self, token, mmsi):
@@ -181,9 +197,10 @@ class SpiderHifleetVessels(BaseModel):
                     response = self.session.post(
                         self.HIFLEET_VESSELS_LIST_URL,
                         json=self.payload,
-                        headers=headers,
-                        proxies=proxies,
-                        timeout=30
+                        headers=headers
+                        # proxies 自动适配，不再强制传递 None/空
+                        , proxies=proxies if proxies else None
+                        , timeout=30
                     )
                     
                     # 如果是 429 或 401，增加等待时间
