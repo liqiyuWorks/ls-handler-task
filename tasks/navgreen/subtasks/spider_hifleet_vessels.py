@@ -124,7 +124,7 @@ class SpiderHifleetVessels(BaseModel):
                 if response.status_code == 200:
                     data = response.json().get("data", [])
                     if data == [] or data == None:
-                        print("读取完成，运行结束...")
+                        print("读取完成，运行结束...",response.text)
                         break
                     else:
                         for item in data:
