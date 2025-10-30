@@ -49,7 +49,22 @@ class RichHifleetVesselsInfo(BaseModel):
             res = request_wmy_detail(mmsi_list)
             if res is None:
                 res = []
+                
             print("接口返回数据条数:", len(res))
+            if len(res) == 0:
+                for m in mmsi_list:
+                    try:
+                        mmsi_int = int(m)
+                    except Exception:
+                        continue
+                    info = self.mgo_db["global_vessels"].find_one({"mmsi": mmsi_int}, {"imo": 1, "mmsi": 1, "_id": 0})
+                    missing_imo = info.get("imo") if info else None
+                    print(f"接口全空: imo: {missing_imo}, mmsi: {mmsi_int}")
+                    self.mgo_db["global_vessels"].update_one(
+                        {"mmsi": mmsi_int},
+                        {"$set": {"info_update_desc": "未获取到详情"}}
+                    )
+                return
             returned_mmsi_set = set()
             returned_imo_map = {}
             for item in res:
