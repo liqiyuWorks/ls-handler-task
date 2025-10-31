@@ -439,7 +439,7 @@ class SyncShipsFuelFromAxs(BaseModel):
                     continue
 
                 # 2、获取vessel_id
-                time.sleep(random.randint(1, 5))
+                time.sleep(random.randint(1, 3))
                 vessel_id = None
                 try:
                     search_result = search_vessels_by_query(query=imo, logic="exact", cookie=cookie)
@@ -476,7 +476,7 @@ class SyncShipsFuelFromAxs(BaseModel):
                         continue
 
                 # 3、根据vessel_id获取油耗数据
-                time.sleep(random.randint(1, 5))
+                time.sleep(random.randint(1, 3))
                 fuel_data = get_fuel_data_from_vessel_id(vessel_id, page=1, limit=25, cookie=cookie)
                 raw_vessel_data = fuel_data.get("vessel") if fuel_data else None
 
@@ -502,7 +502,7 @@ class SyncShipsFuelFromAxs(BaseModel):
                     skip_count += 1
                     
                 # 请求间隔
-                time.sleep(random.randint(1, 5))
+                time.sleep(random.randint(1, 3))
                 
                 # 每处理10条打印一次进度
                 if idx % 10 == 0:
