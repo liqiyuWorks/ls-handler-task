@@ -19,6 +19,6 @@ def get_task_dic():
         # "calc_vessel_performance_details": (lambda: CalcVesselPerformanceDetails(), 'Navgreen：后台计算船舶性能详情'),
         "calc_vessel_performance_details_from_wmy": (lambda: CalcVesselPerformanceDetailsFromWmy(), '****Navgreen：从茂源那边获取 mmsi 去计算船舶性能详情'),
         "spider_windy_zoom_storms": (lambda: SpiderWindyZoomStorms(), '****Navgreen：爬取 windy 的气旋和台风数据'),
-        "spider_wni_ai_weather_analyze": (lambda: SpiderWniAiWeatherAnalyze(), '****Navgreen：爬取 wni 的 ai 天气分析数据'),
+        # "spider_wni_ai_weather_analyze": (lambda: SpiderWniAiWeatherAnalyze(), '****Navgreen：爬取 wni 的 ai 天气分析数据'),
     }
     return task_dict
