@@ -431,7 +431,6 @@ class SyncShipsFuelFromAxs(BaseModel):
         success_count = 0
         skip_count = 0
         for idx, imo in enumerate(imo_list, 1):
-            print(f"处理IMO: {imo}")
             try:
                 # 1、检查缓存数据是否存在且未过期
                 cached_data = self.mgo.get({"imo": imo})
@@ -440,7 +439,7 @@ class SyncShipsFuelFromAxs(BaseModel):
                     continue
 
                 # 2、获取vessel_id
-                time.sleep(random.randint(5, 10))
+                time.sleep(random.randint(1, 5))
                 vessel_id = None
                 try:
                     search_result = search_vessels_by_query(query=imo, logic="exact", cookie=cookie)
@@ -464,7 +463,16 @@ class SyncShipsFuelFromAxs(BaseModel):
                         if not vessel_id:
                             raise ValueError("无法获取船舶ID")
                     except Exception:
-                        logging.warning(f"无法获取IMO {imo} 的船舶信息")
+                        # 标记为未找到，避免下次再查询
+                        logging.warning("无法获取IMO %s 的船舶信息，标记为未找到", imo)
+                        no_data_marker = {
+                            'imo': imo,
+                            'no_data': True,
+                            'status': 'not_found',
+                            'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        }
+                        self.mgo.set(None, no_data_marker)
+                        skip_count += 1
                         continue
 
                 # 3、根据vessel_id获取油耗数据
@@ -477,11 +485,21 @@ class SyncShipsFuelFromAxs(BaseModel):
                     optimized_data = optimize_vessel_data_fields(raw_vessel_data, imo)
                     optimized_data['imo'] = imo
                     optimized_data['created_at'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"raw_ecoSpdBallast2: {imo} - {optimized_data.get('raw_ecoSpdBallast2')}")
-
+                    print(f"{imo} - {optimized_data.get('raw_ecoIfoLaden')}")
                     result = self.mgo.set(None, optimized_data)
                     if result:
                         success_count += 1
+                else:
+                    # 即使获取到vessel_id但没有船体数据，也标记为未找到
+                    logging.warning("IMO %s 未获取到有效船舶数据，标记为未找到", imo)
+                    no_data_marker = {
+                        'imo': imo,
+                        'no_data': True,
+                        'status': 'no_vessel_data',
+                        'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    }
+                    self.mgo.set(None, no_data_marker)
+                    skip_count += 1
                     
                 # 请求间隔
                 time.sleep(random.randint(1, 5))
@@ -491,7 +509,7 @@ class SyncShipsFuelFromAxs(BaseModel):
                     print(f"进度: {idx}/{len(imo_list)}, 跳过: {skip_count}, 成功: {success_count}")
 
             except Exception as e:
-                logging.error(f"处理IMO {imo} 失败: {str(e)}")
+                logging.error("处理IMO %s 失败: %s", imo, str(e))
                 continue
 
         print(f"sync_ships_fuel_from_axs completed: 总计 {len(imo_list)} 条, 已跳过 {skip_count} 条, 成功处理 {success_count} 条")
