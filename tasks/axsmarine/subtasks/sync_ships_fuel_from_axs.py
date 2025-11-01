@@ -300,14 +300,16 @@ def get_fuel_data_from_vessel_id(vessel_id: str, page: int = 1, limit: int = 25,
                 time.sleep(2 ** attempt)
                 continue
             else:
-                logging.error("获取油耗数据网络错误: vessel_id=%s, 错误=%s", vessel_id, str(e))
+                logging.error("获取油耗数据网络错误: vessel_id=%s, 错误=%s",
+                              vessel_id, str(e))
                 raise
         except Exception as e:
             if attempt < retries - 1:
                 time.sleep(2 ** attempt)
                 continue
             else:
-                logging.error("获取油耗数据错误: vessel_id=%s, 错误=%s", vessel_id, str(e))
+                logging.error("获取油耗数据错误: vessel_id=%s, 错误=%s",
+                              vessel_id, str(e))
                 raise
 
     raise ValueError(f"无法获取vessel_id {vessel_id} 的油耗数据")
@@ -393,6 +395,79 @@ class SyncShipsFuelFromAxs(BaseModel):
             ]
         }
         super(SyncShipsFuelFromAxs, self).__init__(config)
+        
+    def get_vessel_info_from_imo(self, imo: str, cookie: str = None, skip_count: int = 0, success_count: int = 0) -> None:
+        # 2、获取vessel_id
+        vessel_id = None
+        try:
+            search_result = search_vessels_by_query(
+                query=imo, logic="exact", cookie=cookie)
+            if search_result and search_result.get('errors'):
+                error_msg = search_result['errors'][0] if isinstance(
+                    search_result['errors'], list) else str(search_result['errors'])
+                raise ValueError(f"搜索接口错误: {error_msg}")
+
+            if search_result and search_result.get('data') and len(search_result['data']) > 0:
+                vessel_data = search_result['data'][0]
+                vessel_id = vessel_data.get(
+                    'vessel_id') or vessel_data.get('id')
+            else:
+                raise ValueError("搜索接口未返回有效数据")
+
+        except Exception:
+            try:
+                vessel_response = get_vessel_id_from_imo(
+                    imo, cookie=cookie)
+                if not vessel_response or not isinstance(vessel_response, dict):
+                    raise ValueError(f"未找到IMO为 {imo} 的船舶信息")
+                vessel_id = vessel_response.get(
+                    'vessel_id') or vessel_response.get('id')
+                if not vessel_id:
+                    raise ValueError("无法获取船舶ID")
+            except Exception:
+                # 标记为未找到，避免下次再查询
+                logging.warning("无法获取IMO %s 的船舶信息，标记为未找到", imo)
+                no_data_marker = {
+                    'imo': imo,
+                    'no_data': True,
+                    'status': 'not_found',
+                    'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                self.mgo.set(None, no_data_marker)
+                skip_count += 1
+                return skip_count, success_count
+
+        # 3、根据vessel_id获取油耗数据
+        time.sleep(random.randint(1, 3))
+        fuel_data = get_fuel_data_from_vessel_id(
+            vessel_id, page=1, limit=25, cookie=cookie)
+        raw_vessel_data = fuel_data.get(
+            "vessel") if fuel_data else None
+
+        # 4、优化并保存数据
+        if raw_vessel_data and isinstance(raw_vessel_data, dict):
+            optimized_data = optimize_vessel_data_fields(
+                raw_vessel_data, imo)
+            optimized_data['imo'] = imo
+            optimized_data['created_at'] = datetime.datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S")
+            print(f"{imo} - {optimized_data.get('raw_ecoIfoLaden')}")
+            result = self.mgo.set(None, optimized_data)
+            if result:
+                success_count += 1
+        else:
+            # 即使获取到vessel_id但没有船体数据，也标记为未找到
+            logging.warning("IMO %s 未获取到有效船舶数据，标记为未找到", imo)
+            no_data_marker = {
+                'imo': imo,
+                'no_data': True,
+                'status': 'no_vessel_data',
+                'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            }
+            self.mgo.set(None, no_data_marker)
+            skip_count += 1
+                    
+        return skip_count, success_count
 
     @decorate.exception_capture_close_datebase
     def run(self):
@@ -437,85 +512,34 @@ class SyncShipsFuelFromAxs(BaseModel):
                 if cached_data:
                     skip_count += 1
                     continue
+                
+                self.get_vessel_info_from_imo(imo, cookie, skip_count, success_count)
 
-                # 2、获取vessel_id
-                vessel_id = None
-                try:
-                    search_result = search_vessels_by_query(query=imo, logic="exact", cookie=cookie)
-                    if search_result and search_result.get('errors'):
-                        error_msg = search_result['errors'][0] if isinstance(
-                            search_result['errors'], list) else str(search_result['errors'])
-                        raise ValueError(f"搜索接口错误: {error_msg}")
-                    
-                    if search_result and search_result.get('data') and len(search_result['data']) > 0:
-                        vessel_data = search_result['data'][0]
-                        vessel_id = vessel_data.get('vessel_id') or vessel_data.get('id')
-                    else:
-                        raise ValueError("搜索接口未返回有效数据")
-
-                except Exception:
-                    try:
-                        vessel_response = get_vessel_id_from_imo(imo, cookie=cookie)
-                        if not vessel_response or not isinstance(vessel_response, dict):
-                            raise ValueError(f"未找到IMO为 {imo} 的船舶信息")
-                        vessel_id = vessel_response.get('vessel_id') or vessel_response.get('id')
-                        if not vessel_id:
-                            raise ValueError("无法获取船舶ID")
-                    except Exception:
-                        # 标记为未找到，避免下次再查询
-                        logging.warning("无法获取IMO %s 的船舶信息，标记为未找到", imo)
-                        no_data_marker = {
-                            'imo': imo,
-                            'no_data': True,
-                            'status': 'not_found',
-                            'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        }
-                        self.mgo.set(None, no_data_marker)
-                        skip_count += 1
-                        continue
-
-                # 3、根据vessel_id获取油耗数据
-                time.sleep(random.randint(1, 3))
-                fuel_data = get_fuel_data_from_vessel_id(vessel_id, page=1, limit=25, cookie=cookie)
-                raw_vessel_data = fuel_data.get("vessel") if fuel_data else None
-
-                # 4、优化并保存数据
-                if raw_vessel_data and isinstance(raw_vessel_data, dict):
-                    optimized_data = optimize_vessel_data_fields(raw_vessel_data, imo)
-                    optimized_data['imo'] = imo
-                    optimized_data['created_at'] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    print(f"{imo} - {optimized_data.get('raw_ecoIfoLaden')}")
-                    result = self.mgo.set(None, optimized_data)
-                    if result:
-                        success_count += 1
-                else:
-                    # 即使获取到vessel_id但没有船体数据，也标记为未找到
-                    logging.warning("IMO %s 未获取到有效船舶数据，标记为未找到", imo)
-                    no_data_marker = {
-                        'imo': imo,
-                        'no_data': True,
-                        'status': 'no_vessel_data',
-                        'created_at': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    }
-                    self.mgo.set(None, no_data_marker)
-                    skip_count += 1
-                    
                 # 请求间隔
                 time.sleep(random.randint(1, 3))
-                
+
                 # 每处理10条打印一次进度
                 if idx % 10 == 0:
-                    print(f"进度: {idx}/{len(imo_list)}, 跳过: {skip_count}, 成功: {success_count}")
+                    print(
+                        f"进度: {idx}/{len(imo_list)}, 跳过: {skip_count}, 成功: {success_count}")
 
             except Exception as e:
                 logging.error("处理IMO %s 失败: %s", imo, str(e))
                 continue
 
-        print(f"sync_ships_fuel_from_axs completed: 总计 {len(imo_list)} 条, 已跳过 {skip_count} 条, 成功处理 {success_count} 条")
+        print(
+            f"sync_ships_fuel_from_axs completed: 总计 {len(imo_list)} 条, 已跳过 {skip_count} 条, 成功处理 {success_count} 条")
 
 
+class SyncSearchVesselsFuelFromAxs(SyncShipsFuelFromAxs):
+    """
+    包装类：用于调用 run_search_vessels_by_query 方法
+    """
     @decorate.exception_capture_close_datebase
-    def run_search_vessels_by_query(self):
+    def run(self):
+        """
+        重写 run 方法，调用 run_search_vessels_by_query
+        """
         dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
         print(dataTime)
 
@@ -526,8 +550,31 @@ class SyncShipsFuelFromAxs(BaseModel):
                 cookie = self.cache_rds.get('axs_live_cookie')
             except Exception:
                 pass
-            
+
         # 从mongo中获取vessel_search_history集合中的数据mmsi数据，去重
-        res = self.mgo_db["vessel_search_history"].find({}, {"mmsi": 1, "_id": 0}).distinct("mmsi")
-        print(res)
-            
+        mmsi_list = self.mgo_db["vessel_search_history"].find(
+            {}, {"mmsi": 1, "_id": 0}).distinct("mmsi")
+        print(f"从mongo中获取到 {len(mmsi_list)} 个mmsi")
+        
+        # 遍历 mmsi 从global_vessels获取对应的 imo
+        for mmsi in mmsi_list:
+            mmsi = int(mmsi)
+            try:
+                print(f"处理 mmsi: {mmsi}")
+                # 使用 find_one 而不是 find，因为只需要获取一个文档
+                vessel_info = self.mgo_db["global_vessels"].find_one(
+                    {"mmsi": mmsi}, {"imo": 1, "_id": 0})
+                if vessel_info and vessel_info.get("imo"):
+                    imo = vessel_info.get("imo")
+                    imo = str(imo)   # 油耗里面 imo是字符串，global_vessels里面 imo是整型。所以需要转换一下。
+                    print(f"找到对应的 imo: {imo}")
+                    # 在这里添加处理 imo 的逻辑
+                    skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
+                    
+                else:
+                    print(f"未找到mmsi为 {mmsi} 的船舶或imo为空")
+                    continue
+                
+            except Exception as e:
+                print(f"获取mmsi为 {mmsi} 的船舶失败: {e}")
+                continue
