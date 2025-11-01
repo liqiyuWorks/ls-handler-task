@@ -568,6 +568,12 @@ class SyncSearchVesselsFuelFromAxs(SyncShipsFuelFromAxs):
                     imo = vessel_info.get("imo")
                     imo = str(imo)   # 油耗里面 imo是字符串，global_vessels里面 imo是整型。所以需要转换一下。
                     print(f"找到对应的 imo: {imo}")
+                    # 查重逻辑，如果axs_vessel_fuel_data存在则跳过
+                    cached_data = self.mgo.get({"imo": imo})
+                    if cached_data:
+                        print(f"axs_vessel_fuel_data中已存在imo: {imo}，跳过")
+                        continue
+                    
                     # 在这里添加处理 imo 的逻辑
                     skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
                     
