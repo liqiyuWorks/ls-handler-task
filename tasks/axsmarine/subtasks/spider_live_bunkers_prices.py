@@ -21,6 +21,7 @@ class SpiderLiveBunkersPrices(BaseModel):
 
     def __init__(self):
         config = {
+            'cache_rds': True,
             'handle_db': 'mgo',
             'collection': 'axs_live_bunkers_prices',
             'uniq_idx': [
@@ -57,6 +58,14 @@ class SpiderLiveBunkersPrices(BaseModel):
         dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
         print(f"SpiderLiveBunkersPrices start at {dataTime}")
         
+        # 获取cookie（如果配置了Redis cache）
+        cookie = None
+        if hasattr(self, 'cache_rds') and self.cache_rds:
+            try:
+                cookie = self.cache_rds.get('axs_live_cookie')
+            except Exception:
+                pass
+        
         try:
             # 构建请求URL和参数
             url = f"{self.LIVE_BUNKERS_PRICES_URL}?_dc={int(time.time() * 1000)}&page=1&start=0&limit=25"
@@ -65,7 +74,7 @@ class SpiderLiveBunkersPrices(BaseModel):
             headers = {
                 'authority': 'app.axsmarine.com',
                 'x-requested-with': 'XMLHttpRequest',
-                'Cookie': '_gcl_au=1.1.576927750.1761200675; _clck=1h24f0%5E2%5Eg0e%5E0%5E2122; _ga=GA1.2.1447827304.1761200676; PHPSESSID=fcfc583153c6c6d6d2ca06e4954b9e54; _ga_PJKJ0XQRPB=GS2.1.s1761237287^$o2^$g1^$t1761237318^$j29^$l0^$h0; axs360=8e7c29223a373aa47d148cb91bb80cbe9d7a55c0; site24x7rumID=487184428174495.1761662428355.1761662447941.0'
+                'Cookie': cookie
             }
             
             # 发送请求

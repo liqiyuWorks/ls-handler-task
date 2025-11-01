@@ -439,7 +439,6 @@ class SyncShipsFuelFromAxs(BaseModel):
                     continue
 
                 # 2、获取vessel_id
-                time.sleep(random.randint(1, 3))
                 vessel_id = None
                 try:
                     search_result = search_vessels_by_query(query=imo, logic="exact", cookie=cookie)
