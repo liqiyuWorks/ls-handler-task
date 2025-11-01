@@ -512,3 +512,22 @@ class SyncShipsFuelFromAxs(BaseModel):
                 continue
 
         print(f"sync_ships_fuel_from_axs completed: 总计 {len(imo_list)} 条, 已跳过 {skip_count} 条, 成功处理 {success_count} 条")
+
+
+    @decorate.exception_capture_close_datebase
+    def run_search_vessels_by_query(self):
+        dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
+        print(dataTime)
+
+        # 获取cookie（如果配置了Redis cache）
+        cookie = None
+        if hasattr(self, 'cache_rds') and self.cache_rds:
+            try:
+                cookie = self.cache_rds.get('axs_live_cookie')
+            except Exception:
+                pass
+            
+        # 从mongo中获取vessel_search_history集合中的数据mmsi数据，去重
+        res = self.mgo_db["vessel_search_history"].find({}, {"mmsi": 1, "_id": 0}).distinct("mmsi")
+        print(res)
+            
