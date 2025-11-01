@@ -190,8 +190,8 @@ class SpiderHifleetVessels(BaseModel):
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
             print(dataTime)
             # 从最后一页往前倒序遍历（PAGE_END-1 到 PAGE_START，含）
-            # for index in range(self.PAGE_END, self.PAGE_START): # 正序
-            for index in range(self.PAGE_END - 1, self.PAGE_START - 1, -1):  # 逆序
+            for index in range(self.PAGE_START, self.PAGE_END): # 正序
+            # for index in range(self.PAGE_END - 1, self.PAGE_START - 1, -1):  # 逆序
                 print(f"## 开始插入第 {index} 页的数据")
                 self.payload["offset"] = index
 
