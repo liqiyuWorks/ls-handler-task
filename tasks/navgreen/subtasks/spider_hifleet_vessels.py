@@ -57,13 +57,15 @@ class SpiderHifleetVessels(BaseModel):
     def __init__(self):
         self.PAGE_START = int(os.getenv('PAGE_START', '1'))
         self.PAGE_END = int(os.getenv('PAGE_END', '30'))  # 从114页开始（输入 115）
-        self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '1000'))
+        self.HIFLEET_VESSELS_LIMIT = int(
+            os.getenv('HIFLEET_VESSELS_LIMIT', '1000'))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
-        
+        self.shiptype = os.getenv('SHIPTYPE', '散货船') # 散货船,杂货船，滚装船，石油化学品船********
+
         # 代理配置（可选）
         self.use_proxy = os.getenv('USE_PROXY', 'false').lower() == 'true'
         self.proxy_url = os.getenv('PROXY_URL', '')
-        
+
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -75,7 +77,6 @@ class SpiderHifleetVessels(BaseModel):
         self.payload = {
             "offset": 1,
             "limit": self.HIFLEET_VESSELS_LIMIT,
-            # "limit": 20,
             "_v": "5.3.588",
             "params": {
                 "shipname": "",
@@ -85,6 +86,7 @@ class SpiderHifleetVessels(BaseModel):
                 "keyword": "",
                 "mmsi": -1,
                 "imo": -1,
+                "isFleetShip": 0,
                 "shipagemin": -1,
                 "shipagemax": -1,
                 "loamin": -1,
@@ -92,10 +94,12 @@ class SpiderHifleetVessels(BaseModel):
                 "dwtmin": -1,
                 "dwtmax": -1,
                 "sortcolumn": "shipname",
-                "sorttype": "desc",
+                "sorttype": "asc",
                 "isFleetShip": 0
             }
         }
+        if self.shiptype:
+            self.payload["params"]["shiptype"] = self.shiptype
 
         # 基础 headers 模板，动态生成
         self.base_headers = {
@@ -113,9 +117,9 @@ class SpiderHifleetVessels(BaseModel):
             "Pragma": "no-cache",
             "X-Requested-With": "XMLHttpRequest",
         }
-        
+
         super(SpiderHifleetVessels, self).__init__(config)
-        
+
         # 创建带重试机制的 session
         self.session = requests.Session()
         retry_strategy = Retry(
@@ -129,20 +133,20 @@ class SpiderHifleetVessels(BaseModel):
         adapter = HTTPAdapter(max_retries=retry_strategy)
         self.session.mount("http://", adapter)
         self.session.mount("https://", adapter)
-    
+
     def get_random_headers(self):
         """生成随机的 headers，每次请求都不同"""
         headers = self.base_headers.copy()
-        
+
         # 随机选择 User-Agent
         headers["User-Agent"] = random.choice(self.USER_AGENTS)
-        
+
         # 移除 Host 和 Content-Length（由 requests 自动处理）
         headers.pop("Host", None)
         headers.pop("Content-Length", None)
-        
+
         return headers
-    
+
     def get_proxy_dict(self):
         """获取代理配置，自动适配操作系统环境变量，优先用 self.proxy_url"""
         # 优先使用 self.proxy_url 指定的代理
@@ -156,7 +160,7 @@ class SpiderHifleetVessels(BaseModel):
         for key in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]:
             proxy_val = os.environ.get(key)
             if proxy_val:
-                scheme = key.lower().replace('_proxy','')
+                scheme = key.lower().replace('_proxy', '')
                 if 'http' in scheme:
                     env_proxies['http'] = proxy_val
                 if 'https' in scheme or 'all' in scheme:
@@ -190,21 +194,19 @@ class SpiderHifleetVessels(BaseModel):
             for index in range(self.PAGE_END - 1, self.PAGE_START - 1, -1):  # 逆序
                 print(f"## 开始插入第 {index} 页的数据")
                 self.payload["offset"] = index
-                
+
                 # 使用动态 headers 和代理
                 headers = self.get_random_headers()
                 proxies = self.get_proxy_dict()
-                
+
                 try:
                     response = self.session.post(
                         self.HIFLEET_VESSELS_LIST_URL,
                         json=self.payload,
-                        headers=headers
-                        # proxies 自动适配，不再强制传递 None/空
-                        , proxies=proxies if proxies else None
-                        , timeout=30
+                        headers=headers                        # proxies 自动适配，不再强制传递 None/空
+                        , proxies=proxies if proxies else None, timeout=30
                     )
-                    
+
                     # 如果是 429 或 401，增加等待时间
                     if response.status_code == 429:
                         print("收到 429 限流响应，等待 60 秒...")
@@ -214,27 +216,29 @@ class SpiderHifleetVessels(BaseModel):
                         print("收到 401 未授权响应，可能被检测为爬虫，增加等待时间...")
                         time.sleep(self.time_sleep_seconds * 2)
                         continue
-                    
+
                     if response.status_code == 200:
                         data = response.json().get("data", [])
                         status = response.json().get("status", "")
-                        
+
                         # 检查是否被拒绝
                         if status == "402" or data == [] or data == None:
                             print(f"读取完成，运行结束... 响应: {response.text}")
                             break
-                        
+
                         # 处理数据
                         for item in data:
                             # 优先使用 IMO 作为唯一键，跳过无效 IMO 的记录
                             imo_raw = item.get("imo")
                             try:
-                                imo_val = int(float(imo_raw)) if imo_raw not in (None, "", "null") else None
+                                imo_val = int(float(imo_raw)) if imo_raw not in (
+                                    None, "", "null") else None
                             except (TypeError, ValueError):
                                 imo_val = None
 
                             if not imo_val or imo_val <= 0:
-                                print(f"跳过无效IMO记录: imo={imo_raw}, shipname={item.get('shipname')}")
+                                print(
+                                    f"跳过无效IMO记录: imo={imo_raw}, shipname={item.get('shipname')}")
                                 continue
 
                             # 可选：规范化 mmsi 类型为 int（若存在且可转换）
@@ -249,7 +253,8 @@ class SpiderHifleetVessels(BaseModel):
 
                             item["imo"] = imo_val
 
-                            existing_record = self.mgo_db["global_vessels"].find_one({"imo": imo_val})
+                            existing_record = self.mgo_db["global_vessels"].find_one({
+                                                                                     "imo": imo_val})
                             if not existing_record:
                                 self.mgo.set(None, item)
                                 print(f"插入新记录: imo={imo_val}")
@@ -259,8 +264,9 @@ class SpiderHifleetVessels(BaseModel):
                         #     if existing_record["dwt"] is None or existing_record["dwt"] == 0 or existing_record["dwt"] == "" or existing_record["dwt"] == "******":
                         #         self.update_hifleet_vessels(token, int(item.get('mmsi')))
                     else:
-                        print(f"请求失败，状态码: {response.status_code}, 响应: {response.text}")
-                        
+                        print(
+                            f"请求失败，状态码: {response.status_code}, 响应: {response.text}")
+
                 except requests.exceptions.RequestException as e:
                     print(f"请求异常: {e}")
                     time.sleep(self.time_sleep_seconds)
