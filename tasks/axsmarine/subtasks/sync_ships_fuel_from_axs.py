@@ -584,3 +584,61 @@ class SyncSearchVesselsFuelFromAxs(SyncShipsFuelFromAxs):
             except Exception as e:
                 print(f"获取mmsi为 {mmsi} 的船舶失败: {e}")
                 continue
+
+
+
+
+
+class SyncNioVesselsFuelFromAxs(SyncShipsFuelFromAxs):
+    """
+    包装类：用于调用 run_search_vessels_by_query 方法
+    """
+    @decorate.exception_capture_close_datebase
+    def run(self):
+        """
+        重写 run 方法，调用 run_search_vessels_by_query
+        """
+        dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
+        print(dataTime)
+
+        # 获取cookie（如果配置了Redis cache）
+        cookie = None
+        if hasattr(self, 'cache_rds') and self.cache_rds:
+            try:
+                cookie = self.cache_rds.get('axs_live_cookie')
+            except Exception:
+                pass
+
+        # 从mongo中获取nio_vessel_fuels集合中的数据mmsi数据，去重
+        imo_list = self.mgo_db["nio_vessel_fuels"].find(
+            {}, {"imo": 1, "_id": 0}).distinct("imo")
+        print(f"从mongo中获取到 {len(imo_list)} 个imo")
+        
+        # 遍历 mmsi 从global_vessels获取对应的 imo
+        for imo in imo_list:
+            imo = int(imo)
+            try:
+                print(f"处理 imo: {imo}")
+                # 使用 find_one 而不是 find，因为只需要获取一个文档
+                vessel_info = self.mgo_db["global_vessels"].find_one(
+                    {"imo": imo}, {"imo": 1, "_id": 0})
+                if vessel_info and vessel_info.get("imo"):
+                    imo = vessel_info.get("imo")
+                    imo = str(imo)   # 油耗里面 imo是字符串，global_vessels里面 imo是整型。所以需要转换一下。
+                    print(f"找到对应的 imo: {imo}")
+                    # 查重逻辑，如果axs_vessel_fuel_data存在则跳过
+                    cached_data = self.mgo.get({"imo": imo})
+                    if cached_data:
+                        print(f"axs_vessel_fuel_data中已存在imo: {imo}，跳过")
+                        continue
+                    
+                    # 在这里添加处理 imo 的逻辑
+                    skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
+                    
+                else:
+                    print(f"未找到imo为 {imo} 的船舶或imo为空")
+                    continue
+                    
+            except Exception as e:
+                print(f"获取imo为 {imo} 的船舶失败: {e}")
+                continue

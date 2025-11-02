@@ -23,7 +23,7 @@ def request_voc_detail(token, imo_list):
         "accept": "application/json, text/plain, */*",
         "accept-language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
         "auth_app": "gee6af8f3v",
-        "authorization": f"Bearer {token}",
+        "authorization": f"{token}",
         "content-type": "application/json",
         "origin": "https://voc.myvessel.cn",
         "priority": "u=1, i",
@@ -50,7 +50,7 @@ class SpiderVesselsLloydInfo(BaseModel):
     def __init__(self):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 10))
         # "客船,干散货-ok,杂货船-ok,液体散货,特种船,集装箱"]
-        self.batch_size = int(os.getenv('BATCH_SIZE', 500))
+        self.batch_size = int(os.getenv('BATCH_SIZE', 1000))
         # self.hifleet_types = os.getenv('HIFLEET_TYPES', None)
         self.hifleet_types = os.getenv('HIFLEET_TYPES', None)
         if self.hifleet_types:
@@ -67,7 +67,7 @@ class SpiderVesselsLloydInfo(BaseModel):
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
-            'collection': 'global_vessels',
+            'collection': 'global_Lloyd_info_vessels',
             'uniq_idx': [
                 ('imo', pymongo.ASCENDING)
             ]
@@ -84,34 +84,26 @@ class SpiderVesselsLloydInfo(BaseModel):
             if self.hifleet_types:
                 imo_list = self.mgo_db["global_vessels"].find({
                     "imo": {
-                        "$exists": True,
-                        "$ne": "None",
-                        "$ne": "0",
-                        "$ne": None,
-                        "$ne": ""
+                        "$exists": True
                     },
                     "type": {"$in": self.hifleet_types}
                 }).distinct("imo")
             else:
                 imo_list = self.mgo_db["global_vessels"].find({
                     "imo": {
-                        "$exists": True,
-                        "$ne": "None",
-                        "$ne": "0",
-                        "$ne": None,
-                        "$ne": ""
+                        "$exists": True
                     },
                     # "vesselTypeNameCn": {"$in": self.vessel_types}
                 }).distinct("imo")
 
             # 获取已存在的lrno列表
-            existing_lrno_list = self.mgo_db["Lloyd_info_vessels"].distinct(
-                "lrno")
+            existing_lrno_list = self.mgo_db["global_Lloyd_info_vessels"].distinct(
+                "imo")
             # imo_list与已存在的lrno去重
             INVALID_IMO_VALUES = {None, "", "None",
                                   "0", "0000000", "12211", "123", "111", "128"}
             imo_list_after_deduplication = [
-                imo for imo in reversed(imo_list)
+                str(imo) for imo in reversed(imo_list)
                 if imo not in existing_lrno_list and imo not in INVALID_IMO_VALUES
             ]
             print(len(imo_list), len(imo_list_after_deduplication))
@@ -129,11 +121,11 @@ class SpiderVesselsLloydInfo(BaseModel):
                     res = request_voc_detail(token, batch)
                     for item in res:
                         lrno = item.get("fmShipDTO", {}).get("lrno")
-                        print(lrno, " -- 插入完成")
+                        item["imo"] = int(lrno)
                         # 如果以imo为主键，存在则更新，不存在则插入（upsert=True已实现此逻辑）
                         # 插入更新时间
                         item["update_time"] = datetime.datetime.now()
-                        self.mgo_db["Lloyd_info_vessels"].update_one(
+                        self.mgo_db["global_Lloyd_info_vessels"].update_one(
                             {"lrno": lrno}, {"$set": item}, upsert=True)
                 except Exception as e:
                     print(f"Error processing item: {e}")
