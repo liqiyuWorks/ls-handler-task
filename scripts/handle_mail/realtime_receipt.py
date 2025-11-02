@@ -280,6 +280,218 @@ class MailReceiver:
                         })
         return attachments
     
+    def list_emails(self, limit: int = 20, start_from: int = 0) -> list:
+        """
+        列出收件箱中的邮件列表
+        
+        Args:
+            limit: 返回的邮件数量限制，默认20
+            start_from: 起始位置，默认0（从最新的开始）
+            
+        Returns:
+            list: 邮件信息列表，每个元素包含基本信息（uid, subject, from, date等）
+        """
+        if not self.is_connected:
+            logger.warning("未连接到邮箱服务器，无法列出邮件")
+            return []
+        
+        emails_list = []
+        try:
+            # 重新选择邮箱以确保同步
+            self.imap.select(self.config['mailbox'])
+            
+            # 搜索所有邮件
+            status, messages = self.imap.search(None, 'ALL')
+            
+            if status != 'OK':
+                logger.warning("搜索邮件失败")
+                return []
+            
+            if not messages[0]:
+                logger.info("收件箱为空")
+                return []
+            
+            uids = messages[0].split()
+            
+            # 反转列表，从最新的开始
+            uids = list(reversed(uids))
+            
+            # 计算实际要获取的范围
+            total_count = len(uids)
+            end_pos = min(start_from + limit, total_count)
+            target_uids = uids[start_from:end_pos]
+            
+            logger.info(f"收件箱共有 {total_count} 封邮件，显示第 {start_from + 1} 到 {end_pos} 封")
+            
+            # 获取邮件的基本信息
+            for uid in target_uids:
+                try:
+                    uid_str = uid.decode('utf-8')
+                    
+                    # 获取邮件头信息（只获取头部，不获取正文，速度更快）
+                    status, email_data = self.imap.fetch(uid_str, '(RFC822.HEADER)')
+                    
+                    if status != 'OK' or not email_data:
+                        continue
+                    
+                    headers = email_data[0][1]
+                    msg = email.message_from_bytes(headers)
+                    
+                    subject = self.decode_mime_words(msg.get('Subject', ''))
+                    from_addr = self.decode_mime_words(msg.get('From', ''))
+                    to_addr = self.decode_mime_words(msg.get('To', ''))
+                    date_str = msg.get('Date', '')
+                    
+                    # 解析日期
+                    date_obj = None
+                    if date_str:
+                        try:
+                            date_obj = parsedate_to_datetime(date_str)
+                        except:
+                            pass
+                    
+                    email_info = {
+                        'uid': uid_str,
+                        'subject': subject or '(无主题)',
+                        'from': from_addr or '(未知)',
+                        'to': to_addr or '(未知)',
+                        'date': date_obj.isoformat() if date_obj else date_str,
+                    }
+                    emails_list.append(email_info)
+                    
+                except Exception as e:
+                    logger.warning(f"解析邮件 {uid.decode('utf-8')} 失败: {str(e)}")
+                    continue
+            
+        except imaplib.IMAP4.error as e:
+            logger.error(f"列出邮件时IMAP错误: {str(e)}")
+            self.is_connected = False
+        except Exception as e:
+            logger.error(f"列出邮件时出错: {str(e)}")
+        
+        return emails_list
+    
+    def search_emails(self, sender: Optional[str] = None, subject: Optional[str] = None, 
+                     limit: int = 20, search_recent: int = 100) -> list:
+        """
+        搜索收件箱中的邮件
+        
+        Args:
+            sender: 发件人关键词（模糊匹配，可选）
+            subject: 主题关键词（模糊匹配，可选）
+            limit: 返回的结果数量限制，默认20
+            search_recent: 在最近多少封邮件中搜索，默认100
+            
+        Returns:
+            list: 匹配的邮件信息列表
+        """
+        if not self.is_connected:
+            logger.warning("未连接到邮箱服务器，无法搜索邮件")
+            return []
+        
+        emails_list = []
+        try:
+            # 重新选择邮箱以确保同步
+            self.imap.select(self.config['mailbox'])
+            
+            # 搜索所有邮件
+            status, messages = self.imap.search(None, 'ALL')
+            
+            if status != 'OK':
+                logger.warning("搜索邮件失败")
+                return []
+            
+            if not messages[0]:
+                logger.info("收件箱为空")
+                return []
+            
+            uids = messages[0].split()
+            
+            # 反转列表，从最新的开始，只搜索最近的邮件
+            uids = list(reversed(uids))[:search_recent]
+            
+            logger.info(f"在最近 {len(uids)} 封邮件中搜索...")
+            if sender:
+                logger.info(f"  发件人关键词: {sender}")
+            if subject:
+                logger.info(f"  主题关键词: {subject}")
+            
+            matched_count = 0
+            
+            # 获取邮件的基本信息并进行过滤
+            for uid in uids:
+                if matched_count >= limit:
+                    break
+                    
+                try:
+                    uid_str = uid.decode('utf-8')
+                    
+                    # 获取邮件头信息
+                    status, email_data = self.imap.fetch(uid_str, '(RFC822.HEADER)')
+                    
+                    if status != 'OK' or not email_data:
+                        continue
+                    
+                    headers = email_data[0][1]
+                    msg = email.message_from_bytes(headers)
+                    
+                    subject_text = self.decode_mime_words(msg.get('Subject', ''))
+                    from_addr = self.decode_mime_words(msg.get('From', ''))
+                    to_addr = self.decode_mime_words(msg.get('To', ''))
+                    date_str = msg.get('Date', '')
+                    
+                    # 匹配条件
+                    match = True
+                    
+                    # 按发件人过滤
+                    if sender:
+                        sender_lower = sender.lower()
+                        from_lower = from_addr.lower() if from_addr else ''
+                        if sender_lower not in from_lower:
+                            match = False
+                    
+                    # 按主题过滤
+                    if subject and match:
+                        subject_lower = subject.lower()
+                        subject_text_lower = subject_text.lower() if subject_text else ''
+                        if subject_lower not in subject_text_lower:
+                            match = False
+                    
+                    if not match:
+                        continue
+                    
+                    # 解析日期
+                    date_obj = None
+                    if date_str:
+                        try:
+                            date_obj = parsedate_to_datetime(date_str)
+                        except:
+                            pass
+                    
+                    email_info = {
+                        'uid': uid_str,
+                        'subject': subject_text or '(无主题)',
+                        'from': from_addr or '(未知)',
+                        'to': to_addr or '(未知)',
+                        'date': date_obj.isoformat() if date_obj else date_str,
+                    }
+                    emails_list.append(email_info)
+                    matched_count += 1
+                    
+                except Exception as e:
+                    logger.warning(f"解析邮件 {uid.decode('utf-8')} 失败: {str(e)}")
+                    continue
+            
+            logger.info(f"找到 {matched_count} 封匹配的邮件")
+            
+        except imaplib.IMAP4.error as e:
+            logger.error(f"搜索邮件时IMAP错误: {str(e)}")
+            self.is_connected = False
+        except Exception as e:
+            logger.error(f"搜索邮件时出错: {str(e)}")
+        
+        return emails_list
+    
     def get_new_emails(self) -> list:
         """
         获取新邮件
@@ -558,6 +770,41 @@ class MailReceiver:
         logger.info("=" * 80)
 
 
+def print_email_list(emails: list):
+    """
+    格式化打印邮件列表
+    
+    Args:
+        emails: 邮件信息列表
+    """
+    if not emails:
+        logger.info("没有邮件可显示")
+        return
+    
+    logger.info("=" * 100)
+    logger.info(f"{'序号':<6} {'UID':<10} {'发件人':<30} {'主题':<40} {'日期':<20}")
+    logger.info("-" * 100)
+    
+    for idx, email_info in enumerate(emails, 1):
+        uid = email_info.get('uid', 'N/A')[:10]
+        from_addr = email_info.get('from', 'N/A')
+        if len(from_addr) > 28:
+            from_addr = from_addr[:25] + "..."
+        
+        subject = email_info.get('subject', 'N/A')
+        if len(subject) > 38:
+            subject = subject[:35] + "..."
+        
+        date = email_info.get('date', 'N/A')
+        if 'T' in date:
+            date = date.split('T')[0] + ' ' + date.split('T')[1].split('.')[0][:5]
+        
+        logger.info(f"{idx:<6} {uid:<10} {from_addr:<30} {subject:<40} {date:<20}")
+    
+    logger.info("=" * 100)
+    logger.info(f"共显示 {len(emails)} 封邮件")
+
+
 def custom_email_handler(email_info: Dict[str, Any]):
     """
     自定义邮件处理函数示例
@@ -580,6 +827,18 @@ def custom_email_handler(email_info: Dict[str, Any]):
 
 def main():
     """主函数"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='阿里邮箱实时接收脚本')
+    parser.add_argument('--list', '-l', action='store_true', help='列出收件箱邮件列表')
+    parser.add_argument('--search', '-s', action='store_true', help='搜索邮件')
+    parser.add_argument('--sender', type=str, help='按发件人搜索（支持关键词模糊匹配）')
+    parser.add_argument('--subject', type=str, help='按主题搜索（支持关键词模糊匹配）')
+    parser.add_argument('--limit', type=int, default=20, help='列出或搜索邮件的数量限制（默认20）')
+    parser.add_argument('--start', type=int, default=0, help='起始位置（默认0，从最新开始）')
+    parser.add_argument('--search-recent', type=int, default=100, help='在最近多少封邮件中搜索（默认100）')
+    args = parser.parse_args()
+    
     logger.info("=" * 80)
     logger.info("阿里邮箱实时接收脚本启动")
     logger.info(f"邮箱: {EMAIL_CONFIG['username']}")
@@ -595,7 +854,26 @@ def main():
         return
     
     try:
-        # 开始监控新邮件
+        # 如果指定了 --search 参数，则搜索邮件后退出
+        if args.search or args.sender or args.subject:
+            logger.info("正在搜索邮件...")
+            emails = receiver.search_emails(
+                sender=args.sender,
+                subject=args.subject,
+                limit=args.limit,
+                search_recent=args.search_recent
+            )
+            print_email_list(emails)
+            return
+        
+        # 如果指定了 --list 参数，则列出邮件列表后退出
+        if args.list:
+            logger.info("正在列出收件箱邮件...")
+            emails = receiver.list_emails(limit=args.limit, start_from=args.start)
+            print_email_list(emails)
+            return
+        
+        # 否则开始监控新邮件
         # 使用自定义回调函数（如果需要）
         # receiver.monitor(callback=custom_email_handler, poll_interval=10)
         
