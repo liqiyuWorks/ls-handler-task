@@ -492,6 +492,45 @@ class MailReceiver:
         
         return emails_list
     
+    def get_email_content(self, uid: str) -> Optional[Dict[str, Any]]:
+        """
+        获取指定UID邮件的完整内容（包括正文和附件信息）
+        
+        Args:
+            uid: 邮件UID
+            
+        Returns:
+            Dict: 完整的邮件信息，包含subject, from, to, date, body, attachments等
+        """
+        if not self.is_connected:
+            logger.warning("未连接到邮箱服务器，无法获取邮件内容")
+            return None
+        
+        try:
+            # 重新选择邮箱以确保同步
+            self.imap.select(self.config['mailbox'])
+            
+            # 获取邮件完整内容
+            status, msg_data = self.imap.fetch(uid, '(RFC822)')
+            
+            if status != 'OK' or not msg_data:
+                logger.warning(f"无法获取邮件 {uid} 的内容")
+                return None
+            
+            # 解析邮件
+            email_info = self.parse_email(msg_data[0][1])
+            if email_info:
+                email_info['uid'] = uid
+                return email_info
+            
+        except imaplib.IMAP4.error as e:
+            logger.error(f"获取邮件内容时IMAP错误: {str(e)}")
+            self.is_connected = False
+        except Exception as e:
+            logger.error(f"获取邮件内容时出错: {str(e)}")
+        
+        return None
+    
     def get_new_emails(self) -> list:
         """
         获取新邮件
@@ -805,6 +844,47 @@ def print_email_list(emails: list):
     logger.info(f"共显示 {len(emails)} 封邮件")
 
 
+def print_email_content(email_info: Dict[str, Any]):
+    """
+    打印邮件的完整内容
+    
+    Args:
+        email_info: 完整的邮件信息字典（包含body和attachments）
+    """
+    if not email_info:
+        logger.info("没有邮件内容可显示")
+        return
+    
+    logger.info("=" * 100)
+    logger.info("邮件详细信息")
+    logger.info("=" * 100)
+    logger.info(f"UID: {email_info.get('uid', 'N/A')}")
+    logger.info(f"主题: {email_info.get('subject', 'N/A')}")
+    logger.info(f"发件人: {email_info.get('from', 'N/A')}")
+    logger.info(f"收件人: {email_info.get('to', 'N/A')}")
+    logger.info(f"日期: {email_info.get('date', 'N/A')}")
+    
+    attachments = email_info.get('attachments', [])
+    logger.info(f"附件数量: {len(attachments)}")
+    if attachments:
+        for att in attachments:
+            logger.info(f"  - {att.get('filename')} ({att.get('size', 0)} bytes, {att.get('content_type', 'N/A')})")
+    
+    logger.info("-" * 100)
+    logger.info("邮件正文:")
+    logger.info("-" * 100)
+    body = email_info.get('body', '')
+    if body:
+        # 如果正文太长，可以分段显示
+        lines = body.split('\n')
+        for line in lines:
+            logger.info(line)
+    else:
+        logger.info("(无正文内容)")
+    
+    logger.info("=" * 100)
+
+
 def custom_email_handler(email_info: Dict[str, Any]):
     """
     自定义邮件处理函数示例
@@ -837,6 +917,7 @@ def main():
     parser.add_argument('--limit', type=int, default=20, help='列出或搜索邮件的数量限制（默认20）')
     parser.add_argument('--start', type=int, default=0, help='起始位置（默认0，从最新开始）')
     parser.add_argument('--search-recent', type=int, default=100, help='在最近多少封邮件中搜索（默认100）')
+    parser.add_argument('--show-content', action='store_true', help='显示最新匹配邮件的完整内容（包括正文）')
     args = parser.parse_args()
     
     logger.info("=" * 80)
@@ -864,6 +945,16 @@ def main():
                 search_recent=args.search_recent
             )
             print_email_list(emails)
+            
+            # 如果指定了 --show-content 且有匹配结果，显示最新邮件的完整内容
+            if args.show_content and emails:
+                latest_email = emails[0]  # 第一封是最新的
+                logger.info("")
+                logger.info("正在获取最新匹配邮件的完整内容...")
+                full_content = receiver.get_email_content(latest_email.get('uid'))
+                if full_content:
+                    print_email_content(full_content)
+            
             return
         
         # 如果指定了 --list 参数，则列出邮件列表后退出
