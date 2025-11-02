@@ -57,20 +57,19 @@ class SpiderVesselsLloydInfo(BaseModel):
             self.hifleet_types = self.hifleet_types.split(",")
         else:
             self.hifleet_types = []
-        
+
         self.vessel_types = os.getenv('VESSEL_TYPES', "特种船")
         if self.vessel_types:
             self.vessel_types = self.vessel_types.split(",")
         else:
             self.vessel_types = []
-            
+
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
-            'collection': 'hifleet_vessels',
+            'collection': 'global_vessels',
             'uniq_idx': [
-                ('imo', pymongo.ASCENDING),
-                ('mmsi', pymongo.ASCENDING),
+                ('imo', pymongo.ASCENDING)
             ]
         }
 
@@ -81,9 +80,9 @@ class SpiderVesselsLloydInfo(BaseModel):
         try:
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
             print(dataTime)
-            
+
             if self.hifleet_types:
-                imo_list = self.mgo_db["hifleet_vessels"].find({
+                imo_list = self.mgo_db["global_vessels"].find({
                     "imo": {
                         "$exists": True,
                         "$ne": "None",
@@ -94,7 +93,7 @@ class SpiderVesselsLloydInfo(BaseModel):
                     "type": {"$in": self.hifleet_types}
                 }).distinct("imo")
             else:
-                imo_list = self.mgo_db["hifleet_vessels"].find({
+                imo_list = self.mgo_db["global_vessels"].find({
                     "imo": {
                         "$exists": True,
                         "$ne": "None",
