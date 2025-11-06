@@ -24,6 +24,6 @@ def get_task_dic():
         "get_fis_cookie": (lambda: GetFisCookie(), '获取fis网站的 token'),
         
         # data.aquabridge.com 的邮件接收
-        "receive_BEI_history_data_from_aquabridge_email": (lambda: ReceiveDataAquabridgeEmail(), '接收data.aquabridge.com 的邮件'),
+        "receive_data_from_aquabridge_email": (lambda: ReceiveDataAquabridgeEmail(), '接收data.aquabridge.com 的邮件'),
     }
     return task_dict
