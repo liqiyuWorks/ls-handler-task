@@ -446,7 +446,7 @@ class MailReceiver:
             bool: 是否是Baltic Exchange文件
         """
         filename_lower = filename.lower()
-        return 'baltic exchange index' in filename_lower and 'historic data' in filename_lower
+        return filename_lower.startswith('baltic exchange') and 'historic data' in filename_lower
     
     def _parse_baltic_exchange(self, csv_text: str, csv_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
