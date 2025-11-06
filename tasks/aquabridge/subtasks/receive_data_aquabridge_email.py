@@ -11,12 +11,23 @@ from email import message
 import time
 import logging
 import sys
+import os
 from email.header import decode_header
 from email.utils import parsedate_to_datetime
 from typing import Optional, Dict, Any, Callable, List
 import ssl
 import csv
 import io
+import pymongo
+from datetime import datetime
+from pkg.db.mongo import MgoStore
+
+# 添加路径以导入BaseModel
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
+
+from pkg.public.models import BaseModel
 
 
 # 邮箱配置
@@ -70,14 +81,16 @@ logger = setup_logger()
 class MailReceiver:
     """邮件实时接收器"""
     
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: Dict[str, Any], mgo: Optional[MgoStore] = None):
         """
         初始化邮件接收器
         
         Args:
             config: 邮箱配置字典
+            mgo: MongoDB存储对象（可选，用于保存数据）
         """
         self.config = config
+        self.mgo = mgo
         self.imap: Optional[imaplib.IMAP4_SSL] = None
         self.last_uid = None
         self.is_connected = False
@@ -91,8 +104,6 @@ class MailReceiver:
             bool: 连接是否成功
         """
         try:
-            logger.info(f"正在连接到邮箱服务器: {self.config['server']}:{self.config['port']}")
-            
             # 创建SSL上下文
             context = ssl.create_default_context()
             
@@ -105,12 +116,11 @@ class MailReceiver:
             
             # 登录
             self.imap.login(self.config['username'], self.config['password'])
-            logger.info("邮箱登录成功")
             
             # 选择邮箱文件夹
             status, messages = self.imap.select(self.config['mailbox'])
             if status != 'OK':
-                logger.error(f"无法选择邮箱文件夹: {self.config['mailbox']}")
+                logger.error("无法选择邮箱文件夹: %s", self.config['mailbox'])
                 return False
             
             # 获取当前邮箱中的最后一条邮件UID
@@ -119,7 +129,6 @@ class MailReceiver:
                 uids = messages[0].split()
                 if uids:
                     self.last_uid = uids[-1].decode('utf-8')
-                    logger.info(f"初始邮件UID: {self.last_uid}")
             
             self.is_connected = True
             return True
@@ -139,9 +148,8 @@ class MailReceiver:
             try:
                 self.imap.close()
                 self.imap.logout()
-                logger.info("已断开邮箱连接")
             except Exception as e:
-                logger.error(f"断开连接时出错: {str(e)}")
+                logger.debug("断开连接时出错: %s", str(e))
             finally:
                 self.imap = None
                 self.is_connected = False
@@ -313,10 +321,51 @@ class MailReceiver:
                                                 # 1、如果是Baltic Exchange文件，进行专门的结构化解析
                                                 if self._is_baltic_exchange_file(filename):
                                                     structured_data = self._parse_baltic_exchange(csv_text=text_content, csv_data=csv_data)
+                                                    # 如果有MongoDB连接，保存数据
+                                                    if self.mgo:
+                                                        for index in structured_data["indices"]:
+                                                            # 解析日期字符串（格式如 "05-Nov-2025"）并格式化为 "2025-11-05"
+                                                            date_str = str(index.get("date", "")).strip()
+                                                            if date_str:
+                                                                try:
+                                                                    # 尝试解析日期字符串（支持多种格式）
+                                                                    date_obj = None
+                                                                    # 尝试常见格式: "05-Nov-2025", "5-Nov-2025", "05-November-2025" 等
+                                                                    date_formats = [
+                                                                        "%d-%b-%Y",      # 05-Nov-2025
+                                                                        "%d-%B-%Y",      # 05-November-2025
+                                                                        "%Y-%m-%d",      # 2025-11-05 (如果已经是标准格式)
+                                                                        "%Y/%m/%d",      # 2025/11/05
+                                                                        "%d/%m/%Y",      # 05/11/2025
+                                                                    ]
+                                                                    
+                                                                    for fmt in date_formats:
+                                                                        try:
+                                                                            date_obj = datetime.strptime(date_str, fmt)
+                                                                            break
+                                                                        except ValueError:
+                                                                            continue
+                                                                    
+                                                                    # 如果标准格式都失败，尝试使用 parsedate_to_datetime（更灵活）
+                                                                    if not date_obj:
+                                                                        try:
+                                                                            date_obj = parsedate_to_datetime(date_str)
+                                                                        except (ValueError, TypeError):
+                                                                            pass
+                                                                    
+                                                                    if date_obj:
+                                                                        # 格式化为标准日期格式
+                                                                        formatted_date = date_obj.strftime("%Y-%m-%d")
+                                                                        index["date"] = formatted_date
+                                                                        # 保存到MongoDB，以日期为查询条件（使用字典格式）
+                                                                        self.mgo.set({"date": formatted_date}, index)
+                                                                    else:
+                                                                        logger.warning("无法解析日期格式: %s", date_str)
+                                                                except Exception as e:
+                                                                    logger.warning("日期解析失败: %s, 错误: %s", date_str, str(e))
                                                     attachment_info['structured_data'] = structured_data
-                                                    logger.info(f"成功解析Baltic Exchange文件: {filename}")
                                                 
-                                                logger.debug(f"成功解析CSV附件: {filename}, 行数: {len(csv_data)}")
+                                                logger.debug("成功解析CSV附件: %s, 行数: %d", filename, len(csv_data))
                                         except Exception as e:
                                             logger.warning(f"解码附件文本失败 {filename}: {str(e)}")
                                     
@@ -388,7 +437,7 @@ class MailReceiver:
             bool: 是否是Baltic Exchange文件
         """
         filename_lower = filename.lower()
-        return 'baltic exchange' in filename_lower and 'historic data' in filename_lower
+        return 'baltic exchange index' in filename_lower and 'historic data' in filename_lower
     
     def _parse_baltic_exchange(self, csv_text: str, csv_data: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -596,12 +645,6 @@ class MailReceiver:
             # 反转列表，从最新的开始，只搜索最近的邮件
             uids = list(reversed(uids))[:search_recent]
             
-            logger.info(f"在最近 {len(uids)} 封邮件中搜索...")
-            if sender:
-                logger.info(f"  发件人关键词: {sender}")
-            if subject:
-                logger.info(f"  主题关键词: {subject}")
-            
             matched_count = 0
             
             # 获取邮件的基本信息并进行过滤
@@ -665,10 +708,8 @@ class MailReceiver:
                     matched_count += 1
                     
                 except Exception as e:
-                    logger.warning(f"解析邮件 {uid.decode('utf-8')} 失败: {str(e)}")
+                    logger.warning("解析邮件失败: %s", str(e))
                     continue
-            
-            logger.info(f"找到 {matched_count} 封匹配的邮件")
             
         except imaplib.IMAP4.error as e:
             logger.error(f"搜索邮件时IMAP错误: {str(e)}")
@@ -1049,37 +1090,22 @@ class MailReceiver:
 
 def print_email_list(emails: list):
     """
-    格式化打印邮件列表
+    格式化打印邮件列表（简约版）
     
     Args:
         emails: 邮件信息列表
     """
     if not emails:
-        logger.info("没有邮件可显示")
+        logger.info("未找到匹配邮件")
         return
     
-    logger.info("=" * 100)
-    logger.info(f"{'序号':<6} {'UID':<10} {'发件人':<30} {'主题':<40} {'日期':<20}")
-    logger.info("-" * 100)
-    
+    logger.info("找到 %d 封匹配邮件:", len(emails))
     for idx, email_info in enumerate(emails, 1):
-        uid = email_info.get('uid', 'N/A')[:10]
-        from_addr = email_info.get('from', 'N/A')
-        if len(from_addr) > 28:
-            from_addr = from_addr[:25] + "..."
-        
         subject = email_info.get('subject', 'N/A')
-        if len(subject) > 38:
-            subject = subject[:35] + "..."
-        
         date = email_info.get('date', 'N/A')
         if 'T' in date:
-            date = date.split('T')[0] + ' ' + date.split('T')[1].split('.')[0][:5]
-        
-        logger.info(f"{idx:<6} {uid:<10} {from_addr:<30} {subject:<40} {date:<20}")
-    
-    logger.info("=" * 100)
-    logger.info(f"共显示 {len(emails)} 封邮件")
+            date = date.split('T')[0]
+        logger.info("  [%d] %s | %s", idx, date, subject)
 
 
 def print_email_content(email_info: Dict[str, Any]):
@@ -1090,98 +1116,59 @@ def print_email_content(email_info: Dict[str, Any]):
         email_info: 完整的邮件信息字典（包含attachments）
     """
     if not email_info:
-        logger.info("没有邮件内容可显示")
         return
     
     subject = email_info.get('subject', 'N/A')
     attachments = email_info.get('attachments', [])
     
     if not attachments:
-        logger.info(f"邮件 [{subject}] - 无附件")
+        logger.info("邮件无附件")
         return
     
-    logger.info(f"\n邮件: {subject}")
-    logger.info(f"附件数: {len(attachments)}")
-    logger.info("-" * 80)
+    logger.info("邮件: %s | 附件数: %d", subject, len(attachments))
     
     for idx, att in enumerate(attachments, 1):
         filename = att.get('filename', 'N/A')
-        size = att.get('size', 0)
         
         # 优先显示Baltic Exchange结构化数据
         if 'structured_data' in att and att['structured_data']:
-            logger.info(f"\n附件 {idx}: {filename} (Baltic Exchange历史数据)")
-            logger.info(f"  大小: {size} bytes")
-            logger.info("-" * 60)
-            
             structured_data = att['structured_data']
-            metadata = structured_data.get('metadata', {})
             indices = structured_data.get('indices', [])
-            summary = structured_data.get('summary', {})
+            metadata = structured_data.get('metadata', {})
             
-            # 元数据
-            if 'date_range' in metadata:
-                dr = metadata['date_range']
-                logger.info(f"  日期范围: {dr.get('start', 'N/A')} → {dr.get('end', 'N/A')} ({dr.get('total_days', 0)} 天)")
-            
+            # 显示关键信息
+            cols_info = ""
             if 'columns' in metadata:
                 cols = metadata['columns']
-                logger.info(f"  数据列: {cols.get('date_column', 'N/A')} | {', '.join(cols.get('value_columns', [])[:4])}")
+                value_cols = cols.get('value_columns', [])[:3]
+                cols_info = f" | 列: {', '.join(value_cols)}"
             
-            # 统计摘要
-            if summary:
-                logger.info(f"  统计摘要:")
-                for col_name, stats in list(summary.items())[:4]:
-                    logger.info(f"    {col_name}: 最小={stats.get('min', 'N/A')} | 最大={stats.get('max', 'N/A')} | 平均={stats.get('avg', 0):.2f} | 数量={stats.get('count', 0)}")
+            logger.info("  附件 %d: %s | 数据条数: %d%s", idx, filename, len(indices), cols_info)
             
-            # 数据预览
+            # 只显示最新一条数据
             if indices:
-                preview_count = min(5, len(indices))
-                logger.info(f"  数据预览 ({preview_count}/{len(indices)} 条):")
-                for i, idx in enumerate(indices[:preview_count], 1):
-                    idx_items = list(idx.items())[:6]  # 最多显示6个字段
-                    idx_str = ' | '.join([f"{k}: {v}" for k, v in idx_items])
-                    logger.info(f"    [{i}] {idx_str}")
-                if len(indices) > preview_count:
-                    logger.info(f"    ... (还有 {len(indices) - preview_count} 条)")
+                latest = indices[-1]
+                key_items = list(latest.items())[:5]
+                data_str = ' | '.join([f"{k}: {v}" for k, v in key_items])
+                logger.info("    最新数据: %s", data_str)
         
-        # CSV附件 - 显示详细数据
+        # CSV附件 - 显示关键数据
         elif 'csv_data' in att and att['csv_data']:
             csv_data = att['csv_data']
             headers = list(csv_data[0].keys()) if csv_data and csv_data[0] else []
+            logger.info("  附件 %d: %s | 行数: %d | 列数: %d", idx, filename, len(csv_data), len(headers))
             
-            logger.info(f"\n附件 {idx}: {filename}")
-            logger.info(f"  大小: {size} bytes | 行数: {len(csv_data)} | 列数: {len(headers)}")
-            logger.info(f"  列名: {', '.join(headers)}")
-            
-            # 显示数据行（最多5行）
+            # 只显示最新一行数据
             if csv_data:
-                preview_rows = min(5, len(csv_data))
-                logger.info(f"  数据预览 ({preview_rows}/{len(csv_data)} 行):")
-                for i, row in enumerate(csv_data[:preview_rows], 1):
-                    values = [str(v) for v in row.values()]
-                    logger.info(f"    [{i}] {', '.join(values)}")
-                if len(csv_data) > preview_rows:
-                    logger.info(f"    ... (还有 {len(csv_data) - preview_rows} 行)")
-        
-        # 文本附件
-        elif 'text' in att and att['text']:
-            text_content = att['text']
-            lines = text_content.split('\n')
-            logger.info(f"\n附件 {idx}: {filename}")
-            logger.info(f"  大小: {size} bytes | 行数: {len(lines)}")
-            preview_lines = min(5, len(lines))
-            logger.info(f"  内容预览 ({preview_lines}/{len(lines)} 行):")
-            for i, line in enumerate(lines[:preview_lines], 1):
-                logger.info(f"    [{i}] {line.strip()}")
-            if len(lines) > preview_lines:
-                logger.info(f"    ... (还有 {len(lines) - preview_lines} 行)")
+                latest_row = csv_data[-1]
+                key_items = list(latest_row.items())[:5]
+                data_str = ' | '.join([f"{k}: {v}" for k, v in key_items])
+                logger.info("    最新数据: %s", data_str)
         
         # 其他类型附件
         else:
-            logger.info(f"\n附件 {idx}: {filename} | {size} bytes")
-    
-    logger.info("-" * 80)
+            size = att.get('size', 0)
+            logger.info("  附件 %d: %s | %d bytes", idx, filename, size)
 
 
 def custom_email_handler(email_info: Dict[str, Any]):
@@ -1282,4 +1269,133 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+class ReceiveDataAquabridgeEmail(BaseModel):
+    """
+    接收 data.aquabridge.com 邮件的任务类
+    适配任务系统，继承BaseModel并实现run方法
+    默认搜索发件人为 "nora" 且主题包含 "BALTIC EXCHANGE DRY INDICES & FFA DATA" 的邮件
+    """
+    
+    def __init__(self):
+        """初始化任务类"""
+        # 初始化BaseModel（不需要数据库配置）
+        config = {
+            "handle_db": "mgo",
+            'collection': 'baltic_exchange_index_history',
+            'uniq_idx': [('date', pymongo.ASCENDING)]
+        }
+        super(ReceiveDataAquabridgeEmail, self).__init__(config)
+        
+        # 邮件配置
+        self.email_config = EMAIL_CONFIG.copy()
+        
+        # 默认搜索条件（可通过环境变量或任务参数覆盖）
+        self.default_sender = os.getenv('EMAIL_SEARCH_SENDER', 'nora')
+        self.default_subject = os.getenv('EMAIL_SEARCH_SUBJECT', 'BALTIC EXCHANGE DRY INDICES & FFA DATA')
+        
+        # 搜索参数
+        self.search_limit = int(os.getenv('EMAIL_SEARCH_LIMIT', '20'))
+        self.search_recent = int(os.getenv('EMAIL_SEARCH_RECENT', '100'))
+        self.show_content = os.getenv('EMAIL_SHOW_CONTENT', 'true').lower() == 'true'
+        
+        # 轮询间隔（秒），用于监控模式
+        self.poll_interval = int(os.getenv('EMAIL_POLL_INTERVAL', '10'))
+        
+        # 邮件接收器
+        self.receiver = None
+    
+    def run(self, task: Optional[Dict[str, Any]] = None, rds=None):  # noqa: ARG002
+        """
+        运行邮件接收任务
+        默认执行搜索并显示匹配邮件的完整内容
+        
+        Args:
+            task: 任务字典（可选），可包含以下配置：
+                - sender: 发件人关键词（默认: "nora"）
+                - subject: 主题关键词（默认: "BALTIC EXCHANGE DRY INDICES & FFA DATA"）
+                - limit: 搜索结果数量限制（默认: 20）
+                - search_recent: 在最近多少封邮件中搜索（默认: 100）
+                - show_content: 是否显示邮件完整内容（默认: True）
+                - mode: 运行模式，'search'（搜索模式，默认）或 'monitor'（监控模式）
+                - poll_interval: 监控模式下的轮询间隔（秒）
+                - use_idle: 监控模式下是否使用IDLE模式
+            rds: Redis连接（可选，当前未使用）
+        """
+        # 从任务配置中获取参数
+        sender = self.default_sender
+        subject = self.default_subject
+        limit = self.search_limit
+        search_recent = self.search_recent
+        show_content = self.show_content
+        mode = 'search'  # 默认搜索模式
+        
+        if task:
+            sender = task.get('sender', sender)
+            subject = task.get('subject', subject)
+            limit = task.get('limit', limit)
+            search_recent = task.get('search_recent', search_recent)
+            show_content = task.get('show_content', show_content)
+            mode = task.get('mode', mode)
+            self.poll_interval = task.get('poll_interval', self.poll_interval)
+            use_idle = task.get('use_idle', False)
+        else:
+            use_idle = False
+        
+        logger.info("邮件任务启动 | 邮箱: %s", self.email_config['username'])
+        
+        # 创建邮件接收器
+        self.receiver = MailReceiver(self.email_config, self.mgo)
+        
+        # 连接邮箱
+        if not self.receiver.connect():
+            logger.error("无法连接到邮箱服务器，任务退出")
+            return
+        
+        try:
+            # 根据模式执行不同操作
+            if mode == 'monitor':
+                # 监控模式：实时监控新邮件
+                logger.info("监控模式启动 | 轮询间隔: %d秒", self.poll_interval)
+                self.receiver.monitor(
+                    callback=None,  # 使用默认处理函数
+                    poll_interval=self.poll_interval,
+                    use_idle=use_idle
+                )
+            else:
+                # 搜索模式：搜索并显示匹配邮件（默认模式）
+                logger.info("搜索邮件 | 发件人: %s | 主题: %s", sender, subject)
+                
+                # 搜索邮件
+                emails = self.receiver.search_emails(
+                    sender=sender,
+                    subject=subject,
+                    limit=limit,
+                    search_recent=search_recent
+                )
+                
+                # 显示邮件列表
+                print_email_list(emails)
+                
+                # 如果指定显示内容且有匹配结果，显示最新邮件的完整内容
+                if show_content and emails:
+                    latest_email = emails[0]  # 第一封是最新的
+                    full_content = self.receiver.get_email_content(latest_email.get('uid'))
+                    if full_content:
+                        print_email_content(full_content)
+                elif not emails:
+                    logger.info("未找到匹配的邮件")
+                
+        except KeyboardInterrupt:
+            logger.info("\n收到退出信号，任务正常退出")
+        except Exception as e:
+            logger.error(f"任务运行出错: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
+        finally:
+            if self.receiver:
+                self.receiver.disconnect()
+            # 关闭BaseModel的数据库连接
+            self.close()
 

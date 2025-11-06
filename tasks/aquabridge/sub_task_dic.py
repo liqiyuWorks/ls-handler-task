@@ -4,6 +4,7 @@ from tasks.aquabridge.subtasks.spider_jinzheng_pages2mgo import SpiderJinzhengPa
 from tasks.aquabridge.subtasks.handle_wechat_fis_content import HandleWechatFisContent
 from tasks.aquabridge.subtasks.spider_fis_trade_data import SpiderFisTradeData, SpiderAllFisTradeData, SpiderFisMarketTrades, SpiderFisDailyTradeData, SpiderAllFisDailyTradeData
 from tasks.aquabridge.subtasks.get_fis_cookie import GetFisCookie
+from tasks.aquabridge.subtasks.receive_data_aquabridge_email import ReceiveDataAquabridgeEmail
 
 def get_task_dic():
     task_dict = {
@@ -21,5 +22,8 @@ def get_task_dic():
         
         # 获取fis网站的 token
         "get_fis_cookie": (lambda: GetFisCookie(), '获取fis网站的 token'),
+        
+        # data.aquabridge.com 的邮件接收
+        "receive_data_aquabridge_email": (lambda: ReceiveDataAquabridgeEmail(), '接收data.aquabridge.com 的邮件'),
     }
     return task_dict
