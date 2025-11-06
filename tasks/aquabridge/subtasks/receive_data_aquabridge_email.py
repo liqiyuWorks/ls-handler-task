@@ -48,6 +48,8 @@ def setup_logger():
     """设置日志记录器"""
     mail_logger = logging.getLogger('MailRealtimeReceipt')
     mail_logger.setLevel(logging.INFO)
+    # 防止日志向上传播，避免重复输出
+    mail_logger.propagate = False
     
     # 避免重复添加处理器
     if mail_logger.handlers:
@@ -62,7 +64,6 @@ def setup_logger():
     mail_logger.addHandler(console_handler)
     
     # 文件处理器
-    import os
     log_dir = os.path.dirname(LOG_FILE)
     if log_dir and not os.path.exists(log_dir):
         os.makedirs(log_dir, exist_ok=True)
@@ -134,11 +135,11 @@ class MailReceiver:
             return True
             
         except imaplib.IMAP4.error as e:
-            logger.error(f"IMAP连接错误: {str(e)}")
+            logger.error("IMAP连接错误: %s", str(e))
             self.is_connected = False
             return False
         except Exception as e:
-            logger.error(f"连接邮箱失败: {str(e)}")
+            logger.error("连接邮箱失败: %s", str(e))
             self.is_connected = False
             return False
     
@@ -221,7 +222,7 @@ class MailReceiver:
             return email_info
             
         except Exception as e:
-            logger.error(f"解析邮件失败: {str(e)}")
+            logger.error("解析邮件失败: %s", str(e))
             return {}
     
     def _get_email_body(self, msg: message.Message) -> str:
@@ -252,7 +253,7 @@ class MailReceiver:
                         if payload:
                             body += payload.decode(charset, errors='ignore')
                     except Exception as e:
-                        logger.warning(f"解码邮件正文失败: {str(e)}")
+                        logger.debug("解码邮件正文失败: %s", str(e))
         else:
             # 单部分邮件
             try:
@@ -261,7 +262,7 @@ class MailReceiver:
                 if payload:
                     body = payload.decode(charset, errors='ignore')
             except Exception as e:
-                logger.warning(f"解码邮件正文失败: {str(e)}")
+                logger.debug("解码邮件正文失败: %s", str(e))
         
         return body
     
@@ -323,6 +324,8 @@ class MailReceiver:
                                                     structured_data = self._parse_baltic_exchange(csv_text=text_content, csv_data=csv_data)
                                                     # 如果有MongoDB连接，保存数据
                                                     if self.mgo:
+                                                        saved_count = 0
+                                                        failed_count = 0
                                                         for index in structured_data["indices"]:
                                                             # 解析日期字符串（格式如 "05-Nov-2025"）并格式化为 "2025-11-05"
                                                             date_str = str(index.get("date", "")).strip()
@@ -330,13 +333,9 @@ class MailReceiver:
                                                                 try:
                                                                     # 尝试解析日期字符串（支持多种格式）
                                                                     date_obj = None
-                                                                    # 尝试常见格式: "05-Nov-2025", "5-Nov-2025", "05-November-2025" 等
                                                                     date_formats = [
-                                                                        "%d-%b-%Y",      # 05-Nov-2025
-                                                                        "%d-%B-%Y",      # 05-November-2025
-                                                                        "%Y-%m-%d",      # 2025-11-05 (如果已经是标准格式)
-                                                                        "%Y/%m/%d",      # 2025/11/05
-                                                                        "%d/%m/%Y",      # 05/11/2025
+                                                                        "%d-%b-%Y", "%d-%B-%Y", "%Y-%m-%d", 
+                                                                        "%Y/%m/%d", "%d/%m/%Y"
                                                                     ]
                                                                     
                                                                     for fmt in date_formats:
@@ -346,7 +345,6 @@ class MailReceiver:
                                                                         except ValueError:
                                                                             continue
                                                                     
-                                                                    # 如果标准格式都失败，尝试使用 parsedate_to_datetime（更灵活）
                                                                     if not date_obj:
                                                                         try:
                                                                             date_obj = parsedate_to_datetime(date_str)
@@ -354,23 +352,33 @@ class MailReceiver:
                                                                             pass
                                                                     
                                                                     if date_obj:
-                                                                        # 格式化为标准日期格式
                                                                         formatted_date = date_obj.strftime("%Y-%m-%d")
                                                                         index["date"] = formatted_date
-                                                                        # 保存到MongoDB，以日期为查询条件（使用字典格式）
-                                                                        self.mgo.set({"date": formatted_date}, index)
+                                                                        # 保存到MongoDB
+                                                                        result = self.mgo.set({"date": formatted_date}, index)
+                                                                        if result:
+                                                                            saved_count += 1
+                                                                        else:
+                                                                            failed_count += 1
                                                                     else:
-                                                                        logger.warning("无法解析日期格式: %s", date_str)
+                                                                        failed_count += 1
+                                                                        logger.debug("无法解析日期格式: %s", date_str)
                                                                 except Exception as e:
-                                                                    logger.warning("日期解析失败: %s, 错误: %s", date_str, str(e))
+                                                                    failed_count += 1
+                                                                    logger.debug("日期解析失败: %s, 错误: %s", date_str, str(e))
+                                                        
+                                                        if saved_count > 0:
+                                                            logger.info("✓ 附件: %s | 已保存 %d 条数据到MongoDB", filename, saved_count)
+                                                        if failed_count > 0:
+                                                            logger.warning("✗ 附件: %s | %d 条数据保存失败", filename, failed_count)
                                                     attachment_info['structured_data'] = structured_data
                                                 
                                                 logger.debug("成功解析CSV附件: %s, 行数: %d", filename, len(csv_data))
                                         except Exception as e:
-                                            logger.warning(f"解码附件文本失败 {filename}: {str(e)}")
+                                            logger.debug("解码附件文本失败 %s: %s", filename, str(e))
                                     
                             except Exception as e:
-                                logger.warning(f"读取附件数据失败 {filename}: {str(e)}")
+                                logger.debug("读取附件数据失败 %s: %s", filename, str(e))
                         
                         attachments.append(attachment_info)
         return attachments
@@ -409,7 +417,7 @@ class MailReceiver:
                 csv_data.append(row)
                 
         except Exception as e:
-            logger.warning(f"解析CSV失败: {str(e)}")
+            logger.debug("解析CSV失败: %s", str(e))
             # 如果DictReader失败，尝试按行读取
             try:
                 lines = csv_text.strip().split('\n')
@@ -422,7 +430,7 @@ class MailReceiver:
                             row = dict(zip(headers, values))
                             csv_data.append(row)
             except Exception as e2:
-                logger.error(f"备选CSV解析方法也失败: {str(e2)}")
+                logger.warning("备选CSV解析方法也失败: %s", str(e2))
         
         return csv_data
     
@@ -510,7 +518,7 @@ class MailReceiver:
                 }
         
         except Exception as e:
-            logger.warning(f"解析Baltic Exchange结构化数据失败: {str(e)}")
+            logger.debug("解析Baltic Exchange结构化数据失败: %s", str(e))
             structured['error'] = str(e)
         
         return structured
@@ -556,7 +564,7 @@ class MailReceiver:
             end_pos = min(start_from + limit, total_count)
             target_uids = uids[start_from:end_pos]
             
-            logger.info(f"收件箱共有 {total_count} 封邮件，显示第 {start_from + 1} 到 {end_pos} 封")
+            logger.debug("收件箱共有 %d 封邮件，显示第 %d 到 %d 封", total_count, start_from + 1, end_pos)
             
             # 获取邮件的基本信息
             for uid in target_uids:
@@ -595,14 +603,14 @@ class MailReceiver:
                     emails_list.append(email_info)
                     
                 except Exception as e:
-                    logger.warning(f"解析邮件 {uid.decode('utf-8')} 失败: {str(e)}")
+                    logger.debug("解析邮件 %s 失败: %s", uid.decode('utf-8'), str(e))
                     continue
             
         except imaplib.IMAP4.error as e:
-            logger.error(f"列出邮件时IMAP错误: {str(e)}")
+            logger.error("列出邮件时IMAP错误: %s", str(e))
             self.is_connected = False
         except Exception as e:
-            logger.error(f"列出邮件时出错: {str(e)}")
+            logger.error("列出邮件时出错: %s", str(e))
         
         return emails_list
     
@@ -712,10 +720,10 @@ class MailReceiver:
                     continue
             
         except imaplib.IMAP4.error as e:
-            logger.error(f"搜索邮件时IMAP错误: {str(e)}")
+            logger.error("搜索邮件时IMAP错误: %s", str(e))
             self.is_connected = False
         except Exception as e:
-            logger.error(f"搜索邮件时出错: {str(e)}")
+            logger.error("搜索邮件时出错: %s", str(e))
         
         return emails_list
     
@@ -741,7 +749,7 @@ class MailReceiver:
             status, msg_data = self.imap.fetch(uid, '(RFC822)')
             
             if status != 'OK' or not msg_data:
-                logger.warning(f"无法获取邮件 {uid} 的内容")
+                logger.debug("无法获取邮件 %s 的内容", uid)
                 return None
             
             # 解析邮件
@@ -751,10 +759,10 @@ class MailReceiver:
                 return email_info
             
         except imaplib.IMAP4.error as e:
-            logger.error(f"获取邮件内容时IMAP错误: {str(e)}")
+            logger.error("获取邮件内容时IMAP错误: %s", str(e))
             self.is_connected = False
         except Exception as e:
-            logger.error(f"获取邮件内容时出错: {str(e)}")
+            logger.error("获取邮件内容时出错: %s", str(e))
         
         return None
     
@@ -808,28 +816,25 @@ class MailReceiver:
                     email_info['uid'] = uid_str
                     new_emails.append(email_info)
                     self._processed_uids.add(uid_str)
-                    logger.info(f"收到新邮件 - UID: {uid_str}, 主题: {email_info.get('subject', 'N/A')}")
+                    logger.info("收到新邮件 - UID: %s, 主题: %s", uid_str, email_info.get('subject', 'N/A'))
             
             # 更新最后处理的UID
             if uids:
                 self.last_uid = uids[-1].decode('utf-8')
                 
         except imaplib.IMAP4.error as e:
-            logger.error(f"获取新邮件时IMAP错误: {str(e)}")
-            # 标记连接断开
+            logger.error("获取新邮件时IMAP错误: %s", str(e))
             self.is_connected = False
         except (OSError, ConnectionError, ssl.SSLError) as e:
-            logger.error(f"获取新邮件时连接错误: {str(e)}")
-            # 标记连接断开
+            logger.error("获取新邮件时连接错误: %s", str(e))
             self.is_connected = False
         except Exception as e:
             error_msg = str(e).lower()
-            # 检查是否是连接相关的错误
             if any(keyword in error_msg for keyword in ['closed', 'connection', 'eof', 'socket', 'ssl']):
-                logger.error(f"获取新邮件时连接断开: {str(e)}")
+                logger.error("获取新邮件时连接断开: %s", str(e))
                 self.is_connected = False
             else:
-                logger.error(f"获取新邮件时出错: {str(e)}")
+                logger.error("获取新邮件时出错: %s", str(e))
         
         return new_emails
     
@@ -847,7 +852,7 @@ class MailReceiver:
             logger.error("未连接到邮箱服务器，无法开始监控")
             return
         
-        logger.info(f"开始监控新邮件，轮询间隔: {poll_interval}秒")
+        logger.info("开始监控新邮件，轮询间隔: %d秒", poll_interval)
         
         try:
             # 尝试使用IDLE模式（如果支持且启用）
@@ -856,7 +861,7 @@ class MailReceiver:
                     logger.info("尝试使用IDLE模式实时监控...")
                     self._monitor_with_idle(callback)
                 except Exception as e:
-                    logger.warning(f"IDLE模式不可用，切换到轮询模式: {str(e)}")
+                    logger.debug("IDLE模式不可用，切换到轮询模式: %s", str(e))
                     # IDLE失败可能导致连接断开，需要重新连接
                     if not self.is_connected:
                         logger.info("连接已断开，正在重新连接...")
@@ -872,7 +877,7 @@ class MailReceiver:
         except KeyboardInterrupt:
             logger.info("收到停止信号，正在退出...")
         except Exception as e:
-            logger.error(f"监控过程中出错: {str(e)}")
+            logger.error("监控过程中出错: %s", str(e))
         finally:
             self.disconnect()
     
@@ -904,7 +909,7 @@ class MailReceiver:
                         response = self.imap.readline()
                         
                         if b'EXISTS' in response:
-                            logger.debug(f"收到新邮件通知: {response.decode('utf-8', errors='ignore')}")
+                            logger.debug("收到新邮件通知: %s", response.decode('utf-8', errors='ignore'))
                             # 退出IDLE模式
                             self.imap.send(b'DONE\r\n')
                             self.imap.readline()
@@ -922,7 +927,7 @@ class MailReceiver:
                             try:
                                 callback(email_info)
                             except Exception as e:
-                                logger.error(f"回调函数执行失败: {str(e)}")
+                                logger.error("回调函数执行失败: %s", str(e))
                         else:
                             self._default_email_handler(email_info)
                 
@@ -935,8 +940,7 @@ class MailReceiver:
                     pass
                 raise
             except Exception as e:
-                logger.error(f"IDLE模式出错: {str(e)}")
-                logger.info("切换到轮询模式...")
+                logger.debug("IDLE模式出错: %s", str(e))
                 raise
     
     def _monitor_with_polling(self, callback: Optional[Callable[[Dict[str, Any]], None]] = None,
@@ -948,7 +952,7 @@ class MailReceiver:
             callback: 新邮件回调函数
             poll_interval: 轮询间隔（秒）
         """
-        logger.info(f"使用轮询模式监控新邮件，间隔: {poll_interval}秒")
+        logger.debug("使用轮询模式监控新邮件，间隔: %d秒", poll_interval)
         
         consecutive_errors = 0
         max_consecutive_errors = 5
@@ -964,7 +968,7 @@ class MailReceiver:
                         if consecutive_errors >= max_consecutive_errors:
                             logger.error("连续重连失败，程序退出")
                             return
-                        logger.warning(f"重连失败，等待 {poll_interval} 秒后重试 ({consecutive_errors}/{max_consecutive_errors})...")
+                        logger.warning("重连失败，等待 %d 秒后重试 (%d/%d)", poll_interval, consecutive_errors, max_consecutive_errors)
                         time.sleep(poll_interval)
                         continue
                     else:
@@ -979,13 +983,13 @@ class MailReceiver:
                     continue
                 
                 if new_emails:
-                    logger.info(f"检测到 {len(new_emails)} 封新邮件")
+                    logger.info("检测到 %d 封新邮件", len(new_emails))
                     for email_info in new_emails:
                         if callback:
                             try:
                                 callback(email_info)
                             except Exception as e:
-                                logger.error(f"回调函数执行失败: {str(e)}")
+                                logger.error("回调函数执行失败: %s", str(e))
                         else:
                             self._default_email_handler(email_info)
                 
@@ -999,10 +1003,10 @@ class MailReceiver:
                 raise
             except Exception as e:
                 consecutive_errors += 1
-                logger.error(f"轮询过程中出错: {str(e)}")
+                logger.error("轮询过程中出错: %s", str(e))
                 
                 if consecutive_errors >= max_consecutive_errors:
-                    logger.error(f"连续 {max_consecutive_errors} 次错误，程序退出")
+                    logger.error("连续 %d 次错误，程序退出", max_consecutive_errors)
                     return
                 
                 # 标记连接可能断开
@@ -1010,52 +1014,10 @@ class MailReceiver:
                 if any(keyword in error_msg for keyword in ['closed', 'connection', 'eof', 'socket', 'ssl']):
                     self.is_connected = False
                 
-                logger.info(f"等待 {poll_interval} 秒后重试 ({consecutive_errors}/{max_consecutive_errors})...")
+                logger.info("等待 %d 秒后重试 (%d/%d)", poll_interval, consecutive_errors, max_consecutive_errors)
                 time.sleep(poll_interval)
 
 
-    def _print_baltic_exchange_data(self, filename: str, structured_data: Dict[str, Any]):
-        """
-        打印Baltic Exchange结构化数据
-        
-        Args:
-            filename: 文件名
-            structured_data: 结构化数据字典
-        """
-        logger.info(f"  📊 Baltic Exchange文件: {filename}")
-        
-        # 显示元数据
-        metadata = structured_data.get('metadata', {})
-        if 'date_range' in metadata:
-            date_range = metadata['date_range']
-            logger.info(f"     日期范围: {date_range.get('start', 'N/A')} 至 {date_range.get('end', 'N/A')}")
-            logger.info(f"     数据天数: {date_range.get('total_days', 0)}")
-        
-        # 显示列信息
-        if 'columns' in metadata:
-            cols = metadata['columns']
-            logger.info(f"     日期列: {cols.get('date_column', 'N/A')}")
-            logger.info(f"     数值列: {', '.join(cols.get('value_columns', [])[:5])}{'...' if len(cols.get('value_columns', [])) > 5 else ''}")
-        
-        # 显示摘要统计
-        summary = structured_data.get('summary', {})
-        if summary:
-            logger.info(f"     统计摘要:")
-            for col_name, stats in list(summary.items())[:3]:  # 最多显示3个列的统计
-                logger.info(f"       {col_name}:")
-                logger.info(f"         数量: {stats.get('count', 0)} | 最小: {stats.get('min', 'N/A')} | 最大: {stats.get('max', 'N/A')} | 平均: {stats.get('avg', 0):.2f}")
-        
-        # 显示前几条数据
-        indices = structured_data.get('indices', [])
-        if indices:
-            preview_count = min(3, len(indices))
-            logger.info(f"     数据预览 ({preview_count}/{len(indices)} 条):")
-            for i, idx in enumerate(indices[:preview_count], 1):
-                idx_str = ' | '.join([f"{k}: {v}" for k, v in idx.items()][:5])
-                logger.info(f"       [{i}] {idx_str}")
-            if len(indices) > preview_count:
-                logger.info(f"       ... (还有 {len(indices) - preview_count} 条)")
-    
     def _default_email_handler(self, email_info: Dict[str, Any]):
         """
         默认邮件处理函数 - 仅显示附件数据
@@ -1065,27 +1027,27 @@ class MailReceiver:
         """
         attachments = email_info.get('attachments', [])
         if not attachments:
-            logger.info(f"邮件 [{email_info.get('subject', 'N/A')}] - 无附件")
             return
         
-        logger.info(f"邮件: {email_info.get('subject', 'N/A')} | 附件数: {len(attachments)}")
+        subject = email_info.get('subject', 'N/A')
+        logger.info("收到邮件: %s | 附件数: %d", subject, len(attachments))
         
         for idx, att in enumerate(attachments, 1):
             filename = att.get('filename', 'N/A')
             
             # 优先显示Baltic Exchange结构化数据
             if 'structured_data' in att and att['structured_data']:
-                # self._print_baltic_exchange_data(filename, att['structured_data'])
-                print(att['structured_data'])
+                structured_data = att['structured_data']
+                indices = structured_data.get('indices', [])
+                logger.info("  附件 %d: %s | 数据条数: %d", idx, filename, len(indices))
             # 显示CSV数据
             elif 'csv_data' in att and att['csv_data']:
                 csv_data = att['csv_data']
                 headers = list(csv_data[0].keys()) if csv_data and csv_data[0] else []
-                logger.info(f"  [{idx}] {filename} | {len(csv_data)}行 | {len(headers)}列")
-                logger.info(f"      列: {', '.join(headers[:8])}{'...' if len(headers) > 8 else ''}")
+                logger.info("  附件 %d: %s | 行数: %d | 列数: %d", idx, filename, len(csv_data), len(headers))
             else:
                 size = att.get('size', 0)
-                logger.info(f"  [{idx}] {filename} | {size} bytes")
+                logger.info("  附件 %d: %s | %d bytes", idx, filename, size)
 
 
 def print_email_list(emails: list):
@@ -1099,13 +1061,7 @@ def print_email_list(emails: list):
         logger.info("未找到匹配邮件")
         return
     
-    logger.info("找到 %d 封匹配邮件:", len(emails))
-    for idx, email_info in enumerate(emails, 1):
-        subject = email_info.get('subject', 'N/A')
-        date = email_info.get('date', 'N/A')
-        if 'T' in date:
-            date = date.split('T')[0]
-        logger.info("  [%d] %s | %s", idx, date, subject)
+    logger.info("找到 %d 封匹配邮件", len(emails))
 
 
 def print_email_content(email_info: Dict[str, Any]):
@@ -1118,14 +1074,11 @@ def print_email_content(email_info: Dict[str, Any]):
     if not email_info:
         return
     
-    subject = email_info.get('subject', 'N/A')
     attachments = email_info.get('attachments', [])
     
     if not attachments:
         logger.info("邮件无附件")
         return
-    
-    logger.info("邮件: %s | 附件数: %d", subject, len(attachments))
     
     for idx, att in enumerate(attachments, 1):
         filename = att.get('filename', 'N/A')
@@ -1134,61 +1087,28 @@ def print_email_content(email_info: Dict[str, Any]):
         if 'structured_data' in att and att['structured_data']:
             structured_data = att['structured_data']
             indices = structured_data.get('indices', [])
-            metadata = structured_data.get('metadata', {})
-            
-            # 显示关键信息
-            cols_info = ""
-            if 'columns' in metadata:
-                cols = metadata['columns']
-                value_cols = cols.get('value_columns', [])[:3]
-                cols_info = f" | 列: {', '.join(value_cols)}"
-            
-            logger.info("  附件 %d: %s | 数据条数: %d%s", idx, filename, len(indices), cols_info)
-            
-            # 只显示最新一条数据
-            if indices:
-                latest = indices[-1]
-                key_items = list(latest.items())[:5]
-                data_str = ' | '.join([f"{k}: {v}" for k, v in key_items])
-                logger.info("    最新数据: %s", data_str)
+            logger.debug("附件 %d: %s | 数据条数: %d", idx, filename, len(indices))
         
-        # CSV附件 - 显示关键数据
+        # CSV附件
         elif 'csv_data' in att and att['csv_data']:
             csv_data = att['csv_data']
             headers = list(csv_data[0].keys()) if csv_data and csv_data[0] else []
-            logger.info("  附件 %d: %s | 行数: %d | 列数: %d", idx, filename, len(csv_data), len(headers))
-            
-            # 只显示最新一行数据
-            if csv_data:
-                latest_row = csv_data[-1]
-                key_items = list(latest_row.items())[:5]
-                data_str = ' | '.join([f"{k}: {v}" for k, v in key_items])
-                logger.info("    最新数据: %s", data_str)
+            logger.debug("附件 %d: %s | 行数: %d | 列数: %d", idx, filename, len(csv_data), len(headers))
         
         # 其他类型附件
         else:
             size = att.get('size', 0)
-            logger.info("  附件 %d: %s | %d bytes", idx, filename, size)
+            logger.debug("附件 %d: %s | %d bytes", idx, filename, size)
 
 
 def custom_email_handler(email_info: Dict[str, Any]):
     """
     自定义邮件处理函数示例
-    用户可以在这里添加自己的邮件处理逻辑
     
     Args:
-        email_info: 邮件信息字典，包含:
-            - uid: 邮件UID
-            - subject: 主题
-            - from: 发件人
-            - to: 收件人
-            - date: 日期
-            - body: 正文
-            - attachments: 附件列表
+        email_info: 邮件信息字典
     """
-    logger.info(f"[自定义处理] 收到邮件: {email_info.get('subject')}")
-    # 在这里添加您的自定义处理逻辑
-    # 例如：保存邮件、发送通知、解析内容等
+    logger.info("收到邮件: %s", email_info.get('subject'))
 
 
 def main():
@@ -1206,11 +1126,7 @@ def main():
     parser.add_argument('--show-content', action='store_true', help='显示最新匹配邮件的完整内容（包括正文）')
     args = parser.parse_args()
     
-    logger.info("=" * 80)
-    logger.info("阿里邮箱实时接收脚本启动")
-    logger.info(f"邮箱: {EMAIL_CONFIG['username']}")
-    logger.info(f"服务器: {EMAIL_CONFIG['server']}:{EMAIL_CONFIG['port']}")
-    logger.info("=" * 80)
+    logger.info("邮件脚本启动 | 邮箱: %s", EMAIL_CONFIG['username'])
     
     # 创建邮件接收器
     receiver = MailReceiver(EMAIL_CONFIG)
@@ -1223,7 +1139,6 @@ def main():
     try:
         # 如果指定了 --search 参数，则搜索邮件后退出
         if args.search or args.sender or args.subject:
-            logger.info("正在搜索邮件...")
             emails = receiver.search_emails(
                 sender=args.sender,
                 subject=args.subject,
@@ -1235,17 +1150,12 @@ def main():
             # 如果指定了 --show-content 且有匹配结果，显示最新邮件的完整内容
             if args.show_content and emails:
                 latest_email = emails[0]  # 第一封是最新的
-                logger.info("")
-                logger.info("正在获取最新匹配邮件的完整内容...")
-                full_content = receiver.get_email_content(latest_email.get('uid'))
-                if full_content:
-                    print_email_content(full_content)
+                receiver.get_email_content(latest_email.get('uid'))
             
             return
         
         # 如果指定了 --list 参数，则列出邮件列表后退出
         if args.list:
-            logger.info("正在列出收件箱邮件...")
             emails = receiver.list_emails(limit=args.limit, start_from=args.start)
             print_email_list(emails)
             return
@@ -1260,7 +1170,7 @@ def main():
     except KeyboardInterrupt:
         logger.info("\n收到退出信号，程序正常退出")
     except Exception as e:
-        logger.error(f"程序运行出错: {str(e)}")
+        logger.error("程序运行出错: %s", str(e))
         import traceback
         logger.error(traceback.format_exc())
     finally:
@@ -1343,14 +1253,12 @@ class ReceiveDataAquabridgeEmail(BaseModel):
         else:
             use_idle = False
         
-        logger.info("邮件任务启动 | 邮箱: %s", self.email_config['username'])
-        
         # 创建邮件接收器
         self.receiver = MailReceiver(self.email_config, self.mgo)
         
         # 连接邮箱
         if not self.receiver.connect():
-            logger.error("无法连接到邮箱服务器，任务退出")
+            logger.error("✗ 无法连接到邮箱服务器")
             return
         
         try:
@@ -1359,14 +1267,12 @@ class ReceiveDataAquabridgeEmail(BaseModel):
                 # 监控模式：实时监控新邮件
                 logger.info("监控模式启动 | 轮询间隔: %d秒", self.poll_interval)
                 self.receiver.monitor(
-                    callback=None,  # 使用默认处理函数
+                    callback=None,
                     poll_interval=self.poll_interval,
                     use_idle=use_idle
                 )
             else:
                 # 搜索模式：搜索并显示匹配邮件（默认模式）
-                logger.info("搜索邮件 | 发件人: %s | 主题: %s", sender, subject)
-                
                 # 搜索邮件
                 emails = self.receiver.search_emails(
                     sender=sender,
@@ -1378,19 +1284,27 @@ class ReceiveDataAquabridgeEmail(BaseModel):
                 # 显示邮件列表
                 print_email_list(emails)
                 
-                # 如果指定显示内容且有匹配结果，显示最新邮件的完整内容
+                # 如果指定显示内容且有匹配结果，处理最新邮件
                 if show_content and emails:
                     latest_email = emails[0]  # 第一封是最新的
-                    full_content = self.receiver.get_email_content(latest_email.get('uid'))
-                    if full_content:
-                        print_email_content(full_content)
+                    email_subject = latest_email.get('subject', 'N/A')
+                    logger.info("处理邮件: %s", email_subject)
+                    email_content = self.receiver.get_email_content(latest_email.get('uid'))
+                    if email_content:
+                        attachments = email_content.get('attachments', [])
+                        if attachments:
+                            logger.info("发现 %d 个附件，开始处理...", len(attachments))
+                        else:
+                            logger.info("邮件无附件")
+                    else:
+                        logger.warning("无法获取邮件内容")
                 elif not emails:
                     logger.info("未找到匹配的邮件")
                 
         except KeyboardInterrupt:
             logger.info("\n收到退出信号，任务正常退出")
         except Exception as e:
-            logger.error(f"任务运行出错: {str(e)}")
+            logger.error("任务运行出错: %s", str(e))
             import traceback
             logger.error(traceback.format_exc())
         finally:
