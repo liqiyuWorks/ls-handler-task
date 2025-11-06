@@ -177,12 +177,13 @@ class MailReceiver:
                 decoded_str += part
         return decoded_str
     
-    def parse_email(self, msg_data: bytes) -> Dict[str, Any]:
+    def parse_email(self, msg_data: bytes, read_attachments: bool = True) -> Dict[str, Any]:
         """
         解析邮件内容
         
         Args:
             msg_data: 邮件原始数据
+            read_attachments: 是否读取附件数据（默认True）
             
         Returns:
             Dict: 解析后的邮件信息
@@ -207,8 +208,8 @@ class MailReceiver:
             # 获取邮件正文
             body = self._get_email_body(msg)
             
-            # 获取附件信息（包括数据）
-            attachments = self._get_attachments(msg, read_data=True)
+            # 获取附件信息
+            attachments = self._get_attachments(msg, read_data=read_attachments)
             
             email_info = {
                 'subject': subject,
@@ -727,12 +728,13 @@ class MailReceiver:
         
         return emails_list
     
-    def get_email_content(self, uid: str) -> Optional[Dict[str, Any]]:
+    def get_email_content(self, uid: str, read_attachments: bool = True) -> Optional[Dict[str, Any]]:
         """
         获取指定UID邮件的完整内容（包括正文和附件信息）
         
         Args:
             uid: 邮件UID
+            read_attachments: 是否读取附件数据（默认True）
             
         Returns:
             Dict: 完整的邮件信息，包含subject, from, to, date, body, attachments等
@@ -753,7 +755,7 @@ class MailReceiver:
                 return None
             
             # 解析邮件
-            email_info = self.parse_email(msg_data[0][1])
+            email_info = self.parse_email(msg_data[0][1], read_attachments=read_attachments)
             if email_info:
                 email_info['uid'] = uid
                 return email_info
@@ -1061,7 +1063,13 @@ def print_email_list(emails: list):
         logger.info("未找到匹配邮件")
         return
     
-    logger.info("找到 %d 封匹配邮件", len(emails))
+    logger.info("找到 %d 封匹配邮件:", len(emails))
+    for idx, email_info in enumerate(emails, 1):
+        subject = email_info.get('subject', 'N/A')
+        date = email_info.get('date', 'N/A')
+        if 'T' in date:
+            date = date.split('T')[0]
+        logger.info("  [%d] %s | %s", idx, date, subject)
 
 
 def print_email_content(email_info: Dict[str, Any]):
@@ -1210,6 +1218,9 @@ class ReceiveDataAquabridgeEmail(BaseModel):
         self.search_recent = int(os.getenv('EMAIL_SEARCH_RECENT', '100'))
         self.show_content = os.getenv('EMAIL_SHOW_CONTENT', 'true').lower() == 'true'
         
+        # 处理邮件数量（默认处理最新的1封）
+        self.process_count = int(os.getenv('EMAIL_PROCESS_COUNT', '2'))
+        
         # 轮询间隔（秒），用于监控模式
         self.poll_interval = int(os.getenv('EMAIL_POLL_INTERVAL', '10'))
         
@@ -1228,6 +1239,7 @@ class ReceiveDataAquabridgeEmail(BaseModel):
                 - limit: 搜索结果数量限制（默认: 20）
                 - search_recent: 在最近多少封邮件中搜索（默认: 100）
                 - show_content: 是否显示邮件完整内容（默认: True）
+                - process_count: 处理邮件数量（默认: 1，处理最新的1封；可设置为2处理最新的2封）
                 - mode: 运行模式，'search'（搜索模式，默认）或 'monitor'（监控模式）
                 - poll_interval: 监控模式下的轮询间隔（秒）
                 - use_idle: 监控模式下是否使用IDLE模式
@@ -1239,6 +1251,7 @@ class ReceiveDataAquabridgeEmail(BaseModel):
         limit = self.search_limit
         search_recent = self.search_recent
         show_content = self.show_content
+        process_count = self.process_count
         mode = 'search'  # 默认搜索模式
         
         if task:
@@ -1247,6 +1260,7 @@ class ReceiveDataAquabridgeEmail(BaseModel):
             limit = task.get('limit', limit)
             search_recent = task.get('search_recent', search_recent)
             show_content = task.get('show_content', show_content)
+            process_count = task.get('process_count', process_count)
             mode = task.get('mode', mode)
             self.poll_interval = task.get('poll_interval', self.poll_interval)
             use_idle = task.get('use_idle', False)
@@ -1281,23 +1295,36 @@ class ReceiveDataAquabridgeEmail(BaseModel):
                     search_recent=search_recent
                 )
                 
-                # 显示邮件列表
+                # 先显示所有匹配的邮件名称
                 print_email_list(emails)
                 
-                # 如果指定显示内容且有匹配结果，处理最新邮件
+                # 如果指定显示内容且有匹配结果，处理邮件
                 if show_content and emails:
-                    latest_email = emails[0]  # 第一封是最新的
-                    email_subject = latest_email.get('subject', 'N/A')
-                    logger.info("处理邮件: %s", email_subject)
-                    email_content = self.receiver.get_email_content(latest_email.get('uid'))
-                    if email_content:
-                        attachments = email_content.get('attachments', [])
-                        if attachments:
-                            logger.info("发现 %d 个附件，开始处理...", len(attachments))
+                    # 根据 process_count 决定处理多少封邮件
+                    process_emails = emails[:process_count]
+                    logger.info("")
+                    logger.info("处理最新 %d 封邮件:", len(process_emails))
+                    
+                    for idx, email_info in enumerate(process_emails, 1):
+                        email_subject = email_info.get('subject', 'N/A')
+                        logger.info("  [%d/%d] 处理邮件: %s", idx, len(process_emails), email_subject)
+                        
+                        # 先获取邮件基本信息（不读取附件数据），检查附件数量
+                        email_content_preview = self.receiver.get_email_content(email_info.get('uid'), read_attachments=False)
+                        if email_content_preview:
+                            attachments = email_content_preview.get('attachments', [])
+                            if attachments:
+                                logger.info("     发现 %d 个附件，开始处理...", len(attachments))
+                                # 然后获取完整内容（包括附件数据），触发保存
+                                self.receiver.get_email_content(email_info.get('uid'), read_attachments=True)
+                            else:
+                                logger.info("     邮件无附件")
                         else:
-                            logger.info("邮件无附件")
-                    else:
-                        logger.warning("无法获取邮件内容")
+                            logger.warning("     无法获取邮件内容")
+                        
+                        # 如果不是最后一封，添加分隔
+                        if idx < len(process_emails):
+                            logger.info("")
                 elif not emails:
                     logger.info("未找到匹配的邮件")
                 
