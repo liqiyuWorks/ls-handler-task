@@ -429,7 +429,7 @@ class MailReceiver:
         """
         filename_lower = filename.lower()
 
-        if filename_lower.startswith('dry index baltic exchange') and 'historic data' in filename_lower:
+        if 'baltic exchange' in filename_lower and 'historic data' in filename_lower:
             """
             解析Baltic Exchange历史数据文件，转换为结构化数据
             """
