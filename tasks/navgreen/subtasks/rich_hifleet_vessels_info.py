@@ -10,6 +10,7 @@ import time
 import os
 from pymongo import UpdateOne
 
+
 def request_wmy_detail(mmsi_list):
     import json
     url = "http://8.153.76.2:10010/api/cosco/vessel/details"
@@ -49,7 +50,7 @@ class RichHifleetVesselsInfo(BaseModel):
             res = request_wmy_detail(mmsi_list)
             if res is None:
                 res = []
-                
+
             print("接口返回数据条数:", len(res))
             if len(res) == 0:
                 for m in mmsi_list:
@@ -57,7 +58,8 @@ class RichHifleetVesselsInfo(BaseModel):
                         mmsi_int = int(m)
                     except Exception:
                         continue
-                    info = self.mgo_db["global_vessels"].find_one({"mmsi": mmsi_int}, {"imo": 1, "mmsi": 1, "_id": 0})
+                    info = self.mgo_db["global_vessels"].find_one(
+                        {"mmsi": mmsi_int}, {"imo": 1, "mmsi": 1, "_id": 0})
                     missing_imo = info.get("imo") if info else None
                     print(f"接口全空: imo: {missing_imo}, mmsi: {mmsi_int}")
                     self.mgo_db["global_vessels"].update_one(
@@ -90,15 +92,21 @@ class RichHifleetVesselsInfo(BaseModel):
                 # 字段映射梳理
                 update_data = dict(item)
                 if "grt" in item:
-                    update_data["GrossTonnage"] = str(item["grt"]) if item["grt"] is not None else ""
+                    update_data["GrossTonnage"] = str(
+                        item["grt"]) if item["grt"] is not None else ""
                 if "dwt" in item:
-                    update_data["dwt"] = str(item["dwt"]) if item["dwt"] is not None else ""
+                    update_data["dwt"] = str(
+                        item["dwt"]) if item["dwt"] is not None else ""
                 if "buildYear" in item:
-                    update_data["YearOfBuild"] = str(item["buildYear"]) if item["buildYear"] is not None else ""
+                    update_data["YearOfBuild"] = str(
+                        item["buildYear"]) if item["buildYear"] is not None else ""
                 if "draught" in item:
-                    update_data["sjdraught"] = str(item["draught"]) if item["draught"] is not None else ""
+                    update_data["sjdraught"] = str(
+                        item["draught"]) if item["draught"] is not None else ""
                 # 加入 info_update 字段（当前时间字符串）
-                update_data["info_update"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                update_data["info_update"] = datetime.datetime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S")
+                update_data["info_update_desc"] = "已获取到详情"
                 # 全量同步并确保关键字段映射覆盖
                 self.mgo_db["global_vessels"].update_one(
                     {"imo": imo},
@@ -114,7 +122,8 @@ class RichHifleetVesselsInfo(BaseModel):
                 except Exception:
                     continue
                 if mmsi_int not in returned_mmsi_set:
-                    info = self.mgo_db["global_vessels"].find_one({"mmsi": mmsi_int}, {"imo": 1, "mmsi": 1, "_id": 0})
+                    info = self.mgo_db["global_vessels"].find_one(
+                        {"mmsi": mmsi_int}, {"imo": 1, "mmsi": 1, "_id": 0})
                     missing_imo = info.get("imo") if info else None
                     missing_pairs.append((missing_imo, mmsi_int))
             if missing_pairs:
@@ -136,14 +145,8 @@ class RichHifleetVesselsInfo(BaseModel):
         try:
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
             print("同步开始:", dataTime)
-
-            # 查找全量船舶
-            existing_record_list = list(self.mgo_db["global_vessels"].find(
-                {"imo": {"$exists": True}}, {"_id": 0}
-            ))
-            print("库内总船数:", len(existing_record_list))
-
             # 只依据信息更新时间 info_update 判定是否需要补数据
+
             def need_update(item):
                 # ③ 有特殊标志“未获取到详情”则不更新
                 if item.get("info_update_desc") == "未获取到详情":
@@ -153,7 +156,8 @@ class RichHifleetVesselsInfo(BaseModel):
                     return True
                 # ② info_update 距离现在大于3个月
                 try:
-                    last_update = datetime.datetime.strptime(item["info_update"], "%Y-%m-%d %H:%M:%S")
+                    last_update = datetime.datetime.strptime(
+                        item["info_update"], "%Y-%m-%d %H:%M:%S")
                     if (datetime.datetime.now() - last_update).days > 90:
                         return True
                 except Exception:
@@ -161,15 +165,38 @@ class RichHifleetVesselsInfo(BaseModel):
                     return True
                 return False
 
-            # 只补缺失/不完整字段/超时的数据，也可以全量同步（如需全量查 imo_list = ...）
-            need_sync_list = [item for item in existing_record_list if need_update(item)]
+            # 1、查找全量船舶 ---- 【默认操作】
+            ##  只补缺失/不完整字段/超时的数据，也可以全量同步（如需全量查 imo_list = ...）
+            # existing_record_list = list(self.mgo_db["global_vessels"].find(
+            #     {"imo": {"$exists": True}}, {"_id": 0}
+            # ))
+            
+            # need_sync_list = [
+            #     item for item in existing_record_list if need_update(item)]
+            
+            # 2、查找某一个imo补充数据
+            # imo_list = [1082433]
+            # for imo in imo_list:
+            #     need_sync_list = list(self.mgo_db["global_vessels"].find(
+            #         {"imo": imo}, {"_id": 0}
+            #     ))
+            
+            # 3、查找info_update_desc为未获取到详情的船舶
+            need_sync_list = list(self.mgo_db["global_vessels"].find(
+                {"imo": {"$exists": True}, "info_update_desc": "未获取到详情"}, {"_id": 0}
+            ))
+
+            print("库内总船数:", len(need_sync_list))
+
             # 按 imo 升序排序，确保need_sync_list顺序一致
-            need_sync_list = sorted(need_sync_list, key=lambda x: x.get("imo", 0))
+            need_sync_list = sorted(
+                need_sync_list, key=lambda x: x.get("imo", 0))
             mmsi_list = [item["mmsi"] for item in need_sync_list]
             print("需补字段船只数量:", len(mmsi_list))
 
             batch_size = self.batch_size
-            batches = [mmsi_list[i:i + batch_size] for i in range(0, len(mmsi_list), batch_size)]
+            batches = [mmsi_list[i:i + batch_size]
+                       for i in range(0, len(mmsi_list), batch_size)]
             for batch in batches:
                 print("请求 batch:", batch)
                 self.update_hifleet_vessels(batch)
@@ -179,9 +206,6 @@ class RichHifleetVesselsInfo(BaseModel):
         except Exception:
             traceback.print_exc()
             print("error in run")
-
-
-
 
 
 class ModifyVesselsInfoInMgo(BaseModel):
@@ -224,6 +248,7 @@ class ModifyVesselsInfoInMgo(BaseModel):
             ops_update = []
             log_merge = 0
             log_deleted = 0
+
             def merge_docs(docs):
                 result = {}
                 for d in docs:
@@ -261,7 +286,8 @@ class ModifyVesselsInfoInMgo(BaseModel):
                         if del_int_ids:
                             to_delete_ids.extend(del_int_ids)
                             log_deleted += len(del_int_ids)
-                        ops_update.append(UpdateOne({"_id": keep_id}, {"$set": merged}, upsert=True))
+                        ops_update.append(UpdateOne({"_id": keep_id}, {
+                                          "$set": merged}, upsert=True))
                         log_merge += 1
                 else:
                     # 全是 string imo，只保留一条
@@ -272,17 +298,19 @@ class ModifyVesselsInfoInMgo(BaseModel):
                         if del_str_ids:
                             to_delete_ids.extend(del_str_ids)
                             log_deleted += len(del_str_ids)
-                        ops_update.append(UpdateOne({"_id": keep_id}, {"$set": merged}, upsert=True))
+                        ops_update.append(UpdateOne({"_id": keep_id}, {
+                                          "$set": merged}, upsert=True))
                         log_merge += 1
             # 3. 批量真正执行去重和合并
             if to_delete_ids:
-                self.mgo_db["global_vessels"].delete_many({"_id": {"$in": to_delete_ids}})
+                self.mgo_db["global_vessels"].delete_many(
+                    {"_id": {"$in": to_delete_ids}})
             if ops_update:
                 self.mgo_db["global_vessels"].bulk_write(ops_update)
             # 4. 保证所有剩余文档的 imo 和 mmsi 均为 int 类型（如有未转换的一并转换）
             update_to_int_ops = []
             cnt_convert = 0
-            for doc in self.mgo_db["global_vessels"].find({}, {"_id":1, "imo":1, "mmsi":1}):
+            for doc in self.mgo_db["global_vessels"].find({}, {"_id": 1, "imo": 1, "mmsi": 1}):
                 updates = {}
                 imo_raw = doc.get("imo")
                 mmsi_raw = doc.get("mmsi")
@@ -297,11 +325,13 @@ class ModifyVesselsInfoInMgo(BaseModel):
                     except Exception:
                         pass
                 if updates:
-                    update_to_int_ops.append(UpdateOne({"_id": doc["_id"]}, {"$set": updates}))
+                    update_to_int_ops.append(
+                        UpdateOne({"_id": doc["_id"]}, {"$set": updates}))
                     cnt_convert += 1
             if update_to_int_ops:
                 self.mgo_db["global_vessels"].bulk_write(update_to_int_ops)
-            print(f"批量已清理冗余: 合并{log_merge}组, 删除{log_deleted}条，仅保留 int imo 唯一文档。后处理 imo/mmsi 转 int 共 {cnt_convert} 条. 用时: {round(_t.time()-t1,2)}秒")
+            print(
+                f"批量已清理冗余: 合并{log_merge}组, 删除{log_deleted}条，仅保留 int imo 唯一文档。后处理 imo/mmsi 转 int 共 {cnt_convert} 条. 用时: {round(_t.time()-t1,2)}秒")
         except Exception:
             traceback.print_exc()
             print("error in run")
