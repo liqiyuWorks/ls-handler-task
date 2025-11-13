@@ -885,30 +885,30 @@ class SpiderFisDailyTradeData(BaseModel):
         self.logger = logging.getLogger(__name__)
         self.product_type = product_type.upper()
 
-        # 产品配置
+        # 产品配置：product_id 映射
         self.product_configs = {
             'C5TC': {
-                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/1/405/F/null/null',
+                'product_id': 1,
                 'collection_name': 'fis_daily_c5tc_trade_data'
             },
             'P4TC': {
-                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/12/405/F/null/null',
+                'product_id': 12,
                 'collection_name': 'fis_daily_p4tc_trade_data'
             },
             'P5TC': {
-                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/39/405/F/null/null',
+                'product_id': 39,
                 'collection_name': 'fis_daily_p5tc_trade_data'
             },
             'C5': {
-                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/25/405/F/null/null',
+                'product_id': 25,
                 'collection_name': 'fis_daily_c5_trade_data'
             },
             'S10TC': {
-                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/28/405/F/null/null',
+                'product_id': 28,
                 'collection_name': 'fis_daily_s10tc_trade_data'
             },
             'HS7TC': {
-                'api_url': 'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/87/405/F/null/null',
+                'product_id': 87,
                 'collection_name': 'fis_daily_hs7tc_trade_data'
             }
         }
@@ -918,8 +918,10 @@ class SpiderFisDailyTradeData(BaseModel):
                 f"不支持的产品类型: {self.product_type}。支持的类型: {list(self.product_configs.keys())}")
 
         product_config = self.product_configs[self.product_type]
-        self.api_url = product_config['api_url']
+        self.product_id = product_config['product_id']
         self.collection_name = product_config['collection_name']
+        # api_url 将在运行时动态构建，使用最新的 period_id
+        self.api_url = None
 
         # 数据库配置
         self.uniq_idx = [('Date', pymongo.ASCENDING)]
@@ -1014,18 +1016,250 @@ class SpiderFisDailyTradeData(BaseModel):
             
         return {'Authorization': token}
 
-    def _fetch_daily_trade_data(self, max_retries=3):
-        """获取逐日交易数据"""
+    def _get_latest_period_id_from_mongo(self):
+        """
+        从 MongoDB 的 fis_{product_type}_trade_data 表中获取最新的 period_id
+        
+        Returns:
+            最新的 period_id，如果获取失败则返回 None
+        """
+        try:
+            # 获取对应的交易数据表名（不是逐日数据表）
+            trade_data_collection_name = f'fis_{self.product_type.lower()}_trade_data'
+            
+            # 获取 MongoDB 数据库连接
+            mgo_db = None
+            if hasattr(self, 'mgo') and self.mgo:
+                # 使用现有的 MongoDB 连接
+                if hasattr(self.mgo, 'mgo_db'):
+                    mgo_db = self.mgo.mgo_db
+                elif hasattr(self.mgo, 'db'):
+                    mgo_db = self.mgo.db
+            
+            # 如果没有现有连接，尝试创建新连接
+            if mgo_db is None:
+                try:
+                    from pkg.db.mongo import get_mgo
+                    _, mgo_db = get_mgo()
+                    if mgo_db is None:
+                        self.logger.warning(f"[逐日数据] {self.product_type} 无法获取 MongoDB 连接")
+                        return None
+                except Exception as e:
+                    self.logger.warning(f"[逐日数据] {self.product_type} 无法获取 MongoDB 连接: {str(e)}")
+                    return None
+            
+            # 获取对应的集合
+            collection = mgo_db[trade_data_collection_name]
+            
+            # 查询最新的数据（按 date 降序排列）
+            latest_record = collection.find_one(
+                sort=[('date', pymongo.DESCENDING)]
+            )
+            
+            if not latest_record:
+                self.logger.warning(f"[逐日数据] {self.product_type} MongoDB 中未找到交易数据")
+                return None
+            
+            latest_date = latest_record.get('date', '未知')
+            
+            # 从 contracts 数组中提取 period_id
+            # 只选择 forward 合约（period_type='F'），排除 spread 合约（period_type='S'）
+            contracts = latest_record.get('contracts', [])
+            if not contracts:
+                self.logger.warning(f"[逐日数据] {self.product_type} 最新记录中没有 contracts 数据")
+                return None
+            
+            # 优先选择 "Rolling Current Month" 的 forward 合约
+            forward_contracts = []
+            current_month_contract = None
+            
+            for contract in contracts:
+                if not isinstance(contract, dict):
+                    continue
+                
+                period_type = contract.get('period_type', '')
+                period_id = contract.get('period_id')
+                label = contract.get('label', {})
+                label_en = label.get('en', '') if isinstance(label, dict) else ''
+                contract_name = contract.get('contract', '')
+                
+                # 只处理 forward 合约（period_type='F'）
+                if period_type != 'F' or period_id is None:
+                    continue
+                
+                try:
+                    period_id_int = int(period_id)
+                    contract_info = {
+                        'period_id': period_id_int,
+                        'contract': contract_name,
+                        'label': label_en
+                    }
+                    forward_contracts.append(contract_info)
+                    
+                    # 检查是否是 "Rolling Current Month"
+                    if 'Current Month' in label_en or '当月' in str(label):
+                        if current_month_contract is None:
+                            current_month_contract = contract_info
+                except (ValueError, TypeError):
+                    continue
+            
+            if not forward_contracts:
+                self.logger.warning(f"[逐日数据] {self.product_type} 没有找到 forward 合约")
+                return None
+            
+            # 优先选择 "Rolling Current Month" 的合约
+            if current_month_contract:
+                latest_period_id = current_month_contract['period_id']
+            else:
+                # 如果没有找到 Current Month，选择 period_id 最大的 forward 合约
+                latest_period_id = max(c['period_id'] for c in forward_contracts)
+            
+            self.logger.info(f"[逐日数据] {self.product_type} 从 MongoDB 获取 period_id: {latest_period_id} (日期: {latest_date})")
+            return latest_period_id
+            
+        except Exception as e:
+            self.logger.error(f"[逐日数据] {self.product_type} 从 MongoDB 获取 period_id 失败: {str(e)}")
+            return None
+
+    def _get_latest_period_id(self, max_retries=3):
+        """
+        获取最新的 period_id，优先从 MongoDB 获取，如果失败则从 periods API 获取
+        
+        Args:
+            max_retries: 最大重试次数（仅用于 API 调用）
+            
+        Returns:
+            最新的 period_id，如果获取失败则返回默认值 405
+        """
+        # 首先尝试从 MongoDB 获取
+        period_id = self._get_latest_period_id_from_mongo()
+        if period_id is not None:
+            return period_id
+        
+        # 如果 MongoDB 获取失败，尝试从 periods API 获取
+        self.logger.warning(f"[逐日数据] {self.product_type} 从 MongoDB 获取失败，尝试从 periods API 获取")
+        periods_api_url = f'https://livepricing-prod2.azurewebsites.net/api/v1/product/{self.product_id}/periods'
+        
         for attempt in range(max_retries):
             try:
                 headers = self._get_api_headers()
+                response = requests.get(periods_api_url, headers=headers, timeout=30)
+                
+                if response.status_code == 200:
+                    periods_data = response.json()
+                    
+                    # 解析 periods 数据，找到最新的 period_id
+                    # periods 数据可能是列表或字典格式
+                    if isinstance(periods_data, list):
+                        # 如果是列表，查找最大的 periodId
+                        period_ids = []
+                        for period in periods_data:
+                            if isinstance(period, dict):
+                                period_id = period.get('periodId') or period.get('id')
+                                if period_id:
+                                    try:
+                                        period_ids.append(int(period_id))
+                                    except (ValueError, TypeError):
+                                        continue
+                        
+                        if period_ids:
+                            latest_period_id = max(period_ids)
+                            self.logger.info(f"[逐日数据] {self.product_type} 从 periods API 获取 period_id: {latest_period_id}")
+                            return latest_period_id
+                    
+                    elif isinstance(periods_data, dict):
+                        # 如果是字典，可能包含 periodsForProductList 字段
+                        if 'periodsForProductList' in periods_data:
+                            periods_list = periods_data['periodsForProductList']
+                            period_ids = []
+                            for period in periods_list:
+                                if isinstance(period, dict):
+                                    period_id = period.get('periodId') or period.get('id')
+                                    if period_id:
+                                        try:
+                                            period_ids.append(int(period_id))
+                                        except (ValueError, TypeError):
+                                            continue
+                            
+                            if period_ids:
+                                latest_period_id = max(period_ids)
+                                self.logger.info(f"[逐日数据] {self.product_type} 从 periods API 获取 period_id: {latest_period_id}")
+                                return latest_period_id
+                    
+                    self.logger.warning(f"[逐日数据] {self.product_type} 无法从 periods API 解析 period_id，使用默认值 405")
+                    return 405  # 默认值
+                    
+                elif response.status_code == 401:
+                    self.logger.error(f"[逐日数据] {self.product_type} periods API 认证失败 (401)")
+                    if attempt < max_retries - 1:
+                        continue
+                    return 405  # 失败时使用默认值
+                else:
+                    self.logger.warning(f"[逐日数据] {self.product_type} periods API 请求失败，状态码: {response.status_code}")
+                    if attempt < max_retries - 1:
+                        continue
+                    return 405  # 失败时使用默认值
+                    
+            except requests.exceptions.RequestException as e:
+                self.logger.error(f"[逐日数据] {self.product_type} periods API 请求异常: {str(e)}")
+                if attempt < max_retries - 1:
+                    import time
+                    time.sleep(2 ** attempt)
+                    continue
+                return 405  # 失败时使用默认值
+            except Exception as e:
+                self.logger.error(f"[逐日数据] {self.product_type} 获取 period_id 时发生未知错误: {str(e)}")
+                if attempt < max_retries - 1:
+                    continue
+                return 405  # 失败时使用默认值
+        
+        self.logger.warning(f"[逐日数据] {self.product_type} 获取 period_id 失败，使用默认值 405")
+        return 405  # 最终失败时使用默认值
+
+    def _build_chart_data_url(self, period_id):
+        """
+        构建 chartData API URL
+        
+        Args:
+            period_id: 周期ID
+            
+        Returns:
+            完整的 chartData API URL
+        """
+        return f'https://livepricing-prod2.azurewebsites.net/api/v1/chartData/{self.product_id}/{period_id}/F/null/null'
+
+    def _fetch_daily_trade_data(self, max_retries=3):
+        """获取逐日交易数据"""
+        # 每次运行都动态获取最新的 period_id，确保数据是最新的
+        period_id = self._get_latest_period_id()
+        api_url = self._build_chart_data_url(period_id)
+        self.logger.info(f"[逐日数据] {self.product_type} 调用 URL: {api_url} (period_id: {period_id})")
+        
+        for attempt in range(max_retries):
+            try:
+                headers = self._get_api_headers()
+                
                 response = requests.get(
-                    self.api_url, headers=headers, timeout=30)
+                    api_url, headers=headers, timeout=30)
 
                 if response.status_code == 200:
                     data = response.json()
-                    self.logger.debug(
-                        f"[逐日数据] {self.product_type} 获取成功: {len(data) if isinstance(data, list) else 'N/A'} 条")
+                    # 打印数据日期范围信息
+                    if isinstance(data, list) and len(data) > 0:
+                        dates = [item.get('Date', '') for item in data if isinstance(item, dict) and item.get('Date')]
+                        if dates:
+                            dates.sort()
+                            latest_date = dates[-1]
+                            current_date = datetime.now().strftime('%Y-%m-%d')
+                            date_status = "最新" if latest_date >= current_date else f"滞后 {current_date}"
+                            self.logger.info(
+                                f"[逐日数据] {self.product_type} 获取成功: {len(data)} 条，日期范围: {dates[0]} 至 {latest_date}，最新日期: {latest_date} ({date_status})")
+                        else:
+                            self.logger.info(
+                                f"[逐日数据] {self.product_type} 获取成功: {len(data)} 条（无法提取日期信息）")
+                    else:
+                        self.logger.info(
+                            f"[逐日数据] {self.product_type} 获取成功: {len(data) if isinstance(data, list) else 'N/A'} 条")
                     return data
                 elif response.status_code == 401:
                     self.logger.error(
