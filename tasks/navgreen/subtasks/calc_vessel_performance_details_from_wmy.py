@@ -116,12 +116,17 @@ def is_valid_current_data(current_u: Any, current_v: Any) -> bool:
 def deal_good_perf_list(data: List[Dict[str, Any]], DESIGN_DRAFT: float, DESIGN_SPEED: float) -> Dict[str, float]:
     """
     处理船舶数据列表，计算符合条件的平均船速（优化版）
+    
+    好天气条件：严格按照租约规定的4级风3级浪标准
+    风力等级 <= 4 且 波浪等级 <= 3
+    
     新增功能：根据吃水(draft)区分空载(<70%)和满载(>80%)船速
     优化点：
-    1. 使用累加器模式减少内存使用
-    2. 改进数据验证逻辑
-    3. 合并重复计算
-    4. 提高代码可读性
+    1. 使用租约规定的天气分类标准，确保只处理符合租约条件的好天气数据
+    2. 使用累加器模式减少内存使用
+    3. 改进数据验证逻辑
+    4. 合并重复计算
+    5. 提高代码可读性
     """
     # 设计吃水深度阈值
     EMPTY_LOAD = DESIGN_DRAFT * 0.7  # 70%
@@ -144,20 +149,27 @@ def deal_good_perf_list(data: List[Dict[str, Any]], DESIGN_DRAFT: float, DESIGN_
     for item in data:
         try:
             # 基础数据验证
-            if not all(is_valid_type(item.get(field)) for field in ["wind_level", "wave_height", "hdg", "sog", "draught"]):
+            # 支持 wind_level 和 wave_level（优先）或 wave_height
+            required_fields = ["wind_level", "hdg", "sog", "draught"]
+            if not all(is_valid_type(item.get(field)) for field in required_fields):
+                continue
+            
+            # 检查是否有 wave_level 或 wave_height
+            if not is_valid_type(item.get("wave_level")) and not is_valid_type(item.get("wave_height")):
                 continue
 
             # 数值转换和范围验证
-            wind_level = int(item.get("wind_level", 5))
-            wave_height = float(item.get("wave_height", 1.26))
             sog = float(item.get("sog", 0.0))
             draught = float(item.get("draught"))
             hdg = float(item.get("hdg"))
 
-            # 条件筛选
-            if (wind_level <= 4 and
-                wave_height <= 1.25 and
-                    sog >= DESIGN_SPEED * 0.5):
+            # 使用新的 is_good_weather 函数，严格按照租约规定的4级风3级浪标准
+            # 好天气条件：风力等级 <= 4 且 波浪等级 <= 3
+            if not is_good_weather(item):
+                continue
+
+            # 条件筛选：必须是好天气且船速合理
+            if sog >= DESIGN_SPEED * 0.5:
                 valid_data.append({
                     'draught': draught,
                     'sog': sog,
@@ -258,6 +270,73 @@ def is_sailing_downstream(u: float, v: float, ship_angle: float) -> bool:
         # 夹角小于90度认为是顺流
         return angle_diff < 90
     except (ValueError, TypeError, ZeroDivisionError):
+        return False
+
+
+def is_good_weather(weather_data: Dict[str, Any]) -> bool:
+    """
+    根据天气数据判断是否为好天气
+    好天气条件：严格按照租约规定的4级风3级浪标准
+    风力等级 <= 4 且 波浪等级 <= 3
+
+    :param weather_data: 天气数据字典，应包含 wind_level 和 wave_level 字段
+    :return: 是否为好天气
+    """
+    if not weather_data:
+        return False
+
+    try:
+        wind_level = weather_data.get("wind_level")
+        wave_level = weather_data.get("wave_level")
+
+        # 如果 wave_level 不存在，尝试从 wave_height 转换
+        # 波浪等级与浪高的对应关系（参考标准）:
+        # 0级: < 0.1米, 1级: 0.1-0.5米, 2级: 0.5-1.25米, 3级: 1.25-2.0米
+        # 4级: 2.0-3.5米, 5级: 3.5-6.0米, 6级: 6.0-9.0米, 7级: 9.0-14.0米
+        # 8级: 14.0-20.0米, 9级: > 20.0米
+        if wave_level is None:
+            wave_height = weather_data.get("wave_height")
+            if wave_height is not None:
+                try:
+                    wave_height = float(wave_height)
+                    # 将浪高转换为波浪等级
+                    if wave_height < 0.1:
+                        wave_level = 0
+                    elif wave_height < 0.5:
+                        wave_level = 1
+                    elif wave_height < 1.25:
+                        wave_level = 2
+                    elif wave_height < 2.0:
+                        wave_level = 3
+                    elif wave_height < 3.5:
+                        wave_level = 4
+                    elif wave_height < 6.0:
+                        wave_level = 5
+                    elif wave_height < 9.0:
+                        wave_level = 6
+                    elif wave_height < 14.0:
+                        wave_level = 7
+                    elif wave_height < 20.0:
+                        wave_level = 8
+                    else:
+                        wave_level = 9
+                except (ValueError, TypeError):
+                    return False
+            else:
+                return False
+
+        # 转换为整数类型
+        wind_level = int(wind_level) if wind_level is not None else None
+        wave_level = int(wave_level) if wave_level is not None else None
+
+        # 检查数据有效性
+        if wind_level is None or wave_level is None:
+            return False
+
+        # 严格按照租约规定的4级风3级浪标准
+        return wind_level <= 4 and wave_level <= 3
+
+    except (ValueError, TypeError, KeyError):
         return False
 
 
@@ -647,24 +726,45 @@ def enhanced_data_quality_control(data: List[Dict[str, Any]], design_speed: floa
     for item in data:
         try:
             # 检查必需字段
-            required_fields = ["wind_level",
-                               "wave_height", "hdg", "sog", "draught"]
+            # 支持 wind_level 和 wave_level（优先）或 wave_height
+            required_fields = ["wind_level", "hdg", "sog", "draught"]
             if not all(field in item and item[field] is not None for field in required_fields):
+                stats['missing_fields'] += 1
+                continue
+            
+            # 检查是否有 wave_level 或 wave_height
+            if "wave_level" not in item and "wave_height" not in item:
                 stats['missing_fields'] += 1
                 continue
 
             # 数值转换和基础验证
             wind_level = int(item.get("wind_level", 0))
-            wave_height = float(item.get("wave_height", 0))
             sog = float(item.get("sog", 0))
             draught = float(item.get("draught", 0))
             hdg = float(item.get("hdg", 0))
 
+            # 处理波浪数据：优先使用 wave_level，如果没有则使用 wave_height
+            wave_level = item.get("wave_level")
+            wave_height = item.get("wave_height")
+            
+            if wave_level is not None:
+                wave_level = int(wave_level)
+                # 波浪等级范围验证 (0-9级)
+                if not (0 <= wave_level <= 9):
+                    stats['out_of_range'] += 1
+                    continue
+            elif wave_height is not None:
+                wave_height = float(wave_height)
+                # 浪高范围验证 (0-20米)
+                if not (0 <= wave_height <= 20):
+                    stats['out_of_range'] += 1
+                    continue
+            else:
+                stats['missing_fields'] += 1
+                continue
+
             # 范围验证
             if not (0 <= wind_level <= 12):
-                stats['out_of_range'] += 1
-                continue
-            if not (0 <= wave_height <= 20):  # 浪高最大20米
                 stats['out_of_range'] += 1
                 continue
             if not (0 <= sog <= design_speed * 2):  # 船速不超过设计速度2倍
@@ -690,6 +790,7 @@ def enhanced_data_quality_control(data: List[Dict[str, Any]], design_speed: floa
             valid_data.append({
                 'item': item,
                 'wind_level': wind_level,
+                'wave_level': wave_level,
                 'wave_height': wave_height,
                 'sog': sog,
                 'draught': draught,
@@ -856,16 +957,19 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         处理船舶数据列表，计算好天气条件下的平均船速（根据租约规定优化版）
 
         好天气条件（租约规定）：
-        - 风力 ≤ 4级 且 浪高 ≤ 1.25米（3级浪）
+        - 严格按照租约规定的4级风3级浪标准
+        - 风力等级 <= 4 且 波浪等级 <= 3
         - 符合Recap和RiderClause条款要求
 
         新增功能：根据吃水(draft)区分空载(<70%)和满载(>80%)船速
         优化点：
         1. 使用租约规定的天气分类标准，确保只处理符合租约条件的好天气数据
-        2. 使用累加器模式减少内存使用
-        3. 改进数据验证逻辑
-        4. 提高代码可读性
-        5. 增强数据质量控制和异常值过滤
+        2. 使用 is_good_weather 函数进行严格的好天气判断
+        3. 支持从 /api/vessel/trace 接口获取的 wind_level 和 wave_level 数据
+        4. 使用累加器模式减少内存使用
+        5. 改进数据验证逻辑
+        6. 提高代码可读性
+        7. 增强数据质量控制和异常值过滤
         """
         # 数据质量控制和过滤
         log_debug(
@@ -907,23 +1011,27 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         for item in filtered_data:
             try:
                 # 基础数据验证（已在过滤阶段完成，这里做二次验证）
-                if not all(is_valid_type(item.get(field)) for field in ["wind_level", "wave_height", "hdg", "sog", "draught"]):
+                # 支持 wind_level 和 wave_level（优先）或 wave_height
+                required_fields = ["wind_level", "hdg", "sog", "draught"]
+                if not all(is_valid_type(item.get(field)) for field in required_fields):
+                    continue
+                
+                # 检查是否有 wave_level 或 wave_height
+                if not is_valid_type(item.get("wave_level")) and not is_valid_type(item.get("wave_height")):
                     continue
 
                 # 数值转换和范围验证
-                wind_level = int(item.get("wind_level", 5))
-                wave_height = float(item.get("wave_height", 1.26))
                 sog = float(item.get("sog", 0.0))
                 draught = float(item.get("draught"))
                 hdg = float(item.get("hdg"))
 
-                # 使用新的天气分类标准，只处理好天气数据
-                weather_info = classify_weather_conditions(
-                    wind_level, wave_height)
-                is_good_weather = weather_info['weather_type'] == 'good'
+                # 使用新的 is_good_weather 函数，严格按照租约规定的4级风3级浪标准
+                # 好天气条件：风力等级 <= 4 且 波浪等级 <= 3
+                if not is_good_weather(item):
+                    continue
 
                 # 条件筛选：必须是好天气且船速合理
-                if (is_good_weather and sog >= DESIGN_SPEED * 0.5):
+                if sog >= DESIGN_SPEED * 0.5:
                     valid_data.append({
                         'draught': draught,
                         'sog': sog,
@@ -1425,127 +1533,62 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
     def get_vessel_trace(self, mmsi: int, start_time: int, end_time: int) -> List[Dict[str, Any]]:
         """
-        获取船舶轨迹数据
+        获取船舶轨迹数据（简化版，单次调用）
         :param mmsi: 船舶MMSI号
-        :param start_time: 开始时间戳（毫秒）
-        :param end_time: 结束时间戳（毫秒）
+        :param start_time: 开始时间戳（秒）
+        :param end_time: 结束时间戳（秒）
         :return: 轨迹数据列表
         """
         url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace?api_key={self.api_key}"
-        # 构造请求体，使用当前vessel的mmsi，时间戳可根据需要调整
-        data = {
+        print(url)
+        
+        # 构造请求体
+        payload = json.dumps({
             "mmsi": mmsi,
             "interval_hour": 3,
             "start_timestamp": start_time,
             "end_timestamp": end_time
+        })
+        
+        headers = {
+            'Content-Type': 'application/json'
         }
-
-        # 重试配置
-        max_retries = 3
-        retry_delay = 2  # 秒
-
-        for attempt in range(max_retries):
-            try:
-                # 增加连接超时和读取超时
-                response = self.session.post(
-                    url,
-                    json=data,
-                    verify=False,
-                    timeout=(30, 120),  # (连接超时, 读取超时)
-                    headers={
-                        'Content-Type': 'application/json',
-                        'User-Agent': 'VesselPerformanceCalculator/1.0'
-                    }
-                )
-
-                # 检查HTTP状态码
-                if response.status_code != 200:
-                    if attempt == 0:  # 只在第一次失败时记录详细错误
-                        logger.error(f"HTTP请求失败，状态码: {response.status_code}")
-                        if LOG_CONFIG['enable_debug_logs']:
-                            logger.error(
-                                f"响应内容: {truncate_log_content(response.text)}")
-                    if attempt < max_retries - 1:
-                        log_warning(f"重试第 {attempt + 1} 次...")
-                        time.sleep(retry_delay)
-                        continue
-                    return []
-
-                # 检查响应内容是否为空
-                if not response.text.strip():
-                    if attempt == 0:  # 只在第一次失败时记录
-                        log_warning(f"API返回空响应")
-                    if attempt < max_retries - 1:
-                        log_warning(f"重试第 {attempt + 1} 次...")
-                        time.sleep(retry_delay)
-                        continue
-                    return []
-
-                # 尝试解析JSON
-                try:
-                    response_data = response.json()
-                except requests.exceptions.JSONDecodeError as e:
-                    if attempt == 0:  # 只在第一次失败时记录详细错误
-                        logger.error(f"JSON解析失败: {e}")
-                        if LOG_CONFIG['enable_debug_logs']:
-                            logger.error(
-                                f"响应内容: {truncate_log_content(response.text)}")
-                    if attempt < max_retries - 1:
-                        log_warning(f"重试第 {attempt + 1} 次...")
-                        time.sleep(retry_delay)
-                        continue
-                    return []
-
-                # 检查响应状态
-                if response_data.get("state", {}).get("code") == 0:
-                    return response_data.get("traces", [])
-                else:
-                    if attempt == 0:  # 只在第一次失败时记录
-                        error_msg = response_data.get(
-                            'state', {}).get('message', '未知错误')
-                        logger.error(
-                            f"API请求失败: {error_msg}")
-                    if attempt < max_retries - 1:
-                        log_warning(f"重试第 {attempt + 1} 次...")
-                        time.sleep(retry_delay)
-                        continue
-                    return []
-
-            except requests.exceptions.ConnectionError as e:
-                if attempt == 0:  # 只在第一次失败时记录详细错误
-                    logger.error(
-                        f"连接错误: {str(e)[:50]}{'...' if len(str(e)) > 50 else ''}")
-                if attempt < max_retries - 1:
-                    log_warning(f"等待 {retry_delay} 秒后重试...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # 指数退避
-                    continue
+        
+        try:
+            # 单次调用，设置超时
+            response = requests.post(
+                url,
+                headers=headers,
+                data=payload,
+                timeout=30,  # 总超时时间30秒
+                verify=False
+            )
+            
+            # 检查HTTP状态码
+            if response.status_code != 200:
+                logger.warning(f"MMSI {mmsi} API请求失败，状态码: {response.status_code}")
                 return []
-
-            except requests.exceptions.Timeout as e:
-                if attempt == 0:  # 只在第一次失败时记录详细错误
-                    logger.error(
-                        f"请求超时: {str(e)[:50]}{'...' if len(str(e)) > 50 else ''}")
-                if attempt < max_retries - 1:
-                    log_warning(f"等待 {retry_delay} 秒后重试...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # 指数退避
-                    continue
+            
+            # 解析响应
+            response_data = response.json()
+            
+            # 检查响应状态
+            if response_data.get("state", {}).get("code") == 0:
+                return response_data.get("data", [])
+            else:
+                error_msg = response_data.get('state', {}).get('message', '未知错误')
+                logger.warning(f"MMSI {mmsi} API返回错误: {error_msg}")
                 return []
-
-            except requests.exceptions.RequestException as e:
-                if attempt == 0:  # 只在第一次失败时记录详细错误
-                    logger.error(
-                        f"请求异常: {str(e)[:50]}{'...' if len(str(e)) > 50 else ''}")
-                if attempt < max_retries - 1:
-                    log_warning(f"等待 {retry_delay} 秒后重试...")
-                    time.sleep(retry_delay)
-                    retry_delay *= 2  # 指数退避
-                    continue
-                return []
-
-        logger.error("所有重试都失败了，返回空列表")
-        return []
+                
+        except requests.exceptions.Timeout:
+            logger.warning(f"MMSI {mmsi} API请求超时")
+            return []
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"MMSI {mmsi} API请求异常: {str(e)[:100]}")
+            return []
+        except (ValueError, KeyError) as e:
+            logger.warning(f"MMSI {mmsi} 响应解析失败: {e}")
+            return []
 
     @decorate.exception_capture_close_datebase
     def run(self):
@@ -1555,9 +1598,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
 
-            if self.mgo_db is None:
-                logger.error("数据库连接失败")
-                return
 
             # 计算xxx天前的时间戳【用于测试】
             if self.time_days:
@@ -1573,30 +1613,75 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             else:
                 query_sql_with_time = query_sql
 
+            # 优化：在查询时就过滤掉没有吃水或设计速度的记录，提高效率
+            query_sql_with_data = dict(query_sql_with_time)
+            query_sql_with_data["$and"] = [
+                {"draught": {"$exists": True, "$ne": None, "$gt": 0}},
+                {"speed": {"$exists": True, "$ne": None, "$gt": 0}},
+                {"imo": {"$exists": True, "$ne": None}}
+            ]
+
             # 先获取总数，避免游标超时问题
             total_num = self.mgo_db["global_vessels"].count_documents(
-                query_sql_with_time)
-            logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘")
+                query_sql_with_data)
+            logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘（已过滤缺少必要数据的记录）")
 
             # 分批处理，避免游标超时
             batch_size = 100
             skip = 0
             num = 0
+            success_count = 0  # 成功处理计数
+            total_failed_count = 0  # 总失败计数
+            # 批量更新列表，减少数据库操作
+            batch_updates_failed = []  # 存储需要标记为失败的记录（当前批次）
 
             while skip < total_num:
-                vessels = self.mgo_db["global_vessels"].find(
-                    query_sql_with_time,
+                # 使用聚合管道实现散货船优先处理
+                # 先按是否是散货船排序（散货船=0在前），再按perf_calculated_updated_at排序
+                pipeline = [
+                    {"$match": query_sql_with_data},
                     {
-                        "imo": 1,
-                        "mmsi": 1,
-                        "draught": 1,
-                        "speed": 1,
-                        '_id': 0
+                        "$addFields": {
+                            # 添加排序字段：散货船为0（优先），其他为1
+                            "sort_priority": {
+                                "$cond": [
+                                    {"$eq": ["$vesselTypeNameCn", "干散货"]},
+                                    0,  # 散货船优先级为0（优先）
+                                    1   # 其他类型优先级为1
+                                ]
+                            },
+                            # 处理perf_calculated_updated_at可能不存在的情况
+                            "sort_time": {
+                                "$ifNull": [
+                                    "$perf_calculated_updated_at",
+                                    "1970-01-01 00:00:00"  # 如果不存在，使用最早时间字符串
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "$sort": {
+                            "sort_priority": 1,  # 先按类型排序（散货船在前）
+                            "sort_time": 1  # 再按更新时间排序
+                        }
+                    },
+                    {"$skip": skip},
+                    {"$limit": batch_size},
+                    {
+                        "$project": {
+                            "imo": 1,
+                            "mmsi": 1,
+                            "draught": 1,
+                            "speed": 1,
+                            "vesselTypeNameCn": 1,
+                            "_id": 0
+                        }
                     }
-                ).sort("perf_calculated_updated_at", 1).skip(skip).limit(batch_size)
-
+                ]
+                
+                vessels_cursor = self.mgo_db["global_vessels"].aggregate(pipeline)
                 # 将游标转换为列表，避免在遍历过程中游标超时
-                vessels_list = list(vessels)
+                vessels_list = list(vessels_cursor)
 
                 if not vessels_list:
                     break
@@ -1621,24 +1706,22 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     draught = vessel.get("draught")
                     design_speed = vessel.get("speed", 0)
 
-                    if not imo:
-                        logger.warning(f"MMSI {mmsi} 缺少 IMO，跳过")
-                        self.mgo_db["global_vessels"].update_one(
-                            {"mmsi": mmsi},
-                            {"$set": {"perf_calculated": 0,
-                                      "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
-                        continue
-                    if not draught or not design_speed:
-                        logger.warning(f"MMSI {mmsi} 没有吃水或设计速度，跳过")
-                        # 更新 global_vessels 的 perf_calculated 为 0
-                        self.mgo_db["global_vessels"].update_one(
-                            {"imo": imo} if imo else {"mmsi": mmsi},
-                            {"$set": {"perf_calculated": 0,
-                                      "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
+                    # 由于已经在查询时过滤，这里只需要做二次验证
+                    if not imo or not draught or not design_speed:
+                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据不完整（缺少IMO、吃水或设计速度）")
+                        # 添加到批量更新列表，稍后统一处理
+                        batch_updates_failed.append({
+                            "filter": {"imo": imo} if imo else {"mmsi": mmsi},
+                            "update": {"$set": {
+                                "perf_calculated": 0,
+                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }}
+                        })
+                        total_failed_count += 1
                         continue
 
-                    start_time = int(datetime.now().timestamp()) - self.calc_days * 24 * 3600
-                    end_time = int(datetime.now().timestamp())
+                    start_time = int(time.time()) - self.calc_days * 24 * 3600
+                    end_time = int(time.time())
                     trace = self.get_vessel_trace(mmsi, start_time, end_time)
 
                     # 初始化性能数据变量
@@ -1650,6 +1733,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                             trace, draught, design_speed)
                         current_bad_weather_performance = self.deal_bad_perf_list(
                             trace, draught, design_speed)
+                        
+                        # 获取性能计算结果
+                        good_speed = current_good_weather_performance.get('avg_good_weather_speed', 0) or 0
+                        bad_speed = current_bad_weather_performance.get('avg_bad_weather_speed', 0) or 0
 
                         # 验证性能数据的合理性
                         validation_result = self.validate_performance_data(
@@ -1700,13 +1787,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                 design_speed
                             )
 
-                            if revalidation_result['is_valid']:
-                                log_debug(f"MMSI {mmsi} 数据后处理成功，逻辑验证通过")
-                            else:
+                            if not revalidation_result['is_valid']:
                                 errors = revalidation_result.get('errors', [])
                                 error_summary = f"{len(errors)}个问题" if errors else "未知问题"
-                                logger.error(
-                                    f"MMSI {mmsi} 数据后处理失败: {error_summary}")
+                                logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据后处理失败（{error_summary}）")
 
                         if validation_result['warnings'] and LOG_CONFIG['enable_validation_logs']:
                             logger.warning(
@@ -1730,6 +1814,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                 "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                                 "perf_calculated": 1
                             }})
+                        
+                        # 简化成功日志：只显示计算结果
+                        logger.info(f"[{num}/{total_num}] MMSI {mmsi} 计算成功，结果是：好天气速度 {good_speed}节, 坏天气速度 {bad_speed}节")
+                        success_count += 1
 
                         # 仅在调试模式下输出详细数据
                         if LOG_CONFIG['enable_debug_logs']:
@@ -1739,17 +1827,50 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                 f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
 
                     else:
-                        logger.warning(f"MMSI {mmsi} 未获取到轨迹数据")
-                        # 更新 global_vessels 的 perf_calculated 为 0
-                        self.mgo_db["global_vessels"].update_one(
-                            {"imo": imo} if imo else {"mmsi": mmsi},
-                            {"$set": {"perf_calculated": 0,
-                                      "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}})
+                        # 未获取到轨迹数据，添加到批量更新列表
+                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：未获取到轨迹数据")
+                        batch_updates_failed.append({
+                            "filter": {"imo": imo} if imo else {"mmsi": mmsi},
+                            "update": {"$set": {
+                                "perf_calculated": 0,
+                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                            }}
+                        })
+                        total_failed_count += 1
 
-                    logger.info(
-                        f"性能计算进度: {mmsi} {num}/{total_num} ({round((num / total_num) * 100, 1)}%)")
+                    # 每处理10条记录输出一次进度摘要
+                    if num % 10 == 0 or num == total_num:
+                        logger.info(
+                            f"进度摘要 [{num}/{total_num}] ({round((num / total_num) * 100, 1)}%) - 成功: {success_count}, 失败: {total_failed_count}")
 
-                    time.sleep(float(self.time_sleep))
+                    # time.sleep(float(self.time_sleep))
+
+                # 批量更新失败的记录，使用bulk_write提高效率
+                if batch_updates_failed:
+                    try:
+                        from pymongo import UpdateOne
+                        bulk_ops = [
+                            UpdateOne(
+                                update_item["filter"],
+                                update_item["update"]
+                            )
+                            for update_item in batch_updates_failed
+                        ]
+                        if bulk_ops:
+                            self.mgo_db["global_vessels"].bulk_write(bulk_ops, ordered=False)
+                            logger.info(f"批次完成：批量更新了 {len(batch_updates_failed)} 个失败记录")
+                        batch_updates_failed = []  # 清空列表
+                    except Exception as e:
+                        logger.error(f"批量更新失败记录时出错: {e}")
+                        # 如果批量更新失败，尝试逐个更新（降级处理）
+                        try:
+                            for update_item in batch_updates_failed:
+                                self.mgo_db["global_vessels"].update_one(
+                                    update_item["filter"],
+                                    update_item["update"]
+                                )
+                        except Exception as e2:
+                            logger.error(f"逐个更新也失败: {e2}")
 
                 # 更新skip，准备处理下一批
                 skip += batch_size
