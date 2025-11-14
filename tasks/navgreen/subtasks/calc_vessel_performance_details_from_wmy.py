@@ -1540,7 +1540,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         :return: 轨迹数据列表
         """
         url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace?api_key={self.api_key}"
-        print(url)
         
         # 构造请求体
         payload = json.dumps({
@@ -1594,7 +1593,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def run(self):
         try:
             query_sql: Dict[str, Any] = {
-                "mmsi": {"$exists": True}, "perf_calculated": {"$ne": 0}}
+                "imo": {"$exists": True}, "perf_calculated": {"$ne": 0}}
             if self.vessel_types:
                 query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
 
