@@ -931,7 +931,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         else:
             self.vessel_types = []
         config = {
-            'ck_client': True,
             'handle_db': 'mgo',
             "cache_rds": True,
             'collection': 'global_vessels_performance_details',
