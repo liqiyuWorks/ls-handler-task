@@ -1796,11 +1796,12 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                             logger.warning(
                                 f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
 
-                        # 更新 mongo 的数据
+                        # 更新 mongo 的数据（插入或更新时都包含 mmsi 和 imo）
                         self.mgo_db["global_vessels_performance_details"].update_one(
                             {"imo": imo},
                             {"$set": {
                                 "imo": imo,
+                                "mmsi": mmsi,  # 添加 mmsi 字段
                                 "current_good_weather_performance": current_good_weather_performance,
                                 "current_bad_weather_performance": current_bad_weather_performance,
                                 "perf_calculated": 1,
