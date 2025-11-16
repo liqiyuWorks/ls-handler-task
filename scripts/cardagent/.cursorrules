@@ -1,0 +1,247 @@
+# Project-level Cursor Rules for FastAPI + Jinja2 Templates + Tailwind + JS
+# Purpose: enforce code style, architecture patterns, security and frontend best practices
+# Place this file at project root as `.cursorrules` or migrate to Cursor Project Rules.
+
+---
+# meta
+project_name: "fastapi-template-web"
+globs: "**/*.py,**/*.html,**/*.js,**/*.css,app/**/*.py,api/**/*.py,frontend/**/*.js"
+primary_language: "python"
+frameworks:
+  backend: ["fastapi", "sqlalchemy", "alembic", "pydantic"]
+  frontend: ["tailwindcss", "html", "javascript", "htmx (optional)"]
+templates: ["jinja2"]
+style_guides:
+  python: "PEP8 + black (line length 88) + isort"
+  javascript: "ESLint (recommended: airbnb-base or standard) + Prettier"
+  css: "Tailwind utility-first; purge/Content enabled for build"
+editorconfig: true
+
+---
+# high-level behavior
+# ALWAYS follow these rules when creating or editing code. Be conservative about changes; prefer minimal, well-tested diffs.
+rules:
+  - id: "project-context"
+    description: |
+      The project uses FastAPI with server-side templates (Jinja2) to render frontend pages.
+      API endpoints exist for data and internal use; templates generate public pages and forms.
+      When editing, prefer to add small, self-contained changes with tests.
+    apply_to: ["**/*.py","**/*.html","**/*.js"]
+
+  - id: "safety-and-security"
+    description: |
+      Security is a first-class concern. Enforce:
+        * Use parameterized DB queries / SQLAlchemy ORM to avoid SQL injection.
+        * Validate all input with Pydantic models and consistent error responses.
+        * Use strong password hashing (bcrypt/argon2 via passlib).
+        * CSRF protection for all form POSTs (include CSRF token in Jinja templates).
+        * Set secure cookie flags (HttpOnly, Secure, SameSite=strict).
+        * Use CORS allowlist only (configure origins explicitly).
+        * Rate-limit expensive endpoints (IP and user-based).
+        * Sanitize HTML if accepting rich text (use bleach or an allowlist sanitizer).
+      When suggesting libraries, prefer well-maintained ones with security track records.
+    severity: high
+
+  - id: "api-design"
+    description: |
+      For API endpoints:
+        * Use correct HTTP methods and status codes (GET 200, POST 201, 204 for deletes, 400/422 for bad request, 401/403 for auth).
+        * Use Pydantic request/response models. Separate internal DB models from response DTOs.
+        * Keep route handlers thin; delegate logic to services/repositories.
+        * Document endpoints in OpenAPI (use FastAPI tags, summary, description).
+        * Return consistent error envelope:
+          { "error": { "code": "USER_NOT_FOUND", "message": "User not found", "details": {...} } }
+    apply_to: ["app/**/*_api.py","api/**/*.py","**/routes/*.py"]
+
+  - id: "templates-and-frontend"
+    description: |
+      Templates:
+        * Use semantic HTML5 tags (<main>, <nav>, <header>, <footer>, <article>, <section>).
+        * Use Jinja macros for reusable components (buttons, cards, form controls, nav).
+        * Avoid heavy logic in templates—compute in Python and pass clean context.
+        * Forms must embed CSRF token and include server-side validation feedback.
+      Tailwind:
+        * Build with JIT; configure content globs (match provided globs).
+        * Use component classes (extract repeated utilities to @apply or components).
+        * Limit utility spills; create small design tokens (colors, spacing) in tailwind.config.js.
+      Accessibility:
+        * Include ARIA attributes as needed; ensure keyboard focus states are visible.
+        * All interactive elements reachable via keyboard; use skip-links for content.
+        * Provide alt text for images, captions for multimedia, and semantic headings.
+      Performance:
+        * Use responsive images (srcset, sizes) and lazy loading for offscreen media.
+        * Minimize inline JS; defer non-critical scripts; preconnect to critical origins.
+        * Inline only critical CSS for first paint if necessary; otherwise rely on Tailwind production build.
+    apply_to: ["**/*.html","frontend/**/*.js","**/*.css"]
+
+  - id: "db-and-migrations"
+    description: |
+      DB usage:
+        * Use SQLAlchemy Core/ORM with explicit session management.
+        * Use Alembic for versioned migrations; place migrations under migrations/ or alembic/.
+        * Use connection pooling and async drivers (asyncpg) only if endpoints are async.
+        * Wrap multi-step DB operations in transactions; handle retries for transient errors.
+    apply_to: ["**/*.py"]
+
+  - id: "auth"
+    description: |
+      Authentication & Authorization:
+        * JWT for API clients (short-lived access token + refresh token rotation).
+        * Server-rendered sessions for browser flows (secure signed cookie session).
+        * Role-based access control (RBAC) and decorator/middleware enforcement.
+        * Centralize auth code (auth/ or app/auth.py), avoid scattering token logic.
+    apply_to: ["app/**","api/**"]
+
+  - id: "pagination-standard"
+    description: |
+      Pagination format for list endpoints (both HTML pages and APIs):
+        * Query params: page (1-based), page_size (max 100)
+        * Response envelope:
+          {
+            "data": [...],
+            "meta": {
+              "total": 1234,
+              "page": 2,
+              "page_size": 25,
+              "total_pages": 50,
+              "has_next": true,
+              "has_prev": true
+            },
+            "links": {
+              "self": "...",
+              "next": "...",
+              "prev": "..."
+            }
+          }
+        * Implement DB-level OFFSET/LIMIT for small datasets; for large datasets prefer keyset (cursor) pagination with clear docs.
+    apply_to: ["**/routes/*.py","**/api/**/*.py"]
+
+  - id: "async-vs-sync"
+    description: |
+      Prefer async endpoints only when using async DB drivers or performing network IO.
+      Mixing sync DB calls in async endpoints is forbidden. If a sync call is necessary, run it in threadpool (asyncio.to_thread).
+    apply_to: ["**/*.py"]
+
+  - id: "logging-and-error-handling"
+    description: |
+      * Use structured logging (JSON-friendly fields) and include request-id/context.
+      * Centralize exception handling middleware that maps exceptions -> consistent JSON / HTML error pages.
+      * Do not leak internal stack traces to users; show friendly error page and capture details in logs.
+    apply_to: ["app/**/*.py"]
+
+  - id: "tests"
+    description: |
+      * Write unit tests for core business logic (pytest).
+      * Add integration tests for API endpoints (httpx + TestClient).
+      * Use fixtures for DB (transactional rollback) and use factory_boy or model_bakery for test data.
+      * Aim for CI that runs lint, typecheck, unit tests and basic integration tests.
+    apply_to: ["tests/**/*","**/*_test.py"]
+
+  - id: "ci-and-deploy"
+    description: |
+      * Provide Dockerfile (multi-stage) and docker-compose for local dev.
+      * CI must run: lint, type-check (mypy optional), tests, build assets (tailwind), run security checks (safety, bandit).
+      * Use environment variables for secrets; do not commit .env to VCS.
+      * Provide health endpoints and readiness checks for orchestration.
+    apply_to: [".github/workflows/**","Dockerfile","deploy/**"]
+
+  - id: "static-assets"
+    description: |
+      * Place build artifacts under static/build/ (versioned).
+      * Use hashed filenames for cache busting (e.g. app.css -> app.<hash>.css).
+      * Serve static assets through CDN in production; set long cache headers and immutable for hashed files.
+      * Minify and tree-shake JS; remove unused Tailwind classes via purge/content config.
+    apply_to: ["frontend/**","static/**"]
+
+  - id: "ui-patterns"
+    description: |
+      * Provide a small component library using Jinja macros + Tailwind:
+         - components/button.html (btn variants), components/form-field.html, components/card.html, components/modal.html
+      * Buttons must include accessible labels; focus-visible outline must be present.
+      * Use CSS variables for brand colors in tailwind config to make themeing easy.
+    apply_to: ["**/*.html","frontend/**/*.js","**/*.css"]
+
+  - id: "seo-and-meta"
+    description: |
+      * Every page must set canonical URL and Open Graph meta tags.
+      * Provide structured data (JSON-LD) for pages with rich content (articles, events).
+      * Titles: unique, concise; meta description: 120-155 chars.
+    apply_to: ["templates/**/*.html","**/*.html"]
+
+  - id: "developer-experience"
+    description: |
+      * Include README with run/dev/build/test instructions.
+      * Provide make targets or npm scripts: dev, build, lint, test, format.
+      * Keep secure sample env (example.env) with descriptive variable names and defaults.
+    apply_to: ["README.md","Makefile","package.json"]
+
+---
+# file-specific guidance (snippets)
+file_rules:
+  - pattern: "**/*.py"
+    when_editing:
+      - "Prefer small changes; add type hints and docstrings for exported functions/classes."
+      - "Run black+isort formatting locally; include pre-commit hooks."
+  - pattern: "**/*.html"
+    when_editing:
+      - "Use Jinja macros for repeating pieces and pass only data, not logic."
+      - "Ensure forms include CSRF hidden input: <input type='hidden' name='csrf_token' value='{{ csrf_token }}'>"
+      - "Use <picture> / srcset for responsive images; include alt attribute."
+  - pattern: "frontend/**/*.js"
+    when_editing:
+      - "Avoid polluting global scope; use ES modules or IIFE."
+      - "Handle errors gracefully; display user-friendly messages for network failures."
+  - pattern: "tailwind.config.js"
+    when_editing:
+      - "Ensure content globs include project html & js globs (see top globs)."
+      - "Export theme tokens and plugin lists; enable JIT mode."
+  - pattern: "templates/components/*.html"
+    when_editing:
+      - "Create small, tested macros with parameters and default values."
+
+---
+# code generation preferences
+generation_preferences:
+  - prefer_tests: true
+  - create_migration_when_model_added: true
+  - break_changes_warning: true
+  - use_jinja_macros_for_reuse: true
+  - prefer_tailwind_utilities_over_custom_css: true
+  - use_fastapi_dependency_injection_for_common_objects: true
+
+---
+# examples / snippets (when asked, the assistant should prefer to produce these)
+snippets:
+  - name: "Jinja macro: button"
+    file: "templates/components/button.html"
+    content: |
+      {% macro button(text, type='button', classes='') -%}
+      <button type="{{ type }}" class="inline-flex items-center px-4 py-2 rounded-md {{ classes }}">
+        {{ text }}
+      </button>
+      {%- endmacro %}
+  - name: "Pagination response (Python Pydantic)"
+    file: "app/schemas/pagination.py"
+    content: |
+      from pydantic import BaseModel
+      from typing import Generic, TypeVar, List
+      T = TypeVar('T')
+      class Meta(BaseModel):
+          total: int
+          page: int
+          page_size: int
+          total_pages: int
+          has_next: bool
+          has_prev: bool
+      class PaginatedResponse(BaseModel, Generic[T]):
+          data: List[T]
+          meta: Meta
+          links: dict
+
+---
+# Do NOT:
+forbidden:
+  - "embed long secrets or credentials in code examples"
+  - "use deprecated insecure crypto (md5 for passwords, unsalted hashes)"
+  - "generate frontend pages without accessibility features"
+  - "mix sync DB calls directly in async endpoints"

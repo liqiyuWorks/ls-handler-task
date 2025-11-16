@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>名片智能体</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="page-header">
+        <div class="brand">
+            <span class="brand-mark">AB</span>
+            <div class="brand-text">
+                <span class="brand-name">AquaBridge Shipping</span>
+                <span class="brand-subtitle">Executive Profile & AI Assistant</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- 名片信息区域 -->
+        <div class="card-section">
+            <div class="card">
+                <div class="card-header">
+                    <div class="avatar">
+                        <div class="avatar-placeholder">
+                            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="50" cy="50" r="50" fill="#4a90e2"/>
+                                <text x="50" y="65" font-size="40" fill="white" text-anchor="middle" font-weight="bold">名</text>
+                            </svg>
+                        </div>
+                    </div>
+                    <div class="card-info">
+                        <h1 class="name">{{ card_info.name }}</h1>
+                        <p class="title">{{ card_info.title }}</p>
+                        <p class="company">{{ card_info.company }}</p>
+                    </div>
+                </div>
+                
+                <div class="card-body">
+                    <div class="info-item">
+                        <span class="icon">📧</span>
+                        <span class="label">邮箱：</span>
+                        <span class="value">{{ card_info.email }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="icon">📱</span>
+                        <span class="label">电话：</span>
+                        <span class="value">{{ card_info.phone }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="icon">🌐</span>
+                        <span class="label">网站：</span>
+                        <span class="value">{{ card_info.website }}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="icon">📍</span>
+                        <span class="label">地址：</span>
+                        <span class="value">
+                            {% for line in card_info.address.split('\\n') %}
+                                {{ line }}{% if not loop.last %}<br>{% endif %}
+                            {% endfor %}
+                        </span>
+                    </div>
+                    
+                    {% if card_info.bio %}
+                    <div class="info-item info-item-bio">
+                        <span class="icon">🧾</span>
+                        <span class="label">简介：</span>
+                        <span class="value bio-text">{{ card_info.bio }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <div class="card-footer">
+                    <div class="tags">
+                        {% for tag in card_info.tags %}
+                        <span class="tag">{{ tag }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 提示信息 -->
+            <div class="hint-box">
+                <div class="hint-icon">💬</div>
+                <div class="hint-text">
+                    <strong>与智能体对话</strong>
+                    <p>在右侧聊天窗口中，您可以与智能体进行对话，了解更多信息或获取帮助。</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 智能体聊天区域 -->
+        <div class="chat-section">
+            <div class="chat-header">
+                <h2>🤖 智能助手</h2>
+                <p>随时为您解答问题</p>
+            </div>
+            <div class="chat-container">
+                <iframe 
+                    id="agentFrame"
+                    src="{{ agent_url }}" 
+                    frameborder="0"
+                    allow="microphone; camera"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
+
