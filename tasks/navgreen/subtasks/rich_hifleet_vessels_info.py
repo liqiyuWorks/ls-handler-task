@@ -182,9 +182,12 @@ class RichHifleetVesselsInfo(BaseModel):
             #     ))
             
             # 3、查找info_update_desc为未获取到详情的船舶
-            need_sync_list = list(self.mgo_db["global_vessels"].find(
-                {"imo": {"$exists": True}, "info_update_desc": "未获取到详情"}, {"_id": 0}
-            ))
+            # need_sync_list = list(self.mgo_db["global_vessels"].find(
+            #     {"imo": {"$exists": True}, "info_update_desc": "未获取到详情"}, {"_id": 0}
+            # ))
+            
+            # 4. 补充指定的imo 船舶
+            need_sync_list = [{"imo": 9976329, "mmsi": 275559000}]
 
             print("库内总船数:", len(need_sync_list))
 

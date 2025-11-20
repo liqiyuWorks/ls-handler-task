@@ -922,7 +922,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.1")
-        self.time_days = int(os.getenv('TIME_DAYS', "0"))
+        self.time_days = int(os.getenv('TIME_DAYS', "15"))
         self.calc_days = int(os.getenv('CALC_DAYS', "365"))
         self.api_key = os.getenv('API_KEY', "266102ea-ca32-4ad8-8292-17c952a81a56")
 
@@ -970,24 +970,42 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         6. 提高代码可读性
         7. 增强数据质量控制和异常值过滤
         """
-        # 数据质量控制和过滤
-        log_debug(
-            f"MMSI 好天气计算 - 数据量: {len(data)} -> {len(enhanced_data_quality_control(data, DESIGN_SPEED))}")
-        filtered_data = enhanced_data_quality_control(data, DESIGN_SPEED)
-
-        if not filtered_data:
-            log_warning("MMSI 好天气计算 - 无有效数据，返回空结果")
+        # 输入验证
+        if not data or not isinstance(data, list):
+            log_warning("MMSI 好天气计算 - 输入数据无效")
             return {
                 "avg_good_weather_speed": 0.0,
                 "avg_downstream_speed": 0.0,
                 "avg_non_downstream_speed": 0.0
             }
+        
+        try:
+            # 数据质量控制和过滤
+            log_debug(
+                f"MMSI 好天气计算 - 数据量: {len(data)}")
+            filtered_data = enhanced_data_quality_control(data, DESIGN_SPEED)
+            log_debug(f"MMSI 好天气计算 - 过滤后数据量: {len(filtered_data)}")
+        except Exception as e:
+            logger.error(f"好天气数据质量控制失败: {e}")
+            filtered_data = data  # 使用原始数据作为降级方案
 
-        # 天气数据一致性验证
-        consistency_result = validate_weather_data_consistency(filtered_data)
-        if consistency_result['warnings']:
-            log_warning(
-                f"MMSI 好天气计算 - 天气数据一致性警告: {consistency_result['warnings']}")
+            if not filtered_data:
+                log_warning("MMSI 好天气计算 - 无有效数据，返回空结果")
+                return {
+                    "avg_good_weather_speed": 0.0,
+                    "avg_downstream_speed": 0.0,
+                    "avg_non_downstream_speed": 0.0
+                }
+
+            # 天气数据一致性验证
+            try:
+                consistency_result = validate_weather_data_consistency(filtered_data)
+                if consistency_result.get('warnings'):
+                    log_warning(
+                        f"MMSI 好天气计算 - 天气数据一致性警告: {consistency_result['warnings']}")
+            except Exception as e:
+                logger.error(f"好天气数据一致性验证失败: {e}")
+                # 继续处理，不中断
 
         # 设计吃水深度阈值
         EMPTY_LOAD = DESIGN_DRAFT * 0.7  # 70%
@@ -1145,13 +1163,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         - 中国海事局船舶航行安全规定
         - 航运业实践经验
         """
-        # 数据质量控制和过滤
-        log_debug(
-            f"MMSI 坏天气计算 - 数据量: {len(data)} -> {len(enhanced_data_quality_control(data, DESIGN_SPEED))}")
-        filtered_data = enhanced_data_quality_control(data, DESIGN_SPEED)
-
-        if not filtered_data:
-            log_warning("MMSI 坏天气计算 - 无有效数据，返回空结果")
+        # 输入验证
+        if not data or not isinstance(data, list):
+            log_warning("MMSI 坏天气计算 - 输入数据无效")
             return {
                 "avg_bad_weather_speed": 0.0,
                 "avg_downstream_bad_weather_speed": 0.0,
@@ -1159,12 +1173,36 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 "avg_severe_bad_weather_speed": 0.0,
                 "avg_general_bad_weather_speed": 0.0
             }
+        
+        try:
+            # 数据质量控制和过滤
+            log_debug(
+                f"MMSI 坏天气计算 - 数据量: {len(data)}")
+            filtered_data = enhanced_data_quality_control(data, DESIGN_SPEED)
+            log_debug(f"MMSI 坏天气计算 - 过滤后数据量: {len(filtered_data)}")
+        except Exception as e:
+            logger.error(f"坏天气数据质量控制失败: {e}")
+            filtered_data = data  # 使用原始数据作为降级方案
 
-        # 天气数据一致性验证
-        consistency_result = validate_weather_data_consistency(filtered_data)
-        if consistency_result['warnings']:
-            log_warning(
-                f"MMSI 坏天气计算 - 天气数据一致性警告: {consistency_result['warnings']}")
+            if not filtered_data:
+                log_warning("MMSI 坏天气计算 - 无有效数据，返回空结果")
+                return {
+                    "avg_bad_weather_speed": 0.0,
+                    "avg_downstream_bad_weather_speed": 0.0,
+                    "avg_non_downstream_bad_weather_speed": 0.0,
+                    "avg_severe_bad_weather_speed": 0.0,
+                    "avg_general_bad_weather_speed": 0.0
+                }
+
+            # 天气数据一致性验证
+            try:
+                consistency_result = validate_weather_data_consistency(filtered_data)
+                if consistency_result.get('warnings'):
+                    log_warning(
+                        f"MMSI 坏天气计算 - 天气数据一致性警告: {consistency_result['warnings']}")
+            except Exception as e:
+                logger.error(f"坏天气数据一致性验证失败: {e}")
+                # 继续处理，不中断
 
         # 设计吃水深度阈值
         EMPTY_LOAD = DESIGN_DRAFT * 0.7  # 70%
@@ -1530,66 +1568,105 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
         return performance
 
-    def get_vessel_trace(self, mmsi: int, start_time: int, end_time: int) -> List[Dict[str, Any]]:
+    def get_vessel_trace(self, mmsi: int, start_time: int, end_time: int, max_retries: int = 3) -> List[Dict[str, Any]]:
         """
-        获取船舶轨迹数据（简化版，单次调用）
+        获取船舶轨迹数据（简化版，单次调用，带重试机制）
         :param mmsi: 船舶MMSI号
         :param start_time: 开始时间戳（秒）
         :param end_time: 结束时间戳（秒）
+        :param max_retries: 最大重试次数
         :return: 轨迹数据列表
         """
         url = f"{self.wmy_url}:{self.wmy_url_port}/api/vessel/trace?api_key={self.api_key}"
         
         # 构造请求体
-        payload = json.dumps({
-            "mmsi": mmsi,
-            "interval_hour": 3,
-            "start_timestamp": start_time,
-            "end_timestamp": end_time
-        })
+        try:
+            payload = json.dumps({
+                "mmsi": mmsi,
+                "interval_hour": 3,
+                "start_timestamp": start_time,
+                "end_timestamp": end_time
+            })
+        except (TypeError, ValueError) as e:
+            logger.warning(f"MMSI {mmsi} 构造请求体失败: {e}")
+            return []
         
         headers = {
             'Content-Type': 'application/json'
         }
         
-        try:
-            # 单次调用，设置超时
-            response = requests.post(
-                url,
-                headers=headers,
-                data=payload,
-                timeout=30,  # 总超时时间30秒
-                verify=False
-            )
-            
-            # 检查HTTP状态码
-            if response.status_code != 200:
-                logger.warning(f"MMSI {mmsi} API请求失败，状态码: {response.status_code}")
-                return []
-            
-            # 解析响应
-            response_data = response.json()
-            
-            # 检查响应状态
-            if response_data.get("state", {}).get("code") == 0:
-                return response_data.get("data", [])
-            else:
-                error_msg = response_data.get('state', {}).get('message', '未知错误')
-                logger.warning(f"MMSI {mmsi} API返回错误: {error_msg}")
-                return []
+        # 重试机制
+        for attempt in range(max_retries):
+            try:
+                # 单次调用，设置超时
+                response = self.session.post(
+                    url,
+                    headers=headers,
+                    data=payload,
+                    timeout=30,  # 总超时时间30秒
+                    verify=False
+                )
                 
-        except requests.exceptions.Timeout:
-            logger.warning(f"MMSI {mmsi} API请求超时")
-            return []
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"MMSI {mmsi} API请求异常: {str(e)[:100]}")
-            return []
-        except (ValueError, KeyError) as e:
-            logger.warning(f"MMSI {mmsi} 响应解析失败: {e}")
-            return []
+                # 检查HTTP状态码
+                if response.status_code != 200:
+                    if attempt < max_retries - 1:
+                        time.sleep(1 * (attempt + 1))  # 递增延迟
+                        continue
+                    logger.warning(f"MMSI {mmsi} API请求失败，状态码: {response.status_code}")
+                    return []
+                
+                # 解析响应
+                try:
+                    response_data = response.json()
+                except (ValueError, json.JSONDecodeError) as e:
+                    if attempt < max_retries - 1:
+                        time.sleep(1 * (attempt + 1))
+                        continue
+                    logger.warning(f"MMSI {mmsi} 响应JSON解析失败: {e}")
+                    return []
+                
+                # 检查响应状态
+                if response_data.get("state", {}).get("code") == 0:
+                    data = response_data.get("data", [])
+                    if not isinstance(data, list):
+                        logger.warning(f"MMSI {mmsi} API返回数据格式错误，期望列表")
+                        return []
+                    return data
+                else:
+                    error_msg = response_data.get('state', {}).get('message', '未知错误')
+                    if attempt < max_retries - 1:
+                        time.sleep(1 * (attempt + 1))
+                        continue
+                    logger.warning(f"MMSI {mmsi} API返回错误: {error_msg}")
+                    return []
+                    
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    time.sleep(2 * (attempt + 1))  # 超时重试延迟更长
+                    continue
+                logger.warning(f"MMSI {mmsi} API请求超时（已重试{max_retries}次）")
+                return []
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    time.sleep(1 * (attempt + 1))
+                    continue
+                logger.warning(f"MMSI {mmsi} API请求异常: {str(e)[:100]}")
+                return []
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(1 * (attempt + 1))
+                    continue
+                logger.warning(f"MMSI {mmsi} 获取轨迹数据时发生未知错误: {e}")
+                return []
+        
+        return []
 
     @decorate.exception_capture_close_datebase
     def run(self):
+        mmsi = None  # 初始化变量，避免在异常处理中引用未定义变量
+        num = 0
+        total_num = 0
+        
         try:
             query_sql: Dict[str, Any] = {
                 "imo": {"$exists": True}, "perf_calculated": {"$ne": 0}}
@@ -1599,30 +1676,42 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
             # 计算xxx天前的时间戳【用于测试】
             if self.time_days:
-                ten_days_ago = datetime.now() - timedelta(days=self.time_days)
-                log_debug(f"ten_days_ago: {ten_days_ago}")
+                try:
+                    ten_days_ago = datetime.now() - timedelta(days=self.time_days)
+                    log_debug(f"ten_days_ago: {ten_days_ago}")
 
-                # 构建排除最近10天内的updated_at条件
-                query_sql_with_time = dict(query_sql)
-                query_sql_with_time["$or"] = [
-                    {"perf_calculated_updated_at": {"$lt": ten_days_ago}},
-                    {"perf_calculated_updated_at": {"$exists": False}}
-                ]
+                    # 构建排除最近10天内的updated_at条件
+                    query_sql_with_time = dict(query_sql)
+                    query_sql_with_time["$or"] = [
+                        {"perf_calculated_updated_at": {"$lt": ten_days_ago}},
+                        {"perf_calculated_updated_at": {"$exists": False}}
+                    ]
+                except Exception as e:
+                    logger.warning(f"构建时间查询条件时出错: {e}，使用默认查询")
+                    query_sql_with_time = query_sql
             else:
                 query_sql_with_time = query_sql
 
             # 优化：在查询时就过滤掉没有吃水或设计速度的记录，提高效率
-            query_sql_with_data = dict(query_sql_with_time)
-            query_sql_with_data["$and"] = [
-                {"draught": {"$exists": True, "$ne": None, "$gt": 0}},
-                {"speed": {"$exists": True, "$ne": None, "$gt": 0}},
-                {"imo": {"$exists": True, "$ne": None}}
-            ]
+            try:
+                query_sql_with_data = dict(query_sql_with_time)
+                query_sql_with_data["$and"] = [
+                    {"draught": {"$exists": True, "$ne": None, "$gt": 0}},
+                    {"speed": {"$exists": True, "$ne": None, "$gt": 0}},
+                    {"imo": {"$exists": True, "$ne": None}}
+                ]
+            except Exception as e:
+                logger.error(f"构建数据查询条件时出错: {e}")
+                return
 
             # 先获取总数，避免游标超时问题
-            total_num = self.mgo_db["global_vessels"].count_documents(
-                query_sql_with_data)
-            logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘（已过滤缺少必要数据的记录）")
+            try:
+                total_num = self.mgo_db["global_vessels"].count_documents(
+                    query_sql_with_data)
+                logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘（已过滤缺少必要数据的记录）")
+            except Exception as e:
+                logger.error(f"获取船舶总数时出错: {e}")
+                return
 
             # 分批处理，避免游标超时
             batch_size = 100
@@ -1634,213 +1723,312 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             batch_updates_failed = []  # 存储需要标记为失败的记录（当前批次）
 
             while skip < total_num:
-                # 使用聚合管道实现散货船优先处理
-                # 先按是否是散货船排序（散货船=0在前），再按perf_calculated_updated_at排序
-                pipeline = [
-                    {"$match": query_sql_with_data},
-                    {
-                        "$addFields": {
-                            # 添加排序字段：散货船为0（优先），其他为1
-                            "sort_priority": {
-                                "$cond": [
-                                    {"$eq": ["$vesselTypeNameCn", "干散货"]},
-                                    0,  # 散货船优先级为0（优先）
-                                    1   # 其他类型优先级为1
-                                ]
-                            },
-                            # 处理perf_calculated_updated_at可能不存在的情况
-                            "sort_time": {
-                                "$ifNull": [
-                                    "$perf_calculated_updated_at",
-                                    "1970-01-01 00:00:00"  # 如果不存在，使用最早时间字符串
-                                ]
+                try:
+                    # 使用聚合管道实现散货船优先处理
+                    # 先按是否是散货船排序（散货船=0在前），再按perf_calculated_updated_at排序
+                    pipeline = [
+                        {"$match": query_sql_with_data},
+                        {
+                            "$addFields": {
+                                # 添加排序字段：散货船为0（优先），其他为1
+                                "sort_priority": {
+                                    "$cond": [
+                                        {"$eq": ["$vesselTypeNameCn", "干散货"]},
+                                        0,  # 散货船优先级为0（优先）
+                                        1   # 其他类型优先级为1
+                                    ]
+                                },
+                                # 处理perf_calculated_updated_at可能不存在的情况
+                                "sort_time": {
+                                    "$ifNull": [
+                                        "$perf_calculated_updated_at",
+                                        "1970-01-01 00:00:00"  # 如果不存在，使用最早时间字符串
+                                    ]
+                                }
+                            }
+                        },
+                        {
+                            "$sort": {
+                                "sort_priority": 1,  # 先按类型排序（散货船在前）
+                                "sort_time": 1  # 再按更新时间排序
+                            }
+                        },
+                        {"$skip": skip},
+                        {"$limit": batch_size},
+                        {
+                            "$project": {
+                                "imo": 1,
+                                "mmsi": 1,
+                                "draught": 1,
+                                "speed": 1,
+                                "vesselTypeNameCn": 1,
+                                "_id": 0
                             }
                         }
-                    },
-                    {
-                        "$sort": {
-                            "sort_priority": 1,  # 先按类型排序（散货船在前）
-                            "sort_time": 1  # 再按更新时间排序
-                        }
-                    },
-                    {"$skip": skip},
-                    {"$limit": batch_size},
-                    {
-                        "$project": {
-                            "imo": 1,
-                            "mmsi": 1,
-                            "draught": 1,
-                            "speed": 1,
-                            "vesselTypeNameCn": 1,
-                            "_id": 0
-                        }
-                    }
-                ]
-                
-                vessels_cursor = self.mgo_db["global_vessels"].aggregate(pipeline)
-                # 将游标转换为列表，避免在遍历过程中游标超时
-                vessels_list = list(vessels_cursor)
+                    ]
+                    
+                    try:
+                        vessels_cursor = self.mgo_db["global_vessels"].aggregate(pipeline)
+                        # 将游标转换为列表，避免在遍历过程中游标超时
+                        vessels_list = list(vessels_cursor)
+                    except Exception as e:
+                        logger.error(f"批次 {skip//batch_size + 1} 数据库查询失败: {e}")
+                        # 跳过当前批次，继续处理下一批
+                        skip += batch_size
+                        continue
 
-                if not vessels_list:
-                    break
+                    if not vessels_list:
+                        break
 
-                logger.info(
-                    f"处理批次 {skip//batch_size + 1}/{(total_num + batch_size - 1)//batch_size}，本批次 {len(vessels_list)} 艘")
+                    logger.info(
+                        f"处理批次 {skip//batch_size + 1}/{(total_num + batch_size - 1)//batch_size}，本批次 {len(vessels_list)} 艘")
+                except Exception as e:
+                    logger.error(f"准备批次 {skip//batch_size + 1} 数据时出错: {e}")
+                    # 跳过当前批次，继续处理下一批
+                    skip += batch_size
+                    continue
 
                 # 请求接口，获取轨迹气象数据和船舶轨迹数据
                 for vessel in vessels_list:
                     num += 1
-                    # 强制类型为 int
+                    vessel_processed = False
+                    
                     try:
-                        mmsi = int(vessel["mmsi"]) if vessel.get(
-                            "mmsi") is not None else 0
-                    except (ValueError, TypeError):
-                        mmsi = 0
-                    try:
-                        imo = int(vessel.get("imo")) if vessel.get(
-                            "imo") is not None else 0
-                    except (ValueError, TypeError):
-                        imo = 0
-                    draught = vessel.get("draught")
-                    design_speed = vessel.get("speed", 0)
-
-                    # 由于已经在查询时过滤，这里只需要做二次验证
-                    if not imo or not draught or not design_speed:
-                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据不完整（缺少IMO、吃水或设计速度）")
-                        # 添加到批量更新列表，稍后统一处理
-                        batch_updates_failed.append({
-                            "filter": {"imo": imo} if imo else {"mmsi": mmsi},
-                            "update": {"$set": {
-                                "perf_calculated": 0,
-                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            }}
-                        })
-                        total_failed_count += 1
-                        continue
-
-                    start_time = int(time.time()) - self.calc_days * 24 * 3600
-                    end_time = int(time.time())
-                    trace = self.get_vessel_trace(mmsi, start_time, end_time)
-
-                    # 初始化性能数据变量
-                    current_good_weather_performance = None
-                    current_bad_weather_performance = None
-
-                    if trace:
-                        current_good_weather_performance = self.deal_good_perf_list(
-                            trace, draught, design_speed)
-                        current_bad_weather_performance = self.deal_bad_perf_list(
-                            trace, draught, design_speed)
+                        # 强制类型为 int
+                        try:
+                            mmsi = int(vessel["mmsi"]) if vessel.get(
+                                "mmsi") is not None else 0
+                        except (ValueError, TypeError, KeyError):
+                            mmsi = 0
+                        try:
+                            imo = int(vessel.get("imo")) if vessel.get(
+                                "imo") is not None else 0
+                        except (ValueError, TypeError):
+                            imo = 0
                         
-                        # 获取性能计算结果
-                        good_speed = current_good_weather_performance.get('avg_good_weather_speed', 0) or 0
-                        bad_speed = current_bad_weather_performance.get('avg_bad_weather_speed', 0) or 0
+                        try:
+                            draught = vessel.get("draught")
+                            design_speed = vessel.get("speed", 0)
+                        except Exception as e:
+                            logger.warning(f"[{num}/{total_num}] 获取船舶数据失败: {e}")
+                            draught = None
+                            design_speed = 0
 
-                        # 验证性能数据的合理性
-                        validation_result = self.validate_performance_data(
-                            current_good_weather_performance,
-                            current_bad_weather_performance,
-                            design_speed
-                        )
+                        # 由于已经在查询时过滤，这里只需要做二次验证
+                        if not imo or not draught or not design_speed:
+                            logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据不完整（缺少IMO、吃水或设计速度）")
+                            # 添加到批量更新列表，稍后统一处理
+                            try:
+                                batch_updates_failed.append({
+                                    "filter": {"imo": imo} if imo else {"mmsi": mmsi},
+                                    "update": {"$set": {
+                                        "perf_calculated": 0,
+                                        "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    }}
+                                })
+                            except Exception as e:
+                                logger.error(f"添加失败记录到批量更新列表时出错: {e}")
+                            total_failed_count += 1
+                            continue
 
-                        # 如果验证失败，进行数据后处理
-                        if not validation_result['is_valid']:
-                            if LOG_CONFIG['enable_validation_logs']:
-                                logger.warning(
-                                    f"MMSI {mmsi} 性能数据验证失败: {validation_result['errors']}")
-                                if validation_result['recommendations']:
+                        try:
+                            start_time = int(time.time()) - self.calc_days * 24 * 3600
+                            end_time = int(time.time())
+                        except Exception as e:
+                            logger.error(f"[{num}/{total_num}] MMSI {mmsi} 计算时间戳失败: {e}")
+                            total_failed_count += 1
+                            continue
+                        
+                        try:
+                            trace = self.get_vessel_trace(mmsi, start_time, end_time)
+                        except Exception as e:
+                            logger.error(f"[{num}/{total_num}] MMSI {mmsi} 获取轨迹数据异常: {e}")
+                            trace = []
+
+                        # 初始化性能数据变量
+                        current_good_weather_performance = None
+                        current_bad_weather_performance = None
+
+                        if trace:
+                            try:
+                                current_good_weather_performance = self.deal_good_perf_list(
+                                    trace, draught, design_speed)
+                            except Exception as e:
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 处理好天气性能数据失败: {e}")
+                                current_good_weather_performance = {
+                                    "avg_good_weather_speed": 0.0,
+                                    "avg_downstream_speed": 0.0,
+                                    "avg_non_downstream_speed": 0.0
+                                }
+                            
+                            try:
+                                current_bad_weather_performance = self.deal_bad_perf_list(
+                                    trace, draught, design_speed)
+                            except Exception as e:
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 处理坏天气性能数据失败: {e}")
+                                current_bad_weather_performance = {
+                                    "avg_bad_weather_speed": 0.0,
+                                    "avg_downstream_bad_weather_speed": 0.0,
+                                    "avg_non_downstream_bad_weather_speed": 0.0
+                                }
+                            
+                            # 获取性能计算结果
+                            try:
+                                good_speed = current_good_weather_performance.get('avg_good_weather_speed', 0) or 0
+                                bad_speed = current_bad_weather_performance.get('avg_bad_weather_speed', 0) or 0
+                            except Exception as e:
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 获取性能速度失败: {e}")
+                                good_speed = 0
+                                bad_speed = 0
+
+                            # 验证性能数据的合理性
+                            try:
+                                validation_result = self.validate_performance_data(
+                                    current_good_weather_performance,
+                                    current_bad_weather_performance,
+                                    design_speed
+                                )
+                            except Exception as e:
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 验证性能数据失败: {e}")
+                                validation_result = {
+                                    'is_valid': False,
+                                    'warnings': [],
+                                    'errors': [f'验证过程出错: {e}'],
+                                    'recommendations': []
+                                }
+
+                            # 如果验证失败，进行数据后处理
+                            if not validation_result.get('is_valid', True):
+                                if LOG_CONFIG['enable_validation_logs']:
                                     logger.warning(
-                                        f"建议: {validation_result['recommendations']}")
+                                        f"MMSI {mmsi} 性能数据验证失败: {validation_result.get('errors', [])}")
+                                    if validation_result.get('recommendations'):
+                                        logger.warning(
+                                            f"建议: {validation_result['recommendations']}")
 
-                            # 进行数据后处理，确保逻辑正确性
-                            log_debug(f"MMSI {mmsi} 开始数据后处理...")
-                            post_processed_data = self.post_process_performance_data(
-                                current_good_weather_performance,
-                                current_bad_weather_performance,
-                                design_speed
-                            )
+                                # 进行数据后处理，确保逻辑正确性
+                                try:
+                                    log_debug(f"MMSI {mmsi} 开始数据后处理...")
+                                    post_processed_data = self.post_process_performance_data(
+                                        current_good_weather_performance,
+                                        current_bad_weather_performance,
+                                        design_speed
+                                    )
+                                except Exception as e:
+                                    logger.error(f"[{num}/{total_num}] MMSI {mmsi} 数据后处理失败: {e}")
+                                    post_processed_data = {
+                                        'processed_good_weather': current_good_weather_performance,
+                                        'processed_bad_weather': current_bad_weather_performance,
+                                        'adjustments_made': [],
+                                        'quality_issues': []
+                                    }
 
-                            # 使用后处理后的数据
-                            if post_processed_data['processed_good_weather'] and post_processed_data['processed_bad_weather']:
-                                current_good_weather_performance = post_processed_data[
-                                    'processed_good_weather']
-                                current_bad_weather_performance = post_processed_data[
-                                    'processed_bad_weather']
+                                # 使用后处理后的数据
+                                if post_processed_data.get('processed_good_weather') and post_processed_data.get('processed_bad_weather'):
+                                    current_good_weather_performance = post_processed_data[
+                                        'processed_good_weather']
+                                    current_bad_weather_performance = post_processed_data[
+                                        'processed_bad_weather']
 
-                                # 记录后处理结果（仅在调试模式下）
-                                if post_processed_data['adjustments_made'] and LOG_CONFIG['enable_debug_logs']:
-                                    for adjustment in post_processed_data['adjustments_made']:
+                                    # 记录后处理结果（仅在调试模式下）
+                                    if post_processed_data.get('adjustments_made') and LOG_CONFIG['enable_debug_logs']:
+                                        for adjustment in post_processed_data['adjustments_made']:
+                                            log_debug(
+                                                f"MMSI {mmsi} 数据调整: {adjustment.get('description', '')} - {adjustment.get('reason', '')}")
+
+                                    if post_processed_data.get('final_validation') and LOG_CONFIG['enable_debug_logs']:
+                                        final_validation = post_processed_data['final_validation']
                                         log_debug(
-                                            f"MMSI {mmsi} 数据调整: {adjustment['description']} - {adjustment['reason']}")
+                                            f"MMSI {mmsi} 后处理验证: 好天气{final_validation.get('good_speed', 0)}节 > 坏天气{final_validation.get('bad_speed', 0)}节, 降低{final_validation.get('speed_reduction_percentage', 0)}%")
 
-                                if post_processed_data['final_validation'] and LOG_CONFIG['enable_debug_logs']:
-                                    final_validation = post_processed_data['final_validation']
-                                    log_debug(
-                                        f"MMSI {mmsi} 后处理验证: 好天气{final_validation['good_speed']}节 > 坏天气{final_validation['bad_speed']}节, 降低{final_validation['speed_reduction_percentage']}%")
+                                # 重新验证后处理后的数据
+                                try:
+                                    revalidation_result = self.validate_performance_data(
+                                        current_good_weather_performance,
+                                        current_bad_weather_performance,
+                                        design_speed
+                                    )
 
-                            # 重新验证后处理后的数据
-                            revalidation_result = self.validate_performance_data(
-                                current_good_weather_performance,
-                                current_bad_weather_performance,
-                                design_speed
-                            )
+                                    if not revalidation_result.get('is_valid', True):
+                                        errors = revalidation_result.get('errors', [])
+                                        error_summary = f"{len(errors)}个问题" if errors else "未知问题"
+                                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据后处理失败（{error_summary}）")
+                                except Exception as e:
+                                    logger.error(f"[{num}/{total_num}] MMSI {mmsi} 重新验证失败: {e}")
 
-                            if not revalidation_result['is_valid']:
-                                errors = revalidation_result.get('errors', [])
-                                error_summary = f"{len(errors)}个问题" if errors else "未知问题"
-                                logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据后处理失败（{error_summary}）")
+                            if validation_result.get('warnings') and LOG_CONFIG['enable_validation_logs']:
+                                logger.warning(
+                                    f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
 
-                        if validation_result['warnings'] and LOG_CONFIG['enable_validation_logs']:
-                            logger.warning(
-                                f"MMSI {mmsi} 性能数据验证警告: {validation_result['warnings']}")
+                            # 更新 mongo 的数据（插入或更新时都包含 mmsi 和 imo）
+                            try:
+                                self.mgo_db["global_vessels_performance_details"].update_one(
+                                    {"imo": imo},
+                                    {"$set": {
+                                        "imo": imo,
+                                        "mmsi": mmsi,  # 添加 mmsi 字段
+                                        "current_good_weather_performance": current_good_weather_performance,
+                                        "current_bad_weather_performance": current_bad_weather_performance,
+                                        "perf_calculated": 1,
+                                        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    }}, upsert=True)
+                            except Exception as e:
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 更新性能详情失败: {e}")
+                                total_failed_count += 1
+                                continue
 
-                        # 更新 mongo 的数据（插入或更新时都包含 mmsi 和 imo）
-                        self.mgo_db["global_vessels_performance_details"].update_one(
-                            {"imo": imo},
-                            {"$set": {
-                                "imo": imo,
-                                "mmsi": mmsi,  # 添加 mmsi 字段
-                                "current_good_weather_performance": current_good_weather_performance,
-                                "current_bad_weather_performance": current_bad_weather_performance,
-                                "perf_calculated": 1,
-                                "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                            }}, upsert=True)
+                            # 更新 perf_calculated_updated_at
+                            try:
+                                self.mgo_db["global_vessels"].update_one(
+                                    {"imo": imo},
+                                    {"$set": {
+                                        "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                        "perf_calculated": 1
+                                    }})
+                            except Exception as e:
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 更新船舶状态失败: {e}")
+                            
+                            # 简化成功日志：只显示计算结果
+                            logger.info(f"[{num}/{total_num}] MMSI {mmsi} 计算成功，结果是：好天气速度 {good_speed}节, 坏天气速度 {bad_speed}节")
+                            success_count += 1
+                            vessel_processed = True
 
-                        # 更新 perf_calculated_updated_at
-                        self.mgo_db["global_vessels"].update_one(
-                            {"imo": imo},
-                            {"$set": {
-                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                "perf_calculated": 1
-                            }})
-                        
-                        # 简化成功日志：只显示计算结果
-                        logger.info(f"[{num}/{total_num}] MMSI {mmsi} 计算成功，结果是：好天气速度 {good_speed}节, 坏天气速度 {bad_speed}节")
-                        success_count += 1
+                            # 仅在调试模式下输出详细数据
+                            if LOG_CONFIG['enable_debug_logs']:
+                                log_debug(
+                                    f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
+                                log_debug(
+                                    f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
 
-                        # 仅在调试模式下输出详细数据
-                        if LOG_CONFIG['enable_debug_logs']:
-                            log_debug(
-                                f"MMSI {mmsi} 好天气 性能数据: {current_good_weather_performance}")
-                            log_debug(
-                                f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
+                        else:
+                            # 未获取到轨迹数据，添加到批量更新列表
+                            logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：未获取到轨迹数据")
+                            try:
+                                batch_updates_failed.append({
+                                    "filter": {"imo": imo} if imo else {"mmsi": mmsi},
+                                    "update": {"$set": {
+                                        "perf_calculated": 0,
+                                        "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    }}
+                                })
+                            except Exception as e:
+                                logger.error(f"添加失败记录到批量更新列表时出错: {e}")
+                            total_failed_count += 1
 
-                    else:
-                        # 未获取到轨迹数据，添加到批量更新列表
-                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：未获取到轨迹数据")
-                        batch_updates_failed.append({
-                            "filter": {"imo": imo} if imo else {"mmsi": mmsi},
-                            "update": {"$set": {
-                                "perf_calculated": 0,
-                                "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            }}
-                        })
-                        total_failed_count += 1
+                    except Exception as e:
+                        logger.error(f"[{num}/{total_num}] MMSI {mmsi if mmsi else '未知'} 处理船舶数据时发生异常: {e}")
+                        if not vessel_processed:
+                            total_failed_count += 1
+                        # 继续处理下一条记录
+                        continue
 
                     # 每处理10条记录输出一次进度摘要
                     if num % 10 == 0 or num == total_num:
-                        logger.info(
-                            f"进度摘要 [{num}/{total_num}] ({round((num / total_num) * 100, 1)}%) - 成功: {success_count}, 失败: {total_failed_count}")
+                        try:
+                            logger.info(
+                                f"进度摘要 [{num}/{total_num}] ({round((num / total_num) * 100, 1)}%) - 成功: {success_count}, 失败: {total_failed_count}")
+                        except Exception as e:
+                            logger.error(f"输出进度摘要时出错: {e}")
 
                     # time.sleep(float(self.time_sleep))
 
@@ -1880,9 +2068,17 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
         except Exception as e:
             traceback.print_exc()
-            logger.error(f"船舶性能计算过程中发生错误:{mmsi}：{e}")
+            mmsi_str = f"MMSI {mmsi}" if mmsi else "未知船舶"
+            logger.error(f"船舶性能计算过程中发生错误 [{num}/{total_num}] {mmsi_str}：{e}")
             if LOG_CONFIG['enable_debug_logs']:
-                logger.error(f"详细错误信息: {mmsi}：{traceback.format_exc()}")
+                logger.error(f"详细错误信息: {traceback.format_exc()}")
+        finally:
+            # 确保最终统计信息被记录
+            try:
+                if total_num > 0:
+                    logger.info(f"处理完成 - 总计: {total_num}, 成功: {success_count}, 失败: {total_failed_count}")
+            except Exception as e:
+                logger.error(f"输出最终统计信息时出错: {e}")
 
     def validate_performance_data(self, good_weather_perf: Dict[str, float],
                                   bad_weather_perf: Dict[str, float],
