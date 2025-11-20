@@ -6,7 +6,7 @@
 """
 
 # 智能体链接（如需更换，可替换为你在平台上的专属对话链接）
-AGENT_URL = "https://spectra.duplik.cn/client/chat/SP739496039699299?code=dAdpagIULXzYSsS7"
+AGENT_URL = "https://spectra.duplik.cn/client/chat/SP739496039703398?code=ZL642RWYgFtWvKBo"
 
 # 名片信息配置（根据需要修改为你的真实信息）
 CARD_INFO = {
