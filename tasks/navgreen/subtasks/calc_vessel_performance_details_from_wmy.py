@@ -1713,89 +1713,63 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                 logger.error(f"获取船舶总数时出错: {e}")
                 return
 
-            # 分批处理，避免游标超时
-            batch_size = 100
-            skip = 0
+            # 简化流程：直接使用游标遍历，无需分批处理
             num = 0
             success_count = 0  # 成功处理计数
             total_failed_count = 0  # 总失败计数
-            # 批量更新列表，减少数据库操作
-            batch_updates_failed = []  # 存储需要标记为失败的记录（当前批次）
-
-            while skip < total_num:
-                try:
-                    # 添加循环监控，防止无限循环
-                    loop_start_time = time.time()
-                    logger.debug(f"开始处理批次 {skip//batch_size + 1}, skip={skip}, total_num={total_num}")
-                    # 使用聚合管道实现散货船优先处理
-                    # 先按是否是散货船排序（散货船=0在前），再按perf_calculated_updated_at排序
-                    pipeline = [
-                        {"$match": query_sql_with_data},
-                        {
-                            "$addFields": {
-                                # 添加排序字段：散货船为0（优先），其他为1
-                                "sort_priority": {
-                                    "$cond": [
-                                        {"$eq": ["$vesselTypeNameCn", "干散货"]},
-                                        0,  # 散货船优先级为0（优先）
-                                        1   # 其他类型优先级为1
-                                    ]
-                                },
-                                # 处理perf_calculated_updated_at可能不存在的情况
-                                "sort_time": {
-                                    "$ifNull": [
-                                        "$perf_calculated_updated_at",
-                                        "1970-01-01 00:00:00"  # 如果不存在，使用最早时间字符串
-                                    ]
-                                }
-                            }
+            
+            # 使用聚合管道实现散货船优先处理
+            pipeline = [
+                {"$match": query_sql_with_data},
+                {
+                    "$addFields": {
+                        # 添加排序字段：散货船为0（优先），其他为1
+                        "sort_priority": {
+                            "$cond": [
+                                {"$eq": ["$vesselTypeNameCn", "干散货"]},
+                                0,  # 散货船优先级为0（优先）
+                                1   # 其他类型优先级为1
+                            ]
                         },
-                        {
-                            "$sort": {
-                                "sort_priority": 1,  # 先按类型排序（散货船在前）
-                                "sort_time": 1  # 再按更新时间排序
-                            }
-                        },
-                        {"$skip": skip},
-                        {"$limit": batch_size},
-                        {
-                            "$project": {
-                                "imo": 1,
-                                "mmsi": 1,
-                                "draught": 1,
-                                "speed": 1,
-                                "vesselTypeNameCn": 1,
-                                "_id": 0
-                            }
+                        # 处理perf_calculated_updated_at可能不存在的情况
+                        "sort_time": {
+                            "$ifNull": [
+                                "$perf_calculated_updated_at",
+                                "1970-01-01 00:00:00"  # 如果不存在，使用最早时间字符串
+                            ]
                         }
-                    ]
-                    
-                    try:
-                        vessels_cursor = self.mgo_db["global_vessels"].aggregate(pipeline)
-                        # 将游标转换为列表，避免在遍历过程中游标超时
-                        vessels_list = list(vessels_cursor)
-                        logger.debug(f"批次 {skip//batch_size + 1} 成功获取 {len(vessels_list)} 艘船舶数据")
-                    except Exception as e:
-                        logger.error(f"批次 {skip//batch_size + 1} 数据库查询失败: {e}")
-                        logger.error(f"查询异常详情: {traceback.format_exc()}")
-                        # 跳过当前批次，继续处理下一批
-                        skip += batch_size
-                        continue
-
-                    if not vessels_list:
-                        break
-
-                    logger.info(
-                        f"处理批次 {skip//batch_size + 1}/{(total_num + batch_size - 1)//batch_size}，本批次 {len(vessels_list)} 艘")
-                except Exception as e:
-                    logger.error(f"准备批次 {skip//batch_size + 1} 数据时出错: {e}")
-                    logger.error(f"批次准备异常详情: {traceback.format_exc()}")
-                    # 跳过当前批次，继续处理下一批
-                    skip += batch_size
-                    continue
-
-                # 请求接口，获取轨迹气象数据和船舶轨迹数据
-                for vessel in vessels_list:
+                    }
+                },
+                {
+                    "$sort": {
+                        "sort_priority": 1,  # 先按类型排序（散货船在前）
+                        "sort_time": 1  # 再按更新时间排序
+                    }
+                },
+                {
+                    "$project": {
+                        "imo": 1,
+                        "mmsi": 1,
+                        "draught": 1,
+                        "speed": 1,
+                        "vesselTypeNameCn": 1,
+                        "_id": 0
+                    }
+                }
+            ]
+            
+            try:
+                # 直接获取游标，逐个处理，设置超时和其他选项
+                vessels_cursor = self.mgo_db["global_vessels"].aggregate(
+                    pipeline, 
+                    allowDiskUse=True,  # 允许使用磁盘进行大数据集排序
+                    maxTimeMS=300000,   # 设置查询超时时间为5分钟
+                    batchSize=50        # 设置批次大小，减少内存使用
+                )
+                logger.info(f"开始逐个处理船舶，总计: {total_num} 艘")
+                
+                # 直接遍历游标
+                for vessel in vessels_cursor:
                     num += 1
                     vessel_processed = False
                     
@@ -1823,17 +1797,16 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         # 由于已经在查询时过滤，这里只需要做二次验证
                         if not imo or not draught or not design_speed:
                             logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：数据不完整（缺少IMO、吃水或设计速度）")
-                            # 添加到批量更新列表，稍后统一处理
+                            # 直接更新数据库，标记为失败
                             try:
-                                batch_updates_failed.append({
-                                    "filter": {"imo": imo} if imo else {"mmsi": mmsi},
-                                    "update": {"$set": {
-                                        "perf_calculated": 0,
-                                        "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    }}
-                                })
+                                filter_condition = {"imo": imo} if imo else {"mmsi": mmsi}
+                                update_data = {"$set": {
+                                    "perf_calculated": 0,
+                                    "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                }}
+                                self.mgo_db["global_vessels"].update_one(filter_condition, update_data)
                             except Exception as e:
-                                logger.error(f"添加失败记录到批量更新列表时出错: {e}")
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 更新失败状态时出错: {e}")
                             total_failed_count += 1
                             continue
 
@@ -2007,18 +1980,17 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                     f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
 
                         else:
-                            # 未获取到轨迹数据，添加到批量更新列表
+                            # 未获取到轨迹数据，直接更新数据库
                             logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：未获取到轨迹数据")
                             try:
-                                batch_updates_failed.append({
-                                    "filter": {"imo": imo} if imo else {"mmsi": mmsi},
-                                    "update": {"$set": {
-                                        "perf_calculated": 0,
-                                        "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                    }}
-                                })
+                                filter_condition = {"imo": imo} if imo else {"mmsi": mmsi}
+                                update_data = {"$set": {
+                                    "perf_calculated": 0,
+                                    "perf_calculated_updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                }}
+                                self.mgo_db["global_vessels"].update_one(filter_condition, update_data)
                             except Exception as e:
-                                logger.error(f"添加失败记录到批量更新列表时出错: {e}")
+                                logger.error(f"[{num}/{total_num}] MMSI {mmsi} 更新失败状态时出错: {e}")
                             total_failed_count += 1
 
                     except KeyboardInterrupt:
@@ -2036,52 +2008,26 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     # 每处理10条记录输出一次进度摘要
                     if num % 10 == 0 or num == total_num:
                         try:
+                            progress_percent = round((num / total_num) * 100, 1) if total_num > 0 else 0
                             logger.info(
-                                f"进度摘要 [{num}/{total_num}] ({round((num / total_num) * 100, 1)}%) - 成功: {success_count}, 失败: {total_failed_count}")
+                                f"进度摘要 [{num}/{total_num}] ({progress_percent}%) - 成功: {success_count}, 失败: {total_failed_count}")
+                            
+                            # 每处理100条记录记录一次详细进度（用于断点续传参考）
+                            if num % 100 == 0:
+                                logger.info(f"检查点: 已处理 {num} 艘船舶，最后处理的MMSI: {mmsi}")
                         except Exception as e:
                             logger.error(f"输出进度摘要时出错: {e}")
 
                     # time.sleep(float(self.time_sleep))
 
-                # 批量更新失败的记录，使用bulk_write提高效率
-                if batch_updates_failed:
-                    try:
-                        from pymongo import UpdateOne
-                        bulk_ops = [
-                            UpdateOne(
-                                update_item["filter"],
-                                update_item["update"]
-                            )
-                            for update_item in batch_updates_failed
-                        ]
-                        if bulk_ops:
-                            self.mgo_db["global_vessels"].bulk_write(bulk_ops, ordered=False)
-                            logger.info(f"批次完成：批量更新了 {len(batch_updates_failed)} 个失败记录")
-                        batch_updates_failed = []  # 清空列表
-                    except Exception as e:
-                        logger.error(f"批量更新失败记录时出错: {e}")
-                        # 如果批量更新失败，尝试逐个更新（降级处理）
-                        try:
-                            for update_item in batch_updates_failed:
-                                self.mgo_db["global_vessels"].update_one(
-                                    update_item["filter"],
-                                    update_item["update"]
-                                )
-                        except Exception as e2:
-                            logger.error(f"逐个更新也失败: {e2}")
-
-                    # 更新skip，准备处理下一批
-                    skip += batch_size
-
-                    # 记录批次处理时间
-                    batch_time = time.time() - loop_start_time
-                    logger.debug(f"批次 {(skip-batch_size)//batch_size + 1} 处理耗时: {batch_time:.2f}秒")
-
-                    # 如果还有数据需要处理，记录进度
-                    if skip < total_num:
-                        logger.info(f"批次处理完成，准备处理下一批... (已处理: {skip}/{total_num})")
-                    else:
-                        logger.info(f"所有批次处理完成，即将退出主循环 (总处理: {skip}/{total_num})")
+            except Exception as cursor_e:
+                logger.error(f"游标处理异常: {cursor_e}")
+                logger.error(f"游标异常详情: {traceback.format_exc()}")
+                # 如果是游标超时或连接问题，记录当前进度
+                if "cursor" in str(cursor_e).lower() or "timeout" in str(cursor_e).lower():
+                    logger.warning(f"游标超时或连接问题，当前已处理: {num} 艘船舶")
+                    logger.info("建议：可以考虑重新启动程序继续处理剩余船舶")
+                raise  # 重新抛出异常，让外层处理
 
         except KeyboardInterrupt:
             logger.warning("收到中断信号，程序即将退出...")
@@ -2092,16 +2038,16 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             mmsi_str = f"MMSI {mmsi}" if 'mmsi' in locals() and mmsi else "未知船舶"
             logger.error(f"船舶性能计算过程中发生严重错误 [{num}/{total_num}] {mmsi_str}：{e}")
             logger.error(f"详细错误信息: {traceback.format_exc()}")
-            logger.error(f"错误发生时的状态: skip={skip}, batch_size={batch_size}, 当前批次船舶数={len(vessels_list) if 'vessels_list' in locals() else 0}")
-            # 不要直接退出，记录错误后继续处理
-            logger.warning("尝试继续处理下一批次...")
+            logger.error(f"错误发生时的状态: 已处理={num}, 总数={total_num}")
+            # 记录错误但不继续处理，因为可能是严重的系统错误
+            logger.error("发生严重错误，程序将退出")
         finally:
             # 确保最终统计信息被记录
             try:
                 if total_num > 0:
                     success_rate = (success_count / total_num) * 100 if total_num > 0 else 0
                     logger.info(f"处理完成 - 总计: {total_num}, 成功: {success_count}, 失败: {total_failed_count}, 成功率: {success_rate:.1f}%")
-                    logger.info(f"最终处理状态: skip={skip}, 实际处理数量={num}")
+                    logger.info(f"最终处理状态: 实际处理数量={num}")
             except Exception as e:
                 logger.error(f"输出最终统计信息时出错: {e}")
                 logger.error(f"统计异常详情: {traceback.format_exc()}")
