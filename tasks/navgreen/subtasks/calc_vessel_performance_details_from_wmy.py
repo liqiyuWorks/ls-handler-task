@@ -22,7 +22,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 配置化的日志控制
 LOG_CONFIG = {
-    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', False),  # 是否启用调试日志
+    'enable_debug_logs': os.getenv('ENABLE_DEBUG_LOGS', True),  # 是否启用调试日志
     # 是否启用性能相关日志
     'enable_performance_logs': os.getenv('ENABLE_PERFORMANCE_LOGS', True),
     # 是否启用验证相关日志
@@ -1724,6 +1724,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
             while skip < total_num:
                 try:
+                    # 添加循环监控，防止无限循环
+                    loop_start_time = time.time()
+                    logger.debug(f"开始处理批次 {skip//batch_size + 1}, skip={skip}, total_num={total_num}")
                     # 使用聚合管道实现散货船优先处理
                     # 先按是否是散货船排序（散货船=0在前），再按perf_calculated_updated_at排序
                     pipeline = [
@@ -1771,8 +1774,10 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         vessels_cursor = self.mgo_db["global_vessels"].aggregate(pipeline)
                         # 将游标转换为列表，避免在遍历过程中游标超时
                         vessels_list = list(vessels_cursor)
+                        logger.debug(f"批次 {skip//batch_size + 1} 成功获取 {len(vessels_list)} 艘船舶数据")
                     except Exception as e:
                         logger.error(f"批次 {skip//batch_size + 1} 数据库查询失败: {e}")
+                        logger.error(f"查询异常详情: {traceback.format_exc()}")
                         # 跳过当前批次，继续处理下一批
                         skip += batch_size
                         continue
@@ -1784,6 +1789,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         f"处理批次 {skip//batch_size + 1}/{(total_num + batch_size - 1)//batch_size}，本批次 {len(vessels_list)} 艘")
                 except Exception as e:
                     logger.error(f"准备批次 {skip//batch_size + 1} 数据时出错: {e}")
+                    logger.error(f"批次准备异常详情: {traceback.format_exc()}")
                     # 跳过当前批次，继续处理下一批
                     skip += batch_size
                     continue
@@ -2015,8 +2021,13 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                 logger.error(f"添加失败记录到批量更新列表时出错: {e}")
                             total_failed_count += 1
 
+                    except KeyboardInterrupt:
+                        logger.warning(f"[{num}/{total_num}] 收到中断信号，停止处理...")
+                        raise
                     except Exception as e:
-                        logger.error(f"[{num}/{total_num}] MMSI {mmsi if mmsi else '未知'} 处理船舶数据时发生异常: {e}")
+                        mmsi_str = mmsi if 'mmsi' in locals() and mmsi else '未知'
+                        logger.error(f"[{num}/{total_num}] MMSI {mmsi_str} 处理船舶数据时发生异常: {e}")
+                        logger.error(f"异常详情: {traceback.format_exc()}")
                         if not vessel_processed:
                             total_failed_count += 1
                         # 继续处理下一条记录
@@ -2059,26 +2070,41 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         except Exception as e2:
                             logger.error(f"逐个更新也失败: {e2}")
 
-                # 更新skip，准备处理下一批
-                skip += batch_size
+                    # 更新skip，准备处理下一批
+                    skip += batch_size
 
-                # 如果还有数据需要处理，记录进度
-                if skip < total_num:
-                    logger.info(f"批次处理完成，准备处理下一批...")
+                    # 记录批次处理时间
+                    batch_time = time.time() - loop_start_time
+                    logger.debug(f"批次 {(skip-batch_size)//batch_size + 1} 处理耗时: {batch_time:.2f}秒")
 
+                    # 如果还有数据需要处理，记录进度
+                    if skip < total_num:
+                        logger.info(f"批次处理完成，准备处理下一批... (已处理: {skip}/{total_num})")
+                    else:
+                        logger.info(f"所有批次处理完成，即将退出主循环 (总处理: {skip}/{total_num})")
+
+        except KeyboardInterrupt:
+            logger.warning("收到中断信号，程序即将退出...")
+            logger.info(f"中断时进度: [{num}/{total_num}] - 成功: {success_count}, 失败: {total_failed_count}")
+            raise
         except Exception as e:
             traceback.print_exc()
-            mmsi_str = f"MMSI {mmsi}" if mmsi else "未知船舶"
-            logger.error(f"船舶性能计算过程中发生错误 [{num}/{total_num}] {mmsi_str}：{e}")
-            if LOG_CONFIG['enable_debug_logs']:
-                logger.error(f"详细错误信息: {traceback.format_exc()}")
+            mmsi_str = f"MMSI {mmsi}" if 'mmsi' in locals() and mmsi else "未知船舶"
+            logger.error(f"船舶性能计算过程中发生严重错误 [{num}/{total_num}] {mmsi_str}：{e}")
+            logger.error(f"详细错误信息: {traceback.format_exc()}")
+            logger.error(f"错误发生时的状态: skip={skip}, batch_size={batch_size}, 当前批次船舶数={len(vessels_list) if 'vessels_list' in locals() else 0}")
+            # 不要直接退出，记录错误后继续处理
+            logger.warning("尝试继续处理下一批次...")
         finally:
             # 确保最终统计信息被记录
             try:
                 if total_num > 0:
-                    logger.info(f"处理完成 - 总计: {total_num}, 成功: {success_count}, 失败: {total_failed_count}")
+                    success_rate = (success_count / total_num) * 100 if total_num > 0 else 0
+                    logger.info(f"处理完成 - 总计: {total_num}, 成功: {success_count}, 失败: {total_failed_count}, 成功率: {success_rate:.1f}%")
+                    logger.info(f"最终处理状态: skip={skip}, 实际处理数量={num}")
             except Exception as e:
                 logger.error(f"输出最终统计信息时出错: {e}")
+                logger.error(f"统计异常详情: {traceback.format_exc()}")
 
     def validate_performance_data(self, good_weather_perf: Dict[str, float],
                                   bad_weather_perf: Dict[str, float],
