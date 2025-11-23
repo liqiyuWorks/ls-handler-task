@@ -318,16 +318,46 @@ class SpiderJinzhengPages2mgo(BaseModel):
         """主运行方法 - 兼容原有接口"""
         if task is None:
             task = {}
-        # 从task参数中获取配置
-        page_key = task.get('page_key', 'all')  # 默认处理所有页面
-        browser = task.get('browser', 'chromium')
-        headless = task.get('headless', True)
-        save_file = task.get('save_file', True)
-        store_mongodb = task.get('store_mongodb', True)
-        parallel = task.get('parallel', False)  # 默认关闭并行处理，避免线程问题
-        max_workers = task.get('max_workers', 2)  # 默认最大2个进程
-        fast_mode = task.get('fast_mode', False)  # 默认关闭快速模式
-        stable_mode = task.get('stable_mode', True)  # 默认启用稳定模式
+        
+        # 辅助函数：从环境变量或task参数获取配置，支持布尔值转换
+        def get_config(key: str, default_value: Any, env_key: str = None) -> Any:
+            """从环境变量或task参数获取配置值"""
+            if env_key is None:
+                env_key = f"SPIDER_{key.upper()}"
+            
+            # 优先从环境变量读取
+            env_value = os.getenv(env_key)
+            if env_value is not None:
+                # 处理布尔值
+                if isinstance(default_value, bool):
+                    return env_value.lower() in ('true', '1', 'yes', 'on')
+                # 处理整数
+                elif isinstance(default_value, int):
+                    try:
+                        return int(env_value)
+                    except ValueError:
+                        return default_value
+                # 处理字符串
+                else:
+                    return env_value
+            
+            # 其次从task参数读取
+            if key in task:
+                return task[key]
+            
+            # 最后使用默认值
+            return default_value
+        
+        # 从环境变量或task参数中获取配置
+        page_key = get_config('page_key', 'p4tc_spot_decision', 'SPIDER_PAGE_KEY')
+        browser = get_config('browser', 'chromium', 'SPIDER_BROWSER')
+        headless = get_config('headless', False, 'SPIDER_HEADLESS')
+        save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')
+        store_mongodb = get_config('store_mongodb', True, 'SPIDER_STORE_MONGODB')
+        parallel = get_config('parallel', False, 'SPIDER_PARALLEL')
+        max_workers = get_config('max_workers', 2, 'SPIDER_MAX_WORKERS')
+        fast_mode = get_config('fast_mode', False, 'SPIDER_FAST_MODE')
+        stable_mode = get_config('stable_mode', True, 'SPIDER_STABLE_MODE')
         
         try:
             if page_key == 'all':
