@@ -76,6 +76,11 @@ class SpiderJinzhengPages2mgo(BaseModel):
                 "name": "P4TC现货应用决策", 
                 "description": "P4TC现货策略的应用决策数据",
                 "formatter": EnhancedFormatter()
+            },
+            "european_line_signals": {
+                "name": "欧线价格信号",
+                "description": "单边价格信号汇总下的欧线数据",
+                "formatter": EnhancedFormatter()
             }
         }
 
@@ -349,8 +354,8 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return default_value
         
         # 从环境变量或task参数中获取配置
-        page_key = get_config('page_key', 'p4tc_spot_decision', 'SPIDER_PAGE_KEY')
-        browser = get_config('browser', 'chromium', 'SPIDER_BROWSER')
+        page_key = get_config('page_key', 'european_line_signals', 'SPIDER_PAGE_KEY')
+        browser = get_config('browser', 'firefox', 'SPIDER_BROWSER')
         headless = get_config('headless', False, 'SPIDER_HEADLESS')
         save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')
         store_mongodb = get_config('store_mongodb', True, 'SPIDER_STORE_MONGODB')

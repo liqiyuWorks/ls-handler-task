@@ -10,8 +10,10 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 try:
     from .p4tc_parser import P4TCParser
+    from .european_line_parser import EuropeanLineParser
 except ImportError:
     from p4tc_parser import P4TCParser
+    from european_line_parser import EuropeanLineParser
 
 
 class EnhancedFormatter:
@@ -43,6 +45,9 @@ class EnhancedFormatter:
         elif 'P4TC现货应用决策' in self.page_name:
             # P4TC页面需要传递原始表格数据
             self._extract_p4tc_data(tables)
+        elif '欧线' in self.page_name or '欧线价格信号' in self.page_name:
+            # 欧线页面使用专门的解析器
+            self._extract_european_line_data(rows)
         else:
             self._extract_generic_data(rows)
         
@@ -278,6 +283,31 @@ class EnhancedFormatter:
                 # 将解析后的数据存储到contracts中
                 self.contracts["p4tc_analysis"] = parsed_data
     
+    def _extract_european_line_data(self, rows: List[List[str]]):
+        """提取欧线页面数据"""
+        # 使用专门的欧线解析器
+        parser = EuropeanLineParser()
+        parsed_data = parser.parse_european_line_data(rows)
+        
+        if parsed_data and any(parsed_data.get(key) for key in ['price_signals', 'trading_ranges', 'operation_suggestion', 'closing_price_date']):
+            # 将解析后的数据存储到contracts中
+            self.contracts["european_line_analysis"] = parsed_data
+            
+            # 同时保存原始表格数据以便调试
+            table_data = []
+            for row in rows:
+                non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+                if non_empty_cells:
+                    table_data.append(non_empty_cells)
+            
+            if table_data:
+                self.contracts["raw_table_data"] = {
+                    "description": "欧线价格信号原始数据",
+                    "total_rows": len(table_data),
+                    "data": table_data,
+                    "last_updated": datetime.now().isoformat()
+                }
+    
     def _extract_generic_data(self, rows: List[List[str]]):
         """提取通用数据"""
         # 对于其他页面类型，提取所有有数据的行
@@ -321,6 +351,14 @@ class EnhancedFormatter:
         elif 'P4TC现货应用决策' in self.page_name:
             summary["data_type"] = "P4TC现货应用决策"
             summary["table_rows"] = self.contracts.get("table_data", {}).get("total_rows", 0)
+        elif '欧线' in self.page_name or '欧线价格信号' in self.page_name:
+            summary["data_type"] = "欧线价格信号"
+            if "european_line_analysis" in self.contracts:
+                analysis = self.contracts["european_line_analysis"]
+                summary["has_price_signals"] = bool(analysis.get("price_signals"))
+                summary["has_trading_ranges"] = bool(analysis.get("trading_ranges"))
+                summary["has_operation_suggestion"] = bool(analysis.get("operation_suggestion"))
+                summary["has_closing_price_date"] = bool(analysis.get("closing_price_date"))
         else:
             summary["data_type"] = "通用数据"
         

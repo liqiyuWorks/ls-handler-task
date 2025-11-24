@@ -120,6 +120,69 @@ PAGE_CONFIGS = {
             "max_cells": 20,
             "wait_after_query": 5
         }
+    ),
+    
+    "european_line_signals": PageConfig(
+        name="欧线价格信号",
+        description="单边价格信号汇总下的欧线数据",
+        navigation_path=[
+            # 导航路径：单边策略研究 -> 价格信号 -> 单边价格信号汇总 -> 欧线
+            NavigationStep(
+                selectors=[
+                    ".bi-f-c > .bi-icon-change-button > .x-icon"
+                ],
+                description="展开主菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边策略研究'",
+                    "*:has-text('单边策略研究')",
+                    ".bi-icon-change-button:has-text('单边策略研究')"
+                ],
+                description="展开单边策略研究菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='价格信号'",
+                    "*:has-text('价格信号')",
+                    ".bi-icon-change-button:has-text('价格信号')"
+                ],
+                description="展开价格信号菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边价格信号汇总'",
+                    "*:has-text('单边价格信号汇总')",
+                    ".bi-icon-change-button:has-text('单边价格信号汇总')"
+                ],
+                description="展开单边价格信号汇总",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='欧线'",
+                    "*:has-text('欧线')",
+                    ".bi-list-item:has-text('欧线')"
+                ],
+                description="点击欧线页面",
+                wait_time=2.0
+            )
+        ],
+        query_button_selectors=[
+            "button:has-text('查询')",
+            "button:has-text('Query')",
+            "button[type='submit']",
+            "[class*='query']",
+            "[class*='search']"
+        ],
+        data_extraction_config={
+            "max_rows": 100,
+            "max_cells": 20,
+            "wait_after_query": 5
+        }
     )
 }
 
