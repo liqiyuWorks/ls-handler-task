@@ -81,6 +81,12 @@ class SpiderJinzhengPages2mgo(BaseModel):
                 "name": "欧线价格信号",
                 "description": "单边价格信号汇总下的欧线数据",
                 "formatter": EnhancedFormatter()
+            },
+            "trading_opportunity_42d": {
+                "name": "交易机会汇总（42天后）",
+                "description": "单边价格信号汇总下的交易机会汇总（42天后）数据",
+                "formatter": EnhancedFormatter(),
+                "is_screenshot": True  # 标记为截图类型页面
             }
         }
 
@@ -147,21 +153,49 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return None
         
         try:
-            # 构造原始数据格式
-            raw_data_dict = {
-                "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S"),
-                "browser": "chromium",
-                "page_name": self.supported_pages[page_key]['name'],
-                "tables": raw_data
-            }
+            # 检查是否为截图类型页面
+            is_screenshot = self.supported_pages[page_key].get("is_screenshot", False)
             
-            # 使用增强型格式化器
-            formatter = self.supported_pages[page_key]['formatter']
-            formatted_data = formatter.format_data(raw_data_dict)
-            
-            return formatted_data if formatted_data and formatted_data.get('contracts') else None
+            if is_screenshot:
+                # 截图类型数据：直接使用原始数据格式
+                if raw_data and len(raw_data) > 0 and raw_data[0].get("data_type") == "screenshot":
+                    screenshot_data = raw_data[0]
+                    formatted_data = {
+                        "metadata": {
+                            "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S"),
+                            "browser": "chromium",
+                            "page_name": self.supported_pages[page_key]['name'],
+                            "data_source": "AquaBridge",
+                            "version": "1.0",
+                            "swap_date": screenshot_data.get("metadata", {}).get("swap_date", datetime.now().strftime("%Y-%m-%d")),
+                            "page_title": screenshot_data.get("metadata", {}).get("page_title", "42天后单边交易机会汇总")
+                        },
+                        "screenshot": {
+                            "path": screenshot_data.get("screenshot_path", ""),
+                            "data_type": "screenshot"
+                        }
+                    }
+                    return formatted_data
+                else:
+                    return None
+            else:
+                # 普通数据格式：使用增强型格式化器
+                # 构造原始数据格式
+                raw_data_dict = {
+                    "timestamp": datetime.now().strftime("%Y%m%d_%H%M%S"),
+                    "browser": "chromium",
+                    "page_name": self.supported_pages[page_key]['name'],
+                    "tables": raw_data
+                }
                 
-        except (ValueError, KeyError, TypeError):
+                # 使用增强型格式化器
+                formatter = self.supported_pages[page_key]['formatter']
+                formatted_data = formatter.format_data(raw_data_dict)
+                
+                return formatted_data if formatted_data and formatted_data.get('contracts') else None
+                
+        except (ValueError, KeyError, TypeError) as e:
+            print(f"格式化数据失败: {e}")
             return None
     
     def store_data(self, page_key: str, data: Dict[str, Any]) -> bool:
@@ -354,7 +388,7 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return default_value
         
         # 从环境变量或task参数中获取配置
-        page_key = get_config('page_key', 'european_line_signals', 'SPIDER_PAGE_KEY')
+        page_key = get_config('page_key', 'trading_opportunity_42d', 'SPIDER_PAGE_KEY')
         browser = get_config('browser', 'firefox', 'SPIDER_BROWSER')
         headless = get_config('headless', False, 'SPIDER_HEADLESS')
         save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')

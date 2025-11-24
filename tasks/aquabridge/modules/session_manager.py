@@ -155,44 +155,116 @@ class SessionManager:
                 print("✗ 未找到目标iframe")
                 return None
             
-            # 查询数据
-            if not self.scraper.query_data(target_frame, page_config):
-                print("✗ 查询失败")
-                return None
-            
-            # 提取数据
-            print("7. 提取数据...")
-            config = page_config.data_extraction_config
-            data = self.scraper.extract_table_data(
-                target_frame, 
-                config.get("max_rows", 100),
-                config.get("max_cells", 20)
-            )
-            
-            # 提取掉期日期（从页面顶部）
-            print("8. 提取掉期日期...")
-            swap_date = self.scraper.extract_swap_date_from_page(target_frame)
-            if swap_date:
-                print(f"✓ 掉期日期: {swap_date}")
-                # 将掉期日期添加到第一个表格的元数据中
-                if data and len(data) > 0:
-                    data[0]["swap_date"] = swap_date
-            else:
-                # 如果没有找到掉期日期，使用当前日期
-                from datetime import datetime
-                current_date = datetime.now().strftime("%Y-%m-%d")
-                print(f"⚠ 未找到掉期日期，使用当前日期: {current_date}")
-                if data and len(data) > 0:
-                    data[0]["swap_date"] = current_date
-            
-            if data:
-                print(f"✓ 页面 {page_key} 数据抓取成功: {len(data)} 个表格")
+            # 检查是否需要截图
+            screenshot_config = page_config.screenshot_config
+            if screenshot_config and screenshot_config.get("enabled", False):
+                # 截图模式：直接截图，不需要查询按钮
+                print("检测到截图配置，切换到截图模式...")
+                print("6. 等待页面加载...")
+                # 等待页面完全加载 - 增加等待时间确保内容加载完成
+                wait_time = screenshot_config.get("wait_before_screenshot", 5)
+                print(f"  等待 {wait_time} 秒让页面内容加载...")
+                time.sleep(wait_time)
                 
+                # 尝试等待iframe内容出现
+                try:
+                    print("  检查iframe内容...")
+                    # 等待body元素出现
+                    target_frame.locator("body").wait_for(state="attached", timeout=10000)
+                    # 等待一些时间让内容渲染
+                    time.sleep(2)
+                    print("  ✓ iframe内容已就绪")
+                except Exception as e:
+                    print(f"  ⚠ iframe内容检查超时，继续尝试: {e}")
                 
-                return data
+                # 处理弹窗（在截图前）
+                try:
+                    print("  检查并关闭弹窗...")
+                    if self.current_page:
+                        # 尝试关闭常见的弹窗
+                        dialog_selectors = [
+                            "button:has-text('OK')",
+                            "button:has-text('确定')",
+                            "button:has-text('关闭')",
+                            ".modal button",
+                            "[class*='dialog'] button",
+                            "[class*='modal'] button[class*='close']"
+                        ]
+                        
+                        for selector in dialog_selectors:
+                            try:
+                                dialog_button = self.current_page.locator(selector).first
+                                if dialog_button.is_visible(timeout=2000):
+                                    dialog_button.click()
+                                    print("  ✓ 已关闭弹窗")
+                                    time.sleep(1)
+                                    break
+                            except Exception:
+                                continue
+                except Exception as e:
+                    print(f"  ⚠ 处理弹窗时出错: {e}")
+                
+                # 截图
+                print("7. 截图页面元素...")
+                screenshot_path = self.scraper.screenshot_element(target_frame, screenshot_config, page_key)
+                
+                if not screenshot_path:
+                    print("✗ 截图失败")
+                    return None
+                
+                # 提取元数据
+                print("8. 提取元数据...")
+                metadata = self.scraper.extract_metadata_from_page(target_frame)
+                
+                # 返回截图数据格式
+                result = [{
+                    "data_type": "screenshot",
+                    "screenshot_path": screenshot_path,
+                    "metadata": metadata,
+                    "page_key": page_key,
+                    "page_name": page_config.name
+                }]
+                
+                print(f"✓ 页面 {page_key} 截图成功")
+                return result
             else:
-                print(f"✗ 页面 {page_key} 数据抓取失败")
-                return None
+                # 普通数据提取模式
+                # 查询数据
+                if not self.scraper.query_data(target_frame, page_config):
+                    print("✗ 查询失败")
+                    return None
+                
+                # 提取数据
+                print("7. 提取数据...")
+                config = page_config.data_extraction_config
+                data = self.scraper.extract_table_data(
+                    target_frame, 
+                    config.get("max_rows", 100),
+                    config.get("max_cells", 20)
+                )
+                
+                # 提取掉期日期（从页面顶部）
+                print("8. 提取掉期日期...")
+                swap_date = self.scraper.extract_swap_date_from_page(target_frame)
+                if swap_date:
+                    print(f"✓ 掉期日期: {swap_date}")
+                    # 将掉期日期添加到第一个表格的元数据中
+                    if data and len(data) > 0:
+                        data[0]["swap_date"] = swap_date
+                else:
+                    # 如果没有找到掉期日期，使用当前日期
+                    from datetime import datetime
+                    current_date = datetime.now().strftime("%Y-%m-%d")
+                    print(f"⚠ 未找到掉期日期，使用当前日期: {current_date}")
+                    if data and len(data) > 0:
+                        data[0]["swap_date"] = current_date
+                
+                if data:
+                    print(f"✓ 页面 {page_key} 数据抓取成功: {len(data)} 个表格")
+                    return data
+                else:
+                    print(f"✗ 页面 {page_key} 数据抓取失败")
+                    return None
                 
         except Exception as e:
             print(f"✗ 抓取页面 {page_key} 异常: {e}")

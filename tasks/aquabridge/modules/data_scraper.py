@@ -7,7 +7,8 @@ import json
 from datetime import datetime
 import sys
 import time
-from typing import List, Optional, Dict
+import os
+from typing import List, Optional, Dict, Any
 try:
     from .page_config import PageConfig, get_page_config, get_page_info
     from .browser_config import (
@@ -561,6 +562,237 @@ class DataScraper:
         except Exception as e:
             print(f"提取掉期日期失败: {e}")
             return None
+    
+    def screenshot_element(self, target_frame: FrameLocator, screenshot_config: dict, page_key: str) -> Optional[str]:
+        """截图整个页面 - 简化流程，直接截图完整页面
+        
+        Args:
+            target_frame: 目标iframe定位器
+            screenshot_config: 截图配置字典
+            page_key: 页面键，用于生成文件名
+            
+        Returns:
+            截图文件路径，如果失败则返回None
+        """
+        try:
+            print("开始截图...")
+            
+            # 确保输出目录存在
+            output_dir = screenshot_config.get("output_dir", "output/screenshots")
+            os.makedirs(output_dir, exist_ok=True)
+            
+            # 生成文件名
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{page_key}_screenshot_{timestamp}.png"
+            filepath = os.path.join(output_dir, filename)
+            
+            # 等待页面加载
+            print("  等待页面加载...")
+            time.sleep(3)
+            
+            # 处理弹窗（如果有）
+            try:
+                print("  检查并关闭弹窗...")
+                if self.page:
+                    dialog_selectors = [
+                        "button:has-text('OK')",
+                        "button:has-text('确定')",
+                        "button:has-text('关闭')",
+                        ".modal button",
+                        "[class*='dialog'] button"
+                    ]
+                    
+                    for selector in dialog_selectors:
+                        try:
+                            dialog_button = self.page.locator(selector).first
+                            if dialog_button.is_visible(timeout=2000):
+                                dialog_button.click()
+                                print("  ✓ 已关闭弹窗")
+                                time.sleep(1)
+                                break
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+            
+            # 再等待一下确保内容渲染
+            time.sleep(2)
+            
+            # 滚动页面确保所有内容加载
+            try:
+                print("  滚动页面到底部，确保内容完全加载...")
+                
+                # 方法1: 在主页面滚动
+                if self.page:
+                    try:
+                        # 获取页面总高度
+                        page_height = self.page.evaluate("document.body.scrollHeight")
+                        print(f"  主页面高度: {page_height}px")
+                        
+                        # 滚动到底部
+                        self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        time.sleep(2)  # 等待底部内容加载
+                        
+                        # 再滚动回顶部
+                        self.page.evaluate("window.scrollTo(0, 0)")
+                        time.sleep(1)
+                    except Exception as e:
+                        print(f"  ⚠ 主页面滚动失败: {e}")
+                
+                # 方法2: 在target_frame（iframe）内滚动（最重要）
+                try:
+                    # 通过target_frame的body元素执行滚动
+                    body_locator = target_frame.locator("body")
+                    
+                    # 滚动到底部
+                    body_locator.evaluate("""
+                        (body) => {
+                            const scrollHeight = body.scrollHeight || document.documentElement.scrollHeight;
+                            window.scrollTo(0, scrollHeight);
+                        }
+                    """)
+                    time.sleep(2)  # 等待底部内容加载
+                    
+                    # 获取iframe内的页面高度
+                    try:
+                        iframe_height = body_locator.evaluate("() => document.body.scrollHeight || document.documentElement.scrollHeight")
+                        print(f"  iframe内容高度: {iframe_height}px")
+                    except:
+                        pass
+                    
+                    # 滚动回顶部
+                    body_locator.evaluate("() => window.scrollTo(0, 0)")
+                    time.sleep(1)
+                    print("  ✓ iframe内滚动完成")
+                except Exception as e:
+                    print(f"  ⚠ iframe内滚动失败: {e}")
+                    
+                # 方法3: 通过page.frames找到frame对象并滚动
+                if self.page:
+                    try:
+                        all_frames = self.page.frames
+                        if len(all_frames) >= 2:
+                            # 使用内容frame（通常是第二个）
+                            content_frame = all_frames[1]
+                            # 在frame内滚动
+                            content_frame.evaluate("""
+                                () => {
+                                    const scrollHeight = document.body.scrollHeight || document.documentElement.scrollHeight;
+                                    window.scrollTo(0, scrollHeight);
+                                }
+                            """)
+                            time.sleep(2)
+                            # 滚动回顶部
+                            content_frame.evaluate("window.scrollTo(0, 0)")
+                            time.sleep(1)
+                            print("  ✓ 通过frame对象滚动完成")
+                    except Exception as e:
+                        print(f"  ⚠ frame对象滚动失败: {e}")
+                
+                print("  ✓ 页面滚动完成")
+            except Exception as e:
+                print(f"  ⚠ 页面滚动失败: {e}")
+            
+            # 方法1: 直接截图整个页面（最简单可靠）
+            if self.page:
+                try:
+                    print("  截图整个页面（完整）...")
+                    # 使用full_page=True确保截图完整，会自动捕获所有滚动区域
+                    self.page.screenshot(path=filepath, full_page=True)
+                    
+                    if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                        file_size_kb = os.path.getsize(filepath) / 1024
+                        print(f"✓ 截图成功: {filepath} (大小: {file_size_kb:.2f} KB)")
+                        return filepath
+                except Exception as e:
+                    print(f"  ⚠ 页面截图失败: {e}")
+            
+            # 方法2: 如果页面截图失败，尝试截图iframe元素
+            if self.page:
+                try:
+                    print("  尝试截图iframe元素...")
+                    iframe_locator = self.page.locator("#reportFrame iframe")
+                    iframe_count = iframe_locator.count()
+                    
+                    if iframe_count > 0:
+                        # 使用最后一个iframe（通常是内容iframe）
+                        iframe_element = iframe_locator.nth(iframe_count - 1)
+                        iframe_element.screenshot(path=filepath)
+                        
+                        if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+                            file_size_kb = os.path.getsize(filepath) / 1024
+                            print(f"✓ 截图成功 (iframe): {filepath} (大小: {file_size_kb:.2f} KB)")
+                            return filepath
+                except Exception as e:
+                    print(f"  ⚠ iframe截图失败: {e}")
+            
+            print("✗ 截图失败")
+            return None
+                
+        except Exception as e:
+            print(f"✗ 截图失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+    
+    def extract_metadata_from_page(self, target_frame: FrameLocator) -> Dict[str, Any]:
+        """从页面提取元数据（日期、标题等）
+        
+        Args:
+            target_frame: 目标iframe定位器
+            
+        Returns:
+            包含元数据的字典
+        """
+        metadata = {}
+        
+        try:
+            # 提取日期
+            date = self.extract_swap_date_from_page(target_frame)
+            if date:
+                metadata["swap_date"] = date
+            else:
+                # 如果没有找到掉期日期，使用当前日期
+                current_date = datetime.now().strftime("%Y-%m-%d")
+                metadata["swap_date"] = current_date
+                print(f"⚠ 未找到掉期日期，使用当前日期: {current_date}")
+            
+            # 尝试提取页面标题
+            try:
+                # 查找包含"42天后"或"交易机会汇总"的文本
+                title_selectors = [
+                    "text='42天后'",
+                    "*:has-text('42天后')",
+                    "*:has-text('交易机会汇总')",
+                    "h1, h2, h3",
+                    "[class*='title']",
+                    "[class*='header']"
+                ]
+                
+                for selector in title_selectors:
+                    try:
+                        element = target_frame.locator(selector).first
+                        if element.is_visible(timeout=2000):
+                            text = element.inner_text(timeout=1000)
+                            if text and ("42天后" in text or "交易机会汇总" in text):
+                                metadata["page_title"] = text.strip()
+                                print(f"✓ 提取到标题: {text.strip()}")
+                                break
+                    except Exception:
+                        continue
+                
+                # 如果没有找到标题，设置默认值
+                if "page_title" not in metadata:
+                    metadata["page_title"] = "42天后单边交易机会汇总"
+                    
+            except Exception as e:
+                print(f"⚠ 提取标题失败: {e}")
+                metadata["page_title"] = "42天后单边交易机会汇总"
+            
+        except Exception as e:
+            print(f"⚠ 提取元数据时出错: {e}")
+        
+        return metadata
     
     def query_data(self, target_frame: FrameLocator, page_config: PageConfig) -> bool:
         """执行数据查询"""
