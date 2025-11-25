@@ -206,7 +206,8 @@ class SessionManager:
                 
                 # 截图
                 print("7. 截图页面元素...")
-                screenshot_path = self.scraper.screenshot_element(target_frame, screenshot_config, page_key)
+                # 传递report_frame以便点击pin按钮
+                screenshot_path = self.scraper.screenshot_element(target_frame, screenshot_config, page_key, self.scraper.report_frame)
                 
                 if not screenshot_path:
                     print("✗ 截图失败")
@@ -228,10 +229,10 @@ class SessionManager:
                 print(f"✓ 页面 {page_key} 截图成功")
                 return result
             else:
-                # 普通数据提取模式
-                # 查询数据
-                if not self.scraper.query_data(target_frame, page_config):
-                    print("✗ 查询失败")
+                # 普通数据提取模式（优化：不需要点击查询按钮）
+                # 等待数据加载
+                if not self.scraper.wait_for_data_load(target_frame, page_config):
+                    print("✗ 等待数据加载失败")
                     return None
                 
                 # 提取数据

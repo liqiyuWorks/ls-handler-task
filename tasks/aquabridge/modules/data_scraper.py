@@ -563,13 +563,14 @@ class DataScraper:
             print(f"提取掉期日期失败: {e}")
             return None
     
-    def screenshot_element(self, target_frame: FrameLocator, screenshot_config: dict, page_key: str) -> Optional[str]:
+    def screenshot_element(self, target_frame: FrameLocator, screenshot_config: dict, page_key: str, report_frame: FrameLocator = None) -> Optional[str]:
         """截图整个页面 - 简化流程，直接截图完整页面
         
         Args:
             target_frame: 目标iframe定位器
             screenshot_config: 截图配置字典
             page_key: 页面键，用于生成文件名
+            report_frame: reportFrame定位器，用于点击pin按钮
             
         Returns:
             截图文件路径，如果失败则返回None
@@ -615,73 +616,268 @@ class DataScraper:
             except Exception:
                 pass
             
+            # 点击pin按钮（图钉按钮）确保页面显示正确
+            try:
+                print("  点击pin按钮确保页面显示正确...")
+                # 使用传入的report_frame或self.report_frame
+                frame_to_use = report_frame if report_frame else self.report_frame
+                
+                if frame_to_use:
+                    # 尝试多种选择器找到pin按钮（在左侧导航栏）
+                    pin_xpath = "//*[@id='wrapper']/div[1]/div[2]/div[2]/div/div[2]/div[2]/div[1]/div[2]/i"
+                    pin_selectors = [
+                        f"xpath={pin_xpath}",
+                        "//i[contains(@class, 'pin')]",
+                        "//i[contains(@class, 'Pin')]",
+                        "i[class*='pin']",
+                        "i[class*='Pin']",
+                        "[class*='pin']",
+                        "[class*='Pin']",
+                        "button[class*='pin']",
+                        "button[class*='Pin']",
+                        "[data-icon='pin']",
+                        "svg[class*='pin']"
+                    ]
+                    
+                    pin_clicked = False
+                    for selector in pin_selectors:
+                        try:
+                            pin_button = frame_to_use.locator(selector).first
+                            if pin_button.is_visible(timeout=3000):
+                                pin_button.click()
+                                print("  ✓ 已点击pin按钮")
+                                time.sleep(2)  # 等待页面布局调整
+                                pin_clicked = True
+                                break
+                        except Exception:
+                            continue
+                    
+                    if not pin_clicked:
+                        print("  ⚠ 未找到pin按钮，继续尝试")
+                elif self.page:
+                    # 如果report_frame不可用，尝试在主页面查找
+                    try:
+                        pin_xpath = "//*[@id='wrapper']/div[1]/div[2]/div[2]/div/div[2]/div[2]/div[1]/div[2]/i"
+                        pin_button = self.page.locator(f"xpath={pin_xpath}").first
+                        if pin_button.is_visible(timeout=3000):
+                            pin_button.click()
+                            print("  ✓ 已点击pin按钮（主页面）")
+                            time.sleep(2)
+                    except Exception:
+                        print("  ⚠ 未找到pin按钮")
+            except Exception as e:
+                print(f"  ⚠ 点击pin按钮失败: {e}")
+            
+            # 调整浏览器视口，使用更大的高度确保完整截图
+            if self.page:
+                try:
+                    print("  调整浏览器视口...")
+                    # 设置更大的视口高度，确保能容纳所有内容
+                    self.page.set_viewport_size({"width": 1920, "height": 5000})
+                    time.sleep(0.5)
+                    print("  ✓ 视口已调整 (1920x5000)")
+                except Exception as e:
+                    print(f"  ⚠ 调整视口失败: {e}")
+            
             # 再等待一下确保内容渲染
             time.sleep(2)
             
-            # 滚动页面确保所有内容加载
+            # 操作现货和期货模块的滚动容器，确保数据完整加载
+            try:
+                print("  操作现货和期货模块的滚动容器...")
+                
+                # 现货模块滚动容器
+                spot_scroll_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[2]/div[2]/div/div[1]/div[2]/div/div/div/div/div[2]/div/div[2]/div/div/div[2]/div/div"
+                # 期货模块滚动容器
+                futures_scroll_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[3]/div[2]/div/div[1]/div[2]/div/div/div/div/div[2]/div/div[2]/div/div/div[2]/div/div"
+                
+                if self.page:
+                    # 操作现货模块滚动容器
+                    try:
+                        print("    操作现货模块滚动容器...")
+                        spot_scroll_element = self.page.locator(f"xpath={spot_scroll_xpath}").first
+                        if spot_scroll_element.is_visible(timeout=5000):
+                            # 多次滚动到底部，确保所有数据加载
+                            last_scroll_top = -1
+                            for i in range(20):  # 最多滚动20次
+                                try:
+                                    # 滚动到底部
+                                    current_scroll_top = spot_scroll_element.evaluate("""
+                                        (el) => {
+                                            el.scrollTop = el.scrollHeight;
+                                            return el.scrollTop;
+                                        }
+                                    """)
+                                    time.sleep(0.5)  # 等待内容加载
+                                    
+                                    # 检查是否已经滚动到底部
+                                    if current_scroll_top == last_scroll_top and current_scroll_top > 0:
+                                        print(f"      ✓ 现货模块已滚动到底部 (滚动位置: {current_scroll_top}px)")
+                                        break
+                                    
+                                    last_scroll_top = current_scroll_top
+                                    if i % 5 == 0:
+                                        print(f"      现货模块滚动中... ({i+1}/20, 位置: {current_scroll_top}px)")
+                                except Exception as e:
+                                    print(f"      ⚠ 现货模块滚动失败: {e}")
+                                    break
+                        else:
+                            print("    ⚠ 未找到现货模块滚动容器")
+                    except Exception as e:
+                        print(f"    ⚠ 操作现货模块滚动容器失败: {e}")
+                    
+                    # 操作期货模块滚动容器
+                    try:
+                        print("    操作期货模块滚动容器...")
+                        futures_scroll_element = self.page.locator(f"xpath={futures_scroll_xpath}").first
+                        if futures_scroll_element.is_visible(timeout=5000):
+                            # 多次滚动到底部，确保所有数据加载
+                            last_scroll_top = -1
+                            for i in range(20):  # 最多滚动20次
+                                try:
+                                    # 滚动到底部
+                                    current_scroll_top = futures_scroll_element.evaluate("""
+                                        (el) => {
+                                            el.scrollTop = el.scrollHeight;
+                                            return el.scrollTop;
+                                        }
+                                    """)
+                                    time.sleep(0.5)  # 等待内容加载
+                                    
+                                    # 检查是否已经滚动到底部
+                                    if current_scroll_top == last_scroll_top and current_scroll_top > 0:
+                                        print(f"      ✓ 期货模块已滚动到底部 (滚动位置: {current_scroll_top}px)")
+                                        break
+                                    
+                                    last_scroll_top = current_scroll_top
+                                    if i % 5 == 0:
+                                        print(f"      期货模块滚动中... ({i+1}/20, 位置: {current_scroll_top}px)")
+                                except Exception as e:
+                                    print(f"      ⚠ 期货模块滚动失败: {e}")
+                                    break
+                        else:
+                            print("    ⚠ 未找到期货模块滚动容器")
+                    except Exception as e:
+                        print(f"    ⚠ 操作期货模块滚动容器失败: {e}")
+                    
+                    # 等待内容加载
+                    time.sleep(2)
+                    print("  ✓ 现货和期货模块滚动完成")
+            except Exception as e:
+                print(f"  ⚠ 操作滚动容器失败: {e}")
+            
+            # 滚动页面确保所有内容加载（多次滚动触发懒加载）
             try:
                 print("  滚动页面到底部，确保内容完全加载...")
                 
-                # 方法1: 在主页面滚动
-                if self.page:
-                    try:
-                        # 获取页面总高度
-                        page_height = self.page.evaluate("document.body.scrollHeight")
-                        print(f"  主页面高度: {page_height}px")
-                        
-                        # 滚动到底部
-                        self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                        time.sleep(2)  # 等待底部内容加载
-                        
-                        # 再滚动回顶部
-                        self.page.evaluate("window.scrollTo(0, 0)")
-                        time.sleep(1)
-                    except Exception as e:
-                        print(f"  ⚠ 主页面滚动失败: {e}")
-                
-                # 方法2: 在target_frame（iframe）内滚动（最重要）
+                # 方法1: 在target_frame（iframe）内多次滚动（最重要）
                 try:
-                    # 通过target_frame的body元素执行滚动
                     body_locator = target_frame.locator("body")
                     
-                    # 滚动到底部
-                    body_locator.evaluate("""
-                        (body) => {
-                            const scrollHeight = body.scrollHeight || document.documentElement.scrollHeight;
-                            window.scrollTo(0, scrollHeight);
-                        }
-                    """)
-                    time.sleep(2)  # 等待底部内容加载
-                    
-                    # 获取iframe内的页面高度
+                    # 获取初始高度
                     try:
-                        iframe_height = body_locator.evaluate("() => document.body.scrollHeight || document.documentElement.scrollHeight")
-                        print(f"  iframe内容高度: {iframe_height}px")
+                        initial_height = body_locator.evaluate("""
+                            () => Math.max(
+                                document.body.scrollHeight,
+                                document.documentElement.scrollHeight,
+                                document.body.offsetHeight,
+                                document.documentElement.offsetHeight
+                            )
+                        """)
+                        print(f"  初始iframe内容高度: {initial_height}px")
+                    except:
+                        initial_height = 0
+                    
+                    # 多次滚动到底部，触发懒加载
+                    max_scrolls = 5
+                    last_height = initial_height
+                    for scroll_attempt in range(max_scrolls):
+                        try:
+                            # 滚动到底部
+                            body_locator.evaluate("""
+                                () => {
+                                    const scrollHeight = Math.max(
+                                        document.body.scrollHeight,
+                                        document.documentElement.scrollHeight,
+                                        document.body.offsetHeight,
+                                        document.documentElement.offsetHeight
+                                    );
+                                    window.scrollTo({
+                                        top: scrollHeight,
+                                        behavior: 'smooth'
+                                    });
+                                }
+                            """)
+                            time.sleep(3)  # 等待内容加载
+                            
+                            # 检查高度是否增加
+                            try:
+                                current_height = body_locator.evaluate("""
+                                    () => Math.max(
+                                        document.body.scrollHeight,
+                                        document.documentElement.scrollHeight,
+                                        document.body.offsetHeight,
+                                        document.documentElement.offsetHeight
+                                    )
+                                """)
+                                print(f"  滚动 {scroll_attempt + 1}/{max_scrolls}: 当前高度 {current_height}px")
+                                
+                                if current_height > last_height:
+                                    print(f"  ✓ 发现新内容，高度增加 {current_height - last_height}px")
+                                    last_height = current_height
+                                else:
+                                    print(f"  ✓ 高度未变化，内容已完全加载")
+                                    time.sleep(2)  # 再等待一下确保渲染完成
+                                    break
+                            except:
+                                pass
+                        except Exception as e:
+                            print(f"  ⚠ 滚动尝试 {scroll_attempt + 1} 失败: {e}")
+                    
+                    # 最终获取页面高度
+                    try:
+                        final_height = body_locator.evaluate("""
+                            () => Math.max(
+                                document.body.scrollHeight,
+                                document.documentElement.scrollHeight,
+                                document.body.offsetHeight,
+                                document.documentElement.offsetHeight
+                            )
+                        """)
+                        print(f"  ✓ 最终iframe内容高度: {final_height}px")
                     except:
                         pass
                     
                     # 滚动回顶部
-                    body_locator.evaluate("() => window.scrollTo(0, 0)")
+                    body_locator.evaluate("window.scrollTo(0, 0)")
                     time.sleep(1)
                     print("  ✓ iframe内滚动完成")
                 except Exception as e:
                     print(f"  ⚠ iframe内滚动失败: {e}")
                     
-                # 方法3: 通过page.frames找到frame对象并滚动
+                # 方法2: 通过page.frames找到frame对象并滚动
                 if self.page:
                     try:
                         all_frames = self.page.frames
                         if len(all_frames) >= 2:
-                            # 使用内容frame（通常是第二个）
                             content_frame = all_frames[1]
-                            # 在frame内滚动
-                            content_frame.evaluate("""
-                                () => {
-                                    const scrollHeight = document.body.scrollHeight || document.documentElement.scrollHeight;
-                                    window.scrollTo(0, scrollHeight);
-                                }
-                            """)
-                            time.sleep(2)
+                            
+                            # 多次滚动
+                            for scroll_attempt in range(3):
+                                try:
+                                    content_frame.evaluate("""
+                                        () => {
+                                            const scrollHeight = Math.max(
+                                                document.body.scrollHeight,
+                                                document.documentElement.scrollHeight
+                                            );
+                                            window.scrollTo(0, scrollHeight);
+                                        }
+                                    """)
+                                    time.sleep(2)
+                                except:
+                                    pass
+                            
                             # 滚动回顶部
                             content_frame.evaluate("window.scrollTo(0, 0)")
                             time.sleep(1)
@@ -689,23 +885,148 @@ class DataScraper:
                     except Exception as e:
                         print(f"  ⚠ frame对象滚动失败: {e}")
                 
+                # 方法3: 在主页面滚动
+                if self.page:
+                    try:
+                        page_height = self.page.evaluate("""
+                            () => Math.max(
+                                document.body.scrollHeight,
+                                document.documentElement.scrollHeight
+                            )
+                        """)
+                        print(f"  主页面高度: {page_height}px")
+                        
+                        # 滚动到底部
+                        self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                        time.sleep(2)
+                        
+                        # 滚动回顶部
+                        self.page.evaluate("window.scrollTo(0, 0)")
+                        time.sleep(1)
+                    except Exception as e:
+                        print(f"  ⚠ 主页面滚动失败: {e}")
+                
                 print("  ✓ 页面滚动完成")
             except Exception as e:
                 print(f"  ⚠ 页面滚动失败: {e}")
             
-            # 方法1: 直接截图整个页面（最简单可靠）
+            # 滚动后再次点击pin按钮，确保布局正确
+            try:
+                frame_to_use = report_frame if report_frame else self.report_frame
+                if frame_to_use:
+                    pin_xpath = "//*[@id='wrapper']/div[1]/div[2]/div[2]/div/div[2]/div[2]/div[1]/div[2]/i"
+                    try:
+                        pin_button = frame_to_use.locator(f"xpath={pin_xpath}").first
+                        if pin_button.is_visible(timeout=2000):
+                            pin_button.click()
+                            time.sleep(1)
+                            print("  ✓ 滚动后再次点击pin按钮")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            
+            # 方法1: 分别截图现货和期货模块，然后截图整个页面
             if self.page:
                 try:
+                    # 先分别截图现货和期货模块
+                    spot_scroll_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[2]/div[2]/div/div[1]/div[2]/div/div/div/div/div[2]/div/div[2]/div/div/div[2]/div/div"
+                    futures_scroll_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[3]/div[2]/div/div[1]/div[2]/div/div/div/div/div[2]/div/div[2]/div/div/div[2]/div/div"
+                    
+                    # 尝试分别截图现货和期货模块
+                    spot_screenshot_path = None
+                    futures_screenshot_path = None
+                    
+                    try:
+                        print("  尝试分别截图现货和期货模块...")
+                        # 现货模块截图
+                        spot_container_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[2]"
+                        spot_element = self.page.locator(f"xpath={spot_container_xpath}").first
+                        if spot_element.is_visible(timeout=3000):
+                            spot_filepath = filepath.replace(".png", "_spot.png")
+                            spot_element.screenshot(path=spot_filepath)
+                            if os.path.exists(spot_filepath) and os.path.getsize(spot_filepath) > 0:
+                                spot_screenshot_path = spot_filepath
+                                print(f"  ✓ 现货模块截图成功: {spot_filepath}")
+                    except Exception as e:
+                        print(f"  ⚠ 现货模块截图失败: {e}")
+                    
+                    try:
+                        # 期货模块截图
+                        futures_container_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[3]"
+                        futures_element = self.page.locator(f"xpath={futures_container_xpath}").first
+                        if futures_element.is_visible(timeout=3000):
+                            futures_filepath = filepath.replace(".png", "_futures.png")
+                            futures_element.screenshot(path=futures_filepath)
+                            if os.path.exists(futures_filepath) and os.path.getsize(futures_filepath) > 0:
+                                futures_screenshot_path = futures_filepath
+                                print(f"  ✓ 期货模块截图成功: {futures_filepath}")
+                    except Exception as e:
+                        print(f"  ⚠ 期货模块截图失败: {e}")
+                    
+                    # 然后截图整个页面（主要截图）
                     print("  截图整个页面（完整）...")
+                    
+                    # 获取最终页面尺寸用于验证
+                    try:
+                        final_page_height = self.page.evaluate("""
+                            () => Math.max(
+                                document.body.scrollHeight,
+                                document.documentElement.scrollHeight,
+                                document.body.offsetHeight,
+                                document.documentElement.offsetHeight
+                            )
+                        """)
+                        viewport_height = self.page.viewport_size['height'] if self.page.viewport_size else 5000
+                        viewport_width = self.page.viewport_size['width'] if self.page.viewport_size else 1920
+                        print(f"  页面总高度: {final_page_height}px, 视口: {viewport_width}x{viewport_height}px")
+                        
+                        if final_page_height > viewport_height:
+                            print(f"  ⚠ 页面高度({final_page_height}px)超过视口({viewport_height}px)，使用full_page截图")
+                    except Exception as e:
+                        print(f"  ⚠ 获取页面尺寸失败: {e}")
+                    
                     # 使用full_page=True确保截图完整，会自动捕获所有滚动区域
+                    # 等待一下确保页面稳定
+                    time.sleep(1)
                     self.page.screenshot(path=filepath, full_page=True)
                     
                     if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
                         file_size_kb = os.path.getsize(filepath) / 1024
+                        
+                        # 验证截图尺寸（通过PIL检查）
+                        try:
+                            from PIL import Image
+                            img = Image.open(filepath)
+                            img_width, img_height = img.size
+                            print(f"  截图尺寸: {img_width}x{img_height}px")
+                            
+                            # 验证截图是否完整
+                            if final_page_height > 0:
+                                expected_height = final_page_height
+                                if img_height < expected_height * 0.9:  # 允许10%的误差
+                                    print(f"  ⚠ 警告: 截图高度({img_height}px)可能小于页面高度({final_page_height}px)")
+                                else:
+                                    print(f"  ✓ 截图高度验证通过: {img_height}px >= {expected_height}px")
+                            
+                            img.close()
+                        except ImportError:
+                            print("  ⚠ PIL未安装，跳过截图尺寸验证")
+                        except Exception as e:
+                            print(f"  ⚠ 验证截图尺寸失败: {e}")
+                        
                         print(f"✓ 截图成功: {filepath} (大小: {file_size_kb:.2f} KB)")
+                        if spot_screenshot_path:
+                            print(f"  现货模块截图: {spot_screenshot_path}")
+                        if futures_screenshot_path:
+                            print(f"  期货模块截图: {futures_screenshot_path}")
                         return filepath
+                    else:
+                        print("  ✗ 截图文件为空或不存在")
                 except Exception as e:
                     print(f"  ⚠ 页面截图失败: {e}")
+                    import traceback
+                    traceback.print_exc()
             
             # 方法2: 如果页面截图失败，尝试截图iframe元素
             if self.page:
@@ -794,53 +1115,48 @@ class DataScraper:
         
         return metadata
     
-    def query_data(self, target_frame: FrameLocator, page_config: PageConfig) -> bool:
-        """执行数据查询"""
-        # 对于P4TC页面，使用原始脚本的查询逻辑
+    def wait_for_data_load(self, target_frame: FrameLocator, page_config: PageConfig) -> bool:
+        """等待页面数据加载（优化版本：不需要点击查询按钮）"""
+        print("6. 等待页面数据加载...")
+        
+        # 获取配置的等待时间
+        config = page_config.data_extraction_config
+        wait_time = config.get("wait_after_query", 5)  # 使用配置的等待时间
+        
+        # 对于P4TC页面，使用更智能的等待逻辑
         if page_config.name == "P4TC现货应用决策":
-            if self.try_click(target_frame, [
-                "button:has-text('查询')",
-                "button[type='submit']",
-                "button:has-text('Query')",
-                "[class*='query']",
-                "[class*='search']"
-            ]):
-                print("6. 查询执行，等待响应...")
-                # 增加等待时间，确保数据加载完成
-                time.sleep(5)
-                
-                # 动态等待数据加载（检查页面是否有数据出现）
-                print("  等待数据加载...")
-                for i in range(10):  # 最多等待10秒
-                    try:
-                        # 检查是否有数据出现（检查是否有数字、日期等）
-                        page_text = target_frame.locator("body").inner_text(timeout=2000)
-                        # 检查是否包含P4TC相关的关键词或数据
-                        if any(keyword in page_text for keyword in ["做多", "做空", "盈亏比", "价差比", "预测值", "正收益", "负收益"]):
-                            print(f"  ✓ 数据已加载（等待了 {i+1} 秒）")
-                            break
-                        time.sleep(1)
-                    except:
-                        time.sleep(1)
-                else:
-                    print("  ⚠ 数据加载超时，继续尝试提取")
+            print("  检测到P4TC页面，智能等待数据加载...")
+            # 动态等待数据加载（检查页面是否有数据出现）
+            for i in range(10):  # 最多等待10秒
+                try:
+                    # 检查是否有数据出现（检查是否有数字、日期等）
+                    page_text = target_frame.locator("body").inner_text(timeout=2000)
+                    # 检查是否包含P4TC相关的关键词或数据
+                    if any(keyword in page_text for keyword in ["做多", "做空", "盈亏比", "价差比", "预测值", "正收益", "负收益"]):
+                        print(f"  ✓ 数据已加载（等待了 {i+1} 秒）")
+                        return True
+                    time.sleep(1)
+                except:
+                    time.sleep(1)
             else:
-                print("  未找到查询按钮，可能页面已自动加载数据")
-                time.sleep(2)  # 即使没有查询按钮，也等待一下
-            return True
+                print("  ⚠ 数据加载超时，继续尝试提取")
+                # 即使超时也等待一下，确保页面稳定
+                time.sleep(2)
         else:
-            # 其他页面的查询逻辑
-            config = page_config.data_extraction_config
-            wait_time = config.get("wait_after_query", 5)  # 默认增加到5秒
+            # 其他页面：等待固定时间，然后检查数据是否出现
+            print(f"  等待 {wait_time} 秒让页面数据加载...")
+            time.sleep(wait_time)
             
-            if self.try_click(target_frame, page_config.query_button_selectors):
-                print("查询执行，等待响应...")
-                time.sleep(wait_time)
-                return True
-            
-            print("未找到查询按钮，可能页面已自动加载数据")
-            time.sleep(2)  # 即使没有查询按钮，也等待一下
-            return True
+            # 尝试检查数据是否已加载
+            try:
+                page_text = target_frame.locator("body").inner_text(timeout=2000)
+                if page_text and len(page_text.strip()) > 50:
+                    print("  ✓ 页面内容已加载")
+                    return True
+            except:
+                print("  ⚠ 无法验证数据加载状态，继续尝试提取")
+        
+        return True
     
     def scrape_page_data(self, page_key: str) -> Optional[List[Dict]]:
         """抓取指定页面的数据"""
@@ -892,9 +1208,9 @@ class DataScraper:
                 print("✗ 未找到目标iframe")
                 return None
             
-            # 6. 查询数据
-            if not self.query_data(target_frame, page_config):
-                print("✗ 查询失败")
+            # 6. 等待数据加载（优化：不需要点击查询按钮）
+            if not self.wait_for_data_load(target_frame, page_config):
+                print("✗ 等待数据加载失败")
                 return None
             
             # 7. 提取数据
