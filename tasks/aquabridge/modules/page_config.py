@@ -429,9 +429,9 @@ PAGE_CONFIGS = {
             "button[type='submit']"
         ],
         data_extraction_config={
-            "max_rows": 100,
-            "max_cells": 20,
-            "wait_after_query": 3
+            "max_rows": 200,  # 增加行数限制以捕获更多表格数据
+            "max_cells": 30,  # 增加单元格限制以捕获更宽的表格
+            "wait_after_query": 5  # 增加等待时间确保数据完全加载
         }
     ),
     
@@ -488,9 +488,9 @@ PAGE_CONFIGS = {
             "button[type='submit']"
         ],
         data_extraction_config={
-            "max_rows": 100,
-            "max_cells": 20,
-            "wait_after_query": 3
+            "max_rows": 200,  # 增加行数限制以捕获更多表格数据
+            "max_cells": 30,  # 增加单元格限制以捕获更宽的表格
+            "wait_after_query": 5  # 增加等待时间确保数据完全加载
         }
     ),
     
@@ -548,9 +548,9 @@ PAGE_CONFIGS = {
             "button[type='submit']"
         ],
         data_extraction_config={
-            "max_rows": 100,
-            "max_cells": 20,
-            "wait_after_query": 3
+            "max_rows": 200,  # 增加行数限制以捕获更多表格数据
+            "max_cells": 30,  # 增加单元格限制以捕获更宽的表格
+            "wait_after_query": 5  # 增加等待时间确保数据完全加载
         }
     ),
     
@@ -607,9 +607,9 @@ PAGE_CONFIGS = {
             "button[type='submit']"
         ],
         data_extraction_config={
-            "max_rows": 100,
-            "max_cells": 20,
-            "wait_after_query": 3
+            "max_rows": 200,  # 增加行数限制以捕获更多表格数据
+            "max_cells": 30,  # 增加单元格限制以捕获更宽的表格
+            "wait_after_query": 5  # 增加等待时间确保数据完全加载
         }
     ),
     

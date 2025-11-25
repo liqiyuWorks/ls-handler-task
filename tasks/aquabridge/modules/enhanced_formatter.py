@@ -11,10 +11,12 @@ from datetime import datetime
 try:
     from .p4tc_parser import P4TCParser
     from .p5_parser import P5Parser
+    from .spot_decision_parser import SpotDecisionParser
     from .european_line_parser import EuropeanLineParser
 except ImportError:
     from p4tc_parser import P4TCParser
     from p5_parser import P5Parser
+    from spot_decision_parser import SpotDecisionParser
     from european_line_parser import EuropeanLineParser
 
 
@@ -50,6 +52,9 @@ class EnhancedFormatter:
         elif 'P5现货应用决策' in self.page_name or 'P5' in self.page_name:
             # P5页面需要传递原始表格数据，与P4TC区分开来
             self._extract_p5_data(tables)
+        elif 'P3A现货应用决策' in self.page_name or 'P6现货应用决策' in self.page_name:
+            # P3A和P6页面使用通用解析器
+            self._extract_spot_decision_data(tables)
         elif '欧线' in self.page_name or '欧线价格信号' in self.page_name:
             # 欧线页面使用专门的解析器
             self._extract_european_line_data(rows)
@@ -375,6 +380,128 @@ class EnhancedFormatter:
             if parsed_data and (any(parsed_data.get(key) for key in valid_keys_42d) or any(parsed_data.get(key) for key in valid_keys_14d)):
                 # 将解析后的数据存储到contracts中
                 self.contracts["p5_analysis"] = parsed_data
+    
+    def _extract_spot_decision_data(self, raw_data: List[Dict]):
+        """提取现货应用决策页面数据（P3A、P6等，与P4TC和P5区分开来）"""
+        # 从原始数据中提取所有表格行
+        all_rows = []
+        for table in raw_data:
+            if 'rows' in table:
+                all_rows.extend(table['rows'])
+        
+        if not all_rows:
+            # 如果没有表格数据，返回空结果
+            self.contracts["raw_table_data"] = {
+                "description": "现货应用决策原始数据",
+                "total_rows": 0,
+                "data": [],
+                "last_updated": datetime.now().isoformat()
+            }
+            return
+        
+        # 总是保存原始表格数据
+        table_data = []
+        for row in all_rows:
+            non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+            if non_empty_cells:
+                table_data.append(non_empty_cells)
+        
+        if table_data:
+            self.contracts["raw_table_data"] = {
+                "description": "现货应用决策原始数据",
+                "total_rows": len(table_data),
+                "data": table_data,
+                "last_updated": datetime.now().isoformat()
+            }
+        
+        # 检查数据格式 - 更严格的检测逻辑
+        data_text = " ".join([" ".join(row) for row in all_rows])
+        
+        # 检测产品类型
+        product_type = None
+        if "P3A" in self.page_name or "P3A" in data_text:
+            product_type = "P3A"
+        elif "P6" in self.page_name or "P6" in data_text:
+            product_type = "P6"
+        else:
+            product_type = "UNKNOWN"
+        
+        # 检查是否包含现货应用决策特有的关键词
+        spot_keywords = [
+            "P3A现货", "P6现货", "P3A现货应用决策", "P6现货应用决策",
+            "P3ATC", "P6TC", "P3A盈亏比", "P6盈亏比",
+            "P3ATC六周后预测模型评价", "P6TC六周后预测模型评价",
+            "P3ATC二周后预测模型评价", "P6TC二周后预测模型评价",
+            "P3A当前评估价格", "P6当前评估价格",
+            "预测14天后", "预测42天后"
+        ]
+        has_spot_keywords = any(keyword in data_text for keyword in spot_keywords)
+        
+        # 检查是否包含P4TC特有的关键词（用于区分）
+        p4tc_keywords = ["P4TC现货", "P4TC现货应用决策", "P4TC六周后预测模型评价"]
+        has_p4tc_keywords = any(keyword in data_text for keyword in p4tc_keywords)
+        
+        # 检查是否包含P5特有的关键词（用于区分）
+        p5_keywords = ["P5现货", "P5现货应用决策", "P5TC", "P5盈亏比"]
+        has_p5_keywords = any(keyword in data_text for keyword in p5_keywords)
+        
+        print(f"数据检测: 产品类型={product_type}, 现货关键词={has_spot_keywords}, P4TC关键词={has_p4tc_keywords}, P5关键词={has_p5_keywords}")
+        print(f"数据行数: {len(all_rows)}")
+        
+        if has_spot_keywords and not has_p4tc_keywords and not has_p5_keywords:
+            print(f"✓ 检测到{product_type}格式数据，使用通用现货应用决策解析器")
+            # 使用通用现货应用决策解析器
+            parser = SpotDecisionParser()
+            parsed_data = parser.parse_spot_decision_data(all_rows, self.page_name)
+            
+            # 根据产品类型确定有效的键
+            product_lower = product_type.lower()
+            valid_keys_42d = [
+                'trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns',
+                f'{product_lower}_profit_loss_ratio', f'{product_lower}tc_model_evaluation'
+            ]
+            valid_keys_14d = [
+                'trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns',
+                f'{product_lower}_current_evaluation_price', f'{product_lower}tc_14d_model_evaluation'
+            ]
+            
+            if parsed_data and (any(parsed_data.get(key) for key in valid_keys_42d) or any(parsed_data.get(key) for key in valid_keys_14d)):
+                # 将解析后的数据存储到contracts中，使用产品类型作为键
+                self.contracts[f"{product_lower}_analysis"] = parsed_data
+        elif has_p4tc_keywords:
+            print("⚠ 检测到P4TC格式数据，但页面名称是现货应用决策，使用通用解析器")
+            parser = SpotDecisionParser()
+            parsed_data = parser.parse_spot_decision_data(all_rows, self.page_name)
+            if parsed_data:
+                product_lower = parsed_data.get('metadata', {}).get('product_type', 'unknown').lower()
+                self.contracts[f"{product_lower}_analysis"] = parsed_data
+        elif has_p5_keywords:
+            print("⚠ 检测到P5格式数据，但页面名称是现货应用决策，使用通用解析器")
+            parser = SpotDecisionParser()
+            parsed_data = parser.parse_spot_decision_data(all_rows, self.page_name)
+            if parsed_data:
+                product_lower = parsed_data.get('metadata', {}).get('product_type', 'unknown').lower()
+                self.contracts[f"{product_lower}_analysis"] = parsed_data
+        else:
+            print("⚠ 未检测到明确的页面格式，尝试通用现货应用决策解析器")
+            # 默认尝试通用解析器
+            parser = SpotDecisionParser()
+            parsed_data = parser.parse_spot_decision_data(all_rows, self.page_name)
+            
+            if parsed_data:
+                product_lower = parsed_data.get('metadata', {}).get('product_type', 'unknown').lower()
+                valid_keys_42d = [
+                    'trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns',
+                    f'{product_lower}_profit_loss_ratio', f'{product_lower}tc_model_evaluation'
+                ]
+                valid_keys_14d = [
+                    'trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns',
+                    f'{product_lower}_current_evaluation_price', f'{product_lower}tc_14d_model_evaluation'
+                ]
+                
+                if any(parsed_data.get(key) for key in valid_keys_42d) or any(parsed_data.get(key) for key in valid_keys_14d):
+                    # 将解析后的数据存储到contracts中
+                    self.contracts[f"{product_lower}_analysis"] = parsed_data
     
     def _extract_european_line_data(self, rows: List[List[str]]):
         """提取欧线页面数据"""
