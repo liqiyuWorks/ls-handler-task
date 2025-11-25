@@ -10,9 +10,11 @@ from typing import Dict, List, Any, Optional
 from datetime import datetime
 try:
     from .p4tc_parser import P4TCParser
+    from .p5_parser import P5Parser
     from .european_line_parser import EuropeanLineParser
 except ImportError:
     from p4tc_parser import P4TCParser
+    from p5_parser import P5Parser
     from european_line_parser import EuropeanLineParser
 
 
@@ -45,6 +47,9 @@ class EnhancedFormatter:
         elif 'P4TC现货应用决策' in self.page_name:
             # P4TC页面需要传递原始表格数据
             self._extract_p4tc_data(tables)
+        elif 'P5现货应用决策' in self.page_name or 'P5' in self.page_name:
+            # P5页面需要传递原始表格数据，与P4TC区分开来
+            self._extract_p5_data(tables)
         elif '欧线' in self.page_name or '欧线价格信号' in self.page_name:
             # 欧线页面使用专门的解析器
             self._extract_european_line_data(rows)
@@ -282,6 +287,80 @@ class EnhancedFormatter:
             if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'model_evaluation']):
                 # 将解析后的数据存储到contracts中
                 self.contracts["p4tc_analysis"] = parsed_data
+    
+    def _extract_p5_data(self, raw_data: List[Dict]):
+        """提取P5页面数据（与P4TC区分开来）"""
+        # 从原始数据中提取所有表格行
+        all_rows = []
+        for table in raw_data:
+            if 'rows' in table:
+                all_rows.extend(table['rows'])
+        
+        if not all_rows:
+            # 如果没有表格数据，返回空结果
+            self.contracts["raw_table_data"] = {
+                "description": "P5现货应用决策原始数据",
+                "total_rows": 0,
+                "data": [],
+                "last_updated": datetime.now().isoformat()
+            }
+            return
+        
+        # 总是保存原始表格数据
+        table_data = []
+        for row in all_rows:
+            non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+            if non_empty_cells:
+                table_data.append(non_empty_cells)
+        
+        if table_data:
+            self.contracts["raw_table_data"] = {
+                "description": "P5现货应用决策原始数据",
+                "total_rows": len(table_data),
+                "data": table_data,
+                "last_updated": datetime.now().isoformat()
+            }
+        
+        # 检查数据格式 - 更严格的检测逻辑，确保是P5数据而不是P4TC
+        data_text = " ".join([" ".join(row) for row in all_rows])
+        
+        # 检查是否包含P5特有的关键词
+        p5_keywords = ["P5现货", "P5现货应用决策", "P5TC", "P5盈亏比", "P5TC六周后预测模型评价"]
+        has_p5_keywords = any(keyword in data_text for keyword in p5_keywords)
+        
+        # 检查是否包含P4TC特有的关键词（用于区分）
+        p4tc_keywords = ["P4TC现货", "P4TC现货应用决策", "P4TC六周后预测模型评价"]
+        has_p4tc_keywords = any(keyword in data_text for keyword in p4tc_keywords)
+        
+        print(f"数据检测: P5关键词={has_p5_keywords}, P4TC关键词={has_p4tc_keywords}")
+        print(f"数据行数: {len(all_rows)}")
+        
+        if has_p5_keywords and not has_p4tc_keywords:
+            print("✓ 检测到P5格式数据，使用P5解析器")
+            # 使用专门的P5解析器
+            parser = P5Parser()
+            parsed_data = parser.parse_p5_data(all_rows)
+            
+            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']):
+                # 将解析后的数据存储到contracts中
+                self.contracts["p5_analysis"] = parsed_data
+        elif has_p4tc_keywords:
+            print("⚠ 检测到P4TC格式数据，但页面名称是P5，使用P5解析器")
+            # 即使有P4TC关键词，但页面名称是P5，仍然使用P5解析器
+            parser = P5Parser()
+            parsed_data = parser.parse_p5_data(all_rows)
+            
+            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']):
+                self.contracts["p5_analysis"] = parsed_data
+        else:
+            print("⚠ 未检测到明确的页面格式，尝试P5解析器")
+            # 默认尝试P5解析器
+            parser = P5Parser()
+            parsed_data = parser.parse_p5_data(all_rows)
+            
+            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']):
+                # 将解析后的数据存储到contracts中
+                self.contracts["p5_analysis"] = parsed_data
     
     def _extract_european_line_data(self, rows: List[List[str]]):
         """提取欧线页面数据"""

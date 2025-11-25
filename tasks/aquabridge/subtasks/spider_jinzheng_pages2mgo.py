@@ -87,6 +87,51 @@ class SpiderJinzhengPages2mgo(BaseModel):
                 "description": "单边价格信号汇总下的交易机会汇总（42天后）数据",
                 "formatter": EnhancedFormatter(),
                 "is_screenshot": True  # 标记为截图类型页面
+            },
+            # P5现货应用决策页面
+            "p5_spot_decision_42d": {
+                "name": "P5现货应用决策（42天后）",
+                "description": "P5现货策略的应用决策数据（42天后）",
+                "formatter": EnhancedFormatter()
+            },
+            "p5_spot_decision_14d": {
+                "name": "P5现货应用决策（14天后）",
+                "description": "P5现货策略的应用决策数据（14天后）",
+                "formatter": EnhancedFormatter()
+            },
+            # P3A现货应用决策页面
+            "p3a_spot_decision_42d": {
+                "name": "P3A现货应用决策（42天后）",
+                "description": "P3A现货策略的应用决策数据（42天后）",
+                "formatter": EnhancedFormatter()
+            },
+            "p3a_spot_decision_14d": {
+                "name": "P3A现货应用决策（14天后）",
+                "description": "P3A现货策略的应用决策数据（14天后）",
+                "formatter": EnhancedFormatter()
+            },
+            # P6现货应用决策页面
+            "p6_spot_decision_42d": {
+                "name": "P6现货应用决策（42天后）",
+                "description": "P6现货策略的应用决策数据（42天后）",
+                "formatter": EnhancedFormatter()
+            },
+            "p6_spot_decision_14d": {
+                "name": "P6现货应用决策（14天后）",
+                "description": "P6现货策略的应用决策数据（14天后）",
+                "formatter": EnhancedFormatter()
+            },
+            # C3现货应用决策页面
+            "c3_spot_decision": {
+                "name": "C3现货应用决策",
+                "description": "C3现货策略的应用决策数据",
+                "formatter": EnhancedFormatter()
+            },
+            # C5现货应用决策页面
+            "c5_spot_decision": {
+                "name": "C5现货应用决策",
+                "description": "C5现货策略的应用决策数据",
+                "formatter": EnhancedFormatter()
             }
         }
 
@@ -388,7 +433,7 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return default_value
         
         # 从环境变量或task参数中获取配置
-        page_key = get_config('page_key', 'european_line_signals', 'SPIDER_PAGE_KEY')
+        page_key = get_config('page_key', 'p5_spot_decision_42d', 'SPIDER_PAGE_KEY')
         browser = get_config('browser', 'firefox', 'SPIDER_BROWSER')
         headless = get_config('headless', False, 'SPIDER_HEADLESS')
         save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')
