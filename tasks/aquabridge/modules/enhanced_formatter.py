@@ -55,6 +55,9 @@ class EnhancedFormatter:
         elif 'P3A现货应用决策' in self.page_name or 'P6现货应用决策' in self.page_name:
             # P3A和P6页面使用通用解析器
             self._extract_spot_decision_data(tables)
+        elif 'C3现货应用决策' in self.page_name or 'C5现货应用决策' in self.page_name:
+            # C3和C5页面使用通用解析器
+            self._extract_spot_decision_data(tables)
         elif '欧线' in self.page_name or '欧线价格信号' in self.page_name:
             # 欧线页面使用专门的解析器
             self._extract_european_line_data(rows)
@@ -417,23 +420,30 @@ class EnhancedFormatter:
         # 检查数据格式 - 更严格的检测逻辑
         data_text = " ".join([" ".join(row) for row in all_rows])
         
-        # 检测产品类型
+        # 检测产品类型（优先检测C3和C5，避免被P3A、P5、P6误匹配）
         product_type = None
-        if "P3A" in self.page_name or "P3A" in data_text:
+        if "C3" in self.page_name or "C3" in data_text:
+            product_type = "C3"
+        elif "C5" in self.page_name or "C5" in data_text:
+            product_type = "C5"
+        elif "P3A" in self.page_name or "P3A" in data_text:
             product_type = "P3A"
         elif "P6" in self.page_name or "P6" in data_text:
             product_type = "P6"
         else:
             product_type = "UNKNOWN"
         
-        # 检查是否包含现货应用决策特有的关键词
+        # 检查是否包含现货应用决策特有的关键词（包括C3和C5）
         spot_keywords = [
-            "P3A现货", "P6现货", "P3A现货应用决策", "P6现货应用决策",
-            "P3ATC", "P6TC", "P3A盈亏比", "P6盈亏比",
+            "P3A现货", "P6现货", "C3现货", "C5现货",
+            "P3A现货应用决策", "P6现货应用决策", "C3现货应用决策", "C5现货应用决策",
+            "P3ATC", "P6TC", "C3TC", "C5TC",
+            "P3A盈亏比", "P6盈亏比", "C3盈亏比", "C5盈亏比",
             "P3ATC六周后预测模型评价", "P6TC六周后预测模型评价",
             "P3ATC二周后预测模型评价", "P6TC二周后预测模型评价",
             "P3A当前评估价格", "P6当前评估价格",
-            "预测14天后", "预测42天后"
+            "预测14天后", "预测42天后",
+            "做多胜率统计", "做空胜率统计"  # C3使用做多胜率统计
         ]
         has_spot_keywords = any(keyword in data_text for keyword in spot_keywords)
         
