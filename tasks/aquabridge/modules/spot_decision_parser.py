@@ -568,13 +568,28 @@ class SpotDecisionParser:
                 break
         
         # 提取最大风险时间分布（支持多种格式）
+        # 需要在"最大风险时间"部分之后查找，避免匹配到最大收益时间分布的值
+        # 先找到"最大风险时间"的位置
+        risk_timing_section_match = re.search(r'最大风险时间.*?出现概率', text, re.DOTALL)
+        if risk_timing_section_match:
+            # 只在"最大风险时间"部分之后查找
+            risk_section_text = text[risk_timing_section_match.end():]
+        else:
+            # 如果找不到"最大风险时间"部分，尝试在"最大风险极值"之后查找
+            risk_section_match = re.search(r'最大风险极值.*?', text, re.DOTALL)
+            if risk_section_match:
+                risk_section_text = text[risk_section_match.end():]
+            else:
+                # 如果都找不到，使用全文（向后兼容）
+                risk_section_text = text
+        
         # 为每个时间段单独匹配，确保都能提取到
         risk_timing_patterns_0_14 = [
             r'0~14天[：:]\s*(\d+)%',
             r'0~14天\s+(\d+)%',  # 没有冒号
         ]
         for pattern in risk_timing_patterns_0_14:
-            match = re.search(pattern, text)
+            match = re.search(pattern, risk_section_text)
             if match:
                 profit_loss_data["max_risk_timing_distribution"]['0-14_days'] = int(match.group(1))
                 break
@@ -586,7 +601,7 @@ class SpotDecisionParser:
             r'15~28天\s+(\d+)%',  # 没有冒号
         ]
         for pattern in risk_timing_patterns_15_28:
-            match = re.search(pattern, text)
+            match = re.search(pattern, risk_section_text)
             if match:
                 profit_loss_data["max_risk_timing_distribution"]['15-28_days'] = int(match.group(1))
                 break
@@ -598,7 +613,7 @@ class SpotDecisionParser:
             r'29~42天\s+(\d+)%',  # 没有冒号
         ]
         for pattern in risk_timing_patterns_29_42:
-            match = re.search(pattern, text)
+            match = re.search(pattern, risk_section_text)
             if match:
                 profit_loss_data["max_risk_timing_distribution"]['29-42_days'] = int(match.group(1))
                 break
