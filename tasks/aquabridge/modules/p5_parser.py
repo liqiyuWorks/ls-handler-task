@@ -16,28 +16,41 @@ class P5Parser:
     def __init__(self):
         self.parsed_data = {}
     
-    def parse_p5_data(self, rows: List[List[str]]) -> Dict[str, Any]:
-        """解析P5页面数据"""
+    def parse_p5_data(self, rows: List[List[str]], page_name: str = "") -> Dict[str, Any]:
+        """解析P5页面数据，支持14d和42d版本"""
         if not rows:
             return {}
         
         # 将表格数据转换为文本进行分析
         text_data = self._rows_to_text(rows)
         
+        # 检测是14d还是42d版本
+        is_14d = "14天后" in page_name or "14天" in text_data or "二周后" in text_data or "预测14天后" in text_data
+        is_42d = "42天后" in page_name or "42天" in text_data or "六周后" in text_data or "预测42天后" in text_data
+        
         # 解析各个部分
         self.parsed_data = {
             "metadata": {
                 "page_name": "P5现货应用决策",
+                "version": "14d" if is_14d else "42d" if is_42d else "unknown",
                 "parsed_at": datetime.now().isoformat(),
                 "data_source": "AquaBridge"
             },
             "trading_recommendation": self._extract_trading_recommendation(text_data),
-            "current_forecast": self._extract_current_forecast(text_data),
-            "positive_returns": self._extract_positive_returns(text_data),
-            "negative_returns": self._extract_negative_returns(text_data),
-            "p5_profit_loss_ratio": self._extract_p5_profit_loss_ratio(text_data),
-            "p5tc_model_evaluation": self._extract_p5tc_model_evaluation(text_data)
+            "current_forecast": self._extract_current_forecast(text_data, is_14d),
+            "positive_returns": self._extract_positive_returns(text_data, is_14d),
+            "negative_returns": self._extract_negative_returns(text_data, is_14d),
         }
+        
+        # 根据版本添加不同的数据部分
+        if is_14d:
+            # 14d版本特有的数据
+            self.parsed_data["p5_current_evaluation_price"] = self._extract_p5_current_evaluation_price(text_data)
+            self.parsed_data["p5tc_14d_model_evaluation"] = self._extract_p5tc_14d_model_evaluation(text_data)
+        else:
+            # 42d版本的数据
+            self.parsed_data["p5_profit_loss_ratio"] = self._extract_p5_profit_loss_ratio(text_data)
+            self.parsed_data["p5tc_model_evaluation"] = self._extract_p5tc_model_evaluation(text_data)
         
         return self.parsed_data
     
@@ -83,13 +96,14 @@ class P5Parser:
         
         return recommendation
     
-    def _extract_current_forecast(self, text: str) -> Dict[str, Any]:
+    def _extract_current_forecast(self, text: str, is_14d: bool = False) -> Dict[str, Any]:
         """提取当前预测信息"""
         forecast = {
             "date": None,
             "current_value": None,
             "comprehensive_spread_ratio": None,
             "comprehensive_spread_ratio_range": None,
+            "gear_interval": None,  # 14d版本特有
             "forecast_date": None,
             "forecast_value": None,
             "probability": None
@@ -139,6 +153,19 @@ class P5Parser:
                 forecast["comprehensive_spread_ratio_range"] = f"{match.group(1)} - {match.group(2)}"
                 break
         
+        # 提取档位区间（14d版本特有）
+        if is_14d:
+            gear_interval_patterns = [
+                r'档位区间[：:]\s*(\d+)\s*~\s*(\d+)',
+                r'档位区间\s*(\d+)\s*~\s*(\d+)',
+                r'(\d+)\s*~\s*(\d+)',  # 通用格式
+            ]
+            for pattern in gear_interval_patterns:
+                match = re.search(pattern, text)
+                if match:
+                    forecast["gear_interval"] = f"{match.group(1)} ~ {match.group(2)}"
+                    break
+        
         # 提取预测日期和预测值
         forecast_patterns = [
             r'(\d{4}-\d{2}-\d{2})预测值[：:]\s*(\d+)',
@@ -165,32 +192,31 @@ class P5Parser:
         
         return forecast
     
-    def _extract_positive_returns(self, text: str) -> Dict[str, Any]:
+    def _extract_positive_returns(self, text: str, is_14d: bool = False) -> Dict[str, Any]:
         """提取正收益统计"""
         positive = {
             "final_positive_returns_percentage": None,
-            "final_positive_returns_average": None,
+            "final_positive_returns_average": None,  # 14d可能是数值，42d可能是百分比
             "distribution": {},
             "statistics": {},
             "timing_distribution": {}
         }
         
         # 提取最终正收益占比和平均值
-        percent_avg_patterns = [
-            r'最终正收益占比[：:]\s*(\d+)%',
-            r'最终正收益平均值[：:]\s*(\d+)%',
-            r'(\d+)%\s+最终正收益占比',
-            r'(\d+)%\s+最终正收益平均值',
-        ]
-        
-        # 尝试匹配 "66% 最终正收益占比" 和 "22% 最终正收益平均值" 格式
+        # 14d版本：最终正收益平均值可能是数值（如1419），42d版本是百分比（如22%）
         final_percent_match = re.search(r'(\d+)%\s+最终正收益占比', text)
         if final_percent_match:
             positive["final_positive_returns_percentage"] = int(final_percent_match.group(1))
         
-        final_avg_match = re.search(r'(\d+)%\s+最终正收益平均值', text)
-        if final_avg_match:
-            positive["final_positive_returns_average"] = int(final_avg_match.group(1))
+        # 尝试匹配百分比格式（42d版本）
+        final_avg_percent_match = re.search(r'(\d+)%\s+最终正收益平均值', text)
+        if final_avg_percent_match:
+            positive["final_positive_returns_average"] = int(final_avg_percent_match.group(1))
+        else:
+            # 尝试匹配数值格式（14d版本）
+            final_avg_value_match = re.search(r'最终正收益平均值[：:]\s*(\d+)', text)
+            if final_avg_value_match:
+                positive["final_positive_returns_average"] = int(final_avg_value_match.group(1))
         
         # 提取分布情况
         distribution_patterns = [
@@ -231,11 +257,11 @@ class P5Parser:
         
         return positive
     
-    def _extract_negative_returns(self, text: str) -> Dict[str, Any]:
+    def _extract_negative_returns(self, text: str, is_14d: bool = False) -> Dict[str, Any]:
         """提取负收益统计"""
         negative = {
             "final_negative_returns_percentage": None,
-            "final_negative_returns_average": None,
+            "final_negative_returns_average": None,  # 14d可能是数值，42d可能是百分比
             "distribution": {},
             "statistics": {}
         }
@@ -245,9 +271,15 @@ class P5Parser:
         if final_percent_match:
             negative["final_negative_returns_percentage"] = int(final_percent_match.group(1))
         
-        final_avg_match = re.search(r'(-?\d+)%\s+最终负收益平均值', text)
-        if final_avg_match:
-            negative["final_negative_returns_average"] = int(final_avg_match.group(1))
+        # 尝试匹配百分比格式（42d版本）
+        final_avg_percent_match = re.search(r'(-?\d+)%\s+最终负收益平均值', text)
+        if final_avg_percent_match:
+            negative["final_negative_returns_average"] = int(final_avg_percent_match.group(1))
+        else:
+            # 尝试匹配数值格式（14d版本）
+            final_avg_value_match = re.search(r'最终负收益平均值[：:]\s*(-?\d+)', text)
+            if final_avg_value_match:
+                negative["final_negative_returns_average"] = int(final_avg_value_match.group(1))
         
         # 提取分布情况
         distribution_patterns = [
@@ -403,6 +435,95 @@ class P5Parser:
             (r'-2500\s+0\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '-2500~0'),
             (r'0\s+2500\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '0~2500'),
             (r'2500\s+5000\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '2500~5000'),
+            (r'>=5000\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '>=5000')
+        ]
+        
+        for pattern, range_name in range_patterns:
+            match = re.search(pattern, text)
+            if match:
+                evaluation["evaluation_ranges"].append({
+                    "range": range_name,
+                    "historical_accuracy_rate": float(match.group(1)),
+                    "historical_actual_value": int(match.group(2)),
+                    "historical_fit_value": int(match.group(3))
+                })
+        
+        return evaluation
+    
+    def _extract_p5_current_evaluation_price(self, text: str) -> Dict[str, Any]:
+        """提取P5当前评估价格（14d版本特有）"""
+        evaluation_price = {
+            "date": None,
+            "current_price": None,
+            "evaluated_price": None,
+            "price_difference_ratio": None
+        }
+        
+        # 提取日期
+        date_match = re.search(r'日期[：:]\s*(\d{4}-\d{2}-\d{2})', text)
+        if date_match:
+            evaluation_price["date"] = date_match.group(1)
+        
+        # 提取当前价格
+        current_price_match = re.search(r'当前价格/元每吨[：:]\s*(\d+)', text)
+        if current_price_match:
+            evaluation_price["current_price"] = int(current_price_match.group(1))
+        
+        # 提取评估价格
+        evaluated_price_match = re.search(r'评估价格/元每吨[：:]\s*(\d+)', text)
+        if evaluated_price_match:
+            evaluation_price["evaluated_price"] = int(evaluated_price_match.group(1))
+        
+        # 提取价差比
+        ratio_match = re.search(r'价差比[：:]\s*(-?\d+%)', text)
+        if ratio_match:
+            evaluation_price["price_difference_ratio"] = ratio_match.group(1)
+        
+        return evaluation_price
+    
+    def _extract_p5tc_14d_model_evaluation(self, text: str) -> Dict[str, Any]:
+        """提取P5TC二周后预测模型评价数据（14d版本特有）"""
+        evaluation = {
+            "date": None,
+            "current_price": None,
+            "forecast_14day_price_difference": None,
+            "forecast_14day_price": None,
+            "price_difference_ratio": None,
+            "evaluation_ranges": []
+        }
+        
+        # 提取日期
+        date_match = re.search(r'日期[：:]\s*(\d{4}-\d{2}-\d{2})', text)
+        if date_match:
+            evaluation["date"] = date_match.group(1)
+        
+        # 提取当前价格
+        current_price_match = re.search(r'当前价格/元每吨[：:]\s*(\d+)', text)
+        if current_price_match:
+            evaluation["current_price"] = int(current_price_match.group(1))
+        
+        # 提取预测14天后价差
+        price_diff_match = re.search(r'预测14天后价差/元每吨[：:]\s*(-?\d+)', text)
+        if price_diff_match:
+            evaluation["forecast_14day_price_difference"] = int(price_diff_match.group(1))
+        
+        # 提取预测14天后价格
+        forecast_price_match = re.search(r'预测14天后价格/元每吨[：:]\s*(\d+)', text)
+        if forecast_price_match:
+            evaluation["forecast_14day_price"] = int(forecast_price_match.group(1))
+        
+        # 提取价差比
+        ratio_match = re.search(r'价差比[：:]\s*(-?\d+%)', text)
+        if ratio_match:
+            evaluation["price_difference_ratio"] = ratio_match.group(1)
+        
+        # 提取区间评价数据（与42d版本相同）
+        range_patterns = [
+            (r'<-5000\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '<-5000'),
+            (r'-5000\s+~?\s+-2500\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '-5000~-2500'),
+            (r'-2500\s+~?\s+0\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '-2500~0'),
+            (r'0\s+~?\s+2500\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '0~2500'),
+            (r'2500\s+~?\s+5000\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '2500~5000'),
             (r'>=5000\s+(\d+\.?\d*)%\s+(-?\d+)\s+(-?\d+)', '>=5000')
         ]
         

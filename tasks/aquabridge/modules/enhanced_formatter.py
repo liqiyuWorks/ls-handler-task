@@ -324,8 +324,12 @@ class EnhancedFormatter:
         # 检查数据格式 - 更严格的检测逻辑，确保是P5数据而不是P4TC
         data_text = " ".join([" ".join(row) for row in all_rows])
         
-        # 检查是否包含P5特有的关键词
-        p5_keywords = ["P5现货", "P5现货应用决策", "P5TC", "P5盈亏比", "P5TC六周后预测模型评价"]
+        # 检查是否包含P5特有的关键词（包括14d和42d版本）
+        p5_keywords = [
+            "P5现货", "P5现货应用决策", "P5TC", "P5盈亏比", 
+            "P5TC六周后预测模型评价", "P5TC二周后预测模型评价",
+            "P5当前评估价格", "预测14天后", "预测42天后"
+        ]
         has_p5_keywords = any(keyword in data_text for keyword in p5_keywords)
         
         # 检查是否包含P4TC特有的关键词（用于区分）
@@ -337,28 +341,38 @@ class EnhancedFormatter:
         
         if has_p5_keywords and not has_p4tc_keywords:
             print("✓ 检测到P5格式数据，使用P5解析器")
-            # 使用专门的P5解析器
+            # 使用专门的P5解析器，传递页面名称以区分14d和42d
             parser = P5Parser()
-            parsed_data = parser.parse_p5_data(all_rows)
+            parsed_data = parser.parse_p5_data(all_rows, self.page_name)
             
-            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']):
+            # 检查解析结果，支持14d和42d的不同数据结构
+            valid_keys_42d = ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']
+            valid_keys_14d = ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_current_evaluation_price', 'p5tc_14d_model_evaluation']
+            
+            if parsed_data and (any(parsed_data.get(key) for key in valid_keys_42d) or any(parsed_data.get(key) for key in valid_keys_14d)):
                 # 将解析后的数据存储到contracts中
                 self.contracts["p5_analysis"] = parsed_data
         elif has_p4tc_keywords:
             print("⚠ 检测到P4TC格式数据，但页面名称是P5，使用P5解析器")
             # 即使有P4TC关键词，但页面名称是P5，仍然使用P5解析器
             parser = P5Parser()
-            parsed_data = parser.parse_p5_data(all_rows)
+            parsed_data = parser.parse_p5_data(all_rows, self.page_name)
             
-            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']):
+            valid_keys_42d = ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']
+            valid_keys_14d = ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_current_evaluation_price', 'p5tc_14d_model_evaluation']
+            
+            if parsed_data and (any(parsed_data.get(key) for key in valid_keys_42d) or any(parsed_data.get(key) for key in valid_keys_14d)):
                 self.contracts["p5_analysis"] = parsed_data
         else:
             print("⚠ 未检测到明确的页面格式，尝试P5解析器")
             # 默认尝试P5解析器
             parser = P5Parser()
-            parsed_data = parser.parse_p5_data(all_rows)
+            parsed_data = parser.parse_p5_data(all_rows, self.page_name)
             
-            if parsed_data and any(parsed_data.get(key) for key in ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']):
+            valid_keys_42d = ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_profit_loss_ratio', 'p5tc_model_evaluation']
+            valid_keys_14d = ['trading_recommendation', 'current_forecast', 'positive_returns', 'negative_returns', 'p5_current_evaluation_price', 'p5tc_14d_model_evaluation']
+            
+            if parsed_data and (any(parsed_data.get(key) for key in valid_keys_42d) or any(parsed_data.get(key) for key in valid_keys_14d)):
                 # 将解析后的数据存储到contracts中
                 self.contracts["p5_analysis"] = parsed_data
     
