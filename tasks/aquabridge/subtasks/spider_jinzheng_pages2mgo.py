@@ -82,12 +82,12 @@ class SpiderJinzhengPages2mgo(BaseModel):
                 "description": "单边价格信号汇总下的欧线数据",
                 "formatter": EnhancedFormatter()
             },
-            "trading_opportunity_42d": {
-                "name": "交易机会汇总（42天后）",
-                "description": "单边价格信号汇总下的交易机会汇总（42天后）数据",
-                "formatter": EnhancedFormatter(),
-                "is_screenshot": True  # 标记为截图类型页面
-            },
+            # "trading_opportunity_42d": {
+            #     "name": "交易机会汇总（42天后）",
+            #     "description": "单边价格信号汇总下的交易机会汇总（42天后）数据",
+            #     "formatter": EnhancedFormatter(),
+            #     "is_screenshot": True  # 标记为截图类型页面
+            # },
             # P5现货应用决策页面
             "p5_spot_decision_42d": {
                 "name": "P5现货应用决策（42天后）",
