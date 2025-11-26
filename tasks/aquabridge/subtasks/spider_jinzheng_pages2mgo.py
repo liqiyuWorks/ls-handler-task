@@ -423,9 +423,31 @@ class SpiderJinzhengPages2mgo(BaseModel):
         print("页面处理结果摘要:")
         success_count = sum(1 for v in results.values() if v)
         failed_count = total_pages - success_count
+        
+        # 收集成功和失败的页面
+        success_pages = [page_key for page_key, success in results.items() if success]
+        failed_pages = [page_key for page_key, success in results.items() if not success]
+        
         print(f"  总计: {total_pages} 个页面")
         print(f"  成功: {success_count} 个页面")
         print(f"  失败: {failed_count} 个页面")
+        
+        # 如果有失败的页面，列出详细信息
+        if failed_pages:
+            print(f"\n  失败的页面列表:")
+            for page_key in failed_pages:
+                page_name = self.supported_pages.get(page_key, {}).get('name', page_key)
+                print(f"    - {page_key} ({page_name})")
+        
+        # 如果有成功的页面，也可以选择性地列出（可选）
+        if success_pages and len(success_pages) <= 20:  # 如果成功页面不多，可以列出
+            print(f"\n  成功的页面列表:")
+            for page_key in success_pages:
+                page_name = self.supported_pages.get(page_key, {}).get('name', page_key)
+                print(f"    - {page_key} ({page_name})")
+        elif success_pages:
+            print(f"\n  成功的页面: {', '.join(success_pages[:10])}..." if len(success_pages) > 10 else f"\n  成功的页面: {', '.join(success_pages)}")
+        
         print(f"{'='*60}\n")
         
         return results
@@ -459,11 +481,28 @@ class SpiderJinzhengPages2mgo(BaseModel):
         total_count = len(results)
         success_rate = (success_count / total_count * 100) if total_count > 0 else 0
         
+        # 收集失败和成功的页面，包含页面名称
+        failed_pages = []
+        success_pages = []
+        
+        for page_key, success in results.items():
+            page_name = self.supported_pages.get(page_key, {}).get('name', page_key)
+            page_info = {
+                'page_key': page_key,
+                'page_name': page_name
+            }
+            if success:
+                success_pages.append(page_info)
+            else:
+                failed_pages.append(page_info)
+        
         return {
             'success_count': success_count,
             'total_count': total_count,
             'success_rate': round(success_rate, 1),
-            'failed_pages': [k for k, v in results.items() if not v]
+            'failed_pages': failed_pages,
+            'success_pages': success_pages,
+            'failed_page_keys': [p['page_key'] for p in failed_pages]  # 保持向后兼容
         }
 
     @decorate.exception_capture_close_datebase
