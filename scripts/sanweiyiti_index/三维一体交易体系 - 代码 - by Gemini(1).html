@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>三维一体交易修炼框架 | 交互式系统</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <style>
+        /* 已移除 Google Fonts 链接，改用系统字体以确保大陆访问性 */
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'SimHei', sans-serif; 
+            background-color: #fafaf9; /* Stone 50 */
+            color: #44403c; /* Stone 700 */
+        }
+
+        /* Chart Container Utilities */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+
+        /* Custom Scrollbar for clean look */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f5f5f4; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #d6d3d1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a29e; 
+        }
+
+        .tab-active {
+            border-bottom: 2px solid #ea580c; /* Orange 600 */
+            color: #ea580c;
+            font-weight: 600;
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+
+        .step-line::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 15px;
+            width: 2px;
+            background-color: #e5e7eb;
+            z-index: 0;
+        }
+    </style>
+    <!-- Chosen Palette: Warm Stone & Terracotta (Zen/Focus Theme) -->
+    <!-- Application Structure Plan: 
+         1. Dashboard (Home): Visualizes the Core Formula "Cognition * Mindset * Execution".
+         2. Pillar 1 (Strategy Engine): Interactive tool to map Market View -> Strategy.
+         3. Pillar 2 (Mindset Sanctuary): Interactive Checklist & Mental Anchors.
+         4. Pillar 3 (Execution Flow): Interactive timeline of the 6-step process & Iteration stats.
+         Rationale: Breaks down the dense framework into actionable tools.
+    -->
+    <!-- Visualization & Content Choices:
+         - Core Formula -> Radar Chart or Dynamic Sliders -> To show the multiplicative nature of the system.
+         - Strategy Matrix -> Interactive Scatter Plot (Chart.js) -> To visualize strategies based on Volatility vs. Direction.
+         - Execution -> Vertical Timeline (HTML/CSS) -> To guide the user through the 6-step process logically.
+         - Review -> Bar Chart (Chart.js) -> To visualize the concept of reducing "Execution Deviation".
+         CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Navigation -->
+    <nav class="bg-white border-b border-stone-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16">
+                <div class="flex items-center">
+                    <span class="text-xl font-bold text-stone-800 tracking-tight">三维一体<span class="text-orange-600">交易修炼</span></span>
+                </div>
+                <div class="hidden sm:flex space-x-8 items-center" id="desktop-nav">
+                    <!-- Nav items injected by JS -->
+                </div>
+                <div class="flex items-center sm:hidden">
+                    <button id="mobile-menu-btn" class="text-stone-500 hover:text-stone-700 focus:outline-none">
+                        ☰
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="hidden sm:hidden bg-white border-t border-stone-100 p-4 space-y-2">
+            <!-- Mobile nav items injected by JS -->
+        </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main id="app-content" class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+        <!-- Content injected by JS based on active tab -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-stone-800 text-stone-300 py-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <p class="italic text-lg mb-4 font-serif">"市场终将回归它本来的样子，而我们的体系，就是在这种永恒的回归中，找到属于自己的、持续向上的路径。"</p>
+            <p class="text-sm text-stone-500">三维一体交易修炼框架 · 交互式指导系统</p>
+        </div>
+    </footer>
+
+    <!-- Templates (Hidden) -->
+    
+    <!-- DASHBOARD TEMPLATE -->
+    <template id="tpl-dashboard">
+        <div class="space-y-8 animate-fade-in">
+            <!-- Header -->
+            <div class="text-center space-y-4">
+                <h1 class="text-3xl md:text-4xl font-bold text-stone-900">核心使命</h1>
+                <p class="text-xl text-stone-600 max-w-3xl mx-auto">
+                    打造并运行一个 <span class="font-bold text-orange-600">长期正EV + 反脆弱 + 持续迭代</span> 的资本增值系统。
+                </p>
+            </div>
+
+            <!-- Core Formula Interactive -->
+            <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6 md:p-8">
+                <h2 class="text-2xl font-bold text-stone-800 mb-2">核心公式模拟器</h2>
+                <p class="text-stone-500 mb-6">体验“认知、心性、执行”的乘法效应。任何一项为零，结果即为零。</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div class="space-y-6">
+                        <!-- Sliders -->
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="font-medium text-stone-700">第一支柱：认知 (Cognition)</label>
+                                <span id="val-cognition" class="text-orange-600 font-bold">8</span>
+                            </div>
+                            <input type="range" min="0" max="10" value="8" id="input-cognition" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-orange-600">
+                            <p class="text-xs text-stone-400 mt-1">策略优势与概率思维</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="font-medium text-stone-700">第二支柱：心性 (Mindset)</label>
+                                <span id="val-mindset" class="text-orange-600 font-bold">8</span>
+                            </div>
+                            <input type="range" min="0" max="10" value="8" id="input-mindset" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-orange-600">
+                            <p class="text-xs text-stone-400 mt-1">情绪稳定与能量守恒</p>
+                        </div>
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <label class="font-medium text-stone-700">第三支柱：执行 (Execution)</label>
+                                <span id="val-execution" class="text-orange-600 font-bold">8</span>
+                            </div>
+                            <input type="range" min="0" max="10" value="8" id="input-execution" class="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer accent-orange-600">
+                            <p class="text-xs text-stone-400 mt-1">知行合一与系统迭代</p>
+                        </div>
+                    </div>
+
+                    <!-- Result Visual -->
+                    <div class="flex flex-col items-center justify-center p-6 bg-stone-50 rounded-lg border border-stone-100">
+                        <div class="text-sm text-stone-500 uppercase tracking-wide mb-2">系统效能 (账户净值)</div>
+                        <div id="result-score" class="text-6xl font-black text-stone-800">512</div>
+                        <div class="w-full bg-stone-200 h-4 rounded-full mt-4 overflow-hidden">
+                            <div id="result-bar" class="h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-300" style="width: 51.2%"></div>
+                        </div>
+                        <p id="result-feedback" class="text-center mt-4 text-stone-600 text-sm italic">"均衡发展是复利的关键。"</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pillars Overview -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 card-hover cursor-pointer" onclick="app.setTab('pillar1')">
+                    <div class="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4 text-xl">🗺️</div>
+                    <h3 class="text-lg font-bold text-stone-800 mb-2">第一支柱：认知地图</h3>
+                    <p class="text-stone-600 text-sm">确立正EV来源。区分演绎法（必然性）与归纳法（概率性）机会。</p>
+                    <div class="mt-4 text-blue-600 text-sm font-medium">进入策略矩阵 &rarr;</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 card-hover cursor-pointer" onclick="app.setTab('pillar2')">
+                    <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-4 text-xl">🧘</div>
+                    <h3 class="text-lg font-bold text-stone-800 mb-2">第二支柱：心性管理</h3>
+                    <p class="text-stone-600 text-sm">实现反脆弱。通过状态检查与能量守恒，确保系统稳定运行。</p>
+                    <div class="mt-4 text-emerald-600 text-sm font-medium">进入修炼室 &rarr;</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl shadow-sm border border-stone-200 card-hover cursor-pointer" onclick="app.setTab('pillar3')">
+                    <div class="w-10 h-10 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center mb-4 text-xl">⚙️</div>
+                    <h3 class="text-lg font-bold text-stone-800 mb-2">第三支柱：执行迭代</h3>
+                    <p class="text-stone-600 text-sm">交易六步法标准化执行。通过持续复盘推动系统进化。</p>
+                    <div class="mt-4 text-purple-600 text-sm font-medium">查看执行流程 &rarr;</div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- PILLAR 1: COGNITION TEMPLATE -->
+    <template id="tpl-pillar1">
+        <div class="space-y-8 animate-fade-in">
+            <div class="border-l-4 border-blue-500 pl-4">
+                <h2 class="text-2xl font-bold text-stone-900">第一支柱：认知地图与策略矩阵</h2>
+                <p class="text-stone-600 mt-1">目标：将市场认知转化为具有明确优势的策略。寻找正期望值 (EV)。</p>
+            </div>
+
+            <!-- Opportunity Types -->
+            <div class="bg-white rounded-xl shadow-sm border border-stone-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-stone-100 bg-stone-50">
+                    <h3 class="font-bold text-stone-800">1. 机会识别器</h3>
+                </div>
+                <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-bold rounded">演绎法</span>
+                            <span class="font-bold text-stone-800">必然性机会</span>
+                        </div>
+                        <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                            <li><strong class="text-stone-800">来源：</strong>金融规则、合约条款、数学原理。</li>
+                            <li><strong class="text-stone-800">具体：</strong>时间价值衰减(Theta)、波动率偏差、套利。</li>
+                            <li><strong class="text-stone-800">行动：</strong>发现即执行，追求确定性。</li>
+                        </ul>
+                    </div>
+                    <div class="space-y-3">
+                        <div class="flex items-center space-x-2">
+                            <span class="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-bold rounded">归纳法</span>
+                            <span class="font-bold text-stone-800">概率性机会</span>
+                        </div>
+                        <ul class="list-disc list-inside text-sm text-stone-600 space-y-1">
+                            <li><strong class="text-stone-800">来源：</strong>历史规律、周期、行为金融。</li>
+                            <li><strong class="text-stone-800">具体：</strong>均值回归、情绪极端、技术形态。</li>
+                            <li><strong class="text-stone-800">行动：</strong>等待信号共振，追求高赔率。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategy Toolbox (Interactive) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                <!-- Controls & Output -->
+                <div class="lg:col-span-5 space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+                        <h3 class="font-bold text-stone-800 mb-4 text-lg border-b border-stone-100 pb-2">2. 策略工具箱 (决策匹配)</h3>
+                        <p class="text-sm text-stone-500 mb-6">选择您的市场观点和当前波动率环境，系统将推荐最佳策略。</p>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-stone-700 mb-1">您的观点方向 (Direction)</label>
+                                <select id="strategy-view" class="w-full p-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="trend">强趋势 (Strong Trend)</option>
+                                    <option value="neutral">中性/震荡 (Neutral/Range)</option>
+                                    <option value="mild">温和趋势 (Mild Trend)</option>
+                                    <option value="volatile">爆裂式波动预期 (Explosive)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-stone-700 mb-1">波动率环境 (IV Environment)</label>
+                                <select id="strategy-iv" class="w-full p-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                                    <option value="low">低波动率 (Low IV)</option>
+                                    <option value="high">高波动率 (High IV)</option>
+                                </select>
+                            </div>
+                            <button onclick="app.findStrategy()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                                匹配策略
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Result Card -->
+                    <div id="strategy-result" class="hidden bg-stone-800 text-white rounded-xl shadow-lg p-6 animate-slide-up">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h4 class="text-stone-400 text-xs uppercase tracking-wider mb-1">推荐策略</h4>
+                                <h2 id="res-strategy-name" class="text-2xl font-bold text-white mb-2">策略名称</h2>
+                            </div>
+                            <div id="res-icon" class="text-3xl">🎯</div>
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-stone-700">
+                            <p class="text-sm text-stone-300 mb-1">核心诉求 / 优势来源：</p>
+                            <p id="res-rationale" class="text-lg font-medium text-orange-400">...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Visualization -->
+                <div class="lg:col-span-7">
+                    <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-4">
+                        <h3 class="font-bold text-stone-800 mb-2 text-center">策略分布全景图</h3>
+                        <p class="text-xs text-center text-stone-500 mb-4">X轴：观点方向 (震荡 -> 趋势) | Y轴：波动率环境 (低 -> 高)</p>
+                        <div class="chart-container">
+                            <canvas id="strategyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- PILLAR 2: MINDSET TEMPLATE -->
+    <template id="tpl-pillar2">
+        <div class="space-y-8 animate-fade-in">
+            <div class="border-l-4 border-emerald-500 pl-4">
+                <h2 class="text-2xl font-bold text-stone-900">第二支柱：心性管理与能量守恒</h2>
+                <p class="text-stone-600 mt-1">目标：实现知行合一，确保系统稳定运行（反脆弱）。</p>
+            </div>
+
+            <!-- State Checklist -->
+            <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6 md:p-8">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <h3 class="text-xl font-bold text-stone-800">1. 交易前：状态检查清单</h3>
+                    <span class="text-xs text-stone-500 bg-stone-100 px-2 py-1 rounded mt-2 md:mt-0">强制执行</span>
+                </div>
+                
+                <div class="space-y-4" id="checklist-container">
+                    <label class="flex items-center p-4 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 transition-colors">
+                        <input type="checkbox" class="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-stone-300" onchange="app.checkMindset()">
+                        <span class="ml-3 text-stone-700">我的身心是否放松、专注？（疲劳、情绪不佳时禁入）</span>
+                    </label>
+                    <label class="flex items-center p-4 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 transition-colors">
+                        <input type="checkbox" class="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-stone-300" onchange="app.checkMindset()">
+                        <span class="ml-3 text-stone-700">我是否对市场没有“预设立场”和“执念”？</span>
+                    </label>
+                    <label class="flex items-center p-4 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 transition-colors">
+                        <input type="checkbox" class="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-stone-300" onchange="app.checkMindset()">
+                        <span class="ml-3 text-stone-700">我是否准备好接受任何结果，包括止损？</span>
+                    </label>
+                    <label class="flex items-center p-4 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-50 transition-colors">
+                        <input type="checkbox" class="w-5 h-5 text-emerald-600 rounded focus:ring-emerald-500 border-stone-300" onchange="app.checkMindset()">
+                        <span class="ml-3 text-stone-700">今天的仓位是否符合 <strong>最大损失 (Max Drawdown)</strong> 限制？</span>
+                    </label>
+                </div>
+
+                <div id="checklist-status" class="mt-6 p-4 bg-stone-100 rounded-lg text-center text-stone-500 font-medium">
+                    请完成所有检查项以激活交易状态...
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <!-- Mental Anchors -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+                    <h3 class="text-lg font-bold text-stone-800 mb-4 border-b border-stone-100 pb-2">2. 交易中：心性锚点</h3>
+                    <div class="space-y-4">
+                        <div class="bg-stone-50 p-4 rounded-lg border-l-4 border-stone-400">
+                            <h4 class="font-bold text-stone-800">盈亏同源</h4>
+                            <p class="text-sm text-stone-600 mt-1">接受符合系统的亏损，它是盈利的必要成本。</p>
+                        </div>
+                        <div class="bg-stone-50 p-4 rounded-lg border-l-4 border-stone-400">
+                            <h4 class="font-bold text-stone-800">不恋战</h4>
+                            <p class="text-sm text-stone-600 mt-1">不为已平仓的盈亏过度欢喜或懊悔，专注于当前决策。</p>
+                        </div>
+                        <div class="bg-stone-50 p-4 rounded-lg border-l-4 border-stone-400">
+                            <h4 class="font-bold text-stone-800">保持旁观</h4>
+                            <p class="text-sm text-stone-600 mt-1">将市场波动视为观察对象，而非对个人的攻击。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Energy Recovery -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+                    <h3 class="text-lg font-bold text-stone-800 mb-4 border-b border-stone-100 pb-2">3. 交易后：能量恢复</h3>
+                    <ul class="space-y-4">
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mr-3 text-sm">🛑</span>
+                            <div>
+                                <h4 class="font-bold text-stone-800">物理隔离</h4>
+                                <p class="text-sm text-stone-600">收盘后远离屏幕，运动、冥想。</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mr-3 text-sm">🚫</span>
+                            <div>
+                                <h4 class="font-bold text-stone-800">禁忌</h4>
+                                <p class="text-sm text-stone-600">不进行“报复性交易”或“骄傲性加码”。</p>
+                            </div>
+                        </li>
+                        <li class="flex items-start">
+                            <span class="flex-shrink-0 w-8 h-8 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mr-3 text-sm">📝</span>
+                            <div>
+                                <h4 class="font-bold text-stone-800">立即复盘</h4>
+                                <p class="text-sm text-stone-600">情绪平稳后，记录交易的**过程**，而非结果。</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- PILLAR 3: EXECUTION TEMPLATE -->
+    <template id="tpl-pillar3">
+        <div class="space-y-8 animate-fade-in">
+            <div class="border-l-4 border-purple-500 pl-4">
+                <h2 class="text-2xl font-bold text-stone-900">第三支柱：交易执行与系统迭代</h2>
+                <p class="text-stone-600 mt-1">目标：将正EV决策转化为实际损益，并推动系统进化。</p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- 6 Step Process -->
+                <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+                    <h3 class="text-xl font-bold text-stone-800 mb-6">1. 交易六步法 (流程标准化)</h3>
+                    <div class="relative pl-4 space-y-6 step-line">
+                        <!-- Step 1 -->
+                        <div class="relative z-10 pl-4">
+                            <div class="absolute left-[-9px] top-1 w-6 h-6 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-xs font-bold text-purple-600">1</div>
+                            <h4 class="font-bold text-stone-800">Scan (扫描)</h4>
+                            <p class="text-sm text-stone-600">基于“认知地图”发现潜在机会。</p>
+                        </div>
+                        <!-- Step 2 -->
+                        <div class="relative z-10 pl-4">
+                            <div class="absolute left-[-9px] top-1 w-6 h-6 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-xs font-bold text-purple-600">2</div>
+                            <h4 class="font-bold text-stone-800">Analyze (分析)</h4>
+                            <p class="text-sm text-stone-600">形成观点：明确“逻辑 + 价格 + 方向 + IV + 时间”。</p>
+                        </div>
+                        <!-- Step 3 -->
+                        <div class="relative z-10 pl-4">
+                            <div class="absolute left-[-9px] top-1 w-6 h-6 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-xs font-bold text-purple-600">3</div>
+                            <h4 class="font-bold text-stone-800">Plan (计划) <span class="text-orange-500 text-xs ml-2">关键</span></h4>
+                            <p class="text-sm text-stone-600">计算EV，通过 <strong>“风险倒推”</strong> 确定仓位头寸。</p>
+                        </div>
+                        <!-- Step 4 -->
+                        <div class="relative z-10 pl-4">
+                            <div class="absolute left-[-9px] top-1 w-6 h-6 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-xs font-bold text-purple-600">4</div>
+                            <h4 class="font-bold text-stone-800">Execute (执行)</h4>
+                            <p class="text-sm text-stone-600">按计划开仓，设置初始止损。</p>
+                        </div>
+                        <!-- Step 5 -->
+                        <div class="relative z-10 pl-4">
+                            <div class="absolute left-[-9px] top-1 w-6 h-6 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-xs font-bold text-purple-600">5</div>
+                            <h4 class="font-bold text-stone-800">Manage (管理) <span class="text-orange-500 text-xs ml-2">动态核心</span></h4>
+                            <div class="mt-2 text-sm bg-stone-50 p-3 rounded border border-stone-100">
+                                <p class="mb-1"><span class="text-emerald-600 font-bold">盈利：</span>移动止损保本 &rarr; 减仓 &rarr; 移仓。</p>
+                                <p class="mb-1"><span class="text-red-600 font-bold">亏损：</span>触及止损，无条件离场。</p>
+                                <p class="text-stone-500 text-xs">观点变则平仓，价格变则调Delta/Theta。</p>
+                            </div>
+                        </div>
+                        <!-- Step 6 -->
+                        <div class="relative z-10 pl-4">
+                            <div class="absolute left-[-9px] top-1 w-6 h-6 rounded-full bg-purple-100 border-2 border-purple-600 flex items-center justify-center text-xs font-bold text-purple-600">6</div>
+                            <h4 class="font-bold text-stone-800">Review (复盘)</h4>
+                            <p class="text-sm text-stone-600">记录 <strong>执行偏差率</strong>（实操与计划的偏离）。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Iteration -->
+                <div class="space-y-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
+                        <h3 class="text-xl font-bold text-stone-800 mb-4">2. 系统迭代引擎 (模拟数据)</h3>
+                        <p class="text-sm text-stone-500 mb-4">
+                            目标：随着复盘次数增加，执行偏差率应降低，夏普比率应提升。
+                        </p>
+                        <div class="chart-container" style="height: 250px;">
+                            <canvas id="iterationChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-stone-800 text-stone-300 rounded-xl p-6">
+                        <h3 class="font-bold text-white mb-2">周期复盘关注点</h3>
+                        <ul class="list-disc list-inside space-y-2 text-sm">
+                            <li><strong>绩效归因：</strong>运气还是能力？</li>
+                            <li><strong>策略评估：</strong>哪些策略夏普比率最高？</li>
+                            <li><strong>压力测试：</strong>极端行情下仓位能否存活？</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        const app = {
+            state: {
+                currentTab: 'dashboard',
+                cognition: 8,
+                mindset: 8,
+                execution: 8
+            },
+
+            // Navigation Data
+            navItems: [
+                { id: 'dashboard', label: '核心仪表盘', icon: '🏠' },
+                { id: 'pillar1', label: '1. 认知策略', icon: '🗺️' },
+                { id: 'pillar2', label: '2. 心性管理', icon: '🧘' },
+                { id: 'pillar3', label: '3. 执行迭代', icon: '⚙️' }
+            ],
+
+            // Strategy Database
+            strategyMatrix: [
+                { view: 'trend', iv: 'low', name: '买入(虚值)期权 / 期货', rationale: '高杠杆，博取高赔率' },
+                { view: 'trend', iv: 'high', name: '垂直价差 / 比率价差', rationale: '限制风险，降低成本（卖高IV）' },
+                { view: 'neutral', iv: 'high', name: '卖出宽跨式 (Strangle) / 铁鹰式', rationale: '赚取时间(Theta)与波动率(Vega)衰减' },
+                { view: 'neutral', iv: 'low', name: '日历价差 (Calendar Spread)', rationale: '赚取时间差收益（远期高Theta）' },
+                { view: 'mild', iv: 'high', name: '看跌/看涨期权熊市价差', rationale: '高胜率，方向+波动率双杀' },
+                { view: 'volatile', iv: 'low', name: '买入跨式 (Straddle) / Strangle', rationale: '博取“黑天鹅”，实现反脆弱收益' }
+            ],
+
+            // Init
+            init() {
+                this.renderNav();
+                this.setTab('dashboard'); // Default load
+                
+                // Mobile Menu Toggle
+                document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+                    document.getElementById('mobile-menu').classList.toggle('hidden');
+                });
+            },
+
+            // Render Navigation
+            renderNav() {
+                const desktopNav = document.getElementById('desktop-nav');
+                const mobileNav = document.getElementById('mobile-menu');
+                
+                let desktopHTML = '';
+                let mobileHTML = '';
+
+                this.navItems.forEach(item => {
+                    desktopHTML += `<button onclick="app.setTab('${item.id}')" class="px-3 py-2 rounded-md text-sm font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-50 transition-colors ${item.id}-tab">${item.label}</button>`;
+                    mobileHTML += `<button onclick="app.setTab('${item.id}'); document.getElementById('mobile-menu').classList.add('hidden');" class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-50 ${item.id}-tab">${item.icon} ${item.label}</button>`;
+                });
+
+                desktopNav.innerHTML = desktopHTML;
+                mobileNav.innerHTML = mobileHTML;
+            },
+
+            // Tab Switching Logic
+            setTab(tabId) {
+                this.state.currentTab = tabId;
+                
+                // Update Nav Styles
+                document.querySelectorAll('nav button').forEach(btn => btn.classList.remove('tab-active', 'bg-orange-50', 'text-orange-600'));
+                document.querySelectorAll(`.${tabId}-tab`).forEach(btn => btn.classList.add('tab-active', 'bg-orange-50', 'text-orange-600'));
+
+                // Inject Content
+                const template = document.getElementById(`tpl-${tabId}`);
+                const contentArea = document.getElementById('app-content');
+                
+                if (template) {
+                    contentArea.innerHTML = template.innerHTML;
+                    
+                    // Initialize Tab Specific Scripts
+                    if (tabId === 'dashboard') this.initDashboard();
+                    if (tabId === 'pillar1') this.initPillar1();
+                    if (tabId === 'pillar3') this.initPillar3();
+                }
+                
+                window.scrollTo(0, 0);
+            },
+
+            // --- Dashboard Logic ---
+            initDashboard() {
+                const calc = () => {
+                    const c = parseInt(document.getElementById('input-cognition').value);
+                    const m = parseInt(document.getElementById('input-mindset').value);
+                    const e = parseInt(document.getElementById('input-execution').value);
+                    
+                    document.getElementById('val-cognition').innerText = c;
+                    document.getElementById('val-mindset').innerText = m;
+                    document.getElementById('val-execution').innerText = e;
+
+                    const score = c * m * e;
+                    const maxScore = 1000;
+                    const percentage = (score / maxScore) * 100;
+
+                    document.getElementById('result-score').innerText = score;
+                    const bar = document.getElementById('result-bar');
+                    bar.style.width = `${percentage}%`;
+
+                    // Feedback logic
+                    let feedback = "";
+                    if (score < 100) feedback = "警告：系统严重失衡，任何一项短板都会摧毁系统。";
+                    else if (score < 500) feedback = "良好的开端，请继续补强短板。";
+                    else feedback = "卓越的系统！复利效应正在爆发。";
+                    
+                    if(c === 0 || m === 0 || e === 0) feedback = "灾难：乘法系统中只要有一项为0，结果即为0。";
+
+                    document.getElementById('result-feedback').innerText = feedback;
+                    
+                    // Color shift based on score
+                    if (score > 700) bar.className = "h-full bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-300";
+                    else if (score > 300) bar.className = "h-full bg-gradient-to-r from-orange-400 to-orange-600 transition-all duration-300";
+                    else bar.className = "h-full bg-gradient-to-r from-red-400 to-red-600 transition-all duration-300";
+                };
+
+                ['input-cognition', 'input-mindset', 'input-execution'].forEach(id => {
+                    document.getElementById(id).addEventListener('input', calc);
+                });
+            },
+
+            // --- Pillar 1 Logic ---
+            initPillar1() {
+                // Render Chart
+                const ctx = document.getElementById('strategyChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [{
+                            label: '策略分布 (点击无交互，仅展示)',
+                            data: [
+                                {x: 1, y: 1, label: '买入期权/期货 (强趋势/低IV)'},
+                                {x: 1, y: 2, label: '垂直价差 (强趋势/高IV)'},
+                                {x: 0, y: 2, label: '宽跨式/铁鹰 (震荡/高IV)'},
+                                {x: 0, y: 1, label: '日历价差 (震荡/低IV)'},
+                                {x: 0.5, y: 2, label: '熊市价差 (温和/高IV)'},
+                                {x: -1, y: 0.5, label: '买入跨式 (爆发/低IV)'}
+                            ],
+                            backgroundColor: '#ea580c', // Orange 600
+                            pointRadius: 8,
+                            pointHoverRadius: 10
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                type: 'linear',
+                                position: 'bottom',
+                                min: -1.5,
+                                max: 1.5,
+                                title: { display: true, text: '观点方向 (Trends)' },
+                                ticks: {
+                                    callback: function(value) {
+                                        if (value === -1) return '爆裂';
+                                        if (value === 0) return '震荡';
+                                        if (value === 1) return '趋势';
+                                        return '';
+                                    }
+                                }
+                            },
+                            y: {
+                                min: 0,
+                                max: 3,
+                                title: { display: true, text: '波动率环境 (IV)' },
+                                ticks: {
+                                    callback: function(value) {
+                                        if (value === 1) return '低 IV';
+                                        if (value === 2) return '高 IV';
+                                        return '';
+                                    }
+                                }
+                            }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.raw.label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            },
+
+            findStrategy() {
+                const view = document.getElementById('strategy-view').value;
+                const iv = document.getElementById('strategy-iv').value;
+                
+                const strategy = this.strategyMatrix.find(s => s.view === view && s.iv === iv);
+                
+                const resultDiv = document.getElementById('strategy-result');
+                const nameEl = document.getElementById('res-strategy-name');
+                const rationaleEl = document.getElementById('res-rationale');
+                
+                if (strategy) {
+                    nameEl.innerText = strategy.name;
+                    rationaleEl.innerText = strategy.rationale;
+                    resultDiv.classList.remove('hidden');
+                    // Simple animation reset
+                    resultDiv.classList.remove('animate-slide-up');
+                    void resultDiv.offsetWidth; // trigger reflow
+                    resultDiv.classList.add('animate-slide-up');
+                } else {
+                    // Fallback for mild/volatile combinations not strictly in simple matrix but logic can be inferred
+                    nameEl.innerText = "观察 / 现金为王";
+                    rationaleEl.innerText = "当前组合在核心矩阵中未定义明确的高优势策略，建议等待更清晰的信号或IV变化。";
+                    resultDiv.classList.remove('hidden');
+                }
+            },
+
+            // --- Pillar 2 Logic ---
+            checkMindset() {
+                const checks = document.querySelectorAll('#checklist-container input[type="checkbox"]');
+                const allChecked = Array.from(checks).every(c => c.checked);
+                const statusDiv = document.getElementById('checklist-status');
+                
+                if (allChecked) {
+                    statusDiv.className = "mt-6 p-4 bg-emerald-100 text-emerald-800 rounded-lg text-center font-bold animate-pulse";
+                    statusDiv.innerHTML = "✅ 状态确认：您可以开始交易。保持觉知。";
+                } else {
+                    statusDiv.className = "mt-6 p-4 bg-stone-100 rounded-lg text-center text-stone-500 font-medium";
+                    statusDiv.innerHTML = "请完成所有检查项以激活交易状态...";
+                }
+            },
+
+            // --- Pillar 3 Logic ---
+            initPillar3() {
+                // Mock Data for Iteration Chart
+                const ctx = document.getElementById('iterationChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ['第1月', '第2月', '第3月', '第4月', '第5月', '第6月'],
+                        datasets: [
+                            {
+                                label: '执行偏差率 (%)',
+                                data: [25, 18, 12, 8, 5, 3],
+                                borderColor: '#ef4444', // Red for bad thing reducing
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                yAxisID: 'y',
+                                tension: 0.4
+                            },
+                            {
+                                label: '策略夏普比率',
+                                data: [0.8, 0.9, 1.1, 1.3, 1.45, 1.6],
+                                borderColor: '#10b981', // Green for good thing increasing
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                yAxisID: 'y1',
+                                tension: 0.4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                display: true,
+                                position: 'left',
+                                title: { display: true, text: '偏差率 (越低越好)' }
+                            },
+                            y1: {
+                                type: 'linear',
+                                display: true,
+                                position: 'right',
+                                grid: {
+                                    drawOnChartArea: false,
+                                },
+                                title: { display: true, text: '夏普比率 (越高越好)' }
+                            },
+                        }
+                    }
+                });
+            }
+        };
+
+        // Initialize App on Load
+        document.addEventListener('DOMContentLoaded', () => {
+            app.init();
+        });
+    </script>
+</body>
+</html>

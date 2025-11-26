@@ -1,0 +1,10 @@
+version: '3.8'
+
+services:
+  web:
+    build: .
+    ports:
+      - "10022:80"
+    container_name: sanweiyiti-trading
+    restart: unless-stopped
+
