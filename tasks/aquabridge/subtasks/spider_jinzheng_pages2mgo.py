@@ -381,24 +381,33 @@ class SpiderJinzhengPages2mgo(BaseModel):
                         if raw_data is None:
                             print(f"✗ 页面 {page_key} 数据抓取失败（返回None）")
                             results[page_key] = False
-                            continue
-                        
-                        # 处理数据
-                        success = self._process_data(page_key, raw_data, save_file, store_mongodb)
-                        results[page_key] = success
-                        
-                        if success:
-                            print(f"✓ 页面 {page_key} 处理成功")
                         else:
-                            print(f"✗ 页面 {page_key} 处理失败（数据处理返回False）")
+                            # 处理数据
+                            success = self._process_data(page_key, raw_data, save_file, store_mongodb)
+                            results[page_key] = success
+                            
+                            if success:
+                                print(f"✓ 页面 {page_key} 处理成功")
+                            else:
+                                print(f"✗ 页面 {page_key} 处理失败（数据处理返回False）")
                             
                     except Exception as e:
                         print(f"✗ 页面 {page_key} 处理异常: {e}")
                         import traceback
                         traceback.print_exc()
                         results[page_key] = False
-                        # 继续处理下一个页面，不中断
-                        continue
+                    
+                    # 每个页面处理完后，重置页面到初始状态（除了最后一个页面）
+                    if idx < total_pages:
+                        print(f"\n--- 重置页面状态，为下一个页面做准备 ---")
+                        try:
+                            reset_success = session.reset_to_initial_state()
+                            if not reset_success:
+                                print(f"  ⚠ 页面重置失败，但继续处理下一个页面")
+                        except Exception as e:
+                            print(f"  ⚠ 页面重置异常: {e}，但继续处理下一个页面")
+                            # 重置失败不应该阻止后续页面处理
+                        print()  # 空行分隔
                 
         except Exception as e:
             print(f"✗ SessionManager 初始化或清理异常: {e}")

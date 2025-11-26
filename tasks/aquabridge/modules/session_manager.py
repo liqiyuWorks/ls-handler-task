@@ -300,6 +300,121 @@ class SessionManager:
         
         return results
     
+    def reset_to_initial_state(self, max_retries: int = 2) -> bool:
+        """重置页面到登录后的初始状态
+        
+        刷新页面，恢复到刚登录后的状态，确保菜单都折叠，为下一个页面的导航做准备。
+        
+        Args:
+            max_retries: 最大重试次数
+            
+        Returns:
+            是否成功重置
+        """
+        if not self.is_logged_in:
+            print("  ⚠ 用户未登录，无法重置页面状态")
+            return False
+        
+        if not self.current_page:
+            print("  ⚠ 当前页面不存在，无法重置")
+            return False
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                print(f"  [重置页面状态] 尝试 {attempt}/{max_retries}...")
+                
+                # 方法1: 尝试刷新页面（保持登录状态）
+                try:
+                    if not self.current_page.is_closed():
+                        print("    刷新页面...")
+                        self.current_page.reload(wait_until="domcontentloaded", timeout=15000)
+                    else:
+                        # 如果页面已关闭，重新导航
+                        print("    页面已关闭，重新导航...")
+                        self.current_page = self.context.new_page()
+                        self.current_page.set_default_timeout(12000)
+                        self.current_page.set_default_navigation_timeout(15000)
+                        self.current_page.goto("https://jinzhengny.com/", wait_until="domcontentloaded")
+                        self.scraper.page = self.current_page
+                except Exception as e:
+                    print(f"    ⚠ 刷新页面失败: {e}")
+                    # 如果刷新失败，尝试重新导航
+                    try:
+                        print("    尝试重新导航到首页...")
+                        if self.current_page and not self.current_page.is_closed():
+                            self.current_page.goto("https://jinzhengny.com/", wait_until="domcontentloaded", timeout=15000)
+                        else:
+                            self.current_page = self.context.new_page()
+                            self.current_page.set_default_timeout(12000)
+                            self.current_page.set_default_navigation_timeout(15000)
+                            self.current_page.goto("https://jinzhengny.com/", wait_until="domcontentloaded")
+                            self.scraper.page = self.current_page
+                    except Exception as e2:
+                        print(f"    ✗ 重新导航也失败: {e2}")
+                        if attempt < max_retries:
+                            time.sleep(2)
+                            continue
+                        return False
+                
+                # 等待 iframe 加载
+                print("    等待 iframe 加载...")
+                try:
+                    self.current_page.locator("#reportFrame").wait_for(state="visible", timeout=10000)
+                    time.sleep(1)  # 额外等待确保 iframe 内容加载
+                except Exception as e:
+                    print(f"    ⚠ 等待 iframe 超时: {e}")
+                    if attempt < max_retries:
+                        time.sleep(2)
+                        continue
+                
+                # 重新获取 report_frame 引用
+                print("    重新获取 report_frame...")
+                try:
+                    self.scraper.report_frame = self.current_page.frame_locator("#reportFrame")
+                except Exception as e:
+                    print(f"    ⚠ 获取 report_frame 失败: {e}")
+                    if attempt < max_retries:
+                        time.sleep(2)
+                        continue
+                
+                # 验证登录状态（等待导航图标出现）
+                print("    验证登录状态...")
+                try:
+                    self.scraper.report_frame.locator(".bi-f-c > .bi-icon-change-button").first.wait_for(
+                        state="visible", timeout=10000
+                    )
+                    print("    ✓ 登录状态确认")
+                except Exception as e:
+                    print(f"    ⚠ 登录状态验证失败: {e}")
+                    # 如果登录状态验证失败，可能需要重新登录
+                    if attempt < max_retries:
+                        print("    尝试重新登录...")
+                        self.is_logged_in = False
+                        if not self.login_once():
+                            print("    ✗ 重新登录失败")
+                            return False
+                        continue
+                    else:
+                        print("    ✗ 无法确认登录状态")
+                        return False
+                
+                # 等待页面完全稳定
+                time.sleep(1)
+                
+                print("  ✓ 页面已重置到初始状态")
+                return True
+                
+            except Exception as e:
+                print(f"  ✗ 重置页面状态异常: {e}")
+                if attempt < max_retries:
+                    print(f"  ⚠ {2} 秒后重试...")
+                    time.sleep(2)
+                else:
+                    print("  ✗ 重置失败，已达到最大重试次数")
+                    return False
+        
+        return False
+    
     def close_session(self):
         """关闭浏览器会话"""
         try:
