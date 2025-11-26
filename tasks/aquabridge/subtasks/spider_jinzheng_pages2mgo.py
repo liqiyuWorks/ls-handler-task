@@ -346,19 +346,79 @@ class SpiderJinzhengPages2mgo(BaseModel):
     
     def _process_pages_serially(self, page_keys: List[str], browser: str, headless: bool, 
                                save_file: bool, store_mongodb: bool, fast_mode: bool) -> Dict[str, bool]:
-        """串行处理页面"""
+        """串行处理页面 - 优化版本：一次登录，串行处理所有页面"""
         results = {}
-        for page_key in page_keys:
-            try:
-                with SessionManager(browser_type=browser, headless=headless) as session:
-                    if not session.login_once():
+        total_pages = len(page_keys)
+        
+        print(f"\n{'='*60}")
+        print(f"开始串行处理 {total_pages} 个页面")
+        print(f"页面列表: {', '.join(page_keys)}")
+        print(f"{'='*60}\n")
+        
+        # 使用一个SessionManager，一次登录，处理所有页面
+        try:
+            with SessionManager(browser_type=browser, headless=headless) as session:
+                # 先登录一次
+                print("=== 执行登录（所有页面共享登录状态）===")
+                if not session.login_once():
+                    print("✗ 登录失败，无法继续处理页面")
+                    # 如果登录失败，所有页面都标记为失败
+                    for page_key in page_keys:
                         results[page_key] = False
-                        continue
+                    return results
+                
+                # 串行处理每个页面
+                for idx, page_key in enumerate(page_keys, 1):
+                    page_name = self.supported_pages.get(page_key, {}).get('name', page_key)
+                    print(f"\n{'='*60}")
+                    print(f"[{idx}/{total_pages}] 正在处理页面: {page_key} ({page_name})")
+                    print(f"{'='*60}")
                     
-                    raw_data = session.scrape_page(page_key)
-                    results[page_key] = self._process_data(page_key, raw_data, save_file, store_mongodb)
-            except (ConnectionError, ValueError, KeyError, TimeoutError):
-                results[page_key] = False
+                    try:
+                        # 抓取页面数据
+                        raw_data = session.scrape_page(page_key)
+                        
+                        if raw_data is None:
+                            print(f"✗ 页面 {page_key} 数据抓取失败（返回None）")
+                            results[page_key] = False
+                            continue
+                        
+                        # 处理数据
+                        success = self._process_data(page_key, raw_data, save_file, store_mongodb)
+                        results[page_key] = success
+                        
+                        if success:
+                            print(f"✓ 页面 {page_key} 处理成功")
+                        else:
+                            print(f"✗ 页面 {page_key} 处理失败（数据处理返回False）")
+                            
+                    except Exception as e:
+                        print(f"✗ 页面 {page_key} 处理异常: {e}")
+                        import traceback
+                        traceback.print_exc()
+                        results[page_key] = False
+                        # 继续处理下一个页面，不中断
+                        continue
+                
+        except Exception as e:
+            print(f"✗ SessionManager 初始化或清理异常: {e}")
+            import traceback
+            traceback.print_exc()
+            # 如果SessionManager初始化失败，所有页面都标记为失败
+            for page_key in page_keys:
+                if page_key not in results:
+                    results[page_key] = False
+        
+        # 打印处理结果摘要
+        print(f"\n{'='*60}")
+        print("页面处理结果摘要:")
+        success_count = sum(1 for v in results.values() if v)
+        failed_count = total_pages - success_count
+        print(f"  总计: {total_pages} 个页面")
+        print(f"  成功: {success_count} 个页面")
+        print(f"  失败: {failed_count} 个页面")
+        print(f"{'='*60}\n")
+        
         return results
     
     def process_all_pages_stable(self, browser: str = "firefox", headless: bool = False,
@@ -442,6 +502,21 @@ class SpiderJinzhengPages2mgo(BaseModel):
         max_workers = get_config('max_workers', 2, 'SPIDER_MAX_WORKERS')
         fast_mode = get_config('fast_mode', False, 'SPIDER_FAST_MODE')
         stable_mode = get_config('stable_mode', True, 'SPIDER_STABLE_MODE')
+        
+        # 打印配置信息
+        print(f"\n{'='*60}")
+        print("任务配置信息:")
+        print(f"  页面键: {page_key}")
+        print(f"  浏览器: {browser}")
+        print(f"  无头模式: {headless}")
+        print(f"  保存文件: {save_file}")
+        print(f"  存储MongoDB: {store_mongodb}")
+        print(f"  稳定模式: {stable_mode}")
+        print(f"  快速模式: {fast_mode}")
+        if page_key == 'all':
+            print(f"  支持的页面数量: {len(self.supported_pages)}")
+            print(f"  页面列表: {', '.join(self.supported_pages.keys())}")
+        print(f"{'='*60}\n")
         
         try:
             if page_key == 'all':
