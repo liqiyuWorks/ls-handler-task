@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TZ 交易决策系统 v5.9.1</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 selection:bg-blue-100">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- 0. 内嵌图标组件 (修复了缺失的 Microscope 图标) ---
+        const Icon = ({ children, className, size = 24, ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
+        );
+        
+        const icons = {
+            BookOpen: (p) => <Icon {...p}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></Icon>,
+            Target: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></Icon>,
+            Wind: (p) => <Icon {...p}><path d="M17.7 7.7a2.5 2.5 0 1 1 1.8 4.3H2"/><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/></Icon>,
+            Clock: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></Icon>,
+            TrendingUp: (p) => <Icon {...p}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></Icon>,
+            TrendingDown: (p) => <Icon {...p}><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></Icon>,
+            MinusCircle: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></Icon>,
+            Activity: (p) => <Icon {...p}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></Icon>,
+            DollarSign: (p) => <Icon {...p}><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></Icon>,
+            Save: (p) => <Icon {...p}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></Icon>,
+            Trash2: (p) => <Icon {...p}><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></Icon>,
+            CheckCircle: (p) => <Icon {...p}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></Icon>,
+            AlertTriangle: (p) => <Icon {...p}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></Icon>,
+            ArrowRight: (p) => <Icon {...p}><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></Icon>,
+            Filter: (p) => <Icon {...p}><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></Icon>,
+            Layers: (p) => <Icon {...p}><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></Icon>,
+            Search: (p) => <Icon {...p}><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></Icon>,
+            X: (p) => <Icon {...p}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></Icon>,
+            Plus: (p) => <Icon {...p}><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></Icon>,
+            ImageIcon: (p) => <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></Icon>,
+            Edit3: (p) => <Icon {...p}><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></Icon>,
+            PlayCircle: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><polygon points="10 8 16 12 10 16 10 8"/></Icon>,
+            RefreshCw: (p) => <Icon {...p}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></Icon>,
+            ChevronRight: (p) => <Icon {...p}><polyline points="9 18 15 12 9 6"/></Icon>,
+            Anchor: (p) => <Icon {...p}><circle cx="12" cy="5" r="3"/><line x1="12" y1="22" x2="12" y2="8"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></Icon>,
+            Repeat: (p) => <Icon {...p}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></Icon>,
+            FileText: (p) => <Icon {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></Icon>,
+            Briefcase: (p) => <Icon {...p}><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></Icon>,
+            Wrench: (p) => <Icon {...p}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></Icon>,
+            Radar: (p) => <Icon {...p}><path d="M21 12h-8l2-2"/><path d="M12 21v-8l-2 2"/><path d="M3 12h8l-2 2"/><path d="M12 3v8l2-2"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0"/></Icon>,
+            StopCircle: (p) => <Icon {...p}><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6"/></Icon>,
+            Flag: (p) => <Icon {...p}><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></Icon>,
+            Users: (p) => <Icon {...p}><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></Icon>,
+            Zap: (p) => <Icon {...p}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></Icon>,
+            Database: (p) => <Icon {...p}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></Icon>,
+            Lightbulb: (p) => <Icon {...p}><line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/><path d="M15.09 14c.18-.9.66-1.74 1.31-2.44C18.84 9.07 19.25 4.92 15 4a7.99 7.99 0 0 0-13 6c0 2.6 2.2 5.5 5.5 7.37"/></Icon>,
+            Download: (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></Icon>,
+            Upload: (p) => <Icon {...p}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></Icon>,
+            MapIcon: (p) => <Icon {...p}><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></Icon>,
+            Heart: (p) => <Icon {...p}><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></Icon>,
+            BarChart2: (p) => <Icon {...p}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></Icon>,
+            Shield: (p) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></Icon>,
+            Scale: (p) => <Icon {...p}><path d="M16 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><path d="M2 16l3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z"/><line x1="7" y1="21" x2="7" y2="8"/><line x1="17" y1="21" x2="17" y2="8"/><line x1="2" y1="8" x2="22" y2="8"/><line x1="2" y1="21" x2="22" y2="21"/><line x1="12" y1="8" x2="12" y2="3"/></Icon>,
+            FileCheck: (p) => <Icon {...p}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></Icon>,
+            Layout: (p) => <Icon {...p}><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></Icon>,
+            List: (p) => <Icon {...p}><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></Icon>,
+            CheckSquare: (p) => <Icon {...p}><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></Icon>,
+            Loader: (p) => <Icon {...p}><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></Icon>,
+            AlertOctagon: (p) => <Icon {...p}><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></Icon>,
+            Microscope: (p) => <Icon {...p}><path d="M6 18h8"/><path d="M3 22h18"/><path d="M14 22a7 7 0 1 0 0-14h-1"/><path d="M9 14h2"/><path d="M9 12a2 2 0 0 1-2-2V6h6v4a2 2 0 0 1-2 2Z"/><path d="M12 6V3a1 1 0 0 0-1-1H9a1 1 0 0 0-1 1v3"/></Icon>
+        };
+
+        const { 
+            BookOpen, Target, Wind, Clock, TrendingUp, TrendingDown, MinusCircle, 
+            Activity, DollarSign, Save, Trash2, CheckCircle, AlertTriangle, 
+            ArrowRight, Filter, Layers, Search, X, Plus, ImageIcon, 
+            Edit3, PlayCircle, RefreshCw, ChevronRight,
+            Anchor, Repeat, FileText, Briefcase, Wrench, Radar, StopCircle, Flag,
+            Users, Zap, Database, Lightbulb, Download, Upload, MapIcon, 
+            Heart, BarChart2, Shield, Scale, FileCheck, Layout, List, CheckSquare, Loader, AlertOctagon, Microscope
+        } = icons;
+
+        // --- 1. 常量定义 ---
+        
+        const DECISION_STEPS = [
+            { id: 1, cn: '机会扫描', en: 'Scan', icon: Radar },
+            { id: 2, cn: '观点打磨', en: 'Viewpoint', icon: Target },
+            { id: 3, cn: '环境识别', en: 'Environment', icon: Wind },
+            { id: 4, cn: '持仓过程', en: 'Process', icon: Briefcase },
+            { id: 5, cn: '策略优选', en: 'Strategy', icon: Layers },
+            { id: 6, cn: '风控对冲', en: 'Risk & Hedge', icon: Shield },
+            { id: 7, cn: '决策综述', en: 'Report', icon: FileCheck },
+        ];
+
+        const DIRECTION_OPTIONS = [
+            { value: -2, label: '大跌 (Fast Bear)', color: 'bg-red-100 text-red-700 border-red-300' },
+            { value: -1, label: '阴跌 (Slow Bear)', color: 'bg-red-50 text-red-600 border-red-200' },
+            { value: 0, label: '震荡 (Flat)', color: 'bg-slate-100 text-slate-600 border-slate-200' },
+            { value: 1, label: '慢涨 (Slow Bull)', color: 'bg-emerald-50 text-emerald-600 border-emerald-200' },
+            { value: 2, label: '暴涨 (Fast Bull)', color: 'bg-emerald-100 text-emerald-700 border-emerald-300' }
+        ];
+
+        const GREEK_STATES = {
+            delta: {
+                long: { label: '做多 (Long)', color: 'text-emerald-700 bg-emerald-100 border-emerald-300' },
+                neutral: { label: '中性 (Neutral)', color: 'text-slate-600 bg-slate-100 border-slate-300' },
+                short: { label: '做空 (Short)', color: 'text-red-700 bg-red-100 border-red-300' }
+            },
+            vega: {
+                long: { label: '做多 (Long)', color: 'text-emerald-700 bg-emerald-100 border-emerald-300' },
+                neutral: { label: '中性 (Neutral)', color: 'text-slate-600 bg-slate-100 border-slate-300' },
+                short: { label: '做空 (Short)', color: 'text-red-700 bg-red-100 border-red-300' }
+            },
+            theta: {
+                long: { label: '收租 (Long)', color: 'text-emerald-700 bg-emerald-100 border-emerald-300' },
+                neutral: { label: '中性 (Neutral)', color: 'text-slate-600 bg-slate-100 border-slate-300' },
+                short: { label: '付租 (Short)', color: 'text-red-700 bg-red-100 border-red-300' }
+            }
+        };
+
+        const TREND_TYPES = [
+            { id: 'up', label: '单边上涨', icon: TrendingUp, color: 'bg-emerald-50 text-emerald-700 border-emerald-200', desc: '趋势强劲，回调做多' },
+            { id: 'osc_a', label: '震荡 (A字)', icon: Activity, color: 'bg-yellow-50 text-yellow-700 border-yellow-200', desc: '冲高回落，由强转弱' },
+            { id: 'osc_v', label: '震荡 (V字)', icon: Activity, color: 'bg-blue-50 text-blue-700 border-blue-200', desc: '探底回升，由弱转强' },
+            { id: 'down', label: '单边下跌', icon: TrendingDown, color: 'bg-red-50 text-red-700 border-red-200', desc: '趋势向下，反弹做空' }
+        ];
+
+        const VOL_PREFS = [
+            { id: 'low', label: '平稳 (Low)', color: 'bg-slate-50 text-slate-600', desc: '睡得着觉，回撤可控' },
+            { id: 'mid', label: '适中 (Mid)', color: 'bg-blue-50 text-blue-600', desc: '追求效率，接受波动' },
+            { id: 'high', label: '刺激 (High)', color: 'bg-purple-50 text-purple-600', desc: '博取暴利，心脏强大' }
+        ];
+
+        const PAYOFF_TYPES = [
+            { id: 'convex_pos', label: '正凸性', desc: '亏损有限，收益无限', color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
+            { id: 'linear', label: '线性', desc: '盈亏同源', color: 'text-blue-600 bg-blue-50 border-blue-200' },
+            { id: 'convex_neg', label: '负凸性', desc: '收益有限，亏损无限', color: 'text-orange-600 bg-orange-50 border-orange-200' }
+        ];
+
+        const VOL_LEVELS = ['low', 'mid', 'high'];
+        const PRICE_LEVELS = ['low', 'mid', 'high'];
+        const BASIS_LEVELS = ['neg', 'neu', 'pos']; 
+        const POSITION_SIZES = ['10%', '25%', '50%', '100%'];
+
+        const generateDefaultScenarios = () => {
+            const scenarios = {};
+            VOL_LEVELS.forEach(vol => {
+                PRICE_LEVELS.forEach(price => {
+                    BASIS_LEVELS.forEach(basis => {
+                        const key = `${vol}_${price}_${basis}`;
+                        let strategy = '待定义策略';
+                        if (vol === 'low' && price === 'low') strategy = '做多波动率 + 囤币 (Long Call / Spot)';
+                        else if (vol === 'high' && price === 'high') strategy = '做空波动率 + 套保 (Short Call / Put Spread)';
+                        scenarios[key] = { id: key, strategy, note: '' };
+                    });
+                });
+            });
+            return scenarios;
+        };
+
+        const DEFAULT_TOOLBOX = [
+            { id: 't1', name: 'Long Call (买入看涨)', tags: ['bull', 'low_vol', 'mid_vol'], greeks: { delta: 'long', vega: 'long', theta: 'short' }, logic: '看大涨且预期波动率上升。' },
+            { id: 't2', name: 'Bull Call Spread (牛市价差)', tags: ['bull', 'mid_vol', 'high_vol'], greeks: { delta: 'long', vega: 'neutral', theta: 'neutral' }, logic: '温和看涨，降低成本。' },
+        ];
+
+        const DEFAULT_SOCIALS = [
+            { id: 's1', name: '核心大户群', type: 'Group', reliability: 'high' },
+            { id: 's2', name: 'GCR (Twitter)', type: 'KOL', reliability: 'high' },
+        ];
+
+        const DEFAULT_PARADIGMS = [
+            { id: 'p1', name: '突破回踩 (Break & Retest)', desc: '关键位突破后缩量回踩确认' },
+            { id: 'p2', name: '2B 结构 (Fakeout)', desc: '假突破后反向吞没' },
+        ];
+
+        const DEFAULT_RESEARCH = [
+            { id: 'r1', name: '美联储货币政策转向推演', category: '宏观 (Macro)', content: '预计 Q4 停止缩表，关注非农数据...', date: '2024-01-15' },
+        ];
+
+        // --- 2. 基础 UI 组件 ---
+
+        const Card = ({ children, className = "" }) => (
+            <div className={`bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden ${className}`}>
+                {children}
+            </div>
+        );
+
+        const CardHeader = ({ title, icon: Icon, subtitle, rightElement }) => (
+            <div className="bg-slate-50 p-4 border-b border-slate-100 flex justify-between items-start">
+                <div>
+                    <div className="flex items-center gap-2">
+                        {Icon && <Icon className="w-5 h-5 text-blue-700" />}
+                        <h2 className="text-lg font-bold text-slate-800">{title}</h2>
+                    </div>
+                    {subtitle && <p className="text-sm text-slate-500 mt-1 ml-7">{subtitle}</p>}
+                </div>
+                {rightElement}
+            </div>
+        );
+
+        const CardContent = ({ children, className = "" }) => (
+            <div className={`p-4 ${className}`}>
+                {children}
+            </div>
+        );
+
+        const Modal = ({ isOpen, onClose, title, children, maxWidth = "max-w-4xl" }) => {
+            if (!isOpen) return null;
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+                    <div className={`bg-white border border-slate-200 rounded-xl shadow-2xl w-full ${maxWidth} max-h-[90vh] overflow-y-auto flex flex-col`}>
+                        <div className="flex justify-between items-center p-4 border-b border-slate-100 sticky top-0 bg-white z-10 shrink-0">
+                            <h3 className="text-xl font-bold text-slate-800">{title}</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="p-6 overflow-y-auto">
+                            {children}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const StatusBadge = ({ status }) => {
+            const styles = {
+                planning: 'bg-slate-100 text-slate-500 border-slate-200',
+                active: 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse',
+                closed: 'bg-slate-800 text-slate-200 border-slate-600',
+                reviewed: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+            };
+            const labels = {
+                planning: '待开仓',
+                active: '持仓中',
+                closed: '待复盘',
+                reviewed: '已归档'
+            };
+            return (
+                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${styles[status] || styles.planning}`}>
+                    {labels[status] || status}
+                </span>
+            );
+        };
+
+        const calculateStats = (trades) => {
+            const closedTrades = trades.filter(t => t.status === 'closed' || t.status === 'reviewed');
+            if (closedTrades.length === 0) return null;
+            let winCount = 0, totalScore = 0, scoreCount = 0;
+            const parsePnL = (str) => { if(!str) return 0; const isNegative = str.includes('-') || str.toLowerCase().includes('loss'); const num = parseFloat(str.replace(/[^0-9.]/g, '')); return isNegative ? -num : num; };
+            const sourceStats = { social: { total: 0, wins: 0 }, research: { total: 0, wins: 0 }, paradigm: { total: 0, wins: 0 } };
+            const strategyStats = {};
+            closedTrades.forEach(t => {
+                const pnlStr = (t.closing?.pnl || t.review?.pnl || '').toString();
+                const isWin = !pnlStr.includes('-') && (pnlStr.includes('+') || parsePnL(pnlStr) > 0);
+                if (isWin) winCount++;
+                if (t.review?.score) { totalScore += parseInt(t.review.score); scoreCount++; }
+                if (t.scanTypes) { t.scanTypes.forEach(type => { if (!sourceStats[type]) sourceStats[type] = { total: 0, wins: 0 }; sourceStats[type].total++; if (isWin) sourceStats[type].wins++; }); }
+                const stratName = t.finalStrategy?.split(']')[1]?.trim() || t.finalStrategy || 'Unknown';
+                if (!strategyStats[stratName]) strategyStats[stratName] = { total: 0, wins: 0 };
+                strategyStats[stratName].total++;
+                if (isWin) strategyStats[stratName].wins++;
+            });
+            return { totalTrades: closedTrades.length, winRate: Math.round((winCount / closedTrades.length) * 100), avgScore: scoreCount ? (totalScore / scoreCount).toFixed(1) : '-', sourceStats, strategyStats };
+        };
+
+        // --- 3. 功能组件模块 (Order Matters!) ---
+
+        function InsightsDashboard({ trades }) {
+            const stats = useMemo(() => calculateStats(trades), [trades]);
+
+            if (!stats) {
+                return (
+                <div className="flex flex-col items-center justify-center py-20 text-center animate-fade-in">
+                    <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mb-6">
+                    {Lightbulb && <Lightbulb className="w-10 h-10 text-purple-600" />}
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800">暂无洞察数据</h2>
+                    <p className="text-slate-500 max-w-md mt-2">
+                    系统需要至少完成一笔交易的**平仓**和**复盘**，才能开始生成有效的洞察报告。
+                    </p>
+                </div>
+                );
+            }
+
+            const suggestions = [];
+            if (stats.winRate < 40) suggestions.push("当前总体胜率偏低，建议降低单笔风险暴露，或暂停交易检查交易系统。");
+            if (stats.sourceStats.social.total > 0 && (stats.sourceStats.social.wins / stats.sourceStats.social.total) < 0.4) {
+                suggestions.push("【警示】来自「社交网络」的交易胜率不足 40%，建议减少跟单，增加独立研究权重。");
+            }
+            if (stats.sourceStats.research.total > 0 && (stats.sourceStats.research.wins / stats.sourceStats.research.total) > 0.6) {
+                suggestions.push("【优势】你的「深度研究」转化率很高，请继续保持独立思考。");
+            }
+            if (parseFloat(stats.avgScore) < 6) suggestions.push("【纪律】你的平均自我评分低于 6 分，说明执行力有待提高。");
+
+            return (
+                <div className="space-y-8 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <Card className="bg-gradient-to-br from-purple-600 to-indigo-600 text-white border-none shadow-lg">
+                    <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                        <span className="text-purple-100 font-medium text-sm uppercase tracking-wider">总体胜率 (Win Rate)</span>
+                        {Activity && <Activity className="w-5 h-5 text-purple-200" />}
+                        </div>
+                        <div className="text-4xl font-bold mb-2">{stats.winRate}%</div>
+                        <div className="text-xs text-purple-200">基于 {stats.totalTrades} 笔已结交易</div>
+                    </div>
+                    </Card>
+                    <Card>
+                    <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                        <span className="text-slate-500 font-medium text-sm uppercase tracking-wider">执行评分</span>
+                        {CheckCircle && <CheckCircle className="w-5 h-5 text-emerald-500" />}
+                        </div>
+                        <div className="text-4xl font-bold text-slate-800 mb-2">{stats.avgScore}<span className="text-lg text-slate-400">/10</span></div>
+                    </div>
+                    </Card>
+                    <Card>
+                    <div className="p-6">
+                        <div className="flex items-center justify-between mb-4">
+                        <span className="text-slate-500 font-medium text-sm uppercase tracking-wider">样本数量</span>
+                        {Database && <Database className="w-5 h-5 text-blue-500" />}
+                        </div>
+                        <div className="text-4xl font-bold text-slate-800 mb-2">{stats.totalTrades}</div>
+                    </div>
+                    </Card>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <Card>
+                    <CardHeader title="源头归因" icon={Radar} />
+                    <CardContent className="space-y-4">
+                        {['social', 'research', 'paradigm'].map(key => {
+                        const data = stats.sourceStats[key];
+                        if (data.total === 0) return null;
+                        const rate = Math.round((data.wins / data.total) * 100);
+                        return (
+                            <div key={key} className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                                <span className="font-medium text-slate-700">{key}</span>
+                                <span className="text-slate-500">{data.wins}/{data.total} ({rate}%)</span>
+                            </div>
+                            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className={`h-full rounded-full ${rate >= 50 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${rate}%` }}></div>
+                            </div>
+                            </div>
+                        );
+                        })}
+                    </CardContent>
+                    </Card>
+
+                    <Card className="border-purple-200 bg-purple-50/50">
+                    <CardHeader title="系统进化建议" icon={Zap} />
+                    <CardContent>
+                        {suggestions.length > 0 ? (
+                            <ul className="space-y-3">
+                            {suggestions.map((s, i) => (
+                                <li key={i} className="flex gap-3 items-start text-sm text-slate-700 bg-white p-3 rounded border border-purple-100 shadow-sm">
+                                {Lightbulb && <Lightbulb className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />}
+                                {s}
+                                </li>
+                            ))}
+                            </ul>
+                        ) : (
+                            <p className="text-slate-500 text-sm">暂无明显建议。</p>
+                        )}
+                    </CardContent>
+                    </Card>
+                </div>
+                </div>
+            );
+        }
+
+        function LibraryManager({ toolbox, setToolbox, socials, setSocials, paradigms, setParadigms, scenarios, setScenarios, research, setResearch }) {
+            const [activeSubTab, setActiveSubTab] = useState('scenarios'); 
+            const [isEditing, setIsEditing] = useState(false);
+            const [editItem, setEditItem] = useState(null);
+            const [filterVol, setFilterVol] = useState('all');
+            const [filterPrice, setFilterPrice] = useState('all');
+            const [filterBasis, setFilterBasis] = useState('all');
+
+            const createDocHandler = (field) => (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setEditItem(prev => ({ ...prev, [field]: reader.result }));
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleSave = () => {
+                const isNew = !editItem.id && activeSubTab !== 'scenarios'; 
+                const item = isNew ? { ...editItem, id: Date.now().toString() } : editItem;
+
+                if (activeSubTab === 'strategies') {
+                    if (!editItem.name) return alert("名称不能为空");
+                    setToolbox(isNew ? [...toolbox, item] : toolbox.map(i => i.id === item.id ? item : i));
+                } else if (activeSubTab === 'socials') {
+                    if (!editItem.name) return alert("名称不能为空");
+                    setSocials(isNew ? [...socials, item] : socials.map(i => i.id === item.id ? item : i));
+                } else if (activeSubTab === 'paradigms') {
+                    if (!editItem.name) return alert("名称不能为空");
+                    setParadigms(isNew ? [...paradigms, item] : paradigms.map(i => i.id === item.id ? item : i));
+                } else if (activeSubTab === 'research') {
+                     if (!editItem.name) return alert("标题不能为空");
+                     setResearch(isNew ? [...research, item] : research.map(i => i.id === item.id ? item : i));
+                } else if (activeSubTab === 'scenarios') {
+                    setScenarios({ ...scenarios, [item.id]: item });
+                }
+                setIsEditing(false);
+            };
+
+            const handleDelete = (id) => {
+                if(!confirm("确定删除?")) return;
+                if (activeSubTab === 'strategies') setToolbox(toolbox.filter(i => i.id !== id));
+                else if (activeSubTab === 'socials') setSocials(socials.filter(i => i.id !== id));
+                else if (activeSubTab === 'research') setResearch(research.filter(i => i.id !== id));
+                else setParadigms(paradigms.filter(i => i.id !== id));
+            };
+
+            const openEditor = (item = null) => {
+                let defaultItem = {};
+                if (activeSubTab === 'strategies') defaultItem = { name: '', tags: [], greeks: { delta: 'neutral', vega: 'neutral', theta: 'neutral' }, logic: '' };
+                else if (activeSubTab === 'socials') defaultItem = { name: '', type: 'Group', reliability: 'medium' };
+                else if (activeSubTab === 'research') defaultItem = { name: '', category: 'Macro', content: '', date: new Date().toLocaleDateString() };
+                else defaultItem = { name: '', desc: '' };
+
+                setEditItem(item || defaultItem);
+                setIsEditing(true);
+            };
+
+            return (
+                <div className="space-y-6 animate-fade-in">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex gap-4 items-center overflow-x-auto w-full md:w-auto pb-2 md:pb-0">
+                        <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 whitespace-nowrap">
+                            {[{ id: 'scenarios', label: '场景字典', icon: MapIcon }, { id: 'strategies', label: '策略库', icon: Wrench }, { id: 'socials', label: '情报源', icon: Users }, { id: 'paradigms', label: '范式库', icon: Zap }, { id: 'research', label: '研究', icon: Microscope }].map(tab => (
+                                <button key={tab.id} onClick={() => setActiveSubTab(tab.id)} className={`px-4 py-2 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${activeSubTab === tab.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                    {tab.icon && <tab.icon className="w-4 h-4"/>} {tab.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                    {activeSubTab !== 'scenarios' && (
+                        <button onClick={() => openEditor()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-sm shrink-0"><Plus className="w-4 h-4"/> 新增</button>
+                    )}
+                    {activeSubTab === 'scenarios' && (
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <select className="bg-white border border-slate-300 rounded text-xs p-1.5 outline-none focus:ring-1 focus:ring-blue-500" value={filterPrice} onChange={e => setFilterPrice(e.target.value)}>
+                            <option value="all">价格: 全部</option><option value="low">低位 (Low)</option><option value="mid">中位 (Mid)</option><option value="high">高位 (High)</option>
+                        </select>
+                        <select className="bg-white border border-slate-300 rounded text-xs p-1.5 outline-none focus:ring-1 focus:ring-blue-500" value={filterVol} onChange={e => setFilterVol(e.target.value)}>
+                            <option value="all">波动: 全部</option><option value="low">Low Vol</option><option value="mid">Mid Vol</option><option value="high">High Vol</option>
+                        </select>
+                        <select className="bg-white border border-slate-300 rounded text-xs p-1.5 outline-none focus:ring-1 focus:ring-blue-500" value={filterBasis} onChange={e => setFilterBasis(e.target.value)}>
+                            <option value="all">基差: 全部</option><option value="neg">Contango</option><option value="neu">Flat</option><option value="pos">Back</option>
+                        </select>
+                    </div>
+                    )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {activeSubTab === 'scenarios' ? 
+                        Object.entries(scenarios)
+                        .filter(([key]) => {
+                            const [vol, price, basis] = key.split('_');
+                            return (filterVol === 'all' || vol === filterVol) && (filterPrice === 'all' || price === filterPrice) && (filterBasis === 'all' || basis === filterBasis);
+                        })
+                        .map(([key, data]) => {
+                             const [vol, price, basis] = key.split('_');
+                             return (
+                                 <Card key={key} className="hover:border-blue-400 transition-colors">
+                                    <div className="p-4">
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div className="flex gap-1.5 flex-wrap">
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded uppercase border bg-slate-50">{price} P</span>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded uppercase border bg-blue-50 text-blue-700">{vol} V</span>
+                                                <span className="text-[10px] px-1.5 py-0.5 rounded uppercase border bg-orange-50 text-orange-700">{basis}</span>
+                                            </div>
+                                            <button onClick={() => openEditor(data)} className="text-slate-400 hover:text-blue-600"><Edit3 className="w-3 h-3"/></button>
+                                        </div>
+                                        <div className="text-sm font-medium text-slate-800 min-h-[40px]">{data.strategy}</div>
+                                    </div>
+                                 </Card>
+                             )
+                        })
+                    : (activeSubTab === 'strategies' ? toolbox : activeSubTab === 'socials' ? socials : activeSubTab === 'research' ? research : paradigms).map(item => (
+                        <Card key={item.id} className="group relative hover:border-blue-500 transition-colors">
+                            <div className="p-5 h-full flex flex-col">
+                                <div className="flex justify-between items-start mb-2">
+                                    <h3 className="font-bold text-lg text-slate-800">{item.name}</h3>
+                                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => openEditor(item)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"><Edit3 className="w-4 h-4"/></button>
+                                        <button onClick={() => handleDelete(item.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"><Trash2 className="w-4 h-4"/></button>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-600 flex-1">{item.logic || item.desc || item.type || item.content}</p>
+                                {item.attachment && <div className="mt-2 text-xs text-blue-600 flex items-center gap-1"><ImageIcon size={12}/> 包含附件</div>}
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+                
+                {isEditing && (
+                    <Modal isOpen={true} onClose={() => setIsEditing(false)} title="编辑内容">
+                        <div className="space-y-4">
+                            <div><label className="text-xs text-slate-500 block mb-1">名称/标题</label><input className="w-full bg-white border border-slate-300 rounded p-2" value={activeSubTab === 'scenarios' ? editItem.strategy : editItem.name} onChange={e => setEditItem({...editItem, [activeSubTab === 'scenarios' ? 'strategy' : 'name']: e.target.value})} /></div>
+                            
+                            {activeSubTab === 'research' && (
+                                <>
+                                  <div><label className="text-xs text-slate-500 block mb-1">分类</label><input className="w-full bg-white border border-slate-300 rounded p-2" value={editItem.category} onChange={e => setEditItem({...editItem, category: e.target.value})} /></div>
+                                  <div><label className="text-xs text-slate-500 block mb-1">内容摘要</label><textarea className="w-full bg-white border border-slate-300 rounded p-2 h-24" value={editItem.content} onChange={e => setEditItem({...editItem, content: e.target.value})} /></div>
+                                  <label className="block cursor-pointer text-sm text-blue-600">上传文档/图片<input type="file" className="hidden" onChange={createDocHandler('attachment')}/></label>
+                                  {editItem.attachment && <img src={editItem.attachment} className="h-20 rounded border mt-2" />}
+                                </>
+                            )}
+
+                            {(activeSubTab === 'scenarios' || activeSubTab === 'strategies' || activeSubTab === 'paradigms') && <div><label className="text-xs text-slate-500 block mb-1">描述/逻辑</label><textarea className="w-full bg-white border border-slate-300 rounded p-2 h-24" value={editItem.note || editItem.logic || editItem.desc} onChange={e => setEditItem({...editItem, [activeSubTab === 'scenarios' ? 'note' : activeSubTab === 'strategies' ? 'logic' : 'desc']: e.target.value})} /></div>}
+                            
+                            <div className="pt-4 flex justify-end gap-3"><button onClick={() => setIsEditing(false)} className="px-4 py-2 text-slate-500">取消</button><button onClick={handleSave} className="bg-blue-600 text-white px-6 py-2 rounded">保存</button></div>
+                        </div>
+                    </Modal>
+                )}
+                </div>
+            );
+        }
+
+        function LifecycleManager({ trade, onClose, onUpdate, onDelete }) {
+            const getInitialPhase = () => {
+                if (trade.status === 'planning') return 'execute'; 
+                if (trade.status === 'active') return 'manage';    
+                if (trade.status === 'closed') return 'review';    
+                return 'review';
+            };
+
+            const [activePhase, setActivePhase] = useState(getInitialPhase());
+            const [tempExec, setTempExec] = useState(trade.execution || {});
+            const [tempClose, setTempClose] = useState(trade.closing || {});
+            const [tempReview, setTempReview] = useState(trade.review || {});
+            const [showPositionModal, setShowPositionModal] = useState(false);
+            const [posAction, setPosAction] = useState({ type: 'add', price: '', amount: '', reason: '', image: null });
+            const [note, setNote] = useState('');
+
+            const createImgHandler = (setter, prev) => (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setter({ ...prev, image: reader.result });
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const handleExecImg = createImgHandler(setTempExec, tempExec);
+            const handleCloseImg = createImgHandler(setTempClose, tempClose);
+            const handleReviewImg = createImgHandler(setTempReview, tempReview);
+            const handlePosImg = createImgHandler(setPosAction, posAction);
+
+            const saveExecution = () => { onUpdate(trade.id, { status: 'active', execution: tempExec, currentPosition: { price: tempExec.price, amount: tempExec.amount, time: tempExec.time } }); setActivePhase('manage'); };
+            const saveClosing = () => { onUpdate(trade.id, { status: 'closed', closing: tempClose }); setActivePhase('review'); };
+            const saveReview = () => { onUpdate(trade.id, { status: 'reviewed', review: tempReview }); onClose(); };
+            const handlePositionChange = () => { 
+                const actionLabel = posAction.type === 'add' ? '加仓' : posAction.type === 'reduce' ? '减仓' : '移仓';
+                const newAdj = { time: new Date().toLocaleString(), text: `【${actionLabel}】${posAction.price} / ${posAction.amount}. 理由: ${posAction.reason}`, type: 'position_change', image: posAction.image };
+                onUpdate(trade.id, { adjustments: [newAdj, ...(trade.adjustments || [])] });
+                setShowPositionModal(false);
+                setPosAction({ type: 'add', price: '', amount: '', reason: '', image: null });
+            };
+            const addAdjustment = (type) => {
+                 if (type === 'note' && !note) return;
+                 const newAdj = type === 'hold' ? { time: new Date().toLocaleString(), text: '【维持原判】', type: 'hold' } : { time: new Date().toLocaleString(), text: note, type: 'note' };
+                 onUpdate(trade.id, { adjustments: [newAdj, ...(trade.adjustments || [])] });
+                 setNote('');
+            };
+
+            return (
+                <Modal isOpen={true} onClose={onClose} title={trade.finalStrategy}>
+                    <div className="flex flex-col md:flex-row gap-6">
+                        <div className="w-full md:w-48 flex flex-col gap-2 border-r border-slate-100 pr-4">
+                             {['plan', 'execute', 'manage', 'close', 'review'].map((p, i) => (
+                                 <button key={p} onClick={() => setActivePhase(p)} disabled={(trade.status === 'planning' && i > 1) || (trade.status === 'active' && (i > 2 && i !== 3))} className={`text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activePhase === p ? 'bg-blue-50 text-blue-700' : 'text-slate-500'}`}>{i+1}. {p.toUpperCase()}</button>
+                             ))}
+                             <div className="mt-auto pt-4 border-t border-slate-100"><button onClick={() => {onDelete(trade.id); onClose();}} className="w-full text-red-500 text-xs py-2">删除记录</button></div>
+                        </div>
+                        <div className="flex-1 min-h-[400px]">
+                            {activePhase === 'plan' && (
+                                <div className="space-y-4">
+                                    <div className="bg-slate-50 p-3 rounded border border-slate-100 text-sm"><p className="font-bold text-xs text-slate-500">观点</p>{trade.viewpoint}</div>
+                                    <div className="bg-slate-50 p-3 rounded border border-slate-100 text-sm"><p className="font-bold text-xs text-slate-500">策略</p>{trade.contractLogic}</div>
+                                    {trade.scanDoc && <img src={trade.scanDoc} className="h-20 rounded border" />}
+                                </div>
+                            )}
+                            {activePhase === 'execute' && (
+                                <div className="space-y-4">
+                                    <div className="bg-blue-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">价格</label><input className="w-full p-2 rounded border" value={tempExec.price} onChange={e => setTempExec({...tempExec, price: e.target.value})}/></div>
+                                    <div className="bg-blue-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">数量/金额</label><input className="w-full p-2 rounded border" placeholder="手数/金额" value={tempExec.amount} onChange={e => setTempExec({...tempExec, amount: e.target.value})}/></div>
+                                    <div className="bg-blue-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">备注</label><textarea className="w-full p-2 rounded border" value={tempExec.note} onChange={e => setTempExec({...tempExec, note: e.target.value})}/></div>
+                                    <label className="block cursor-pointer text-sm text-blue-600">上传截图<input type="file" className="hidden" onChange={handleExecImg}/></label>
+                                    {tempExec.image && <img src={tempExec.image} className="h-32 rounded shadow"/>}
+                                    {trade.status === 'planning' && <button onClick={saveExecution} className="w-full bg-blue-600 text-white py-2 rounded font-bold">确认开仓</button>}
+                                </div>
+                            )}
+                            {activePhase === 'manage' && (
+                                <div className="space-y-4">
+                                    <div className="flex gap-2">
+                                        <button onClick={() => addAdjustment('hold')} className="flex-1 p-3 bg-slate-50 border rounded text-slate-700 text-sm font-bold">维持原判</button>
+                                        <button onClick={() => setShowPositionModal(true)} className="flex-1 p-3 bg-slate-50 border rounded text-slate-700 text-sm font-bold">仓位调整</button>
+                                    </div>
+                                    <div className="space-y-2">{(trade.adjustments || []).map((a, i) => <div key={i} className="p-2 bg-slate-50 rounded border text-xs">{a.text} {a.image && <span className="text-blue-500">[图]</span>}</div>)}</div>
+                                </div>
+                            )}
+                             {showPositionModal && (
+                                <Modal isOpen={true} onClose={() => setShowPositionModal(false)} title="仓位调整" maxWidth="max-w-md">
+                                    <div className="space-y-4">
+                                        <div className="flex gap-2"><button onClick={() => setPosAction({...posAction, type: 'add'})} className="flex-1 bg-slate-100 py-1 rounded text-xs">加仓</button><button onClick={() => setPosAction({...posAction, type: 'reduce'})} className="flex-1 bg-slate-100 py-1 rounded text-xs">减仓</button><button onClick={() => setPosAction({...posAction, type: 'roll'})} className="flex-1 bg-slate-100 py-1 rounded text-xs">移仓</button></div>
+                                        <input className="w-full border p-2 rounded" placeholder="价格" value={posAction.price} onChange={e => setPosAction({...posAction, price: e.target.value})}/>
+                                        <input className="w-full border p-2 rounded" placeholder="数量/金额" value={posAction.amount} onChange={e => setPosAction({...posAction, amount: e.target.value})}/>
+                                        <textarea className="w-full border p-2 rounded" placeholder="理由..." value={posAction.reason} onChange={e => setPosAction({...posAction, reason: e.target.value})}/>
+                                        <label className="text-xs text-blue-600 cursor-pointer">上传依据<input type="file" className="hidden" onChange={handlePosImg}/></label>
+                                        {posAction.image && <img src={posAction.image} className="h-20 rounded"/>}
+                                        <button onClick={handlePositionChange} className="w-full bg-blue-600 text-white py-2 rounded">确认</button>
+                                    </div>
+                                </Modal>
+                            )}
+                            {activePhase === 'close' && (
+                                <div className="space-y-4">
+                                    <div className="bg-red-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">最终盈亏</label><input className="w-full p-2 rounded border" value={tempClose.pnl} onChange={e => setTempClose({...tempClose, pnl: e.target.value})}/></div>
+                                    <div className="bg-red-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">复盘速记</label><textarea className="w-full p-2 rounded border" value={tempClose.note} onChange={e => setTempClose({...tempClose, note: e.target.value})}/></div>
+                                    <label className="block cursor-pointer text-sm text-red-600">上传交割单<input type="file" className="hidden" onChange={handleCloseImg}/></label>
+                                    {tempClose.image && <img src={tempClose.image} className="h-32 rounded shadow"/>}
+                                    <button onClick={saveClosing} className="w-full bg-red-600 text-white py-2 rounded font-bold">确认平仓</button>
+                                </div>
+                            )}
+                            {activePhase === 'review' && (
+                                <div className="space-y-4">
+                                    <div className="bg-emerald-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">评分 (1-10)</label><input type="number" className="w-full p-2 rounded border" value={tempReview.score} onChange={e => setTempReview({...tempReview, score: e.target.value})}/></div>
+                                    <div className="bg-emerald-50 p-4 rounded-lg"><label className="text-xs block text-slate-500">总结</label><textarea className="w-full p-2 rounded border h-32" value={tempReview.notes} onChange={e => setTempReview({...tempReview, notes: e.target.value})}/></div>
+                                    <label className="block cursor-pointer text-sm text-emerald-600">上传复盘文档<input type="file" className="hidden" onChange={handleReviewImg}/></label>
+                                    {tempReview.image && <img src={tempReview.image} className="h-32 rounded shadow"/>}
+                                    <button onClick={saveReview} className="w-full bg-emerald-600 text-white py-2 rounded font-bold">归档</button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </Modal>
+            );
+        }
+
+        function ReviewBoard({ trades, onUpdate, onDelete }) {
+            const [selectedTrade, setSelectedTrade] = useState(null);
+            const closed = trades.filter(t => t.status === 'closed');
+            const archived = trades.filter(t => t.status === 'reviewed');
+
+            return (
+                <div className="space-y-8 animate-fade-in">
+                    <div><h3 className="text-sm font-bold text-orange-500 mb-4">待复盘</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">{closed.map(t => <Card key={t.id} className="cursor-pointer hover:border-orange-400"><div onClick={() => setSelectedTrade(t)} className="p-4"><StatusBadge status={t.status}/><div className="mt-2 font-bold text-slate-800">{t.finalStrategy}</div><div className="text-xs text-slate-500 mt-1">盈亏: {t.closing?.pnl}</div></div></Card>)}</div></div>
+                    <div><h3 className="text-sm font-bold text-emerald-600 mb-4">已归档</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">{archived.map(t => <Card key={t.id} className="cursor-pointer hover:border-emerald-400"><div onClick={() => setSelectedTrade(t)} className="p-4"><StatusBadge status={t.status}/><div className="mt-2 font-bold text-slate-800">{t.finalStrategy}</div><div className="text-xs text-slate-500 mt-1">评分: {t.review?.score}</div></div></Card>)}</div></div>
+                    {selectedTrade && <LifecycleManager trade={selectedTrade} onClose={() => setSelectedTrade(null)} onUpdate={onUpdate} onDelete={onDelete} />}
+                </div>
+            );
+        }
+
+        function ExecutionBoard({ trades, onUpdate, onDelete }) {
+            const [selectedTrade, setSelectedTrade] = useState(null);
+            const planning = trades.filter(t => t.status === 'planning');
+            const active = trades.filter(t => t.status === 'active');
+
+            return (
+                <div className="space-y-8 animate-fade-in">
+                    <div><h3 className="text-sm font-bold text-slate-500 mb-4">待开仓</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{planning.map(t => <Card key={t.id} className="cursor-pointer hover:border-blue-500"><div onClick={() => setSelectedTrade(t)} className="p-4"><StatusBadge status={t.status}/><div className="mt-2 font-bold text-slate-800">{t.finalStrategy}</div><div className="text-xs text-slate-500 mt-2 line-clamp-2">{t.viewpoint}</div></div></Card>)}</div></div>
+                    <div><h3 className="text-sm font-bold text-blue-600 mb-4">持仓中</h3><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{active.map(t => <Card key={t.id} className="cursor-pointer hover:border-blue-500"><div onClick={() => setSelectedTrade(t)} className="p-4"><StatusBadge status={t.status}/><div className="mt-2 font-bold text-slate-800">{t.finalStrategy}</div><div className="text-xs text-blue-600 mt-2 font-mono">Price: {t.currentPosition?.price}</div></div></Card>)}</div></div>
+                    {selectedTrade && <LifecycleManager trade={selectedTrade} onClose={() => setSelectedTrade(null)} onUpdate={onUpdate} onDelete={onDelete} />}
+                </div>
+            );
+        }
+
+        function DecisionEngine({ onFinish, toolbox, socials, paradigms, scenarios, research }) {
+            const [step, setStep] = useState(1);
+            const [data, setData] = useState({
+                scanTypes: [], selectedSocials: [], selectedParadigms: [], selectedResearch: [], scanNote: '', scanDoc: null,
+                viewpoint: '', viewpointDoc: null, direction: 0, viewpointLogic: '', priceTarget: '', viewpointPrice: '', viewpointVol: '', viewpointBasis: '',
+                volatility: 'low', priceLevel: 'mid', basis: 'neu', 
+                greeksFocus: { delta: 'neutral', vega: 'neutral', theta: 'neutral' }, trendPrediction: '', volPreference: '',
+                contractLogic: '', priceCheck: '', capitalPlan: '', finalStrategy: '', planImage: null, tags: [], strategyDoc: null,
+                rrRatio: '', payoffType: 'linear', payoffNote: '', positionSize: '', stopLoss: '', hedgePlan: '', hedgeDoc: null
+            });
+            const [showToolboxSelect, setShowToolboxSelect] = useState(false);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+
+            const createDocHandler = (field) => (e) => {
+                const file = e.target.files[0];
+                if(file) { const r = new FileReader(); r.onload = () => setData(prev => ({...prev, [field]: r.result})); r.readAsDataURL(file); }
+            };
+
+            const handleFinish = () => {
+                if(!data.finalStrategy) return alert("请选择策略");
+                if(!data.viewpoint) return alert("请填写观点");
+                setIsSubmitting(true);
+                setTimeout(() => { onFinish(data); alert("交易计划已创建！"); setIsSubmitting(false); }, 600);
+            };
+            
+            const updateGreek = (key, value) => {
+                setData(prev => ({ ...prev, greeksFocus: { ...prev.greeksFocus, [key]: value } }));
+            };
+
+            const toggleScanType = (type) => {
+                const current = data.scanTypes || [];
+                if (current.includes(type)) setData({ ...data, scanTypes: current.filter(t => t !== type) });
+                else setData({ ...data, scanTypes: [...current, type] });
+            };
+
+            const toggleSelection = (field, id) => {
+                const current = data[field] || [];
+                if (current.includes(id)) setData({ ...data, [field]: current.filter(i => i !== id) });
+                else setData({ ...data, [field]: [...current, id] });
+            };
+
+            const applyScenarioStrategy = () => {
+                const currentScenarioKey = `${data.volatility}_${data.priceLevel}_${data.basis}`;
+                const currentScenarioStrategy = scenarios[currentScenarioKey]?.strategy;
+                if (currentScenarioStrategy) {
+                    setData(prev => ({ ...prev, finalStrategy: currentScenarioStrategy, contractLogic: `基于场景 [${data.volatility} Vol / ${data.priceLevel} Price / ${data.basis} Basis] 自动匹配。` }));
+                }
+            };
+
+            const selectStrategyFromToolbox = (strat) => {
+                setData(prev => ({ ...prev, finalStrategy: strat.name, contractLogic: strat.logic, greeksFocus: strat.greeks }));
+                setShowToolboxSelect(false);
+            };
+
+            const recommendedStrategies = toolbox.filter(strat => {
+                const volTagMatch = strat.tags.some(t => t.includes(data.volatility)); 
+                const dirTagMatch = (data.direction > 0 && strat.tags.includes('bull')) || (data.direction < 0 && strat.tags.includes('bear')) || (data.direction === 0 && strat.tags.includes('neutral'));
+                return volTagMatch && dirTagMatch;
+            });
+            
+            const currentScenarioKey = `${data.volatility}_${data.priceLevel}_${data.basis}`;
+            const currentScenarioStrategy = scenarios[currentScenarioKey]?.strategy;
+
+            return (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 animate-fade-in">
+                     <div className="lg:col-span-3 flex overflow-x-auto gap-2 mb-4 border-b pb-2">
+                        {DECISION_STEPS.map(s => (
+                            <div key={s.id} onClick={() => {if(s.id < step) setStep(s.id)}} className={`flex flex-col items-center min-w-[80px] cursor-pointer ${s.id === step ? 'text-blue-600' : s.id < step ? 'text-slate-800' : 'text-slate-300'}`}>
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold mb-1 ${s.id === step ? 'bg-blue-600 text-white' : s.id < step ? 'bg-slate-200 text-slate-600' : 'bg-slate-100'}`}>{s.id}</div>
+                                <span className="text-[10px] font-bold">{s.cn}</span>
+                                <span className="text-[8px] uppercase">{s.en}</span>
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <div className="lg:col-span-2 space-y-6">
+                        {step === 1 && <Card><CardHeader title="Step 1: 机会扫描" icon={Radar}/><CardContent><div className="grid grid-cols-3 gap-4">{[{id:'social', label:'社交', icon:Users}, {id:'research', label:'研究', icon:BookOpen}, {id:'paradigm', label:'范式', icon:Zap}].map(t => <button key={t.id} onClick={() => toggleScanType(t.id)} className={`p-4 border-2 rounded-xl flex flex-col items-center ${data.scanTypes.includes(t.id) ? 'border-blue-600 bg-blue-50 text-blue-700' : ''}`}><t.icon className="mb-2"/><span className="text-sm font-bold">{t.label}</span></button>)}</div>
+                        {data.scanTypes.includes('social') && <div className="mt-4 p-3 bg-slate-50 rounded border"><div className="text-xs font-bold mb-2 text-slate-500">选择情报源</div><div className="flex flex-wrap gap-2">{socials.map(s=><button key={s.id} onClick={() => toggleSelection('selectedSocials', s.name)} className={`px-2 py-1 text-xs border rounded ${data.selectedSocials.includes(s.name)?'bg-indigo-100 border-indigo-300 text-indigo-700':'bg-white'}`}>{s.name}</button>)}</div></div>}
+                        {data.scanTypes.includes('research') && <div className="mt-4 p-3 bg-slate-50 rounded border"><div className="text-xs font-bold mb-2 text-slate-500">选择研究结论</div><div className="flex flex-wrap gap-2">{research.map(r=><button key={r.id} onClick={() => toggleSelection('selectedResearch', r.name)} className={`px-2 py-1 text-xs border rounded ${data.selectedResearch.includes(r.name)?'bg-blue-100 border-blue-300 text-blue-700':'bg-white'}`}>{r.name}</button>)}</div></div>}
+                        {data.scanTypes.includes('paradigm') && <div className="mt-4 p-3 bg-slate-50 rounded border"><div className="text-xs font-bold mb-2 text-slate-500">选择范式</div><div className="flex flex-wrap gap-2">{paradigms.map(p=><button key={p.id} onClick={() => toggleSelection('selectedParadigms', p.name)} className={`px-2 py-1 text-xs border rounded ${data.selectedParadigms.includes(p.name)?'bg-purple-100 border-purple-300 text-purple-700':'bg-white'}`}>{p.name}</button>)}</div></div>}
+                        <textarea className="w-full mt-4 border p-3 rounded" placeholder="机会描述..." value={data.scanNote} onChange={e=>setData({...data, scanNote:e.target.value})}/>
+                        <div className="mt-4"><label className="cursor-pointer text-blue-600 text-sm flex items-center gap-2"><ImageIcon size={16}/> {data.scanDoc ? '已上传' : '上传证据'}<input type="file" className="hidden" onChange={createDocHandler('scanDoc')}/></label></div>
+                        {data.scanDoc && <img src={data.scanDoc} className="mt-2 h-24 rounded border"/>}
+                        </CardContent></Card>}
+                        
+                        {step === 2 && <Card><CardHeader title="Step 2: 观点打磨" icon={Target}/><CardContent><textarea className="w-full border p-3 rounded h-32" placeholder="核心观点..." value={data.viewpoint} onChange={e=>setData({...data, viewpoint:e.target.value})}/><div className="mt-4"><label className="block text-xs text-slate-500 mb-2">方向强度: {data.direction}</label><div className="grid grid-cols-5 gap-2">{DIRECTION_OPTIONS.map(d => (<button key={d.value} onClick={() => setData({...data, direction: d.value})} className={`py-2 rounded text-xs border ${data.direction === d.value ? d.color + ' ring-2 ring-offset-1 ring-blue-200' : 'bg-white border-slate-200 text-slate-500'}`}>{d.label}</button>))}</div></div>
+                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4 mt-4"><div><label className="text-xs block mb-1 text-slate-500">逻辑推演</label><textarea className="w-full border p-2 rounded h-20" placeholder="为什么？" value={data.viewpointLogic} onChange={e=>setData({...data, viewpointLogic:e.target.value})}/></div><div><label className="text-xs block mb-1 text-slate-500">点位区间</label><input className="w-full border p-2 rounded" placeholder="Support/Resist..." value={data.priceTarget} onChange={e=>setData({...data, priceTarget:e.target.value})}/></div></div>
+                         <div className="border-t border-slate-100 pt-4"><label className="cursor-pointer flex items-center gap-2 text-sm text-blue-600"><FileText size={16}/> {data.viewpointDoc ? '已上传推演' : '上传推演文档'}<input type="file" className="hidden" onChange={createDocHandler('viewpointDoc')}/></label></div>
+                         {data.viewpointDoc && <img src={data.viewpointDoc} className="mt-2 h-24 rounded border"/>}
+                        </CardContent></Card>}
+                        
+                        {step === 3 && <Card><CardHeader title="Step 3: 环境识别" icon={Wind}/><CardContent><div className="space-y-4"><div><label className="text-xs font-bold text-slate-500 block mb-1">价格位置</label><div className="flex gap-2">{['low','mid','high'].map(p=><button key={p} onClick={()=>setData({...data, priceLevel:p})} className={`flex-1 py-2 border rounded text-sm capitalize ${data.priceLevel===p?'bg-emerald-50 border-emerald-500 text-emerald-700':''}`}>{p}</button>)}</div></div><div><label className="text-xs font-bold text-slate-500 block mb-1">波动率</label><div className="flex gap-2">{['low','mid','high'].map(v=><button key={v} onClick={()=>setData({...data, volatility:v})} className={`flex-1 py-2 border rounded text-sm capitalize ${data.volatility===v?'bg-blue-50 border-blue-500 text-blue-700':''}`}>{v}</button>)}</div></div><div><label className="text-xs font-bold text-slate-500 block mb-1">基差</label><div className="flex gap-2">{['neg','neu','pos'].map(b=><button key={b} onClick={()=>setData({...data, basis:b})} className={`flex-1 py-2 border rounded text-sm capitalize ${data.basis===b?'bg-orange-50 border-orange-500 text-orange-700':''}`}>{b==='neg'?'Contango':b==='pos'?'Back':'Flat'}</button>)}</div></div>
+                        <div className="mt-4"><label className="cursor-pointer text-blue-600 text-sm flex items-center gap-2"><ImageIcon size={16}/> {data.envDoc ? '已上传环境图' : '上传环境图'}<input type="file" className="hidden" onChange={createDocHandler('envDoc')}/></label></div>
+                        {data.envDoc && <img src={data.envDoc} className="mt-2 h-24 rounded border"/>}
+                        </div></CardContent></Card>}
+                        
+                        {step === 4 && <Card><CardHeader title="Step 4: 持仓过程" icon={Briefcase}/><CardContent><div className="p-4 bg-slate-50 rounded border border-slate-100 space-y-2">{['delta','vega','theta'].map(k=><div key={k} className="flex justify-between items-center text-sm"><span className="uppercase font-bold text-slate-500">{k}</span><div className="flex gap-1">{['short','neutral','long'].map(opt=><button key={opt} onClick={()=>updateGreek(k, opt)} className={`px-2 py-1 rounded border text-xs ${data.greeksFocus[k]===opt ? GREEK_STATES[k][opt].color : 'text-slate-400 border-slate-200'}`}>{GREEK_STATES[k][opt].label}</button>)}</div></div>)}</div>
+                         <div className="mt-4"><label className="text-xs font-bold text-slate-500 block mb-2">走势预判</label><div className="grid grid-cols-2 gap-2">{TREND_TYPES.map(t=><button key={t.id} onClick={()=>setData({...data, trendPrediction:t.id})} className={`p-2 border rounded text-xs flex items-center gap-2 ${data.trendPrediction===t.id ? t.color : ''}`}><t.icon size={14}/> {t.label}</button>)}</div></div>
+                         <div className="mt-4"><label className="text-xs font-bold text-slate-500 block mb-2">波动偏好</label><div className="flex gap-2">{VOL_PREFS.map(v=><button key={v.id} onClick={()=>setData({...data, volPreference:v.id})} className={`flex-1 p-2 border rounded text-xs ${data.volPreference===v.id ? v.color + ' border-current font-bold' : ''}`}>{v.label}</button>)}</div></div>
+                        </CardContent></Card>}
+                        
+                        {step === 5 && <Card><CardHeader title="Step 5: 策略优选" icon={Layers}/><CardContent><div className="bg-blue-50 p-3 rounded text-sm text-blue-800 mb-4">推荐: {scenarios[`${data.volatility}_${data.priceLevel}_${data.basis}`]?.strategy || '无'}</div>
+                        <input className="w-full border p-3 rounded mb-4" placeholder="策略名称..." value={data.finalStrategy} onChange={e=>setData({...data, finalStrategy:e.target.value})}/>
+                        <div className="flex justify-between items-center mb-2"><label className="text-xs font-bold text-slate-500">选筹逻辑</label><button onClick={()=>setShowToolboxSelect(true)} className="text-xs text-blue-600">从策略库选择</button></div>
+                        <textarea className="w-full border p-3 rounded h-24" placeholder="逻辑..." value={data.contractLogic} onChange={e=>setData({...data, contractLogic:e.target.value})}/>
+                         <div className="mt-4 p-3 bg-slate-50 rounded border"><div className="flex gap-4 text-xs items-center"><span>R/R: <input className="border p-1 rounded w-16" value={data.rrRatio} onChange={e=>setData({...data, rrRatio:e.target.value})}/></span><span>Type: <select className="border p-1 rounded" value={data.payoffType} onChange={e=>setData({...data, payoffType:e.target.value})}><option value="linear">线性</option><option value="convex_pos">正凸性</option><option value="convex_neg">负凸性</option></select></span></div></div>
+                         <div className="mt-4"><label className="cursor-pointer text-blue-600 text-sm flex items-center gap-2"><FileText size={16}/> {data.strategyDoc ? '已上传演算' : '上传策略演算文档'}<input type="file" className="hidden" onChange={createDocHandler('strategyDoc')}/></label></div>
+                        </CardContent></Card>}
+                        
+                        {step === 6 && <Card><CardHeader title="Step 6: 风控" icon={Shield}/><CardContent>
+                            <div className="mb-4">
+                                <label className="text-xs block mb-1 text-slate-500">仓位 (Size)</label>
+                                <div className="flex gap-2 mb-2">{POSITION_SIZES.map(s=><button key={s} onClick={()=>setData({...data, positionSize: s})} className="px-2 py-1 bg-slate-100 rounded text-xs hover:bg-slate-200">{s}</button>)}</div>
+                                <input className="w-full border p-2 rounded" value={data.positionSize} onChange={e=>setData({...data, positionSize:e.target.value})}/>
+                            </div>
+                            <div className="mb-4"><label className="text-xs block mb-1 text-slate-500">止损 (Stop Loss)</label><input className="w-full border p-2 rounded" placeholder="具体价格/条件..." value={data.stopLoss} onChange={e=>setData({...data, stopLoss:e.target.value})}/></div>
+                            <textarea className="w-full border p-3 rounded h-20 mt-4" placeholder="对冲方案..." value={data.hedgePlan} onChange={e=>setData({...data, hedgePlan:e.target.value})}/>
+                            <div className="mt-4"><label className="cursor-pointer text-blue-600 text-sm flex items-center gap-2"><FileText size={16}/> {data.hedgeDoc ? '已上传对冲文档' : '上传对冲文档'}<input type="file" className="hidden" onChange={createDocHandler('hedgeDoc')}/></label></div>
+                        </CardContent></Card>}
+                        
+                        {step === 7 && <Card><CardHeader title="Step 7: 决策综述" icon={FileCheck}/><CardContent>
+                             <div className="space-y-4 text-sm">
+                                <div className="border-b pb-2">
+                                   <div className="text-xs text-slate-500 uppercase font-bold mb-1">情报与定性</div>
+                                   <div className="flex gap-2 mb-1">{data.scanTypes.map(t=><span key={t} className="bg-slate-100 text-xs px-1 rounded">{t}</span>)} <span className="bg-blue-50 text-blue-700 text-xs px-1 rounded">{data.volatility} V</span><span className="bg-emerald-50 text-emerald-700 text-xs px-1 rounded">{data.priceLevel} P</span></div>
+                                   <div className="font-bold">{data.viewpoint}</div>
+                                   <div className="text-xs text-slate-500 mt-1">{data.viewpointLogic}</div>
+                                </div>
+                                <div className="border-b pb-2">
+                                   <div className="text-xs text-slate-500 uppercase font-bold mb-1">策略结构</div>
+                                   <div className="font-bold">{data.finalStrategy}</div>
+                                   <div className="text-xs text-slate-500 mt-1">R/R: {data.rrRatio} | {PAYOFF_TYPES.find(t=>t.id===data.payoffType)?.label}</div>
+                                </div>
+                                <div>
+                                   <div className="text-xs text-slate-500 uppercase font-bold mb-1">风控防线</div>
+                                   <div className="bg-red-50 text-red-800 p-2 rounded text-xs">
+                                       <div>仓位: {data.positionSize}</div>
+                                       <div>止损: {data.stopLoss}</div>
+                                       <div>对冲: {data.hedgePlan || '无'}</div>
+                                   </div>
+                                </div>
+                             </div>
+                        </CardContent></Card>}
+
+                        <div className="flex justify-between pt-4">
+                            <button onClick={() => setStep(s => Math.max(1, s - 1))} disabled={step === 1} className="px-6 py-2 rounded bg-slate-100 text-slate-600 disabled:opacity-50">上一步</button>
+                            {step < 7 ? <button onClick={() => setStep(s => s + 1)} className="px-8 py-2 rounded bg-blue-600 text-white shadow-lg">下一步</button> : <button onClick={handleFinish} disabled={isSubmitting} className="px-8 py-2 rounded bg-emerald-600 text-white shadow-lg font-bold flex items-center gap-2">{isSubmitting && <Loader className="w-4 h-4 animate-spin"/>} 签署执行</button>}
+                        </div>
+                    </div>
+                    {/* Preview Sidebar */}
+                    <div className="hidden lg:block"><Card className="sticky top-24 border-blue-100 bg-blue-50/50"><CardHeader title="决策全貌" icon={Activity}/><CardContent className="text-sm space-y-4"><div><span className="block text-xs font-bold text-slate-400 uppercase">观点</span>{data.viewpoint || '-'}</div><div><span className="block text-xs font-bold text-slate-400 uppercase">策略</span><span className="font-bold text-blue-700">{data.finalStrategy || '-'}</span></div></CardContent></Card></div>
+                    {/* Toolbox Modal */}
+                    {showToolboxSelect && <Modal isOpen={true} onClose={()=>setShowToolboxSelect(false)} title="选择策略"><div className="grid grid-cols-2 gap-4">{toolbox.map(t=><div key={t.id} onClick={()=>{setData(p=>({...p, finalStrategy:t.name, contractLogic:t.logic, greeksFocus:t.greeks})); setShowToolboxSelect(false)}} className="p-4 border rounded cursor-pointer hover:border-blue-400"><div className="font-bold">{t.name}</div><div className="text-xs text-slate-500">{t.logic}</div></div>)}</div></Modal>}
+                </div>
+            );
+        }
+
+        // --- Main App Component ---
+        function App() {
+            const [activeTab, setActiveTab] = useState('decision'); 
+            const [trades, setTrades] = useState([]);
+            const [toolbox, setToolbox] = useState(DEFAULT_TOOLBOX);
+            const [socials, setSocials] = useState(DEFAULT_SOCIALS);
+            const [paradigms, setParadigms] = useState(DEFAULT_PARADIGMS);
+            const [scenarios, setScenarios] = useState(generateDefaultScenarios());
+            const [research, setResearch] = useState(DEFAULT_RESEARCH);
+            const fileInputRef = useRef(null);
+
+            // Load Data
+            useEffect(() => {
+                const t = localStorage.getItem('tz_trades'); if(t) setTrades(JSON.parse(t));
+                const tb = localStorage.getItem('tz_toolbox'); if(tb) setToolbox(JSON.parse(tb));
+                const s = localStorage.getItem('tz_socials'); if(s) setSocials(JSON.parse(s));
+                const p = localStorage.getItem('tz_paradigms'); if(p) setParadigms(JSON.parse(p));
+                const sc = localStorage.getItem('tz_scenarios'); if(sc) setScenarios(JSON.parse(sc));
+                const r = localStorage.getItem('tz_research'); if(r) setResearch(JSON.parse(r));
+            }, []);
+
+            // Save Data
+            useEffect(() => { localStorage.setItem('tz_trades', JSON.stringify(trades)); }, [trades]);
+            useEffect(() => { localStorage.setItem('tz_toolbox', JSON.stringify(toolbox)); }, [toolbox]);
+            useEffect(() => { localStorage.setItem('tz_socials', JSON.stringify(socials)); }, [socials]);
+            useEffect(() => { localStorage.setItem('tz_paradigms', JSON.stringify(paradigms)); }, [paradigms]);
+            useEffect(() => { localStorage.setItem('tz_scenarios', JSON.stringify(scenarios)); }, [scenarios]);
+            useEffect(() => { localStorage.setItem('tz_research', JSON.stringify(research)); }, [research]);
+
+            const addTrade = (data) => {
+                const newTrade = { ...data, id: Date.now(), date: new Date().toLocaleDateString(), status: 'planning', execution: {}, closing: {}, review: {} };
+                setTrades([newTrade, ...trades]);
+                setActiveTab('execution');
+            };
+
+            const updateTrade = (id, data) => setTrades(trades.map(t => t.id === id ? { ...t, ...data } : t));
+            const deleteTrade = (id) => setTrades(trades.filter(t => t.id !== id));
+
+            const handleExport = () => {
+                const blob = new Blob([JSON.stringify({trades, toolbox, socials, paradigms, scenarios, research}, null, 2)], {type : 'application/json'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tz_backup.json'; a.click();
+            };
+
+            const handleImport = (e) => {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const data = JSON.parse(event.target.result);
+                    if(data.trades) setTrades(data.trades);
+                    if(data.toolbox) setToolbox(data.toolbox);
+                    if(data.socials) setSocials(data.socials);
+                    if(data.paradigms) setParadigms(data.paradigms);
+                    if(data.scenarios) setScenarios(data.scenarios);
+                    if(data.research) setResearch(data.research);
+                    alert("数据恢复成功");
+                };
+                if(e.target.files[0]) reader.readAsText(e.target.files[0]);
+            };
+
+            return (
+                <div>
+                    <header className="bg-white border-b sticky top-0 z-20 shadow-sm">
+                        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-800 rounded-xl flex items-center justify-center shadow-lg shadow-blue-700/20 relative overflow-hidden group">
+                                    <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-20 transition-opacity"></div>
+                                    <svg viewBox="0 0 40 40" className="w-6 h-6 text-white fill-current" xmlns="http://www.w3.org/2000/svg">
+                                        <path d="M8 10H24V15H19V32H13V15H8V10Z" /> 
+                                        <path d="M22 10H36V15L27 26H36V32H20V26L29 15H22V10Z" /> 
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h1 className="font-bold text-lg text-slate-800">TZ交易系统</h1>
+                                    <div className="flex items-center gap-2">
+                                        <p className="text-xs text-slate-500">决策 · 交易 · 进化</p>
+                                        <div className="flex items-center gap-1 ml-2">
+                                            <button onClick={handleExport} className="text-[10px] flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-200 text-slate-600"><Download className="w-3 h-3"/> 备份</button>
+                                            <button onClick={()=>fileInputRef.current.click()} className="text-[10px] flex items-center gap-1 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded border border-slate-200 text-slate-600"><Upload className="w-3 h-3"/> 恢复</button>
+                                            <input type="file" ref={fileInputRef} className="hidden" onChange={handleImport}/>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex gap-2 items-center overflow-x-auto">
+                                <nav className="flex bg-slate-100 p-1 rounded-lg">
+                                    {[{id:'decision', label:'决策', icon:Target}, {id:'execution', label:'执行', icon:PlayCircle}, {id:'review', label:'复盘', icon:CheckSquare}, {id:'library', label:'资源库', icon:Database}, {id:'insights', label:'洞察', icon:Lightbulb}].map(t => (
+                                        <button key={t.id} onClick={()=>setActiveTab(t.id)} className={`px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2 whitespace-nowrap ${activeTab===t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                                            <t.icon className="w-4 h-4"/> {t.label}
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+                        </div>
+                    </header>
+                    <main className="max-w-7xl mx-auto p-4 md:p-8">
+                        {activeTab === 'decision' && <DecisionEngine onFinish={addTrade} toolbox={toolbox} socials={socials} paradigms={paradigms} scenarios={scenarios} research={research}/>}
+                        {activeTab === 'execution' && <ExecutionBoard trades={trades} onUpdate={updateTrade} onDelete={deleteTrade}/>}
+                        {activeTab === 'review' && <ReviewBoard trades={trades} onUpdate={updateTrade} onDelete={deleteTrade}/>}
+                        {activeTab === 'library' && <LibraryManager toolbox={toolbox} setToolbox={setToolbox} socials={socials} setSocials={setSocials} paradigms={paradigms} setParadigms={setParadigms} scenarios={scenarios} setScenarios={setScenarios} research={research} setResearch={setResearch}/>}
+                        {activeTab === 'insights' && <InsightsDashboard trades={trades}/>}
+                    </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>

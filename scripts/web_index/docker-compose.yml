@@ -4,7 +4,7 @@ services:
   web:
     build: .
     ports:
-      - "10022:80"
-    container_name: sanweiyiti-trading
+      - "10030:80"
+    container_name: tz-trading-system
     restart: unless-stopped
 
