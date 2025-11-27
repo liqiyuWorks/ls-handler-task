@@ -186,6 +186,132 @@ PAGE_CONFIGS = {
         }
     ),
     
+    "unilateral_trading_opportunity_14d": PageConfig(
+        name="14天后单边交易机会汇总",
+        description="单边价格信号汇总下的14天后交易机会汇总数据",
+        navigation_path=[
+            # 导航路径：单边策略研究 -> 价格信号 -> 单边价格信号汇总 -> 14天后交易机会汇总
+            NavigationStep(
+                selectors=[
+                    ".bi-f-c > .bi-icon-change-button > .x-icon"
+                ],
+                description="展开主菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边策略研究'",
+                    "*:has-text('单边策略研究')",
+                    ".bi-icon-change-button:has-text('单边策略研究')"
+                ],
+                description="展开单边策略研究菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='价格信号'",
+                    "*:has-text('价格信号')",
+                    ".bi-icon-change-button:has-text('价格信号')"
+                ],
+                description="展开价格信号菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边价格信号汇总'",
+                    "*:has-text('单边价格信号汇总')",
+                    ".bi-icon-change-button:has-text('单边价格信号汇总')"
+                ],
+                description="展开单边价格信号汇总",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='14天后交易机会汇总'",
+                    "*:has-text('14天后交易机会汇总')",
+                    ".bi-list-item:has-text('14天后交易机会汇总')"
+                ],
+                description="点击14天后交易机会汇总页面",
+                wait_time=2.0
+            )
+        ],
+        query_button_selectors=[
+            "button:has-text('查询')",
+            "button:has-text('Query')",
+            "button[type='submit']",
+            "[class*='query']",
+            "[class*='search']"
+        ],
+        data_extraction_config={
+            "max_rows": 100,
+            "max_cells": 20,
+            "wait_after_query": 5
+        }
+    ),
+    
+    "unilateral_trading_opportunity_42d": PageConfig(
+        name="42天后单边交易机会汇总",
+        description="单边价格信号汇总下的42天后交易机会汇总数据",
+        navigation_path=[
+            # 导航路径：单边策略研究 -> 价格信号 -> 单边价格信号汇总 -> 42天后交易机会汇总
+            NavigationStep(
+                selectors=[
+                    ".bi-f-c > .bi-icon-change-button > .x-icon"
+                ],
+                description="展开主菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边策略研究'",
+                    "*:has-text('单边策略研究')",
+                    ".bi-icon-change-button:has-text('单边策略研究')"
+                ],
+                description="展开单边策略研究菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='价格信号'",
+                    "*:has-text('价格信号')",
+                    ".bi-icon-change-button:has-text('价格信号')"
+                ],
+                description="展开价格信号菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边价格信号汇总'",
+                    "*:has-text('单边价格信号汇总')",
+                    ".bi-icon-change-button:has-text('单边价格信号汇总')"
+                ],
+                description="展开单边价格信号汇总",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='42天后交易机会汇总'",
+                    "*:has-text('42天后交易机会汇总')",
+                    ".bi-list-item:has-text('42天后交易机会汇总')"
+                ],
+                description="点击42天后交易机会汇总页面",
+                wait_time=2.0
+            )
+        ],
+        query_button_selectors=[
+            "button:has-text('查询')",
+            "button:has-text('Query')",
+            "button[type='submit']",
+            "[class*='query']",
+            "[class*='search']"
+        ],
+        data_extraction_config={
+            "max_rows": 200,
+            "max_cells": 20,
+            "wait_after_query": 5
+        }
+    ),
+    
     "trading_opportunity_42d": PageConfig(
         name="交易机会汇总（42天后）",
         description="单边价格信号汇总下的交易机会汇总（42天后）数据",

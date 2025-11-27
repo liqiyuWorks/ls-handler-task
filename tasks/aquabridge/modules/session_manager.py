@@ -238,11 +238,18 @@ class SessionManager:
                 # 提取数据
                 print("7. 提取数据...")
                 config = page_config.data_extraction_config
-                data = self.scraper.extract_table_data(
-                    target_frame, 
-                    config.get("max_rows", 100),
-                    config.get("max_cells", 20)
-                )
+                
+                # 对于14天后和42天后交易机会汇总页面，使用专门的方法
+                if page_key == "unilateral_trading_opportunity_14d":
+                    data = self.scraper.extract_trading_opportunity_14d_data(target_frame)
+                elif page_key == "unilateral_trading_opportunity_42d":
+                    data = self.scraper.extract_trading_opportunity_42d_data(target_frame)
+                else:
+                    data = self.scraper.extract_table_data(
+                        target_frame, 
+                        config.get("max_rows", 100),
+                        config.get("max_cells", 20)
+                    )
                 
                 # 提取掉期日期（从页面顶部）
                 print("8. 提取掉期日期...")

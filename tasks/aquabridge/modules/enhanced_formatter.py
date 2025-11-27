@@ -13,11 +13,15 @@ try:
     from .p5_parser import P5Parser
     from .spot_decision_parser import SpotDecisionParser
     from .european_line_parser import EuropeanLineParser
+    from .trading_opportunity_14d_parser import TradingOpportunity14dParser
+    from .trading_opportunity_42d_parser import TradingOpportunity42dParser
 except ImportError:
     from p4tc_parser import P4TCParser
     from p5_parser import P5Parser
     from spot_decision_parser import SpotDecisionParser
     from european_line_parser import EuropeanLineParser
+    from trading_opportunity_14d_parser import TradingOpportunity14dParser
+    from trading_opportunity_42d_parser import TradingOpportunity42dParser
 
 
 class EnhancedFormatter:
@@ -61,6 +65,12 @@ class EnhancedFormatter:
         elif '欧线' in self.page_name or '欧线价格信号' in self.page_name:
             # 欧线页面使用专门的解析器
             self._extract_european_line_data(rows)
+        elif '14天后单边交易机会汇总' in self.page_name or '14天后交易机会汇总' in self.page_name:
+            # 14天后单边交易机会汇总页面使用专门的解析器
+            self._extract_trading_opportunity_14d_data(rows)
+        elif '42天后单边交易机会汇总' in self.page_name or '42天后交易机会汇总' in self.page_name:
+            # 42天后单边交易机会汇总页面使用专门的解析器
+            self._extract_trading_opportunity_42d_data(rows)
         else:
             self._extract_generic_data(rows)
         
@@ -533,6 +543,56 @@ class EnhancedFormatter:
             if table_data:
                 self.contracts["raw_table_data"] = {
                     "description": "欧线价格信号原始数据",
+                    "total_rows": len(table_data),
+                    "data": table_data,
+                    "last_updated": datetime.now().isoformat()
+                }
+    
+    def _extract_trading_opportunity_14d_data(self, rows: List[List[str]]):
+        """提取14天后单边交易机会汇总页面数据"""
+        # 使用专门的14天后交易机会解析器
+        parser = TradingOpportunity14dParser()
+        parsed_data = parser.parse_trading_opportunity_14d_data(rows)
+        
+        if parsed_data and parsed_data.get('trading_opportunities'):
+            # 将解析后的数据存储到contracts中
+            self.contracts["trading_opportunity_14d_analysis"] = parsed_data
+            
+            # 同时保存原始表格数据以便调试
+            table_data = []
+            for row in rows:
+                non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+                if non_empty_cells:
+                    table_data.append(non_empty_cells)
+            
+            if table_data:
+                self.contracts["raw_table_data"] = {
+                    "description": "14天后单边交易机会汇总原始数据",
+                    "total_rows": len(table_data),
+                    "data": table_data,
+                    "last_updated": datetime.now().isoformat()
+                }
+    
+    def _extract_trading_opportunity_42d_data(self, rows: List[List[str]]):
+        """提取42天后单边交易机会汇总页面数据"""
+        # 使用专门的42天后交易机会解析器
+        parser = TradingOpportunity42dParser()
+        parsed_data = parser.parse_trading_opportunity_42d_data(rows)
+        
+        if parsed_data and (parsed_data.get('spot_opportunities') or parsed_data.get('futures_opportunities')):
+            # 将解析后的数据存储到contracts中
+            self.contracts["trading_opportunity_42d_analysis"] = parsed_data
+            
+            # 同时保存原始表格数据以便调试
+            table_data = []
+            for row in rows:
+                non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+                if non_empty_cells:
+                    table_data.append(non_empty_cells)
+            
+            if table_data:
+                self.contracts["raw_table_data"] = {
+                    "description": "42天后单边交易机会汇总原始数据",
                     "total_rows": len(table_data),
                     "data": table_data,
                     "last_updated": datetime.now().isoformat()
