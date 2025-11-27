@@ -1,10 +1,10 @@
 FROM nginx:alpine
 
-# 复制HTML文件到临时位置
-COPY *.html /tmp/
+# 接受构建参数，指定要服务的HTML文件名
+ARG HTML_FILE
 
-# 重命名并移动到nginx默认目录
-RUN mv /tmp/*.html /usr/share/nginx/html/index.html
+# 复制指定的HTML文件到nginx默认目录
+COPY "${HTML_FILE}" /usr/share/nginx/html/index.html
 
 # 暴露80端口
 EXPOSE 80

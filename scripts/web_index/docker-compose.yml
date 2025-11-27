@@ -1,10 +1,32 @@
 version: '3.8'
 
 services:
-  web:
-    build: .
+  web-10022:
+    build:
+      context: .
+      args:
+        HTML_FILE: "三维一体交易体系 - 代码 - by Gemini - 10022.html"
     ports:
-      - "10030:80"
-    container_name: tz-trading-system
+      - "10022:80"
+    container_name: web-10022
     restart: unless-stopped
 
+  web-10030:
+    build:
+      context: .
+      args:
+        HTML_FILE: "TZ交易系统-10030.html"
+    ports:
+      - "10030:80"
+    container_name: web-10030
+    restart: unless-stopped
+
+  web-10031:
+    build:
+      context: .
+      args:
+        HTML_FILE: "Aquabridge-SGX v8.1 - 10031.html"
+    ports:
+      - "10031:80"
+    container_name: web-10031
+    restart: unless-stopped
