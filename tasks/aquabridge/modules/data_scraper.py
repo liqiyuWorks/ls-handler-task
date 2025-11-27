@@ -266,7 +266,7 @@ class DataScraper:
     
     def extract_trading_opportunity_14d_data(self, frame: FrameLocator) -> List[Dict]:
         """专门提取14天后单边交易机会汇总页面的数据
-        使用XPath和多种方法定位盈亏比等数据
+        使用行的完整文本（inner_text）提取数据，类似42天页面的方法
         
         Args:
             frame: 目标iframe定位器
@@ -278,32 +278,65 @@ class DataScraper:
         table_data = []
         
         try:
-            # 方法1: 尝试提取table标签
+            # 方法1: 通过table标签提取，使用行的完整文本解析数据
             try:
                 tables = frame.locator("table")
                 table_count = tables.count()
                 
                 if table_count > 0:
+                    import re
+                    # 项目标识列表，按长度排序（长的在前，避免短标识误匹配）
+                    project_ids = ['P3A', 'S1C', 'C14', 'C10', 'C5', 'P6', 'C3', 'P5', 'S5', 'S2', 'S10']
+                    
                     for i in range(table_count):
                         rows = tables.nth(i).locator("tr")
                         row_count = rows.count()
                         
-                        for j in range(min(row_count, 50)):
+                        # 提取每一行的数据
+                        for j in range(min(row_count, 100)):
                             try:
-                                cells = rows.nth(j).locator("td, th")
-                                cell_count = cells.count()
+                                row = rows.nth(j)
+                                row_text = row.inner_text(timeout=1000).strip()
                                 
-                                row_data = []
-                                for k in range(min(cell_count, 10)):
-                                    try:
-                                        text = cells.nth(k).inner_text(timeout=1000).strip()
-                                        row_data.append(text)
-                                    except:
-                                        row_data.append("")
+                                # 跳过空行和标题行
+                                if not row_text or row_text in ['现货', '期货'] or len(row_text) < 2:
+                                    continue
                                 
-                                if any(row_data):
-                                    table_data.append(row_data)
-                            except:
+                                # 检查这一行是否包含项目标识（按长度排序，先匹配长的）
+                                matched_project_id = None
+                                for project_id in project_ids:
+                                    # 使用单词边界确保精确匹配
+                                    escaped_id = re.escape(project_id)
+                                    project_pattern = rf'\b{escaped_id}\b'
+                                    if re.search(project_pattern, row_text):
+                                        matched_project_id = project_id
+                                        break
+                                
+                                if matched_project_id:
+                                    # 从行的完整文本中提取数据
+                                    row_data = []
+                                    
+                                    # 提取项目标识（使用匹配到的完整标识）
+                                    row_data.append(matched_project_id)
+                                    
+                                    # 提取交易方向
+                                    if '做多' in row_text:
+                                        row_data.append('做多')
+                                    elif '做空' in row_text:
+                                        row_data.append('做空')
+                                    else:
+                                        row_data.append('')
+                                    
+                                    # 提取盈亏比（支持整数和小数）
+                                    ratio_match = re.search(r'(\d+\.?\d+)\s*[:：]\s*1', row_text)
+                                    if ratio_match:
+                                        row_data.append(ratio_match.group(1))
+                                    else:
+                                        row_data.append('')
+                                    
+                                    if len(row_data) >= 2:
+                                        table_data.append(row_data)
+                            except Exception as e:
                                 continue
             except Exception as e:
                 pass
@@ -312,7 +345,7 @@ class DataScraper:
             if not table_data:
                 try:
                     # 项目标识列表
-                    project_ids = ['C5', 'C10', 'P6', 'C3', 'P5', 'P3A', 'S5', 'S1C', 'S2', 'C14', 'S10']
+                    project_ids = ['P3A', 'S1C', 'C14', 'C10', 'C5', 'P6', 'C3', 'P5', 'S5', 'S2', 'S10']
                     
                     # 获取页面所有文本
                     page_text = frame.locator("body").inner_text(timeout=5000)
@@ -324,45 +357,35 @@ class DataScraper:
                     # 查找包含项目标识的行
                     for line in lines:
                         for project_id in project_ids:
-                            if project_id in line:
+                            # 使用单词边界确保精确匹配
+                            escaped_id = re.escape(project_id)
+                            project_pattern = rf'\b{escaped_id}\b'
+                            if re.search(project_pattern, line):
                                 # 检查这一行是否包含交易方向和盈亏比
                                 has_direction = '做多' in line or '做空' in line
-                                has_ratio = ':' in line or '：' in line
+                                has_ratio = re.search(r'\d+\.?\d+\s*[:：]\s*1', line)
                                 
                                 if has_direction or has_ratio:
                                     # 尝试分割这一行
                                     cells = []
                                     
                                     # 提取项目标识
-                                    if project_id in line:
-                                        cells.append(project_id)
+                                    cells.append(project_id)
                                     
                                     # 提取交易方向
                                     if '做多' in line:
                                         cells.append('做多')
                                     elif '做空' in line:
                                         cells.append('做空')
+                                    else:
+                                        cells.append('')
                                     
                                     # 提取盈亏比（使用正则表达式）
-                                    ratio_patterns = [
-                                        r'(\d+\.\d+)\s*[：:]\s*1',
-                                        r'(\d+\.\d+)\s*[：:]1',
-                                        r'(\d+\.\d+)\s*[：:]',
-                                    ]
-                                    
-                                    ratio_found = False
-                                    for pattern in ratio_patterns:
-                                        match = re.search(pattern, line)
-                                        if match:
-                                            cells.append(match.group(1) + ': 1')
-                                            ratio_found = True
-                                            break
-                                    
-                                    if not ratio_found:
-                                        # 尝试查找单独的数字
-                                        num_match = re.search(r'(\d+\.\d+)', line)
-                                        if num_match:
-                                            cells.append(num_match.group(1))
+                                    ratio_match = re.search(r'(\d+\.?\d+)\s*[:：]\s*1', line)
+                                    if ratio_match:
+                                        cells.append(ratio_match.group(1))
+                                    else:
+                                        cells.append('')
                                     
                                     if len(cells) >= 2:  # 至少要有项目标识和一个其他字段
                                         table_data.append(cells)
