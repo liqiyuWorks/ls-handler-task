@@ -127,7 +127,6 @@ class DataScraper:
             table_count = tables.count()
             
             if table_count > 0:
-                print(f"发现 {table_count} 个table标签")
                 
                 for i in range(table_count):
                     try:
@@ -162,7 +161,6 @@ class DataScraper:
                                 "rows": table_data,
                                 "data_type": "table"
                             })
-                            print(f"  表格 {i+1}: {len(table_data)}/{row_count} 行")
                     except Exception as e:
                         print(f"  表格 {i+1} 失败: {e}")
                         continue
@@ -174,15 +172,11 @@ class DataScraper:
         
         # 方法2: 尝试提取div/span等元素中的数据（卡片式布局）
         try:
-            print("未找到table标签，尝试提取div/span等元素...")
-            
             # 查找可能包含数据的容器
             containers = frame.locator("div[class*='card'], div[class*='data'], div[class*='content'], div[class*='table'], div[class*='grid']")
             container_count = containers.count()
             
             if container_count > 0:
-                print(f"发现 {container_count} 个可能的容器")
-                
                 # 提取所有可见文本内容
                 page_text = frame.locator("body").inner_text(timeout=5000)
                 
@@ -221,15 +215,12 @@ class DataScraper:
                                 "rows": table_data,
                                 "data_type": "text_content"
                             })
-                            print(f"  从文本内容提取: {len(table_data)} 行")
                             return all_data
         except Exception as e:
-            print(f"提取div/span元素失败: {e}")
+            pass
         
         # 方法3: 提取所有可见的文本内容作为备用方案
         try:
-            print("尝试提取所有可见文本内容...")
-            
             # 获取页面所有文本
             page_text = frame.locator("body").inner_text(timeout=5000)
             
@@ -263,23 +254,13 @@ class DataScraper:
                             "rows": table_data,
                             "data_type": "fallback_text"
                         })
-                        print(f"  从备用文本提取: {len(table_data)} 行")
                         return all_data
         except Exception as e:
-            print(f"提取备用文本失败: {e}")
+            pass
         
         # 如果所有方法都失败
         if not all_data:
-            print("未找到表格或数据")
-            # 输出页面结构信息用于调试
-            try:
-                # 统计页面元素
-                div_count = frame.locator("div").count()
-                span_count = frame.locator("span").count()
-                p_count = frame.locator("p").count()
-                print(f"  页面元素统计: div={div_count}, span={span_count}, p={p_count}")
-            except:
-                pass
+            pass
         
         return all_data
     
@@ -297,199 +278,97 @@ class DataScraper:
         table_data = []
         
         try:
-            print("使用专门的方法提取14天后交易机会汇总数据...")
-            
-            # 方法1: 尝试使用XPath查找包含BF11的元素
-            print("  方法1: 使用XPath查找BF11元素...")
+            # 方法1: 尝试提取table标签
             try:
-                # 查找所有包含BF11的ID
-                bf11_elements = frame.locator("[id*='BF11']").all()
-                print(f"  找到 {len(bf11_elements)} 个包含'BF11'的元素")
+                tables = frame.locator("table")
+                table_count = tables.count()
                 
-                # 收集所有BF11元素的数据
-                bf11_data = {}
-                for elem in bf11_elements:
-                    try:
-                        elem_id = elem.get_attribute("id")
-                        text = elem.inner_text(timeout=1000).strip()
-                        if elem_id and text:
-                            bf11_data[elem_id] = text
-                            print(f"    {elem_id}: {text[:50]}")
-                    except:
-                        pass
-                
-                # 如果找到了BF11元素，尝试构建表格
-                if bf11_data:
-                    print(f"  ✓ 收集到 {len(bf11_data)} 个BF11元素的数据")
-            except Exception as e:
-                print(f"  ⚠ XPath查找BF11失败: {e}")
-            
-            # 方法2: 查找所有包含项目标识和盈亏比的行
-            print("  方法2: 查找包含项目标识和盈亏比的行...")
-            try:
-                # 项目标识列表
-                project_ids = ['C5', 'C10', 'P6', 'C3', 'P5', 'P3A', 'S5', 'S1C', 'S2', 'C14', 'S10']
-                
-                # 获取页面所有文本
-                page_text = frame.locator("body").inner_text(timeout=5000)
-                
-                # 按行分割
-                lines = [line.strip() for line in page_text.split('\n') if line.strip()]
-                
-                # 查找包含项目标识的行
-                for line in lines:
-                    for project_id in project_ids:
-                        if project_id in line:
-                            # 检查这一行是否包含交易方向和盈亏比
-                            has_direction = '做多' in line or '做空' in line
-                            has_ratio = ':' in line or '：' in line
-                            
-                            if has_direction or has_ratio:
-                                # 尝试分割这一行
-                                cells = []
-                                
-                                # 提取项目标识
-                                if project_id in line:
-                                    cells.append(project_id)
-                                
-                                # 提取交易方向
-                                if '做多' in line:
-                                    cells.append('做多')
-                                elif '做空' in line:
-                                    cells.append('做空')
-                                
-                                # 提取盈亏比（使用正则表达式）
-                                import re
-                                ratio_patterns = [
-                                    r'(\d+\.\d+)\s*[：:]\s*1',
-                                    r'(\d+\.\d+)\s*[：:]1',
-                                    r'(\d+\.\d+)\s*[：:]',
-                                ]
-                                
-                                ratio_found = False
-                                for pattern in ratio_patterns:
-                                    match = re.search(pattern, line)
-                                    if match:
-                                        cells.append(match.group(1) + ': 1')
-                                        ratio_found = True
-                                        break
-                                
-                                if not ratio_found:
-                                    # 尝试查找单独的数字
-                                    num_match = re.search(r'(\d+\.\d+)', line)
-                                    if num_match:
-                                        cells.append(num_match.group(1))
-                                
-                                if len(cells) >= 2:  # 至少要有项目标识和一个其他字段
-                                    table_data.append(cells)
-                                    print(f"    找到数据行: {cells}")
-                                    break
-            except Exception as e:
-                print(f"  ⚠ 方法2失败: {e}")
-            
-            # 方法3: 尝试提取table标签（如果存在）
-            if not table_data:
-                print("  方法3: 尝试提取table标签...")
-                try:
-                    tables = frame.locator("table")
-                    table_count = tables.count()
-                    
-                    if table_count > 0:
-                        print(f"  找到 {table_count} 个table标签")
+                if table_count > 0:
+                    for i in range(table_count):
+                        rows = tables.nth(i).locator("tr")
+                        row_count = rows.count()
                         
-                        for i in range(table_count):
-                            rows = tables.nth(i).locator("tr")
-                            row_count = rows.count()
-                            
-                            for j in range(min(row_count, 50)):
-                                try:
-                                    cells = rows.nth(j).locator("td, th")
-                                    cell_count = cells.count()
-                                    
-                                    row_data = []
-                                    for k in range(min(cell_count, 10)):
-                                        try:
-                                            text = cells.nth(k).inner_text(timeout=1000).strip()
-                                            row_data.append(text)
-                                        except:
-                                            row_data.append("")
-                                    
-                                    if any(row_data):
-                                        table_data.append(row_data)
-                                except:
-                                    continue
-                except Exception as e:
-                    print(f"  ⚠ 方法3失败: {e}")
-            
-            # 方法4: 使用XPath直接查找特定元素
-            if not table_data:
-                print("  方法4: 使用XPath查找特定元素...")
-                try:
-                    # 尝试查找用户提供的XPath
-                    xpath = "//*[@id='BF11-0-0']"
-                    try:
-                        element = frame.locator(f"xpath={xpath}").first
-                        if element.is_visible(timeout=3000):
-                            text = element.inner_text(timeout=1000)
-                            print(f"  ✓ 找到BF11-0-0元素: {text}")
-                            
-                            # 尝试查找同一行的其他元素（通过父元素）
+                        for j in range(min(row_count, 50)):
                             try:
-                                # 获取父元素的所有子元素文本
-                                parent_text = element.evaluate("""
-                                    el => {
-                                        const parent = el.parentElement;
-                                        if (parent) {
-                                            return Array.from(parent.children).map(c => c.innerText || c.textContent || '').join(' | ');
-                                        }
-                                        return '';
-                                    }
-                                """)
-                                if parent_text:
-                                    print(f"  父元素子元素: {parent_text[:200]}")
-                                    # 解析父元素文本
-                                    cells = [cell.strip() for cell in str(parent_text).split('|') if cell.strip()]
-                                    if len(cells) >= 2:
-                                        table_data.append(cells)
-                                        print(f"    提取到数据行: {cells}")
-                            except Exception as e:
-                                print(f"  ⚠ 获取父元素失败: {e}")
-                    except Exception as e:
-                        print(f"  ⚠ 查找BF11-0-0失败: {e}")
-                    
-                    # 查找所有包含项目标识的元素，然后查找其兄弟元素
+                                cells = rows.nth(j).locator("td, th")
+                                cell_count = cells.count()
+                                
+                                row_data = []
+                                for k in range(min(cell_count, 10)):
+                                    try:
+                                        text = cells.nth(k).inner_text(timeout=1000).strip()
+                                        row_data.append(text)
+                                    except:
+                                        row_data.append("")
+                                
+                                if any(row_data):
+                                    table_data.append(row_data)
+                            except:
+                                continue
+            except Exception as e:
+                pass
+            
+            # 方法2: 如果方法1失败，尝试从页面文本中提取
+            if not table_data:
+                try:
+                    # 项目标识列表
                     project_ids = ['C5', 'C10', 'P6', 'C3', 'P5', 'P3A', 'S5', 'S1C', 'S2', 'C14', 'S10']
                     
-                    for project_id in project_ids:
-                        try:
-                            # 查找包含项目标识的元素
-                            project_elements = frame.locator(f"text='{project_id}'").all()
-                            
-                            for project_elem in project_elements[:5]:  # 只检查前5个
-                                try:
-                                    # 获取父元素的所有子元素文本
-                                    parent_text = project_elem.evaluate("""
-                                        el => {
-                                            const parent = el.parentElement;
-                                            if (parent) {
-                                                return Array.from(parent.children).map(c => c.innerText || c.textContent || '').join(' | ');
-                                            }
-                                            return '';
-                                        }
-                                    """)
+                    # 获取页面所有文本
+                    page_text = frame.locator("body").inner_text(timeout=5000)
+                    
+                    # 按行分割
+                    lines = [line.strip() for line in page_text.split('\n') if line.strip()]
+                    
+                    import re
+                    # 查找包含项目标识的行
+                    for line in lines:
+                        for project_id in project_ids:
+                            if project_id in line:
+                                # 检查这一行是否包含交易方向和盈亏比
+                                has_direction = '做多' in line or '做空' in line
+                                has_ratio = ':' in line or '：' in line
+                                
+                                if has_direction or has_ratio:
+                                    # 尝试分割这一行
+                                    cells = []
                                     
-                                    if parent_text:
-                                        # 解析父元素文本
-                                        cells = [cell.strip() for cell in str(parent_text).split('|') if cell.strip()]
-                                        if len(cells) >= 2:
-                                            table_data.append(cells)
-                                            print(f"    找到 {project_id} 的数据: {cells}")
-                                except Exception as e:
-                                    pass
-                        except:
-                            pass
+                                    # 提取项目标识
+                                    if project_id in line:
+                                        cells.append(project_id)
+                                    
+                                    # 提取交易方向
+                                    if '做多' in line:
+                                        cells.append('做多')
+                                    elif '做空' in line:
+                                        cells.append('做空')
+                                    
+                                    # 提取盈亏比（使用正则表达式）
+                                    ratio_patterns = [
+                                        r'(\d+\.\d+)\s*[：:]\s*1',
+                                        r'(\d+\.\d+)\s*[：:]1',
+                                        r'(\d+\.\d+)\s*[：:]',
+                                    ]
+                                    
+                                    ratio_found = False
+                                    for pattern in ratio_patterns:
+                                        match = re.search(pattern, line)
+                                        if match:
+                                            cells.append(match.group(1) + ': 1')
+                                            ratio_found = True
+                                            break
+                                    
+                                    if not ratio_found:
+                                        # 尝试查找单独的数字
+                                        num_match = re.search(r'(\d+\.\d+)', line)
+                                        if num_match:
+                                            cells.append(num_match.group(1))
+                                    
+                                    if len(cells) >= 2:  # 至少要有项目标识和一个其他字段
+                                        table_data.append(cells)
+                                        break
                 except Exception as e:
-                    print(f"  ⚠ 方法4失败: {e}")
+                    pass
             
             # 如果找到了数据，组织成表格格式
             if table_data:
@@ -502,14 +381,11 @@ class DataScraper:
                 })
                 print(f"  ✓ 成功提取 {len(table_data)} 行数据")
             else:
-                print("  ⚠ 未找到数据，使用通用提取方法")
                 # 如果专门方法失败，回退到通用方法
                 return self.extract_table_data(frame, max_rows=100, max_cells=20)
             
         except Exception as e:
             print(f"  ✗ 提取14天后交易机会汇总数据失败: {e}")
-            import traceback
-            traceback.print_exc()
             # 回退到通用方法
             return self.extract_table_data(frame, max_rows=100, max_cells=20)
         
@@ -529,44 +405,21 @@ class DataScraper:
         table_data = []
         
         try:
-            print("使用专门的方法提取42天后交易机会汇总数据...")
-            
-            # 方法1: 通过table标签提取，使用行的完整文本解析数据
-            print("  方法1: 通过table标签提取，使用行的完整文本解析...")
+            # 通过table标签提取，使用行的完整文本解析数据
             try:
                 tables = frame.locator("table")
                 table_count = tables.count()
                 
                 if table_count > 0:
-                    print(f"  找到 {table_count} 个table标签")
-                    
                     import re
                     # 项目标识列表，按长度排序（长的在前，避免短标识误匹配）
                     project_ids = ['P4TC+1', 'C5TC+1', 'C5+1', 'C5TC', 'P4TC', 'S4B', 'P3A', 'S1C', 
                                   'S15', 'S4A', 'S1B', 'P1A', 'C16', 'C10', 'S10', 'C14', 'C9', 'C8', 
                                   'C5', 'P6', 'P4', 'C3', 'P5', 'P2', 'S5', 'P0', 'S8', 'S9', 'S2', 'S3']
                     
-                    spot_start_row = None
-                    futures_start_row = None
-                    
                     for i in range(table_count):
                         rows = tables.nth(i).locator("tr")
                         row_count = rows.count()
-                        print(f"  表格 {i+1} 有 {row_count} 行")
-                        
-                        # 先找到"现货"和"期货"的位置
-                        for j in range(min(row_count, 50)):
-                            try:
-                                row_text = rows.nth(j).inner_text(timeout=1000).strip()
-                                # 检查是否是标题行（只包含"现货"或"期货"）
-                                if row_text == '现货' and spot_start_row is None:
-                                    spot_start_row = j + 1  # 从下一行开始
-                                    print(f"    找到现货开始行: {j+1}")
-                                if row_text == '期货' and futures_start_row is None:
-                                    futures_start_row = j + 1  # 从下一行开始
-                                    print(f"    找到期货开始行: {j+1}")
-                            except:
-                                pass
                         
                         # 提取每一行的数据
                         for j in range(min(row_count, 100)):
@@ -612,146 +465,10 @@ class DataScraper:
                                     
                                     if len(row_data) >= 2:
                                         table_data.append(row_data)
-                                        print(f"    行 {j+1}: {row_data}")
                             except Exception as e:
                                 continue
             except Exception as e:
-                print(f"  ⚠ 方法1失败: {e}")
-                import traceback
-                traceback.print_exc()
-            
-            # 方法2: 如果方法1数据不完整，尝试通过table标签提取并补充
-            if not table_data or len(table_data) < 10:
-                print("  方法2: 通过table标签提取并分析...")
-                try:
-                    tables = frame.locator("table")
-                    table_count = tables.count()
-                    
-                    if table_count > 0:
-                        print(f"  找到 {table_count} 个table标签")
-                        
-                        # 获取页面所有文本用于匹配
-                        page_text = frame.locator("body").inner_text(timeout=5000)
-                        
-                        for i in range(table_count):
-                            rows = tables.nth(i).locator("tr")
-                            row_count = rows.count()
-                            
-                            spot_start = None
-                            futures_start = None
-                            
-                            # 先找到"现货"和"期货"的位置
-                            for j in range(min(row_count, 50)):
-                                try:
-                                    row_text = rows.nth(j).inner_text(timeout=1000)
-                                    if '现货' in row_text and spot_start is None:
-                                        spot_start = j
-                                    if '期货' in row_text and futures_start is None:
-                                        futures_start = j
-                                except:
-                                    pass
-                            
-                            print(f"    现货开始行: {spot_start}, 期货开始行: {futures_start}")
-                            
-                            # 提取每一行的数据
-                            for j in range(min(row_count, 100)):
-                                try:
-                                    cells = rows.nth(j).locator("td, th")
-                                    cell_count = cells.count()
-                                    
-                                    # 如果单元格数量足够，直接提取
-                                    if cell_count >= 3:
-                                        row_data = []
-                                        for k in range(min(cell_count, 10)):
-                                            try:
-                                                text = cells.nth(k).inner_text(timeout=1000).strip()
-                                                row_data.append(text)
-                                            except:
-                                                row_data.append("")
-                                        
-                                        if any(row_data) and row_data[0] not in ['现货', '期货']:
-                                            table_data.append(row_data)
-                                    else:
-                                        # 如果单元格数量少，尝试从文本中提取
-                                        row_text = rows.nth(j).inner_text(timeout=1000)
-                                        
-                                        # 跳过标题行
-                                        if row_text in ['现货', '期货'] or len(row_text.strip()) < 2:
-                                            continue
-                                        
-                                        # 使用正则表达式提取数据
-                                        import re
-                                        
-                                        # 查找项目标识
-                                        project_match = re.search(r'\\b([A-Z]\\d+[A-Z]*[+\\d]*)\\b', row_text)
-                                        if project_match:
-                                            project_id = project_match.group(1)
-                                            
-                                            # 查找交易方向
-                                            direction = None
-                                            if '做多' in row_text:
-                                                direction = '做多'
-                                            elif '做空' in row_text:
-                                                direction = '做空'
-                                            
-                                            # 查找盈亏比
-                                            ratio = None
-                                            ratio_match = re.search(r'(\\d+\\.?\\d+)\\s*[:：]\\s*1', row_text)
-                                            if ratio_match:
-                                                ratio = ratio_match.group(1)
-                                            
-                                            if project_id:
-                                                row_data = [project_id]
-                                                row_data.append(direction if direction else '')
-                                                row_data.append(ratio if ratio else '')
-                                                table_data.append(row_data)
-                                except:
-                                    continue
-                except Exception as e:
-                    print(f"  ⚠ 方法2失败: {e}")
-            
-            # 方法3: 如果前两种方法都不够，尝试从页面文本中提取
-            if not table_data or len(table_data) < 10:
-                print("  方法3: 从页面文本中提取...")
-                try:
-                    page_text = frame.locator("body").inner_text(timeout=5000)
-                    lines = [line.strip() for line in page_text.split('\\n') if line.strip()]
-                    
-                    import re
-                    project_ids = ['C5', 'P6', 'P4', 'C5TC', 'S4B', 'C10', 'S10', 'C3', 'P4TC', 
-                                  'P3A', 'S15', 'C14', 'P5', 'P2', 'C9', 'S5', 'P0', 'C16', 
-                                  'S8', 'S9', 'S1C', 'S2', 'P1A', 'S1B', 'S4A', 'C8', 'S3',
-                                  'P4TC+1', 'C5TC+1', 'C5+1']
-                    
-                    for line in lines:
-                        for project_id in project_ids:
-                            project_pattern = f'\\\\b{re.escape(project_id)}\\\\b'
-                            if re.search(project_pattern, line):
-                                # 检查这一行是否包含完整数据
-                                has_direction = '做多' in line or '做空' in line
-                                has_ratio = re.search(r'\\d+\\.?\\d+\\s*[:：]\\s*1', line)
-                                
-                                if has_direction or has_ratio:
-                                    row_data = [project_id]
-                                    
-                                    if '做多' in line:
-                                        row_data.append('做多')
-                                    elif '做空' in line:
-                                        row_data.append('做空')
-                                    else:
-                                        row_data.append('')
-                                    
-                                    ratio_match = re.search(r'(\\d+\\.?\\d+)\\s*[:：]\\s*1', line)
-                                    if ratio_match:
-                                        row_data.append(ratio_match.group(1))
-                                    else:
-                                        row_data.append('')
-                                    
-                                    if len(row_data) >= 2:
-                                        table_data.append(row_data)
-                                        break
-                except Exception as e:
-                    print(f"  ⚠ 方法3失败: {e}")
+                pass
             
             # 如果找到了数据，组织成表格格式
             if table_data:
@@ -764,14 +481,11 @@ class DataScraper:
                 })
                 print(f"  ✓ 成功提取 {len(table_data)} 行数据")
             else:
-                print("  ⚠ 未找到数据，使用通用提取方法")
                 # 如果专门方法失败，回退到通用方法
                 return self.extract_table_data(frame, max_rows=200, max_cells=20)
             
         except Exception as e:
             print(f"  ✗ 提取42天后交易机会汇总数据失败: {e}")
-            import traceback
-            traceback.print_exc()
             # 回退到通用方法
             return self.extract_table_data(frame, max_rows=200, max_cells=20)
         
@@ -791,44 +505,17 @@ class DataScraper:
         table_data = []
         
         try:
-            print("使用专门的方法提取双边交易机会汇总数据...")
-            
-            # 方法1: 通过table标签提取，使用行的完整文本解析数据
-            print("  方法1: 通过table标签提取，使用行的完整文本解析...")
+            # 通过table标签提取，使用行的完整文本解析数据
             try:
                 tables = frame.locator("table")
                 table_count = tables.count()
                 
                 if table_count > 0:
-                    print(f"  找到 {table_count} 个table标签")
-                    
                     import re
-                    
-                    spot_vs_futures_start = None
-                    spot_vs_spot_start = None
-                    futures_vs_futures_start = None
                     
                     for i in range(table_count):
                         rows = tables.nth(i).locator("tr")
                         row_count = rows.count()
-                        print(f"  表格 {i+1} 有 {row_count} 行")
-                        
-                        # 先找到三个部分的位置
-                        for j in range(min(row_count, 50)):
-                            try:
-                                row_text = rows.nth(j).inner_text(timeout=1000).strip()
-                                # 检查是否是标题行
-                                if '现货VS期货' in row_text and spot_vs_futures_start is None:
-                                    spot_vs_futures_start = j + 1  # 从下一行开始
-                                    print(f"    找到现货VS期货开始行: {j+1}")
-                                if '现货VS现货' in row_text and spot_vs_spot_start is None:
-                                    spot_vs_spot_start = j + 1
-                                    print(f"    找到现货VS现货开始行: {j+1}")
-                                if '期货VS期货' in row_text and futures_vs_futures_start is None:
-                                    futures_vs_futures_start = j + 1
-                                    print(f"    找到期货VS期货开始行: {j+1}")
-                            except:
-                                pass
                         
                         # 提取每一行的数据
                         for j in range(min(row_count, 100)):
@@ -905,13 +592,10 @@ class DataScraper:
                                 
                                 if len(row_data) >= 2:
                                     table_data.append(row_data)
-                                    print(f"    行 {j+1}: {row_data}")
                             except Exception as e:
                                 continue
             except Exception as e:
-                print(f"  ⚠ 方法1失败: {e}")
-                import traceback
-                traceback.print_exc()
+                pass
             
             # 如果找到了数据，组织成表格格式
             if table_data:
@@ -924,14 +608,11 @@ class DataScraper:
                 })
                 print(f"  ✓ 成功提取 {len(table_data)} 行数据")
             else:
-                print("  ⚠ 未找到数据，使用通用提取方法")
                 # 如果专门方法失败，回退到通用方法
                 return self.extract_table_data(frame, max_rows=200, max_cells=20)
             
         except Exception as e:
             print(f"  ✗ 提取双边交易机会汇总数据失败: {e}")
-            import traceback
-            traceback.print_exc()
             # 回退到通用方法
             return self.extract_table_data(frame, max_rows=200, max_cells=20)
         
@@ -1109,10 +790,8 @@ class DataScraper:
             
             inner_frames = self.report_frame.locator("iframe")
             frame_count = inner_frames.count()
-            print(f"发现 {frame_count} 个iframe")
             
             if frame_count == 0:
-                print("  ⚠ 未找到iframe，尝试直接使用report_frame")
                 # 如果没有iframe，直接使用report_frame
                 return self.report_frame
             
@@ -1124,38 +803,19 @@ class DataScraper:
                     frame_locator = inner_frames.nth(i)
                     if frame_locator.is_visible(timeout=3000):
                         target_frame = self.report_frame.frame_locator("iframe").nth(i)
-                        print(f"✓ 找到可见iframe: {i}")
-                        
-                        # 输出iframe内容诊断信息
-                        try:
-                            iframe_text = target_frame.locator("body").inner_text(timeout=2000)
-                            text_length = len(iframe_text) if iframe_text else 0
-                            print(f"  iframe内容长度: {text_length} 字符")
-                            if text_length > 0:
-                                # 检查是否包含关键词
-                                keywords = ["做多", "做空", "盈亏比", "价差比", "预测值", "正收益", "负收益", "P4TC"]
-                                found_keywords = [kw for kw in keywords if kw in iframe_text]
-                                if found_keywords:
-                                    print(f"  ✓ 找到关键词: {', '.join(found_keywords[:5])}")
-                        except Exception as e:
-                            print(f"  ⚠ 获取iframe内容时出错: {e}")
-                        
                         break
                 except Exception as e:
-                    print(f"  iframe {i} 检查失败: {e}")
                     continue
             
             # 如果没有找到可见的iframe，使用第一个
             if not target_frame and frame_count > 0:
                 try:
                     target_frame = self.report_frame.frame_locator("iframe").first
-                    print("✓ 使用第一个iframe")
                 except Exception as e:
-                    print(f"✗ 无法访问第一个iframe: {e}")
+                    pass
             
             # 如果还是没有找到，尝试直接使用report_frame
             if not target_frame:
-                print("  ⚠ 未找到有效iframe，使用report_frame作为目标")
                 target_frame = self.report_frame
             
             return target_frame
@@ -1167,7 +827,6 @@ class DataScraper:
             # 最后尝试直接返回report_frame
             try:
                 if self.report_frame:
-                    print("  ⚠ 尝试使用report_frame作为备用方案")
                     return self.report_frame
             except:
                 pass
@@ -1318,28 +977,24 @@ class DataScraper:
                             print("  ✓ 已点击pin按钮（主页面）")
                             time.sleep(2)
                     except Exception:
-                        print("  ⚠ 未找到pin按钮")
+                        pass
             except Exception as e:
-                print(f"  ⚠ 点击pin按钮失败: {e}")
+                pass
             
             # 调整浏览器视口，使用更大的高度确保完整截图
             if self.page:
                 try:
-                    print("  调整浏览器视口...")
                     # 设置更大的视口高度，确保能容纳所有内容
                     self.page.set_viewport_size({"width": 1920, "height": 5000})
                     time.sleep(0.5)
-                    print("  ✓ 视口已调整 (1920x5000)")
                 except Exception as e:
-                    print(f"  ⚠ 调整视口失败: {e}")
+                    pass
             
             # 再等待一下确保内容渲染
             time.sleep(2)
             
             # 操作现货和期货模块的滚动容器，确保数据完整加载
             try:
-                print("  操作现货和期货模块的滚动容器...")
-                
                 # 现货模块滚动容器
                 spot_scroll_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[2]/div[2]/div/div[1]/div[2]/div/div/div/div/div[2]/div/div[2]/div/div/div[2]/div/div"
                 # 期货模块滚动容器
@@ -1348,7 +1003,6 @@ class DataScraper:
                 if self.page:
                     # 操作现货模块滚动容器
                     try:
-                        print("    操作现货模块滚动容器...")
                         spot_scroll_element = self.page.locator(f"xpath={spot_scroll_xpath}").first
                         if spot_scroll_element.is_visible(timeout=5000):
                             # 多次滚动到底部，确保所有数据加载
@@ -1366,23 +1020,16 @@ class DataScraper:
                                     
                                     # 检查是否已经滚动到底部
                                     if current_scroll_top == last_scroll_top and current_scroll_top > 0:
-                                        print(f"      ✓ 现货模块已滚动到底部 (滚动位置: {current_scroll_top}px)")
                                         break
                                     
                                     last_scroll_top = current_scroll_top
-                                    if i % 5 == 0:
-                                        print(f"      现货模块滚动中... ({i+1}/20, 位置: {current_scroll_top}px)")
                                 except Exception as e:
-                                    print(f"      ⚠ 现货模块滚动失败: {e}")
                                     break
-                        else:
-                            print("    ⚠ 未找到现货模块滚动容器")
                     except Exception as e:
-                        print(f"    ⚠ 操作现货模块滚动容器失败: {e}")
+                        pass
                     
                     # 操作期货模块滚动容器
                     try:
-                        print("    操作期货模块滚动容器...")
                         futures_scroll_element = self.page.locator(f"xpath={futures_scroll_xpath}").first
                         if futures_scroll_element.is_visible(timeout=5000):
                             # 多次滚动到底部，确保所有数据加载
@@ -1400,30 +1047,21 @@ class DataScraper:
                                     
                                     # 检查是否已经滚动到底部
                                     if current_scroll_top == last_scroll_top and current_scroll_top > 0:
-                                        print(f"      ✓ 期货模块已滚动到底部 (滚动位置: {current_scroll_top}px)")
                                         break
                                     
                                     last_scroll_top = current_scroll_top
-                                    if i % 5 == 0:
-                                        print(f"      期货模块滚动中... ({i+1}/20, 位置: {current_scroll_top}px)")
                                 except Exception as e:
-                                    print(f"      ⚠ 期货模块滚动失败: {e}")
                                     break
-                        else:
-                            print("    ⚠ 未找到期货模块滚动容器")
                     except Exception as e:
-                        print(f"    ⚠ 操作期货模块滚动容器失败: {e}")
+                        pass
                     
                     # 等待内容加载
                     time.sleep(2)
-                    print("  ✓ 现货和期货模块滚动完成")
             except Exception as e:
-                print(f"  ⚠ 操作滚动容器失败: {e}")
+                pass
             
             # 滚动页面确保所有内容加载（多次滚动触发懒加载）
             try:
-                print("  滚动页面到底部，确保内容完全加载...")
-                
                 # 方法1: 在target_frame（iframe）内多次滚动（最重要）
                 try:
                     body_locator = target_frame.locator("body")
@@ -1474,40 +1112,21 @@ class DataScraper:
                                         document.documentElement.offsetHeight
                                     )
                                 """)
-                                print(f"  滚动 {scroll_attempt + 1}/{max_scrolls}: 当前高度 {current_height}px")
-                                
                                 if current_height > last_height:
-                                    print(f"  ✓ 发现新内容，高度增加 {current_height - last_height}px")
                                     last_height = current_height
                                 else:
-                                    print(f"  ✓ 高度未变化，内容已完全加载")
                                     time.sleep(2)  # 再等待一下确保渲染完成
                                     break
                             except:
                                 pass
                         except Exception as e:
-                            print(f"  ⚠ 滚动尝试 {scroll_attempt + 1} 失败: {e}")
-                    
-                    # 最终获取页面高度
-                    try:
-                        final_height = body_locator.evaluate("""
-                            () => Math.max(
-                                document.body.scrollHeight,
-                                document.documentElement.scrollHeight,
-                                document.body.offsetHeight,
-                                document.documentElement.offsetHeight
-                            )
-                        """)
-                        print(f"  ✓ 最终iframe内容高度: {final_height}px")
-                    except:
-                        pass
+                            pass
                     
                     # 滚动回顶部
                     body_locator.evaluate("window.scrollTo(0, 0)")
                     time.sleep(1)
-                    print("  ✓ iframe内滚动完成")
                 except Exception as e:
-                    print(f"  ⚠ iframe内滚动失败: {e}")
+                    pass
                     
                 # 方法2: 通过page.frames找到frame对象并滚动
                 if self.page:
@@ -1592,7 +1211,6 @@ class DataScraper:
                     futures_screenshot_path = None
                     
                     try:
-                        print("  尝试分别截图现货和期货模块...")
                         # 现货模块截图
                         spot_container_xpath = "//*[@id='wrapper']/div/div/div[2]/div/div[2]/div/div/div[1]/div[2]/div/div[2]"
                         spot_element = self.page.locator(f"xpath={spot_container_xpath}").first
@@ -1601,9 +1219,8 @@ class DataScraper:
                             spot_element.screenshot(path=spot_filepath)
                             if os.path.exists(spot_filepath) and os.path.getsize(spot_filepath) > 0:
                                 spot_screenshot_path = spot_filepath
-                                print(f"  ✓ 现货模块截图成功: {spot_filepath}")
                     except Exception as e:
-                        print(f"  ⚠ 现货模块截图失败: {e}")
+                        pass
                     
                     try:
                         # 期货模块截图
@@ -1614,31 +1231,10 @@ class DataScraper:
                             futures_element.screenshot(path=futures_filepath)
                             if os.path.exists(futures_filepath) and os.path.getsize(futures_filepath) > 0:
                                 futures_screenshot_path = futures_filepath
-                                print(f"  ✓ 期货模块截图成功: {futures_filepath}")
                     except Exception as e:
-                        print(f"  ⚠ 期货模块截图失败: {e}")
+                        pass
                     
                     # 然后截图整个页面（主要截图）
-                    print("  截图整个页面（完整）...")
-                    
-                    # 获取最终页面尺寸用于验证
-                    try:
-                        final_page_height = self.page.evaluate("""
-                            () => Math.max(
-                                document.body.scrollHeight,
-                                document.documentElement.scrollHeight,
-                                document.body.offsetHeight,
-                                document.documentElement.offsetHeight
-                            )
-                        """)
-                        viewport_height = self.page.viewport_size['height'] if self.page.viewport_size else 5000
-                        viewport_width = self.page.viewport_size['width'] if self.page.viewport_size else 1920
-                        print(f"  页面总高度: {final_page_height}px, 视口: {viewport_width}x{viewport_height}px")
-                        
-                        if final_page_height > viewport_height:
-                            print(f"  ⚠ 页面高度({final_page_height}px)超过视口({viewport_height}px)，使用full_page截图")
-                    except Exception as e:
-                        print(f"  ⚠ 获取页面尺寸失败: {e}")
                     
                     # 使用full_page=True确保截图完整，会自动捕获所有滚动区域
                     # 等待一下确保页面稳定

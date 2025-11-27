@@ -132,11 +132,9 @@ class TradingOpportunity42dParser:
         # 如果找到了部分开始位置，只在该范围内查找
         if section_start_index >= 0:
             search_rows = rows[section_start_index:section_end_index]
-            print(f"  {section_name}部分: 行 {section_start_index} 到 {section_end_index}")
         else:
             # 如果没有找到明确的标记，在整个数据中查找
             search_rows = rows
-            print(f"  ⚠ 未找到{section_name}标记，在整个数据中查找")
         
         # 遍历指定范围的行，查找交易机会数据
         for i, row in enumerate(search_rows):
