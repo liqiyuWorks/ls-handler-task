@@ -15,6 +15,7 @@ try:
     from .european_line_parser import EuropeanLineParser
     from .trading_opportunity_14d_parser import TradingOpportunity14dParser
     from .trading_opportunity_42d_parser import TradingOpportunity42dParser
+    from .bilateral_trading_opportunity_parser import BilateralTradingOpportunityParser
 except ImportError:
     from p4tc_parser import P4TCParser
     from p5_parser import P5Parser
@@ -22,6 +23,7 @@ except ImportError:
     from european_line_parser import EuropeanLineParser
     from trading_opportunity_14d_parser import TradingOpportunity14dParser
     from trading_opportunity_42d_parser import TradingOpportunity42dParser
+    from bilateral_trading_opportunity_parser import BilateralTradingOpportunityParser
 
 
 class EnhancedFormatter:
@@ -71,6 +73,9 @@ class EnhancedFormatter:
         elif '42天后单边交易机会汇总' in self.page_name or '42天后交易机会汇总' in self.page_name:
             # 42天后单边交易机会汇总页面使用专门的解析器
             self._extract_trading_opportunity_42d_data(rows)
+        elif '双边交易机会汇总' in self.page_name:
+            # 双边交易机会汇总页面使用专门的解析器
+            self._extract_bilateral_trading_opportunity_data(rows)
         else:
             self._extract_generic_data(rows)
         
@@ -593,6 +598,32 @@ class EnhancedFormatter:
             if table_data:
                 self.contracts["raw_table_data"] = {
                     "description": "42天后单边交易机会汇总原始数据",
+                    "total_rows": len(table_data),
+                    "data": table_data,
+                    "last_updated": datetime.now().isoformat()
+                }
+    
+    def _extract_bilateral_trading_opportunity_data(self, rows: List[List[str]]):
+        """提取双边交易机会汇总页面数据"""
+        # 使用专门的双边交易机会解析器
+        parser = BilateralTradingOpportunityParser()
+        parsed_data = parser.parse_bilateral_trading_opportunity_data(rows)
+        
+        if parsed_data and (parsed_data.get('spot_vs_futures') or parsed_data.get('spot_vs_spot') or 
+                           parsed_data.get('futures_vs_futures')):
+            # 将解析后的数据存储到contracts中
+            self.contracts["bilateral_trading_opportunity_analysis"] = parsed_data
+            
+            # 同时保存原始表格数据以便调试
+            table_data = []
+            for row in rows:
+                non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+                if non_empty_cells:
+                    table_data.append(non_empty_cells)
+            
+            if table_data:
+                self.contracts["raw_table_data"] = {
+                    "description": "双边交易机会汇总原始数据",
                     "total_rows": len(table_data),
                     "data": table_data,
                     "last_updated": datetime.now().isoformat()

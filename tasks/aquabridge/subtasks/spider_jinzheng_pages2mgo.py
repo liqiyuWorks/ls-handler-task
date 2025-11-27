@@ -92,6 +92,11 @@ class SpiderJinzhengPages2mgo(BaseModel):
                 "description": "单边价格信号汇总下的42天后交易机会汇总数据（包含现货和期货）",
                 "formatter": EnhancedFormatter()
             },
+            "bilateral_trading_opportunity": {
+                "name": "双边交易机会汇总",
+                "description": "双边价格信号汇总下的双边交易机会汇总数据（包含现货VS期货、现货VS现货、期货VS期货）",
+                "formatter": EnhancedFormatter()
+            },
             # "trading_opportunity_42d": {
             #     "name": "交易机会汇总（42天后）",
             #     "description": "单边价格信号汇总下的交易机会汇总（42天后）数据",
@@ -551,7 +556,7 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return default_value
         
         # 从环境变量或task参数中获取配置
-        page_key = get_config('page_key', 'unilateral_trading_opportunity_42d', 'SPIDER_PAGE_KEY')
+        page_key = get_config('page_key', 'bilateral_trading_opportunity', 'SPIDER_PAGE_KEY')
         browser = get_config('browser', 'firefox', 'SPIDER_BROWSER')
         headless = get_config('headless', False, 'SPIDER_HEADLESS')
         save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')

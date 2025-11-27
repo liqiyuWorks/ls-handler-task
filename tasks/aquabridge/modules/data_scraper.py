@@ -777,6 +777,166 @@ class DataScraper:
         
         return all_data
     
+    def extract_bilateral_trading_opportunity_data(self, frame: FrameLocator) -> List[Dict]:
+        """专门提取双边交易机会汇总页面的数据
+        深入分析DOM结构，找到资产对比、交易方向和盈亏比的完整数据
+        
+        Args:
+            frame: 目标iframe定位器
+            
+        Returns:
+            提取的表格数据列表
+        """
+        all_data = []
+        table_data = []
+        
+        try:
+            print("使用专门的方法提取双边交易机会汇总数据...")
+            
+            # 方法1: 通过table标签提取，使用行的完整文本解析数据
+            print("  方法1: 通过table标签提取，使用行的完整文本解析...")
+            try:
+                tables = frame.locator("table")
+                table_count = tables.count()
+                
+                if table_count > 0:
+                    print(f"  找到 {table_count} 个table标签")
+                    
+                    import re
+                    
+                    spot_vs_futures_start = None
+                    spot_vs_spot_start = None
+                    futures_vs_futures_start = None
+                    
+                    for i in range(table_count):
+                        rows = tables.nth(i).locator("tr")
+                        row_count = rows.count()
+                        print(f"  表格 {i+1} 有 {row_count} 行")
+                        
+                        # 先找到三个部分的位置
+                        for j in range(min(row_count, 50)):
+                            try:
+                                row_text = rows.nth(j).inner_text(timeout=1000).strip()
+                                # 检查是否是标题行
+                                if '现货VS期货' in row_text and spot_vs_futures_start is None:
+                                    spot_vs_futures_start = j + 1  # 从下一行开始
+                                    print(f"    找到现货VS期货开始行: {j+1}")
+                                if '现货VS现货' in row_text and spot_vs_spot_start is None:
+                                    spot_vs_spot_start = j + 1
+                                    print(f"    找到现货VS现货开始行: {j+1}")
+                                if '期货VS期货' in row_text and futures_vs_futures_start is None:
+                                    futures_vs_futures_start = j + 1
+                                    print(f"    找到期货VS期货开始行: {j+1}")
+                            except:
+                                pass
+                        
+                        # 提取每一行的数据
+                        for j in range(min(row_count, 100)):
+                            try:
+                                row = rows.nth(j)
+                                row_text = row.inner_text(timeout=1000).strip()
+                                
+                                # 跳过空行和标题行
+                                if not row_text or ('现货VS期货' in row_text or '现货VS现货' in row_text or 
+                                                   '期货VS期货' in row_text) and len(row_text.strip()) <= 20:
+                                    continue
+                                
+                                # 检查这一行是否包含"VS"关键词（表示是交易机会行）
+                                if "VS" not in row_text and "vs" not in row_text.lower():
+                                    continue
+                                
+                                # 从行的完整文本中提取数据
+                                row_data = []
+                                
+                                # 提取资产对比（如 "P3A VS P4TC+1M"）
+                                vs_pattern = r'([A-Z]\d+[A-Z]*[+\d]*M?)\s+VS\s+([A-Z]\d+[A-Z]*[+\d]*M?)'
+                                vs_match = re.search(vs_pattern, row_text, re.IGNORECASE)
+                                if vs_match:
+                                    asset1 = vs_match.group(1)
+                                    asset2 = vs_match.group(2)
+                                    asset_pair = f"{asset1} VS {asset2}"
+                                    row_data.append(asset_pair)
+                                else:
+                                    # 如果没找到，尝试从单元格中提取
+                                    cells = row.locator("td, th")
+                                    cell_count = cells.count()
+                                    if cell_count >= 3:
+                                        # 尝试从单元格中组合资产对比
+                                        cell_texts = []
+                                        for k in range(min(cell_count, 5)):
+                                            try:
+                                                text = cells.nth(k).inner_text(timeout=1000).strip()
+                                                if text and text not in ['VS', 'vs']:
+                                                    cell_texts.append(text)
+                                            except:
+                                                pass
+                                        
+                                        # 查找包含VS的行
+                                        if 'VS' in ' '.join(cell_texts) or 'vs' in ' '.join(cell_texts).lower():
+                                            row_data.extend(cell_texts)
+                                    else:
+                                        continue
+                                
+                                # 提取交易方向（从行文本中）
+                                combined_direction = None
+                                if '做多' in row_text or '做空' in row_text:
+                                    # 尝试提取完整的交易方向描述
+                                    direction_pattern = r'([A-Z]\d+[A-Z]*[+\d]*M?做[多空])\s*([A-Z]\d+[A-Z]*[+\d]*M?做[多空])'
+                                    direction_match = re.search(direction_pattern, row_text)
+                                    if direction_match:
+                                        combined_direction = f"{direction_match.group(1)} {direction_match.group(2)}"
+                                    else:
+                                        # 如果没找到完整格式，尝试提取所有做多/做空相关的文本
+                                        direction_parts = re.findall(r'[A-Z]\d+[A-Z]*[+\d]*M?做[多空]', row_text)
+                                        if direction_parts:
+                                            combined_direction = " ".join(direction_parts)
+                                
+                                if combined_direction:
+                                    row_data.append(combined_direction)
+                                else:
+                                    row_data.append('')
+                                
+                                # 提取盈亏比（支持整数和小数）
+                                ratio_match = re.search(r'(\d+\.?\d+)\s*[:：]\s*1', row_text)
+                                if ratio_match:
+                                    row_data.append(ratio_match.group(1))
+                                else:
+                                    row_data.append('')
+                                
+                                if len(row_data) >= 2:
+                                    table_data.append(row_data)
+                                    print(f"    行 {j+1}: {row_data}")
+                            except Exception as e:
+                                continue
+            except Exception as e:
+                print(f"  ⚠ 方法1失败: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # 如果找到了数据，组织成表格格式
+            if table_data:
+                all_data.append({
+                    "table_index": 0,
+                    "total_rows": len(table_data),
+                    "extracted_rows": len(table_data),
+                    "rows": table_data,
+                    "data_type": "bilateral_trading_opportunity"
+                })
+                print(f"  ✓ 成功提取 {len(table_data)} 行数据")
+            else:
+                print("  ⚠ 未找到数据，使用通用提取方法")
+                # 如果专门方法失败，回退到通用方法
+                return self.extract_table_data(frame, max_rows=200, max_cells=20)
+            
+        except Exception as e:
+            print(f"  ✗ 提取双边交易机会汇总数据失败: {e}")
+            import traceback
+            traceback.print_exc()
+            # 回退到通用方法
+            return self.extract_table_data(frame, max_rows=200, max_cells=20)
+        
+        return all_data
+    
     def navigate_to_page(self, page_config: PageConfig) -> bool:
         """根据配置导航到指定页面"""
         print(f"4. 导航到目标页面: {page_config.name}")

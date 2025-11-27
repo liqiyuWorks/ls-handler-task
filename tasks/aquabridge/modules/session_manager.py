@@ -239,11 +239,13 @@ class SessionManager:
                 print("7. 提取数据...")
                 config = page_config.data_extraction_config
                 
-                # 对于14天后和42天后交易机会汇总页面，使用专门的方法
+                # 对于14天后、42天后和双边交易机会汇总页面，使用专门的方法
                 if page_key == "unilateral_trading_opportunity_14d":
                     data = self.scraper.extract_trading_opportunity_14d_data(target_frame)
                 elif page_key == "unilateral_trading_opportunity_42d":
                     data = self.scraper.extract_trading_opportunity_42d_data(target_frame)
+                elif page_key == "bilateral_trading_opportunity":
+                    data = self.scraper.extract_bilateral_trading_opportunity_data(target_frame)
                 else:
                     data = self.scraper.extract_table_data(
                         target_frame, 

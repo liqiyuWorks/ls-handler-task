@@ -312,6 +312,69 @@ PAGE_CONFIGS = {
         }
     ),
     
+    "bilateral_trading_opportunity": PageConfig(
+        name="双边交易机会汇总",
+        description="双边价格信号汇总下的双边交易机会汇总数据（包含现货VS期货、现货VS现货、期货VS期货）",
+        navigation_path=[
+            # 导航路径：单边策略研究 -> 价格信号 -> 双边价格信号汇总 -> 双边交易机会汇总
+            NavigationStep(
+                selectors=[
+                    ".bi-f-c > .bi-icon-change-button > .x-icon"
+                ],
+                description="展开主菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边策略研究'",
+                    "*:has-text('单边策略研究')",
+                    ".bi-icon-change-button:has-text('单边策略研究')"
+                ],
+                description="展开单边策略研究菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='价格信号'",
+                    "*:has-text('价格信号')",
+                    ".bi-icon-change-button:has-text('价格信号')"
+                ],
+                description="展开价格信号菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='双边价格信号汇总'",
+                    "*:has-text('双边价格信号汇总')",
+                    ".bi-icon-change-button:has-text('双边价格信号汇总')"
+                ],
+                description="展开双边价格信号汇总",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='双边交易机会汇总'",
+                    "*:has-text('双边交易机会汇总')",
+                    ".bi-list-item:has-text('双边交易机会汇总')"
+                ],
+                description="点击双边交易机会汇总页面",
+                wait_time=2.0
+            )
+        ],
+        query_button_selectors=[
+            "button:has-text('查询')",
+            "button:has-text('Query')",
+            "button[type='submit']",
+            "[class*='query']",
+            "[class*='search']"
+        ],
+        data_extraction_config={
+            "max_rows": 200,
+            "max_cells": 20,
+            "wait_after_query": 5
+        }
+    ),
+    
     "trading_opportunity_42d": PageConfig(
         name="交易机会汇总（42天后）",
         description="单边价格信号汇总下的交易机会汇总（42天后）数据",
