@@ -555,28 +555,34 @@ class EnhancedFormatter:
     
     def _extract_trading_opportunity_14d_data(self, rows: List[List[str]]):
         """提取14天后单边交易机会汇总页面数据"""
+        # 保存原始表格数据以便调试（无论解析是否成功）
+        table_data = []
+        for row in rows:
+            non_empty_cells = [cell.strip() for cell in row if cell.strip()]
+            if non_empty_cells:
+                table_data.append(non_empty_cells)
+        
+        if table_data:
+            self.contracts["raw_table_data"] = {
+                "description": "14天后单边交易机会汇总原始数据",
+                "total_rows": len(table_data),
+                "data": table_data,
+                "last_updated": datetime.now().isoformat()
+            }
+        
         # 使用专门的14天后交易机会解析器
         parser = TradingOpportunity14dParser()
         parsed_data = parser.parse_trading_opportunity_14d_data(rows)
         
-        if parsed_data and parsed_data.get('trading_opportunities'):
-            # 将解析后的数据存储到contracts中
+        # 即使trading_opportunities为空，也保存解析后的数据结构（包含metadata和date）
+        if parsed_data:
             self.contracts["trading_opportunity_14d_analysis"] = parsed_data
             
-            # 同时保存原始表格数据以便调试
-            table_data = []
-            for row in rows:
-                non_empty_cells = [cell.strip() for cell in row if cell.strip()]
-                if non_empty_cells:
-                    table_data.append(non_empty_cells)
-            
-            if table_data:
-                self.contracts["raw_table_data"] = {
-                    "description": "14天后单边交易机会汇总原始数据",
-                    "total_rows": len(table_data),
-                    "data": table_data,
-                    "last_updated": datetime.now().isoformat()
-                }
+            # 如果trading_opportunities为空，记录警告
+            if not parsed_data.get('trading_opportunities'):
+                print(f"  ⚠ 14天后交易机会汇总：解析到 {len(table_data)} 行原始数据，但未解析出交易机会")
+        else:
+            print(f"  ⚠ 14天后交易机会汇总：解析器返回空数据，原始数据 {len(table_data)} 行")
     
     def _extract_trading_opportunity_42d_data(self, rows: List[List[str]]):
         """提取42天后单边交易机会汇总页面数据"""

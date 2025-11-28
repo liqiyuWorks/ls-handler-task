@@ -278,10 +278,13 @@ class DataScraper:
         table_data = []
         
         try:
+            print("  开始提取14天后交易机会汇总数据...")
+            
             # 方法1: 通过table标签提取，使用行的完整文本解析数据
             try:
                 tables = frame.locator("table")
                 table_count = tables.count()
+                print(f"  找到 {table_count} 个table标签")
                 
                 if table_count > 0:
                     import re
@@ -291,12 +294,13 @@ class DataScraper:
                     for i in range(table_count):
                         rows = tables.nth(i).locator("tr")
                         row_count = rows.count()
+                        print(f"  表格 {i+1}: {row_count} 行")
                         
                         # 提取每一行的数据
                         for j in range(min(row_count, 100)):
                             try:
                                 row = rows.nth(j)
-                                row_text = row.inner_text(timeout=1000).strip()
+                                row_text = row.inner_text(timeout=2000).strip()
                                 
                                 # 跳过空行和标题行
                                 if not row_text or row_text in ['现货', '期货'] or len(row_text) < 2:
@@ -339,19 +343,22 @@ class DataScraper:
                             except Exception as e:
                                 continue
             except Exception as e:
-                pass
+                print(f"  ⚠ 方法1提取失败: {e}")
             
             # 方法2: 如果方法1失败，尝试从页面文本中提取
             if not table_data:
+                print("  方法1未提取到数据，尝试方法2（页面文本提取）...")
                 try:
                     # 项目标识列表
                     project_ids = ['P3A', 'S1C', 'C14', 'C10', 'C5', 'P6', 'C3', 'P5', 'S5', 'S2', 'S10']
                     
                     # 获取页面所有文本
                     page_text = frame.locator("body").inner_text(timeout=5000)
+                    print(f"  页面文本长度: {len(page_text)} 字符")
                     
                     # 按行分割
                     lines = [line.strip() for line in page_text.split('\n') if line.strip()]
+                    print(f"  页面文本行数: {len(lines)}")
                     
                     import re
                     # 查找包含项目标识的行
@@ -391,7 +398,7 @@ class DataScraper:
                                         table_data.append(cells)
                                         break
                 except Exception as e:
-                    pass
+                    print(f"  ⚠ 方法2提取失败: {e}")
             
             # 如果找到了数据，组织成表格格式
             if table_data:
@@ -404,13 +411,24 @@ class DataScraper:
                 })
                 print(f"  ✓ 成功提取 {len(table_data)} 行数据")
             else:
+                print("  ⚠ 未提取到数据，尝试通用方法...")
                 # 如果专门方法失败，回退到通用方法
-                return self.extract_table_data(frame, max_rows=100, max_cells=20)
+                fallback_data = self.extract_table_data(frame, max_rows=100, max_cells=20)
+                if fallback_data:
+                    print(f"  ✓ 通用方法提取到 {len(fallback_data)} 个数据块")
+                    return fallback_data
+                else:
+                    print("  ✗ 通用方法也未提取到数据")
             
         except Exception as e:
             print(f"  ✗ 提取14天后交易机会汇总数据失败: {e}")
+            import traceback
+            traceback.print_exc()
             # 回退到通用方法
-            return self.extract_table_data(frame, max_rows=100, max_cells=20)
+            fallback_data = self.extract_table_data(frame, max_rows=100, max_cells=20)
+            if fallback_data:
+                print(f"  ✓ 异常后通用方法提取到 {len(fallback_data)} 个数据块")
+                return fallback_data
         
         return all_data
     
@@ -1415,6 +1433,30 @@ class DataScraper:
                 print("  ⚠ 数据加载超时，继续尝试提取")
                 # 即使超时也等待一下，确保页面稳定
                 time.sleep(2)
+        # 对于14天后单边交易机会汇总页面，使用智能等待
+        elif "14天后" in page_config.name or "14天后交易机会汇总" in page_config.name:
+            print("  检测到14天后交易机会汇总页面，智能等待数据加载...")
+            # 动态等待数据加载（检查页面是否有数据出现）
+            for i in range(15):  # 最多等待15秒
+                try:
+                    page_text = target_frame.locator("body").inner_text(timeout=2000)
+                    # 检查是否包含项目标识或交易机会相关的关键词
+                    if any(keyword in page_text for keyword in ["C5", "C10", "P6", "P3A", "做多", "做空", "盈亏比", "交易机会"]):
+                        # 进一步检查是否有表格数据
+                        try:
+                            tables = target_frame.locator("table")
+                            if tables.count() > 0:
+                                print(f"  ✓ 数据已加载（等待了 {i+1} 秒）")
+                                time.sleep(2)  # 额外等待2秒确保数据完全渲染
+                                return True
+                        except:
+                            pass
+                    time.sleep(1)
+                except:
+                    time.sleep(1)
+            else:
+                print("  ⚠ 数据加载超时，继续尝试提取")
+                time.sleep(3)  # 即使超时也等待一下，确保页面稳定
         else:
             # 其他页面：等待固定时间，然后检查数据是否出现
             print(f"  等待 {wait_time} 秒让页面数据加载...")
