@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schrödinger's Call - The Trinity</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000510;
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+            /* 确保画布默认就是可见的 */
+            opacity: 1; 
+        }
+        
+        /* 文字叠加层样式 */
+        #overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            z-index: 10;
+            width: 90%;
+            max-width: 900px;
+            color: #ffffff;
+            mix-blend-mode: screen;
+        }
+
+        /* 品牌名 */
+        h1.brand {
+            font-size: 4rem;
+            font-weight: 200;
+            letter-spacing: 4px;
+            margin: 0;
+            background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        /* 分割线 */
+        .divider {
+            height: 1px;
+            width: 60px;
+            background: linear-gradient(90deg, transparent, #fbbf24, transparent);
+            margin: 25px auto;
+            opacity: 0.8;
+        }
+
+        /* 核心理念 (三位一体) */
+        h2.trinity {
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #94a3b8;
+            font-weight: 400;
+            margin: 0 0 15px 0;
+            line-height: 1.6;
+        }
+
+        /* 强调词颜色 - 整个短语高亮 */
+        .highlight {
+            color: #fbbf24; 
+            text-shadow: 0 0 15px rgba(251, 191, 36, 0.3);
+        }
+
+        /* 标语 */
+        p.tagline {
+            font-family: "Georgia", "Times New Roman", serif;
+            font-style: italic;
+            font-size: 1.1rem;
+            color: #64748b;
+            margin-top: 10px;
+            letter-spacing: 0.5px;
+            opacity: 0.8;
+        }
+
+        @media (max-width: 768px) {
+            h1.brand { font-size: 2.5rem; letter-spacing: 2px; }
+            h2.trinity { font-size: 0.75rem; letter-spacing: 2px; }
+            p.tagline { font-size: 0.9rem; padding: 0 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="overlay">
+        <h1 class="brand">Schrödinger's Call</h1>
+        
+        <div class="divider"></div>
+        
+        <h2 class="trinity">
+            <span class="highlight">The Trinity of Superposition, Convexity and Expected Value</span>
+        </h2>
+        
+        <p class="tagline">
+            Finding asymmetry in superposition; Calculating EV in uncertainty.
+        </p>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <!-- 切换回 cdnjs 源，通常更稳定 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // 直接执行初始化，不再等待复杂的 load 事件
+        init();
+
+        function init() {
+            // 如果 Three.js 没加载成功（比如断网），则不执行后续逻辑
+            if (typeof THREE === 'undefined') {
+                console.error("Three.js library not loaded.");
+                return;
+            }
+
+            // --- 1. 初始化场景 ---
+            const container = document.getElementById('canvas-container');
+            const width = window.innerWidth;
+            const height = window.innerHeight;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000510);
+            scene.fog = new THREE.FogExp2(0x000510, 0.002);
+
+            const camera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+            camera.position.z = 50;
+            // 保持下移视角：Y=40 (数字越大，相机越高，看到的物体越靠下)
+            camera.position.y = 40;
+
+            const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            container.appendChild(renderer.domElement);
+
+            // --- 2. 粒子系统核心配置 ---
+            const PARTICLE_COUNT = 20000; 
+            const geometry = new THREE.BufferGeometry();
+            
+            const basePositions = new Float32Array(PARTICLE_COUNT * 3);
+            const speeds = new Float32Array(PARTICLE_COUNT);
+            const sizes = new Float32Array(PARTICLE_COUNT);
+            const types = new Float32Array(PARTICLE_COUNT); 
+            const offsets = new Float32Array(PARTICLE_COUNT);
+
+            // --- 3. 填充数据 ---
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                const isGold = Math.random() > 0.85; 
+                types[i] = isGold ? 1.0 : 0.0;
+                speeds[i] = Math.random();
+                sizes[i] = Math.random();
+                offsets[i] = Math.random() * 100;
+
+                const spreadX = 200; 
+                const spreadZ = 120;
+                
+                basePositions[i3] = (Math.random() - 0.5) * spreadX;
+                basePositions[i3 + 1] = 0; 
+                
+                if (isGold) {
+                    basePositions[i3 + 2] = (Math.random() - 0.5) * 40; 
+                } else {
+                    basePositions[i3 + 2] = (Math.random() - 0.5) * spreadZ;
+                }
+            }
+
+            geometry.setAttribute('position', new THREE.BufferAttribute(basePositions, 3));
+            geometry.setAttribute('aSpeed', new THREE.BufferAttribute(speeds, 1));
+            geometry.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
+            geometry.setAttribute('aType', new THREE.BufferAttribute(types, 1));
+            geometry.setAttribute('aOffset', new THREE.BufferAttribute(offsets, 1));
+
+            // --- 4. Shader ---
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    uTime: { value: 0 },
+                    uCycle: { value: 0 },
+                },
+                vertexShader: `
+                    uniform float uTime;
+                    uniform float uCycle;
+                    
+                    attribute float aSpeed;
+                    attribute float aSize;
+                    attribute float aType; 
+                    attribute float aOffset;
+
+                    varying vec3 vColor;
+                    varying float vAlpha;
+
+                    float random (in vec2 st) {
+                        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+                    }
+                    float noise (in vec2 st) {
+                        vec2 i = floor(st);
+                        vec2 f = fract(st);
+                        float a = random(i);
+                        float b = random(i + vec2(1.0, 0.0));
+                        float c = random(i + vec2(0.0, 1.0));
+                        float d = random(i + vec2(1.0, 1.0));
+                        vec2 u = f * f * (3.0 - 2.0 * f);
+                        return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+                    }
+
+                    void main() {
+                        vec3 pos = position;
+                        
+                        // Mode 1: Chaos
+                        float chaosFreq = 0.15;
+                        float chaosAmp = 6.0;
+                        float chaosSpeed = uTime * 0.5 + aSpeed * 0.5;
+                        
+                        float waveChaos = sin(pos.x * chaosFreq + chaosSpeed) * chaosAmp;
+                        waveChaos += noise(pos.xz * 0.08 + uTime * 0.3) * 4.0; 
+                        waveChaos += noise(pos.xz * 0.2 + uTime * 0.5) * 2.0; 
+
+                        // Mode 2: Order
+                        float orderFreq = 0.05; 
+                        float orderAmp = 3.0;
+                        float orderSpeed = uTime * 0.2; 
+                        
+                        float waveOrder = sin(pos.x * orderFreq + orderSpeed) * orderAmp;
+                        waveOrder += 5.0; 
+
+                        // Mix
+                        if (aType > 0.5) {
+                            float individualCycle = smoothstep(0.0, 1.0, uCycle * 1.5 - aOffset * 0.5);
+                            pos.y = mix(waveChaos, waveOrder, individualCycle);
+                            float zFocus = mix(pos.z, pos.z * 0.3, individualCycle); 
+                            pos.z = zFocus;
+                            pos.x += individualCycle * sin(uTime) * 2.0;
+                        } else {
+                            pos.y = waveChaos;
+                            pos.y -= uCycle * 8.0; 
+                        }
+
+                        vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                        gl_Position = projectionMatrix * mvPosition;
+
+                        // Color & Size
+                        float sizeFactor = (300.0 / -mvPosition.z);
+                        vec3 finalColor;
+                        float alpha = 0.6;
+                        float pSize = 1.0;
+
+                        if (aType > 0.5) {
+                            float awaken = smoothstep(0.1, 0.9, uCycle - aOffset * 0.3);
+                            vec3 blueColor = vec3(0.0, 0.3, 0.7);
+                            vec3 goldColor = vec3(1.0, 0.9, 0.5);
+                            finalColor = mix(blueColor, goldColor, awaken);
+                            finalColor *= (1.0 + awaken * 2.0);
+                            pSize = mix(1.0, 2.5, awaken);
+                            alpha = mix(0.4, 1.0, awaken);
+                            float blink = sin(uTime * 5.0 + aOffset * 10.0);
+                            float blinkIntensity = 1.0 - abs(awaken - 0.5) * 2.0; 
+                            if (blinkIntensity > 0.0) {
+                                finalColor += vec3(0.5) * blink * blinkIntensity;
+                            }
+                        } else {
+                            float heightColor = smoothstep(-10.0, 10.0, pos.y);
+                            finalColor = mix(vec3(0.0, 0.05, 0.2), vec3(0.0, 0.3, 0.8), heightColor);
+                            finalColor *= (1.0 - uCycle * 0.7);
+                            alpha = mix(0.5, 0.1, uCycle);
+                            pSize = mix(1.0, 0.8, uCycle);
+                        }
+
+                        vColor = finalColor;
+                        vAlpha = alpha;
+                        gl_PointSize = sizeFactor * aSize * 2.0 * pSize;
+                    }
+                `,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    varying float vAlpha;
+
+                    void main() {
+                        vec2 xy = gl_PointCoord.xy - vec2(0.5);
+                        float d = length(xy);
+                        if (d > 0.5) discard;
+                        float glow = 1.0 - (d * 2.0);
+                        glow = pow(glow, 1.5); 
+                        gl_FragColor = vec4(vColor, vAlpha * glow);
+                    }
+                `,
+                transparent: true,
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+            });
+
+            const particles = new THREE.Points(geometry, material);
+            scene.add(particles);
+
+            // --- 5. 交互 ---
+            const mouse = new THREE.Vector2();
+            const handleMouseMove = (event) => {
+                mouse.x = (event.clientX / width) * 2 - 1;
+                mouse.y = -(event.clientY / height) * 2 + 1;
+            };
+            window.addEventListener('mousemove', handleMouseMove);
+
+            // --- 6. 动画循环 ---
+            const clock = new THREE.Clock();
+            let time = 0;
+            
+            const PHASE_CHAOS = 4;
+            const PHASE_DISCOVER = 8;
+            const PHASE_STREAM = 8;
+            const PHASE_FADE = 5;
+            const TOTAL_CYCLE = PHASE_CHAOS + PHASE_DISCOVER + PHASE_STREAM + PHASE_FADE;
+
+            const animate = () => {
+                requestAnimationFrame(animate);
+
+                const delta = clock.getDelta();
+                time += delta;
+                
+                const cycleTime = time % TOTAL_CYCLE;
+                let uCycleValue = 0;
+
+                if (cycleTime < PHASE_CHAOS) {
+                    uCycleValue = 0;
+                } else if (cycleTime < PHASE_CHAOS + PHASE_DISCOVER) {
+                    const t = (cycleTime - PHASE_CHAOS) / PHASE_DISCOVER;
+                    uCycleValue = t * t * (3.0 - 2.0 * t);
+                } else if (cycleTime < PHASE_CHAOS + PHASE_DISCOVER + PHASE_STREAM) {
+                    uCycleValue = 1;
+                } else {
+                    const t = (cycleTime - (PHASE_CHAOS + PHASE_DISCOVER + PHASE_STREAM)) / PHASE_FADE;
+                    uCycleValue = 1.0 - t;
+                }
+
+                material.uniforms.uTime.value = time;
+                material.uniforms.uCycle.value = uCycleValue;
+
+                particles.rotation.y = Math.sin(time * 0.02) * 0.05;
+                particles.position.x = Math.sin(time * 0.1) * 2.0;
+                
+                camera.position.x += (mouse.x * 2 - camera.position.x) * 0.02;
+                // 鼠标交互基准值也调整为 40
+                camera.position.y += (mouse.y * 1 + 40 - camera.position.y) * 0.02;
+                camera.lookAt(0, 0, 0);
+
+                renderer.render(scene, camera);
+            };
+
+            animate();
+
+            // --- 窗口大小调整 ---
+            const handleResize = () => {
+                const newWidth = window.innerWidth;
+                const newHeight = window.innerHeight;
+                camera.aspect = newWidth / newHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(newWidth, newHeight);
+            };
+            window.addEventListener('resize', handleResize);
+        }
+    </script>
+</body>
+</html>

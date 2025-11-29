@@ -30,3 +30,13 @@ services:
       - "10031:80"
     container_name: web-10031
     restart: unless-stopped
+
+  web-10032:
+    build:
+      context: .
+      args:
+        HTML_FILE: "薛定谔的Call主页.html"
+    ports:
+      - "10032:80"
+    container_name: web-10032
+    restart: unless-stopped
