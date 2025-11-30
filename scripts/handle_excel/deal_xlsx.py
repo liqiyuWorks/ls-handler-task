@@ -114,7 +114,7 @@ class BacktestDataProcessor:
         elif "14天" in columns_str:
             return 14
         
-        # 默认使用 42 天（根据观察，C3 和 C5 文件也是 42 天）
+        # 默认使用 42 天（如果无法从文件名和列名判断）
         logger.warning(f"无法确定文件 {filename} 的天数，默认使用 42 天")
         return 42
     
@@ -328,10 +328,6 @@ class BacktestDataProcessor:
         """
         merged = {}  # key: date, value: merged record
         
-        # 获取合约类型（从第一个解析数据中获取）
-        contract_type = parsed_data_list[0]['contract_type'] if parsed_data_list else None
-        is_c3_c5 = contract_type in ['C3', 'C5']
-        
         for parsed_data in parsed_data_list:
             forecast_days = parsed_data['forecast_days']
             for record in parsed_data['records']:
@@ -348,18 +344,16 @@ class BacktestDataProcessor:
                         'forecast_14d': None
                     }
                 
-                # 合并预测价格
+                # 合并预测价格（根据预测天数分别填充）
                 forecast_price = record.get('forecast_price')
                 
-                # 如果是C3或C5合约，预测价格同时填充到42天和14天
-                if is_c3_c5:
+                if forecast_days == 42:
                     merged[date]['forecast_42d'] = forecast_price
-                    merged[date]['forecast_14d'] = forecast_price
-                elif forecast_days == 42 or forecast_days == 'both':
-                    merged[date]['forecast_42d'] = forecast_price
-                    if forecast_days == 'both':
-                        merged[date]['forecast_14d'] = forecast_price
                 elif forecast_days == 14:
+                    merged[date]['forecast_14d'] = forecast_price
+                elif forecast_days == 'both':
+                    # 如果文件同时包含42天和14天数据（理论上不应该出现，但保留兼容性）
+                    merged[date]['forecast_42d'] = forecast_price
                     merged[date]['forecast_14d'] = forecast_price
                 
                 # 合并实际价格（优先使用非空值）
