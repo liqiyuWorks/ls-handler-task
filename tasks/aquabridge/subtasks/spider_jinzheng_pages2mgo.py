@@ -132,15 +132,25 @@ class SpiderJinzhengPages2mgo(BaseModel):
                 "formatter": EnhancedFormatter()
             },
             # C3现货应用决策页面
-            "c3_spot_decision": {
-                "name": "C3现货应用决策",
-                "description": "C3现货策略的应用决策数据",
+            "c3_spot_decision_42d": {
+                "name": "C3现货应用决策（42天后）",
+                "description": "C3现货策略的应用决策数据（42天后）",
+                "formatter": EnhancedFormatter()
+            },
+            "c3_spot_decision_14d": {
+                "name": "C3现货应用决策（14天后）",
+                "description": "C3现货策略的应用决策数据（14天后）",
                 "formatter": EnhancedFormatter()
             },
             # C5现货应用决策页面
-            "c5_spot_decision": {
-                "name": "C5现货应用决策",
-                "description": "C5现货策略的应用决策数据",
+            "c5_spot_decision_42d": {
+                "name": "C5现货应用决策（42天后）",
+                "description": "C5现货策略的应用决策数据（42天后）",
+                "formatter": EnhancedFormatter()
+            },
+            "c5_spot_decision_14d": {
+                "name": "C5现货应用决策（14天后）",
+                "description": "C5现货策略的应用决策数据（14天后）",
                 "formatter": EnhancedFormatter()
             }
         }
@@ -551,7 +561,7 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return default_value
         
         # 从环境变量或task参数中获取配置
-        page_key = get_config('page_key', 'unilateral_trading_opportunity_14d', 'SPIDER_PAGE_KEY')
+        page_key = get_config('page_key', 'c5_spot_decision_42d', 'SPIDER_PAGE_KEY')
         browser = get_config('browser', 'firefox', 'SPIDER_BROWSER')
         headless = get_config('headless', False, 'SPIDER_HEADLESS')
         save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')

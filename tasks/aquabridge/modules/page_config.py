@@ -803,9 +803,9 @@ PAGE_CONFIGS = {
     ),
     
     # C3现货应用决策页面配置
-    "c3_spot_decision": PageConfig(
-        name="C3现货应用决策",
-        description="C3现货策略的应用决策数据",
+    "c3_spot_decision_42d": PageConfig(
+        name="C3现货应用决策（42天后）",
+        description="C3现货策略的应用决策数据（42天后）",
         navigation_path=[
             NavigationStep(
                 selectors=[
@@ -843,11 +843,70 @@ PAGE_CONFIGS = {
             ),
             NavigationStep(
                 selectors=[
-                    "text='现货应用决策'",
-                    "*:has-text('现货应用决策')",
-                    ".bi-list-item:has-text('现货应用决策')"
+                    "text='现货应用决策（42天后）'",
+                    "*:has-text('现货应用决策（42天后）')",
+                    ".bi-list-item:has-text('现货应用决策（42天后）')"
                 ],
-                description="点击现货应用决策",
+                description="点击现货应用决策（42天后）",
+                wait_time=2.0
+            )
+        ],
+        query_button_selectors=[
+            "button:has-text('查询')",
+            "button[type='submit']"
+        ],
+        data_extraction_config={
+            "max_rows": 200,  # 增加行数限制以捕获更多表格数据
+            "max_cells": 30,  # 增加单元格限制以捕获更宽的表格
+            "wait_after_query": 5  # 增加等待时间确保数据完全加载
+        }
+    ),
+    
+    "c3_spot_decision_14d": PageConfig(
+        name="C3现货应用决策（14天后）",
+        description="C3现货策略的应用决策数据（14天后）",
+        navigation_path=[
+            NavigationStep(
+                selectors=[
+                    ".bi-f-c > .bi-icon-change-button > .x-icon"
+                ],
+                description="展开主菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边策略研究'",
+                    "*:has-text('单边策略研究')",
+                    ".bi-icon-change-button:has-text('单边策略研究')"
+                ],
+                description="展开单边策略研究菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='现货策略'",
+                    "*:has-text('现货策略')",
+                    ".bi-icon-change-button:has-text('现货策略')"
+                ],
+                description="展开现货策略菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='C3现货'",
+                    "*:has-text('C3现货')",
+                    ".bi-icon-change-button:has-text('C3现货')"
+                ],
+                description="展开C3现货菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='现货应用决策（14天后）'",
+                    "*:has-text('现货应用决策（14天后）')",
+                    ".bi-list-item:has-text('现货应用决策（14天后）')"
+                ],
+                description="点击现货应用决策（14天后）",
                 wait_time=2.0
             )
         ],
@@ -863,9 +922,9 @@ PAGE_CONFIGS = {
     ),
     
     # C5现货应用决策页面配置
-    "c5_spot_decision": PageConfig(
-        name="C5现货应用决策",
-        description="C5现货策略的应用决策数据",
+    "c5_spot_decision_42d": PageConfig(
+        name="C5现货应用决策（42天后）",
+        description="C5现货策略的应用决策数据（42天后）",
         navigation_path=[
             NavigationStep(
                 selectors=[
@@ -903,11 +962,70 @@ PAGE_CONFIGS = {
             ),
             NavigationStep(
                 selectors=[
-                    "text='现货应用决策'",
-                    "*:has-text('现货应用决策')",
-                    ".bi-list-item:has-text('现货应用决策')"
+                    "text='现货应用决策（42天后）'",
+                    "*:has-text('现货应用决策（42天后）')",
+                    ".bi-list-item:has-text('现货应用决策（42天后）')"
                 ],
-                description="点击现货应用决策",
+                description="点击现货应用决策（42天后）",
+                wait_time=2.0
+            )
+        ],
+        query_button_selectors=[
+            "button:has-text('查询')",
+            "button[type='submit']"
+        ],
+        data_extraction_config={
+            "max_rows": 200,  # 增加行数限制以捕获更多表格数据
+            "max_cells": 30,  # 增加单元格限制以捕获更宽的表格
+            "wait_after_query": 5  # 增加等待时间确保数据完全加载
+        }
+    ),
+    
+    "c5_spot_decision_14d": PageConfig(
+        name="C5现货应用决策（14天后）",
+        description="C5现货策略的应用决策数据（14天后）",
+        navigation_path=[
+            NavigationStep(
+                selectors=[
+                    ".bi-f-c > .bi-icon-change-button > .x-icon"
+                ],
+                description="展开主菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='单边策略研究'",
+                    "*:has-text('单边策略研究')",
+                    ".bi-icon-change-button:has-text('单边策略研究')"
+                ],
+                description="展开单边策略研究菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='现货策略'",
+                    "*:has-text('现货策略')",
+                    ".bi-icon-change-button:has-text('现货策略')"
+                ],
+                description="展开现货策略菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='C5现货'",
+                    "*:has-text('C5现货')",
+                    ".bi-icon-change-button:has-text('C5现货')"
+                ],
+                description="展开C5现货菜单",
+                wait_time=1.0
+            ),
+            NavigationStep(
+                selectors=[
+                    "text='现货应用决策（14天后）'",
+                    "*:has-text('现货应用决策（14天后）')",
+                    ".bi-list-item:has-text('现货应用决策（14天后）')"
+                ],
+                description="点击现货应用决策（14天后）",
                 wait_time=2.0
             )
         ],

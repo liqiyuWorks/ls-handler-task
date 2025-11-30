@@ -20,7 +20,7 @@ def test_c3_spot_decision():
     print("="*60)
     
     spider = SpiderJinzhengPages2mgo()
-    page_key = 'c3_spot_decision'
+    page_key = 'c3_spot_decision_42d'  # 测试42天版本
     
     # 检查页面配置
     if page_key not in spider.supported_pages:
