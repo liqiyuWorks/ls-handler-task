@@ -73,27 +73,16 @@ Excel 文件应包含以下列：
 - `_id`: 唯一标识（日期，格式：YYYY-MM-DD）
 - `date`: 日期（YYYY-MM-DD 格式）
 - `contract_type`: 合约类型（如 P5, P3A, P6, C3, C5）
-- `actual_price`: 实际价格（整数，可能为 null）
-- `forecast_42d`: 42天前预测价格（整数，可能为 null）
-- `forecast_14d`: 14天前预测价格（整数，可能为 null）
+- `actual_price`: 实际价格（浮点数，可能为 null）
+- `forecast_42d`: 42天前预测价格（浮点数，可能为 null）
+- `forecast_14d`: 14天前预测价格（浮点数，可能为 null）
 
 **重要说明**：
 - 脚本会自动合并同一合约类型的42天和14天预测数据
 - 同一天的记录会合并为一条，包含 `forecast_42d` 和 `forecast_14d` 两个字段
 - 唯一键是 `date`（日期），每个集合中同一日期只有一条记录
-- 所有价格字段都是**整数**类型（四舍五入）
-
-**数据示例**：
-```json
-{
-  "_id": "2025-12-31",
-  "date": "2025-12-31",
-  "contract_type": "P5",
-  "actual_price": 18575,
-  "forecast_42d": 16835,
-  "forecast_14d": 17156
-}
-```
+- **所有价格字段保留2位小数**
+- **C3 和 C5 合约特殊处理**：由于 C3 和 C5 文件没有区分 42 天和 14 天预测，预测价格会同时填充到 `forecast_42d` 和 `forecast_14d` 两个字段
 
 ## 索引
 

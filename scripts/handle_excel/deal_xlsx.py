@@ -199,14 +199,10 @@ class BacktestDataProcessor:
                     if pd.isna(value) or value == '-' or value == '':
                         record['actual_price'] = None
                     elif isinstance(value, (int, float)):
-                        record['actual_price'] = int(round(value))
+                        record['actual_price'] = round(float(value), 2)
                     else:
                         try:
-                            str_value = str(value).strip()
-                            if str_value != '-':
-                                record['actual_price'] = int(round(float(str_value)))
-                            else:
-                                record['actual_price'] = None
+                            record['actual_price'] = round(float(value), 2) if str(value).strip() != '-' else None
                         except:
                             record['actual_price'] = None
                 else:
@@ -214,31 +210,30 @@ class BacktestDataProcessor:
                 
                 # 处理预测价格
                 forecast_price_col = None
+                forecast_col_name = None
                 for col in df.columns:
                     if '预测价格' in col or col == 'forecast_price':
                         forecast_price_col = col
+                        forecast_col_name = col
                         break
                 
                 if forecast_price_col:
                     value = row[forecast_price_col]
                     if pd.isna(value) or value == '-' or value == '':
-                        record['forecast_price'] = None
+                        forecast_price = None
                     elif isinstance(value, (int, float)):
-                        record['forecast_price'] = int(round(value))
+                        forecast_price = round(float(value), 2)
                     else:
                         try:
-                            str_value = str(value).strip()
-                            if str_value != '-':
-                                record['forecast_price'] = int(round(float(str_value)))
-                            else:
-                                record['forecast_price'] = None
+                            forecast_price = round(float(value), 2) if str(value).strip() != '-' else None
                         except:
-                            record['forecast_price'] = None
+                            forecast_price = None
+                    
+                    record['forecast_price'] = forecast_price
+                    record['forecast_days'] = forecast_days
                 else:
                     record['forecast_price'] = None
-                
-                # 记录预测天数类型
-                record['forecast_days'] = forecast_days
+                    record['forecast_days'] = forecast_days
                 
                 records.append(record)
             
@@ -333,6 +328,10 @@ class BacktestDataProcessor:
         """
         merged = {}  # key: date, value: merged record
         
+        # 获取合约类型（从第一个解析数据中获取）
+        contract_type = parsed_data_list[0]['contract_type'] if parsed_data_list else None
+        is_c3_c5 = contract_type in ['C3', 'C5']
+        
         for parsed_data in parsed_data_list:
             forecast_days = parsed_data['forecast_days']
             for record in parsed_data['records']:
@@ -351,8 +350,15 @@ class BacktestDataProcessor:
                 
                 # 合并预测价格
                 forecast_price = record.get('forecast_price')
-                if forecast_days == 42:
+                
+                # 如果是C3或C5合约，预测价格同时填充到42天和14天
+                if is_c3_c5:
                     merged[date]['forecast_42d'] = forecast_price
+                    merged[date]['forecast_14d'] = forecast_price
+                elif forecast_days == 42 or forecast_days == 'both':
+                    merged[date]['forecast_42d'] = forecast_price
+                    if forecast_days == 'both':
+                        merged[date]['forecast_14d'] = forecast_price
                 elif forecast_days == 14:
                     merged[date]['forecast_14d'] = forecast_price
                 
