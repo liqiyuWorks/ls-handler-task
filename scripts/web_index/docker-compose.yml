@@ -45,7 +45,7 @@ services:
     build:
       context: .
       args:
-        HTML_FILE: "Aquabridge-SGX v8.1 - 10031.html"
+        HTML_FILE: "SGX Proposal.html"
     ports:
       - "10033:80"
     container_name: web-10033
