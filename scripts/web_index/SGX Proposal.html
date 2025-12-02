@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AquaBridge x SGX Key Ecosystem Partner</title>
+    <!-- 引入图标库 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-bg: #001242; /* Deepest Blue */
+            --secondary-bg: #052c85; /* Ultramarine */
+            --accent-blue: #3b82f6; /* Bright Blue */
+            --text-white: #ffffff;
+            --text-gray: #cbd5e1;
+            --gold: #fbbf24;
+            --gold-gradient: linear-gradient(135deg, #fbbf24 0%, #b45309 100%);
+            --blue-gradient: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--primary-bg) 0%, var(--secondary-bg) 100%);
+            color: var(--text-white);
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+        }
+
+        /* PPT Scaler Container 
+           定义标准 16:9 画布 (1600x900)，所有内容都在这里面
+        */
+        #ppt-scaler {
+            width: 1600px;
+            height: 900px;
+            position: relative;
+            transform-origin: center center;
+            box-shadow: 0 0 50px rgba(0,0,0,0.5); /* 增加一点阴影增加立体感 */
+            overflow: hidden; /* 防止内容溢出 */
+            background: transparent;
+        }
+
+        /* Slide 样式更新：
+           增加 padding-top (120px) 给 Logo 留出空间
+           增加 padding-bottom (100px) 给页码留出空间
+           这样内容就被限制在中间区域，不会遮挡底层元素
+        */
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.6s ease-in-out, visibility 0.6s;
+            padding: 120px 80px 100px 80px; /* 关键修改：上留120px，下留100px */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            z-index: 1;
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            z-index: 10;
+        }
+
+        /* Typography */
+        h1 {
+            font-size: 4rem;
+            line-height: 1.1;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(to right, #fff, #93c5fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+        }
+
+        h2::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.2);
+            margin-left: 30px;
+        }
+
+        h3 {
+            font-size: 1.5rem;
+            color: var(--accent-blue);
+            margin-bottom: 0.8rem;
+        }
+
+        p {
+            font-size: 1.125rem;
+            line-height: 1.6;
+            color: var(--text-gray);
+            margin-bottom: 1rem;
+        }
+
+        .highlight {
+            color: var(--accent-blue);
+            font-weight: 600;
+        }
+
+        .gold-text {
+            color: var(--gold);
+        }
+
+        /* Layout Grid */
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            height: 100%; /* 撑满剩余空间 */
+            align-items: center;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            height: 100%; /* 撑满剩余空间 */
+            align-items: center;
+        }
+
+        .grid-4 {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            height: 100%;
+        }
+
+        /* Components: Cards */
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 30px;
+            transition: transform 0.3s ease, border-color 0.3s ease;
+            height: 100%;
+            display: flex; /* 确保卡片内容布局灵活 */
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 255, 255, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* Components: Visual Charts */
+        .stat-box {
+            text-align: center;
+        }
+
+        .big-stat {
+            font-size: 4rem;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .arrow-up {
+            color: var(--success);
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        /* Chart SVG Styling */
+        .chart-svg {
+            width: 100%;
+            height: 180px;
+            overflow: visible;
+        }
+        .chart-line-bg {
+            fill: none;
+            stroke: rgba(255,255,255,0.2);
+            stroke-width: 2;
+        }
+        .chart-line-main {
+            fill: none;
+            stroke: var(--gold);
+            stroke-width: 4;
+            filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.5));
+        }
+        .chart-grid {
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 1;
+        }
+
+        /* Components: The Ladder (Driving System) */
+        .ladder-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .ladder-step {
+            background: linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 100%);
+            border-left: 4px solid var(--text-gray);
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            border-radius: 0 12px 12px 0;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ladder-step::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .ladder-step:hover {
+            background: rgba(255,255,255,0.08);
+            transform: translateX(10px);
+        }
+
+        .ladder-step.premium {
+            border-left-color: var(--gold);
+            background: linear-gradient(90deg, rgba(251, 191, 36, 0.05) 0%, rgba(0,0,0,0) 100%);
+        }
+
+        .ladder-step.premium h4 {
+            color: var(--gold);
+        }
+
+        /* Premium Icons Style */
+        .icon-box {
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            background: rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 25px;
+            font-size: 1.8rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .icon-blue i {
+            background: var(--blue-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .icon-gold i {
+            background: var(--gold-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Internal Elements 
+           Logo 和 Page Number 作为“画布背景”元素，位置固定
+        */
+        .logo {
+            position: absolute; /* 相对于 ppt-scaler */
+            top: 50px;
+            left: 80px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            letter-spacing: 2px;
+            z-index: 5; /* 位于 Slide 内容之下，但在背景之上 */
+            display: flex;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .logo span {
+            color: var(--accent-blue);
+        }
+
+        .page-number {
+            position: absolute; /* 相对于 ppt-scaler */
+            bottom: 40px;
+            left: 80px;
+            color: rgba(255,255,255,0.3);
+            font-size: 0.9rem;
+            z-index: 5;
+        }
+
+        /* Controls 保持 Fixed 贴边 */
+        .controls {
+            position: fixed;
+            bottom: 40px;
+            right: 50px;
+            display: flex;
+            gap: 15px;
+            z-index: 9999;
+        }
+
+        .btn-nav {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(0,0,0,0.3);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            backdrop-filter: blur(5px);
+        }
+
+        .btn-nav:hover {
+            background: white;
+            color: var(--primary-bg);
+        }
+
+        .progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            height: 6px;
+            background: var(--accent-blue);
+            width: 0%;
+            transition: width 0.5s ease;
+            z-index: 9999;
+        }
+
+        .client-tag {
+            display: inline-block;
+            padding: 6px 16px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            margin: 0 6px 8px 0;
+            color: #e2e8f0;
+            transition: all 0.2s;
+        }
+        
+        .client-tag:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.3);
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- 进度条和控制按钮 -->
+    <div class="progress-bar" id="progressBar"></div>
+    <div class="controls">
+        <button class="btn-nav" onclick="prevSlide()" aria-label="Previous Slide">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button class="btn-nav" onclick="nextSlide()" aria-label="Next Slide">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+    </div>
+
+    <!-- PPT 缩放容器 -->
+    <div id="ppt-scaler">
+        
+        <!-- 底层画布元素：Logo 和 页码 -->
+        <div class="logo">AQUABRIDGE <span>.AI</span></div>
+        <div class="page-number" id="pageNumber">01 / 08</div>
+
+        <!-- Slide 1: Cover -->
+        <div class="slide active" id="slide-1">
+            <div style="max-width: 900px;">
+                <p class="highlight" style="letter-spacing: 3px; text-transform: uppercase; font-size: 0.9rem; margin-bottom: 2rem;">Key Ecosystem Partner</p>
+                <h1>Bridging the Gap:<br>Unlocking the <span class="gold-text">Multi-Billion Dollar</span> Potential of China's Shipping Derivatives</h1>
+                <p style="font-size: 1.8rem; margin-top: 2rem; color: #fff;">实体企业和交易参与者通往 SGX 的桥梁与生态连接器</p>
+                <div style="margin-top: 4rem; display: flex; gap: 20px;">
+                    <div style="border: 1px solid rgba(255,255,255,0.3); padding: 12px 30px; border-radius: 30px;">Strategy</div>
+                    <div style="border: 1px solid rgba(255,255,255,0.3); padding: 12px 30px; border-radius: 30px;">Technology</div>
+                    <div style="border: 1px solid rgba(255,255,255,0.3); padding: 12px 30px; border-radius: 30px;">Execution</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 2: The Macro Vision -->
+        <div class="slide" id="slide-2">
+            <h2>The Macro Vision: Dual Growth Engines</h2>
+            <p style="font-size: 1.3rem; margin-bottom: 40px; color: var(--text-white);">中国 FFA 市场的增长来自两个维度的共振：<span class="highlight">全球市场的爆发</span> × <span class="highlight">中国份额的跃升</span></p>
+            <div class="grid-2">
+                <!-- Engine 1 -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
+                    <div style="text-align: center;">
+                        <span style="font-size: 3rem; margin-bottom: 20px; display:block;">🌍</span>
+                        <h3 style="color:white; margin-bottom: 20px;">Engine 1: Global Scale</h3>
+                        <p style="font-size: 1rem; margin-bottom: 30px;">FFA 市场相对实体贸易的规模仍处于早期</p>
+                        
+                        <div style="display: flex; justify-content: space-around; align-items: flex-end;">
+                            <div style="text-align: center;">
+                                <span class="big-stat" style="font-size: 2.5rem; opacity: 0.7;">1 : 1</span>
+                                <p style="font-size: 0.9rem;">Current</p>
+                            </div>
+                            <div class="arrow-up" style="font-size: 2rem; margin-bottom: 20px;">➔</div>
+                            <div style="text-align: center;">
+                                <span class="big-stat" style="color: var(--success);">20-50x</span>
+                                <p style="font-size: 0.9rem; color: var(--success); font-weight:bold;">Potential</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Engine 2 -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
+                    <div style="text-align: center;">
+                        <span style="font-size: 3rem; margin-bottom: 20px; display:block;">🇨🇳</span>
+                        <h3 style="color:white; margin-bottom: 20px;">Engine 2: China Depth</h3>
+                        <p style="font-size: 1rem; margin-bottom: 30px;">中国参与者持有 50% 物理运力，但交易占比极低</p>
+                        
+                        <div style="display: flex; justify-content: space-around; align-items: flex-end;">
+                            <div style="text-align: center;">
+                                <span class="big-stat" style="font-size: 2.5rem; color: var(--danger);">&lt; 5%</span>
+                                <p style="font-size: 0.9rem;">Current Share</p>
+                            </div>
+                            <div class="arrow-up" style="font-size: 2rem; margin-bottom: 20px;">➔</div>
+                            <div style="text-align: center;">
+                                <span class="big-stat" style="color: var(--gold);">&gt; 30%</span>
+                                <p style="font-size: 0.9rem; color: var(--gold); font-weight:bold;">Target Share</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 3: The Pain Points -->
+        <div class="slide" id="slide-3">
+            <h2>The Friction: The "4 Mountains"</h2>
+            <p style="margin-bottom: 40px; font-size: 1.4rem;">为什么拥有 50% 货运量的中国玩家，只有不到 5% 的交易量？</p>
+            <div class="grid-4" style="height: auto; margin-bottom: 40px;">
+                <div class="card">
+                    <h3>01. 原始市场</h3>
+                    <p>Primitive Market</p>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                    <p style="font-size: 1rem;">数字化程度低，思维停留在物理运输，缺乏金融工具意识。</p>
+                </div>
+                <div class="card">
+                    <h3>02. 认知盲区</h3>
+                    <p>Cognitive Blindness</p>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                    <p style="font-size: 1rem;">将 FFA 视为“赌博”而非风控，对规则和风险缺乏了解。</p>
+                </div>
+                <div class="card">
+                    <h3>03. 人才断层</h3>
+                    <p>Talent Gap</p>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                    <p style="font-size: 1rem;">懂航运的不懂金融，懂金融的不懂航运。复合型人才极度稀缺。</p>
+                </div>
+                <div class="card">
+                    <h3>04. 体制束缚</h3>
+                    <p>Institutional Constraints</p>
+                    <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin: 15px 0;">
+                    <p style="font-size: 1rem;">国企及大型民企决策链条僵化，直接开户和合规门槛高。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 4: The Solution (Driving System) -->
+        <div class="slide" id="slide-4">
+            <h2>The Solution: 5-Level "Driving System"</h2>
+            <div class="grid-2">
+                <!-- Left Column -->
+                <div style="display:flex; flex-direction:column; justify-content:center;">
+                    <p style="font-size: 1.2rem; margin-bottom: 30px; color:#fff;">AquaBridge 不只是交易商，更是基础设施。<br>我们通过五级体系，激活<b>两大核心客群</b>：</p>
+                    
+                    <div style="margin-bottom: 30px;">
+                        <p style="color: var(--accent-blue); font-weight:bold; margin-bottom:12px; font-size:1.1rem; border-bottom:1px solid rgba(59, 130, 246, 0.3); padding-bottom:5px; display:inline-block;">🏭 产业客户 (Industrial)</p>
+                        <div style="display: flex; flex-wrap: wrap;">
+                            <span class="client-tag">运营商</span>
+                            <span class="client-tag">船东</span>
+                            <span class="client-tag">货主</span>
+                            <span class="client-tag">贸易商</span>
+                            <span class="client-tag">工厂</span>
+                            <span class="client-tag">矿山</span>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 40px;">
+                        <p style="color: var(--gold); font-weight:bold; margin-bottom:12px; font-size:1.1rem; border-bottom:1px solid rgba(251, 191, 36, 0.3); padding-bottom:5px; display:inline-block;">💰 金融客户 (Financial)</p>
+                        <div>
+                            <span class="client-tag">个人投资者</span>
+                            <span class="client-tag">基金</span>
+                        </div>
+                    </div>
+
+                    <div class="card" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(59, 130, 246, 0.05) 100%); border: 1px solid rgba(59, 130, 246, 0.3);">
+                        <div style="display:flex; align-items:center;">
+                            <div style="margin-right:20px; font-size:2rem; color:var(--accent-blue);"><i class="fa-solid fa-bezier-curve"></i></div>
+                            <div>
+                                <h3 style="color: white; margin-bottom: 5px; font-size:1.3rem;">Ecosystem Connector</h3>
+                                <p style="margin-top: 5px; font-size: 1.05rem; line-height:1.4;">我们将 <b class="highlight">实体的产业需求</b> 和 <b class="gold-text">金融的交易需求</b><br>共同转化为 <b>盘面的流动性</b></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column: The Ladder -->
+                <div class="ladder-container">
+                    <div class="ladder-step">
+                        <div class="icon-box icon-blue"><i class="fa-solid fa-graduation-cap"></i></div>
+                        <div>
+                            <h4>L1 驾校模式 (Education)</h4>
+                            <p style="margin:0; font-size:0.9rem; opacity:0.8;">培训与认证 → <b style="color:white">User Acquisition</b></p>
+                        </div>
+                    </div>
+                    <div class="ladder-step">
+                        <div class="icon-box icon-blue"><i class="fa-solid fa-location-crosshairs"></i></div>
+                        <div>
+                            <h4>L2 导航模式 (Navigation)</h4>
+                            <p style="margin:0; font-size:0.9rem; opacity:0.8;">AI信号订阅 → <b style="color:white">Activity</b></p>
+                        </div>
+                    </div>
+                    <div class="ladder-step">
+                        <div class="icon-box icon-blue"><i class="fa-solid fa-shield-halved"></i></div>
+                        <div>
+                            <h4>L3 辅助驾驶 (Assist)</h4>
+                            <p style="margin:0; font-size:0.9rem; opacity:0.8;">顾问+风控 → <b style="color:white">Retention</b></p>
+                        </div>
+                    </div>
+                    <div class="ladder-step premium">
+                        <div class="icon-box icon-gold"><i class="fa-solid fa-user-tie"></i></div>
+                        <div>
+                            <h4>L4 代驾模式 (Chauffeur)</h4>
+                            <p style="margin:0; font-size:0.9rem; opacity:0.9;">外包交易台 → <b style="color:var(--gold)">Volume Anchor</b></p>
+                        </div>
+                    </div>
+                    <div class="ladder-step premium">
+                        <div class="icon-box icon-gold"><i class="fa-solid fa-file-contract"></i></div>
+                        <div>
+                            <h4>L5 滴滴模式 (Embedded)</h4>
+                            <p style="margin:0; font-size:0.9rem; opacity:0.9;">含权贸易 → <b style="color:var(--gold)">Conversion</b></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 5: Service Delivery Matrix -->
+        <div class="slide" id="slide-5">
+            <h2>The Traction: Service Delivery Matrix</h2>
+            <p>通过四大服务载体，确保从“标准化工具”到“定制化落地”的全面交付。</p>
+            <div class="grid-4" style="margin-top: 30px;">
+                
+                <!-- Block 1 -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:flex-start;">
+                    <div style="display:flex; align-items:center; margin-bottom:15px;">
+                        <div style="width:50px; height:50px; background:rgba(59, 130, 246, 0.2); border-radius:10px; display:flex; align-items:center; justify-content:center; margin-right:15px; color:var(--accent-blue); font-size:1.5rem;">
+                            <i class="fa-solid fa-laptop-code"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.4rem; color:white;">标准服务</h3>
+                            <span style="font-size:0.9rem; color:var(--accent-blue);">Aquabridge.ai SaaS</span>
+                        </div>
+                    </div>
+                    <ul style="list-style:none; margin-left:5px; flex:1; display:flex; flex-direction:column; justify-content:space-around;">
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><i class="fa-solid fa-check" style="color:var(--success); margin-right:10px; font-size:0.8rem;"></i> 价格/策略信号订阅</li>
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><i class="fa-solid fa-check" style="color:var(--success); margin-right:10px; font-size:0.8rem;"></i> 每日交易机会提示</li>
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><i class="fa-solid fa-check" style="color:var(--success); margin-right:10px; font-size:0.8rem;"></i> 数字化风控工具</li>
+                        <li style="display:flex; align-items:center;"><i class="fa-solid fa-check" style="color:var(--success); margin-right:10px; font-size:0.8rem;"></i> 市场数据可视化</li>
+                    </ul>
+                </div>
+
+                <!-- Block 2 -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:flex-start;">
+                    <div style="display:flex; align-items:center; margin-bottom:15px;">
+                        <div style="width:50px; height:50px; background:rgba(251, 191, 36, 0.1); border-radius:10px; display:flex; align-items:center; justify-content:center; margin-right:15px; color:var(--gold); font-size:1.5rem;">
+                            <i class="fa-solid fa-compass-drafting"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.4rem; color:white;">建体系</h3>
+                            <span style="font-size:0.9rem; color:var(--gold);">管理咨询</span>
+                        </div>
+                    </div>
+                    <ul style="list-style:none; margin-left:5px; flex:1; display:flex; flex-direction:column; justify-content:space-around;">
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><span style="color:var(--text-gray); margin-right:10px;">1.</span> 建立衍生品业务 SOP</li>
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><span style="color:var(--text-gray); margin-right:10px;">2.</span> 衍生品头寸管理</li>
+                        <li style="display:flex; align-items:center;"><span style="color:var(--text-gray); margin-right:10px;">3.</span> 衍生品业务风控</li>
+                    </ul>
+                </div>
+
+                <!-- Block 3 -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:flex-start;">
+                    <div style="display:flex; align-items:center; margin-bottom:15px;">
+                        <div style="width:50px; height:50px; background:rgba(255, 255, 255, 0.1); border-radius:10px; display:flex; align-items:center; justify-content:center; margin-right:15px; color:white; font-size:1.5rem;">
+                            <i class="fa-solid fa-chalkboard-user"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.4rem; color:white;">教技能</h3>
+                            <span style="font-size:0.9rem; color:#cbd5e1;">业务培训</span>
+                        </div>
+                    </div>
+                    <ul style="list-style:none; margin-left:5px;">
+                        <li style="margin-bottom:12px;">
+                            <div style="font-weight:bold; margin-bottom:5px; color:var(--accent-blue);">1. 航运基差业务体系</div>
+                            <div style="font-size:0.85rem; color:var(--text-gray); padding-left:15px;">基差研究 / 管理 / 交易 / 贸易</div>
+                        </li>
+                        <li>
+                            <div style="font-weight:bold; margin-bottom:5px; color:var(--accent-blue);">2. 产业期权体系</div>
+                            <div style="font-size:0.85rem; color:var(--text-gray); padding-left:15px;">期权交易 / 航运含权贸易</div>
+                        </li>
+                    </ul>
+                </div>
+
+                <!-- Block 4 -->
+                <div class="card" style="display:flex; flex-direction:column; justify-content:flex-start; border: 1px solid rgba(251, 191, 36, 0.3);">
+                    <div style="display:flex; align-items:center; margin-bottom:15px;">
+                        <div style="width:50px; height:50px; background:linear-gradient(135deg, #fbbf24 0%, #b45309 100%); border-radius:10px; display:flex; align-items:center; justify-content:center; margin-right:15px; color:white; font-size:1.5rem;">
+                            <i class="fa-solid fa-user-tie"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin:0; font-size:1.4rem; color:white;">代运营</h3>
+                            <span style="font-size:0.9rem; color:var(--gold);">服务外包</span>
+                        </div>
+                    </div>
+                    <ul style="list-style:none; margin-left:5px; flex:1; display:flex; flex-direction:column; justify-content:space-around;">
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><span style="color:var(--gold); margin-right:10px;">1.</span> 业务场景分析</li>
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><span style="color:var(--gold); margin-right:10px;">2.</span> 策略字典建设</li>
+                        <li style="margin-bottom:10px; display:flex; align-items:center;"><span style="color:var(--gold); margin-right:10px;">3.</span> 期现权策略设计</li>
+                        <li style="display:flex; align-items:center;"><span style="color:var(--gold); margin-right:10px;">4.</span> 衍生品策略执行跟踪</li>
+                    </ul>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Slide 6: Proven Capabilities -->
+        <div class="slide" id="slide-6">
+            <h2>The Traction: Proven Capabilities</h2>
+            <p>通过实盘数据与策略回测，验证了我们“穿越牛熊”的稳健盈利能力。</p>
+            <div class="grid-3" style="margin-top: 40px;">
+                
+                <!-- Card 1: Execution Scale -->
+                <div class="card" style="text-align: center;">
+                    <div style="font-size: 3rem; margin-bottom: 20px; color:var(--text-white);"><i class="fa-solid fa-layer-group"></i></div>
+                    <span class="big-stat" style="color: white;">700+</span>
+                    <p class="highlight" style="margin-bottom: 5px; color:var(--text-gray);">Days / Month Volume</p>
+                    <p style="font-size: 0.9rem; margin-top:15px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.1);">
+                        某活跃实体客户通过我们的“代驾模式”外包服务实现的单月交易量。
+                    </p>
+                </div>
+
+                <!-- Card 2: C5TC Chart Simulation -->
+                <div class="card" style="text-align: center; border: 1px solid rgba(59, 130, 246, 0.4); background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.0) 100%);">
+                    <h3 style="font-size: 1.5rem; margin: 0 0 10px 0; color: white;">C5TC 策略模拟</h3>
+                    <p style="font-size: 0.8rem; opacity: 0.7; margin-bottom: 15px;">2022.01 - 2025.11</p>
+                    
+                    <!-- SVG Chart -->
+                    <svg class="chart-svg" viewBox="0 0 200 100" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="goldGradient" x1="0" x2="0" y1="0" y2="1">
+                                <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.5"/>
+                                <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- Grid Lines -->
+                        <line x1="0" y1="20" x2="200" y2="20" class="chart-grid"/>
+                        <line x1="0" y1="40" x2="200" y2="40" class="chart-grid"/>
+                        <line x1="0" y1="60" x2="200" y2="60" class="chart-grid"/>
+                        <line x1="0" y1="80" x2="200" y2="80" class="chart-grid"/>
+                        
+                        <!-- Benchmark Line (White/Grey - relatively flat/volatile) -->
+                        <polyline points="0,80 10,75 20,85 30,78 40,82 50,70 60,75 70,85 80,72 90,68 100,75 110,70 120,78 130,82 140,75 150,70 160,72 170,78 180,75 190,70 200,72" class="chart-line-bg" />
+                        
+                        <!-- Strategy Line (Yellow - Strong Uptrend) -->
+                        <polyline points="0,80 10,78 20,70 30,65 40,68 50,55 60,50 70,52 80,45 90,38 100,35 110,30 120,25 130,28 140,20 150,15 160,18 170,10 180,8 190,5 200,2" class="chart-line-main" />
+                    </svg>
+
+                    <div style="display:flex; justify-content:space-around; align-items:center; margin-top:10px;">
+                        <div>
+                            <span style="display:block; font-size:1.6rem; font-weight:bold; color:var(--gold);">500%</span>
+                            <span style="font-size:0.75rem; opacity:0.7;">累计收益</span>
+                        </div>
+                        <div style="height:25px; width:1px; background:rgba(255,255,255,0.2);"></div>
+                        <div>
+                            <span style="display:block; font-size:1.6rem; font-weight:bold; color:var(--text-white);">> 2.5</span>
+                            <span style="font-size:0.75rem; opacity:0.7;">Sharpe</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Card 3: Short-term Strategy (Single Route) -->
+                <div class="card" style="text-align: center; border: 1px solid rgba(251, 191, 36, 0.4); background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0.0) 100%);">
+                    <div style="font-size: 3rem; margin-bottom: 20px; color:var(--gold);"><i class="fa-solid fa-bolt"></i></div>
+                    <h3 style="font-size: 1.8rem; margin: 10px 0; color: white;">单航线策略</h3>
+                    <p style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 15px;">Since Jul 2025</p>
+                    
+                    <div style="display:flex; justify-content:space-around; align-items:center; margin-top:20px;">
+                        <div>
+                            <span style="display:block; font-size:1.8rem; font-weight:bold; color:var(--gold);">189.78%</span>
+                            <span style="font-size:0.8rem; opacity:0.7;">累计收益</span>
+                        </div>
+                        <div style="height:30px; width:1px; background:rgba(255,255,255,0.2);"></div>
+                        <div>
+                            <span style="display:block; font-size:1.8rem; font-weight:bold; color:white;">23<span style="font-size:1rem; font-weight:normal; opacity:0.7;">/26</span></span>
+                            <span style="font-size:0.8rem; opacity:0.7;">盈利次数</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Slide 7: The Ask -->
+        <div class="slide" id="slide-7">
+            <h2>The Partnership: Accelerating Growth</h2>
+            <div class="grid-2">
+                <div>
+                    <p style="font-size: 1.4rem; color: white; margin-bottom: 30px;">为了将 20-50 倍的增量潜力变为现实，我们需要 SGX 的战略支持：</p>
+                    <ul style="list-style: none;">
+                        <li style="margin-bottom: 25px; display: flex; align-items:center;">
+                            <div style="width:40px; height:40px; background:rgba(59, 130, 246, 0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:20px; color:var(--accent-blue); font-weight:bold;">1</div>
+                            <span><b>品牌背书 (Brand):</b> 联合认证培训课程，建立市场信任，加速获客。</span>
+                        </li>
+                        <li style="margin-bottom: 25px; display: flex; align-items:center;">
+                            <div style="width:40px; height:40px; background:rgba(59, 130, 246, 0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:20px; color:var(--accent-blue); font-weight:bold;">2</div>
+                            <span><b>数据赋能 (Data):</b> 深度 API 与历史数据支持，优化 L2/L3 AI 模型。</span>
+                        </li>
+                        <li style="margin-bottom: 25px; display: flex; align-items:center;">
+                            <div style="width:40px; height:40px; background:rgba(59, 130, 246, 0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:20px; color:var(--accent-blue); font-weight:bold;">3</div>
+                            <span><b>激励政策 (Incentives):</b> 针对代驾/含权业务的做市商级费率优惠。</span>
+                        </li>
+                        <li style="margin-bottom: 25px; display: flex; align-items:center;">
+                            <div style="width:40px; height:40px; background:rgba(59, 130, 246, 0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; margin-right:20px; color:var(--accent-blue); font-weight:bold;">4</div>
+                            <span><b>生态共建 (Network):</b> 联合举办针对“出海中国企业”的闭门研讨会。</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card" style="display: flex; justify-content: center; align-items: center; background: radial-gradient(circle at center, rgba(59, 130, 246, 0.2) 0%, rgba(0,0,0,0) 70%); border: none;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 4rem; color:var(--gold); margin-bottom:20px;"><i class="fa-solid fa-handshake-simple"></i></div>
+                        <h3 style="font-size: 2rem; color: white;">Our Goal</h3>
+                        <p style="font-size: 1.2rem; color: var(--text-gray);">成为将庞大的中国实体市场<br>带入 SGX 的</p>
+                        <p style="font-size: 1.5rem; color: var(--gold); font-weight: bold; margin-top: 10px;">基础设施服务商</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide 8: Closing -->
+        <div class="slide" id="slide-8">
+            <div style="text-align: center;">
+                <h1 style="font-size: 5rem;">Let's Build the Bridge.</h1>
+                <p style="font-size: 1.5rem; max-width: 600px; margin: 0 auto 3rem auto;">我们懂航运，懂金融，更懂中国。</p>
+                <div style="display: inline-block; padding: 20px 40px; background: rgba(255,255,255,0.05); border-radius: 20px; backdrop-filter: blur(10px);">
+                    <h3 style="margin: 0; color: white;">AQUABRIDGE</h3>
+                    <p style="margin: 5px 0 0 0; font-size: 0.9rem; color: var(--accent-blue);">Connecting Real World Shipping to Financial Future</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentSlide = 1;
+        const totalSlides = 8;
+        const baseWidth = 1600;
+        const baseHeight = 900;
+
+        function updateSlide() {
+            // Update Slide Visibility
+            document.querySelectorAll('.slide').forEach(s => {
+                s.classList.remove('active');
+            });
+            document.getElementById(`slide-${currentSlide}`).classList.add('active');
+
+            // Update Page Number
+            document.getElementById('pageNumber').innerText = `0${currentSlide} / 0${totalSlides}`;
+
+            // Update Progress Bar
+            const progress = ((currentSlide - 1) / (totalSlides - 1)) * 100;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+        }
+
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 1) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        // Auto Scaling Logic for PPT Effect
+        function resizePPT() {
+            const scaleX = window.innerWidth / baseWidth;
+            const scaleY = window.innerHeight / baseHeight;
+            const scale = Math.min(scaleX, scaleY);
+            
+            const scaler = document.getElementById('ppt-scaler');
+            scaler.style.transform = `scale(${scale})`;
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space') {
+                nextSlide();
+            } else if (e.key === 'ArrowLeft') {
+                prevSlide();
+            }
+        });
+
+        // Initialize and Listeners
+        window.addEventListener('resize', resizePPT);
+        window.addEventListener('load', resizePPT); // Ensure scaling on load
+        resizePPT(); // Trigger immediately
+        updateSlide();
+    </script>
+</body>
+</html>

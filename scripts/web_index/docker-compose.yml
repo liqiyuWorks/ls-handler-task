@@ -40,3 +40,13 @@ services:
       - "10032:80"
     container_name: web-10032
     restart: unless-stopped
+
+  web-10033:
+    build:
+      context: .
+      args:
+        HTML_FILE: "Aquabridge-SGX v8.1 - 10031.html"
+    ports:
+      - "10033:80"
+    container_name: web-10033
+    restart: unless-stopped
