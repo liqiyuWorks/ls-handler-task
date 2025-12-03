@@ -270,40 +270,6 @@ export default function App() {
   const [candleData, setCandleData] = useState([]);
 
   const [lots, setLots] = useState(5);
-  const [orderType, setOrderType] = useState('MARKET'); 
-  const [limitPrice, setLimitPrice] = useState(0);
-  const [orderSymbol, setOrderSymbol] = useState(activeRow.symbol);
-  const [orderMonth, setOrderMonth] = useState(activeRow.month);
-
-  // --- Initial & Sync ---
-  useEffect(() => {
-    // Initial Tape
-    const tape = Array.from({ length: 15 }, () => {
-        const randomSym = AVAILABLE_SYMBOLS[Math.floor(Math.random() * AVAILABLE_SYMBOLS.length)];
-        return generateMockTape(randomSym);
-    });
-    setMarketTape(tape);
-  }, []);
-
-  useEffect(() => {
-    setOrderSymbol(activeRow.symbol);
-    setOrderMonth(activeRow.month);
-    setLimitPrice(roundToTick(activeRow.price, activeRow.symbol));
-  }, [activeRow.symbol, activeRow.month]); // Don't depend on price for stable input
-
-  useEffect(() => {
-    const existingRow = watchList.find(r => r.symbol === orderSymbol && r.month === orderMonth);
-    if (existingRow) setActiveRowId(existingRow.id);
-    
-    // Chart update
-    const base = BASE_PRICES[orderSymbol] || 20000;
-    setCandleData(generateCandleData(base, selectedTimeframe, orderSymbol));
-  }, [orderSymbol, orderMonth, selectedTimeframe]);
-
-  useEffect(() => {
-     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-     return () => clearInterval(timer);
-  }, []);
 
   // --- Core Simulator ---
   useEffect(() => {
