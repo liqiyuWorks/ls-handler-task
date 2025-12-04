@@ -50,3 +50,13 @@ services:
       - "10033:80"
     container_name: web-10033
     restart: unless-stopped
+
+  web-10035:
+    build:
+      context: .
+      args:
+        HTML_FILE: "CSO V2.8.html"
+    ports:
+      - "10035:80"
+    container_name: web-10035
+    restart: unless-stopped
