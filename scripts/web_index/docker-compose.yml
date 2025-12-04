@@ -55,7 +55,7 @@ services:
     build:
       context: .
       args:
-        HTML_FILE: "CSO V2.8.html"
+        HTML_FILE: "CSO V 3.1.html"
     ports:
       - "10035:80"
     container_name: web-10035
