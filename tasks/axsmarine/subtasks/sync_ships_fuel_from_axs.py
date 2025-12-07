@@ -556,16 +556,21 @@ class SyncGlobalVesselsFuelFromAxs(SyncShipsFuelFromAxs):
             {"imo": {"$exists": True}, "vesselTypeNameCn": "干散货"}, {"imo": 1, "_id": 0}).distinct("imo")
         print(f"从mongo中获取到 {len(imo_list)} 个imo")
         
+        # 获取axs_vessel_fuel_data中已存在的imo列表，用于去重
+        existing_imo_list = self.mgo_db["axs_vessel_fuel_data"].find(
+            {"imo": {"$exists": True}}, {"imo": 1, "_id": 0}).distinct("imo")
+        # 将已存在的imo转换为字符串集合，方便比较
+        existing_imo_set = {str(imo) for imo in existing_imo_list}
+        print(f"axs_vessel_fuel_data中已存在 {len(existing_imo_set)} 个imo")
+        
+        # 从imo_list中排除已存在的imo
+        imo_list = [str(imo) for imo in imo_list if str(imo) not in existing_imo_set]
+        print(f"去重后剩余 {len(imo_list)} 个imo需要处理")
+        
         # 遍历 imo 从global_vessels获取对应的 imo
         for imo in imo_list:
             try:
-                imo = str(imo)
                 print(f"处理 imo: {imo}")
-                # 查重逻辑，如果axs_vessel_fuel_data存在则跳过
-                cached_data = self.mgo.get({"imo": imo})
-                if cached_data:
-                    print(f"axs_vessel_fuel_data中已存在imo: {imo}，跳过")
-                    continue
                 skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
             except Exception as e:
                 print(f"获取imo为 {imo} 的船舶失败: {e}")
