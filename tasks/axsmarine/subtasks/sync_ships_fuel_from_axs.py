@@ -438,7 +438,7 @@ class SyncShipsFuelFromAxs(BaseModel):
                 return skip_count, success_count
 
         # 3、根据vessel_id获取油耗数据
-        time.sleep(random.randint(1, 3))
+        time.sleep(random.randint(2, 5))
         fuel_data = get_fuel_data_from_vessel_id(
             vessel_id, page=1, limit=25, cookie=cookie)
         raw_vessel_data = fuel_data.get(
@@ -572,6 +572,7 @@ class SyncGlobalVesselsFuelFromAxs(SyncShipsFuelFromAxs):
             try:
                 print(f"处理 imo: {imo}")
                 skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
+                time.sleep(1)
             except Exception as e:
                 print(f"获取imo为 {imo} 的船舶失败: {e}")
                 continue
