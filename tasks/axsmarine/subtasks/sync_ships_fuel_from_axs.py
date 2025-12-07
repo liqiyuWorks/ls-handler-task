@@ -531,7 +531,7 @@ class SyncShipsFuelFromAxs(BaseModel):
             f"sync_ships_fuel_from_axs completed: 总计 {len(imo_list)} 条, 已跳过 {skip_count} 条, 成功处理 {success_count} 条")
 
 
-class SyncSearchVesselsFuelFromAxs(SyncShipsFuelFromAxs):
+class SyncGlobalVesselsFuelFromAxs(SyncShipsFuelFromAxs):
     """
     包装类：用于调用 run_search_vessels_by_query 方法
     """
@@ -551,38 +551,24 @@ class SyncSearchVesselsFuelFromAxs(SyncShipsFuelFromAxs):
             except Exception:
                 pass
 
-        # 从mongo中获取vessel_search_history集合中的数据mmsi数据，去重
-        mmsi_list = self.mgo_db["vessel_search_history"].find(
-            {}, {"mmsi": 1, "_id": 0}).distinct("mmsi")
-        print(f"从mongo中获取到 {len(mmsi_list)} 个mmsi")
+        # 从mongo中获取global_vessels集合中的数据mmsi数据，去重
+        imo_list = self.mgo_db["global_vessels"].find(
+            {"imo": {"$exists": True}, "vesselTypeNameCn": "干散货"}, {"imo": 1, "_id": 0}).distinct("imo")
+        print(f"从mongo中获取到 {len(imo_list)} 个imo")
         
-        # 遍历 mmsi 从global_vessels获取对应的 imo
-        for mmsi in mmsi_list:
-            mmsi = int(mmsi)
+        # 遍历 imo 从global_vessels获取对应的 imo
+        for imo in imo_list:
             try:
-                print(f"处理 mmsi: {mmsi}")
-                # 使用 find_one 而不是 find，因为只需要获取一个文档
-                vessel_info = self.mgo_db["global_vessels"].find_one(
-                    {"mmsi": mmsi}, {"imo": 1, "_id": 0})
-                if vessel_info and vessel_info.get("imo"):
-                    imo = vessel_info.get("imo")
-                    imo = str(imo)   # 油耗里面 imo是字符串，global_vessels里面 imo是整型。所以需要转换一下。
-                    print(f"找到对应的 imo: {imo}")
-                    # 查重逻辑，如果axs_vessel_fuel_data存在则跳过
-                    cached_data = self.mgo.get({"imo": imo})
-                    if cached_data:
-                        print(f"axs_vessel_fuel_data中已存在imo: {imo}，跳过")
-                        continue
-                    
-                    # 在这里添加处理 imo 的逻辑
-                    skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
-                    
-                else:
-                    print(f"未找到mmsi为 {mmsi} 的船舶或imo为空")
+                imo = str(imo)
+                print(f"处理 imo: {imo}")
+                # 查重逻辑，如果axs_vessel_fuel_data存在则跳过
+                cached_data = self.mgo.get({"imo": imo})
+                if cached_data:
+                    print(f"axs_vessel_fuel_data中已存在imo: {imo}，跳过")
                     continue
-                
+                skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
             except Exception as e:
-                print(f"获取mmsi为 {mmsi} 的船舶失败: {e}")
+                print(f"获取imo为 {imo} 的船舶失败: {e}")
                 continue
 
 
