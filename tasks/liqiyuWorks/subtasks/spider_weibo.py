@@ -9,24 +9,42 @@ import requests
 import json
 from pkg.public.models import BaseModel
 import pymongo
+from datetime import datetime
+import re
 
 
 class WeiboSpider(BaseModel):
     def __init__(self):
         print("........init..........")
-        self.url = "https://api.weibo.cn/2/searchall?gsid={}&from=10B6193010&c=iphone&v_f=1&s=2129ffa3&count={}&page={}&containerid={}"
-        self.GSID = os.getenv(
-            "GSID", "_2A25LWX-_DeRxGeNI6VUU-CnJyjmIHXVmT_R3rDV6PUJbkdAGLW2gkWpNSJyouzsR3g8pWQ6BnCEn7IYIeyYtncpM")
+        # 使用新的API接口（POST方式，URL包含查询参数）
+        self.base_url = "https://api.weibo.cn/2/searchall"
+        
+        # 从环境变量获取认证信息，如果没有则使用默认值
+        self.AUTHORIZATION = os.getenv(
+            "AUTHORIZATION", "WB-SUT _2A95EM5iQDeRxGeNI6VUU-CnJyjmIHXVlaKtYrDV6PUJbkdAbLVfGkWpNSJyouxsGtoPfn7F_HZQsWADJWGywazUA")
+        self.X_SESSIONID = os.getenv("X_SESSIONID", "FB8B58EC-EF75-4E7B-8B3B-39FA9F3FD4C4")
+        self.X_LOG_UID = os.getenv("X_LOG_UID", "5627587515")
+        self.X_SHANHAI_PASS = os.getenv("X_SHANHAI_PASS", "3.DO5d_NHURFe8F1d5hYGAh4Ad3lc")
+        self.X_VALIDATOR = os.getenv("X_VALIDATOR", "i2aluK9XPAyaavYbU1yxcVTYIVKhk8qlvE5FahsN27E=")
+        self.GSID = os.getenv("GSID", "_2A25EM5iQDeRxGeNI6VUU-CnJyjmIHXVlaKtYrDV6PUJbkdAbLU_8kWpNSJyou3pblgVSLko_7QZyr3L3HW_B9UUi")
+        
+        # 更新请求头以匹配curl命令
         self.HEADER = {
-            'Host': 's.weibo.com',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Accept-Language': 'zh-CN,zh;q=0.9',
-            'Connection': 'keep-alive',
-            'Referer': 'https://weibo.com/',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36'
+            'Accept-Language': 'en-US,en',
+            'X-Sessionid': self.X_SESSIONID,
+            'SNRT': 'normal',
+            'cronet_rid': '7557284',
+            'x-shanhai-pass': self.X_SHANHAI_PASS,
+            'User-Agent': 'Weibo/97034 (iPhone; iOS 26.1; Scale/3.00)',
+            'Authorization': self.AUTHORIZATION,
+            'X-Log-Uid': self.X_LOG_UID,
+            'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+            'Accept': '*/*',
+            'Host': 'api.weibo.cn',
+            'X-Validator': self.X_VALIDATOR,
+            'x-engine-type': 'cronet-114.0.5735.246'
         }
-        self.count = 20
+        self.count = 10  # 默认每页10条，匹配curl命令
         self.collection = os.getenv('COLLECTION', "weibo_water")
         self.columnsName = ['id', 'user', 'location',
                             'coordinates', 'text', 'date']
@@ -46,23 +64,83 @@ class WeiboSpider(BaseModel):
         #                     河流生态修复, 水域生态系统, 湖泊保护, 海洋保护, 水土保持工程,长江流域水资源保护, 黄河水资源保护, 非洲水资源保护, 亚洲水资源保护, 干旱地区水资源保护, 山区水资源保护, 沿海地区水资源保护,水资源保护技术, 水资源保护研究, 节水技术研究, 水资源模拟与预测, \
         #                         水资源规划与管理, 水资源信息技术,水灾应对, 洪水预警, 干旱管理, 灾害风险管理, 水资源应急管理,水资源经济学, 水资源定价, 水市场, 水利产业发展, 水资源投入产出分析,国际水资源合作, 跨国河流管理, 联合国水资源议程, 全球水资源保护行动, 国际水资源协议,\
         #                             水资源保护成功案例, 流域管理案例分析, 节水型社会建设案例, 水资源保护项目案例,公众参与水资源保护, 社区水资源管理, 环保志愿者活动, 水资源保护志愿者, 居民节水行动,智能水务系统, 水资源物联网, 海水淡化技术, 雨水收集系统创新, 水资源大数据技术, 节水灌溉新技术")
-        words_str = os.getenv('WORDS_LIST',"中国水资源分配,西南水资源,西南政策,西南水资源保护,西南人水关系,西南水情,西南水旱,西南水资源管理,西南保护,西南调水,西南节水,西南水资源分配,华北水资源,华北政策,华北水资源保护,华北人水关系,华北水情,华北水旱,华北水资源管理,华北保护,华北调水,华北节水,华北水资源分配,华南水资源,华南政策,华南水资源保护,华南人水关系,华南水情,华南水旱,华南水资源管理,华南保护,华南调水,华南节水,华南水资源分配,华中水资源,华中政策,华中水资源保护,华中人水关系,华中水情,华中水旱,华中水资源管理,华中保护,华中调水,华中节水,华中水资源分配,内地水资源,内地政策,内地水资源保护,内地人水关系,内地水情,内地水旱,内地水资源管理,内地保护,内地调水,内地节水,内地水资源分配,大陆水资源,大陆政策,大陆水资源保护,大陆人水关系,大陆水情,大陆水旱,大陆水资源管理,大陆保护,大陆调水,大陆节水,大陆水资源分配,中部水资源,中部政策,中部水资源保护,中部人水关系,中部水情,中部水旱,中部水资源管理,中部保护,中部调水,中部节水,中部水资源分配,北部水资源,北部政策,北部水资源保护,北部人水关系,北部水情,北部水旱,北部水资源管理,北部保护,北部调水,北部节水,北部水资源分配,南部水资源,南部政策,南部水资源保护,南部人水关系,南部水情,南部水旱,南部水资源管理,南部保护,南部调水,南部节水,南部水资源分配,西部水资源,西部政策,西部水资源保护,西部人水关系,西部水情,西部水旱,西部水资源管理,西部保护,西部调水,西部节水,西部水资源分配,东部水资源,东部政策,东部水资源保护,东部人水关系,东部水情,东部水旱,东部水资源管理,东部保护,东部调水,东部节水,东部水资源分配,沿海地区水资源,沿海地区政策,沿海地区水资源保护,沿海地区人水关系,沿海地区水情,沿海地区水旱,沿海地区水资源管理,沿海地区保护,沿海地区调水,沿海地区节水,沿海地区水资源分配,大山水资源,大山政策,大山水资源保护,大山人水关系,大山水情,大山水旱,大山水资源管理,大山保护,大山调水,大山节水,大山水资源分配,平原水资源,平原政策,平原水资源保护,平原人水关系,平原水情,平原水旱,平原水资源管理,平原保护,平原调水,平原节水,平原水资源分配,地区水资源,地区政策,地区水资源保护,地区人水关系,地区水情,地区水旱,地区水资源管理,地区保护,地区调水,地区节水,地区水资源分配,乡镇水资源,乡镇政策,乡镇水资源保护,乡镇人水关系,乡镇水情,乡镇水旱,乡镇水资源管理,乡镇保护,乡镇调水,乡镇节水,乡镇水资源分配,县城水资源,县城政策,县城水资源保护,县城人水关系,县城水情,县城水旱,县城水资源管理,县城保护,县城调水,县城节水,县城水资源分配,地级市水资源,地级市政策,地级市水资源保护,地级市人水关系,地级市水情,地级市水旱,地级市水资源管理,地级市保护,地级市调水,地级市节水,地级市水资源分配,都市水资源,都市政策,都市水资源保护,都市人水关系,都市水情,都市水旱,都市水资源管理,都市保护,都市调水,都市节水,都市水资源分配,国外水资源,国外政策,国外水资源保护,国外人水关系,国外水情,国外水旱,国外水资源管理,国外保护,国外调水,国外节水,国外水资源分配,北京水资源,北京政策,北京水资源保护,北京人水关系,北京水情,北京水旱,北京水资源管理,北京保护,北京调水,北京节水,北京水资源分配,上海水资源,上海政策,上海水资源保护,上海人水关系,上海水情,上海水旱,上海水资源管理,上海保护,上海调水,上海节水,上海水资源分配,重庆水资源,重庆政策,重庆水资源保护,重庆人水关系,重庆水情,重庆水旱,重庆水资源管理,重庆保护,重庆调水,重庆节水,重庆水资源分配,天津水资源,天津政策,天津水资源保护,天津人水关系,天津水情,天津水旱,天津水资源管理,天津保护,天津调水,天津节水,天津水资源分配,河北水资源,河北政策,河北水资源保护,河北人水关系,河北水情,河北水旱,河北水资源管理,河北保护,河北调水,河北节水,河北水资源分配,山西水资源,山西政策,山西水资源保护,山西人水关系,山西水情,山西水旱,山西水资源管理,山西保护,山西调水,山西节水,山西水资源分配,辽宁水资源,辽宁政策,辽宁水资源保护,辽宁人水关系,辽宁水情,辽宁水旱,辽宁水资源管理,辽宁保护,辽宁调水,辽宁节水,辽宁水资源分配,吉林水资源,吉林政策,吉林水资源保护,吉林人水关系,吉林水情,吉林水旱,吉林水资源管理,吉林保护,吉林调水,吉林节水,吉林水资源分配,黑龙江水资源,黑龙江政策,黑龙江水资源保护,黑龙江人水关系,黑龙江水情,黑龙江水旱,黑龙江水资源管理,黑龙江保护,黑龙江调水,黑龙江节水,黑龙江水资源分配,江苏水资源,江苏政策,江苏水资源保护,江苏人水关系,江苏水情,江苏水旱,江苏水资源管理,江苏保护,江苏调水,江苏节水,江苏水资源分配,浙江水资源,浙江政策,浙江水资源保护,浙江人水关系,浙江水情,浙江水旱,浙江水资源管理,浙江保护,浙江调水,浙江节水,浙江水资源分配,安徽水资源,安徽政策,安徽水资源保护,安徽人水关系,安徽水情,安徽水旱,安徽水资源管理,安徽保护,安徽调水,安徽节水,安徽水资源分配,福建水资源,福建政策,福建水资源保护,福建人水关系,福建水情,福建水旱,福建水资源管理,福建保护,福建调水,福建节水,福建水资源分配,江西水资源,江西政策,江西水资源保护,江西人水关系,江西水情,江西水旱,江西水资源管理,江西保护,江西调水,江西节水,江西水资源分配,山东水资源,山东政策,山东水资源保护,山东人水关系,山东水情,山东水旱,山东水资源管理,山东保护,山东调水,山东节水,山东水资源分配,河南水资源,河南政策,河南水资源保护,河南人水关系,河南水情,河南水旱,河南水资源管理,河南保护,河南调水,河南节水,河南水资源分配,湖北水资源,湖北政策,湖北水资源保护,湖北人水关系,湖北水情,湖北水旱,湖北水资源管理,湖北保护,湖北调水,湖北节水,湖北水资源分配,湖南水资源,湖南政策,湖南水资源保护,湖南人水关系,湖南水情,湖南水旱,湖南水资源管理,湖南保护,湖南调水,湖南节水,湖南水资源分配,广东水资源,广东政策,广东水资源保护,广东人水关系,广东水情,广东水旱,广东水资源管理,广东保护,广东调水,广东节水,广东水资源分配,海南水资源,海南政策,海南水资源保护,海南人水关系,海南水情,海南水旱,海南水资源管理,海南保护,海南调水,海南节水,海南水资源分配,四川水资源,四川政策,四川水资源保护,四川人水关系,四川水情,四川水旱,四川水资源管理,四川保护,四川调水,四川节水,四川水资源分配,贵州水资源,贵州政策,贵州水资源保护,贵州人水关系,贵州水情,贵州水旱,贵州水资源管理,贵州保护,贵州调水,贵州节水,贵州水资源分配,云南水资源,云南政策,云南水资源保护,云南人水关系,云南水情,云南水旱,云南水资源管理,云南保护,云南调水,云南节水,云南水资源分配,陕西水资源,陕西政策,陕西水资源保护,陕西人水关系,陕西水情,陕西水旱,陕西水资源管理,陕西保护,陕西调水,陕西节水,陕西水资源分配,甘肃水资源,甘肃政策,甘肃水资源保护,甘肃人水关系,甘肃水情,甘肃水旱,甘肃水资源管理,甘肃保护,甘肃调水,甘肃节水,甘肃水资源分配,青海水资源,青海政策,青海水资源保护,青海人水关系,青海水情,青海水旱,青海水资源管理,青海保护,青海调水,青海节水,青海水资源分配,台湾水资源,台湾政策,台湾水资源保护,台湾人水关系,台湾水情,台湾水旱,台湾水资源管理,台湾保护,台湾调水,台湾节水,台湾水资源分配")
-        words_str = os.getenv('WORDS_LIST',"台湾雨水,台湾水资源分配,台湾节水,台湾调水,台湾净水,台湾水资源管理,台湾水旱,台湾水情,台湾人水关系,台湾洪水,台湾碳水危机,台湾水污染,台湾水资源保护,台湾水资源,青海雨水,青海水资源分配,青海节水,青海调水,青海净水,青海水资源管理,青海水旱,青海水情,青海人水关系,青海洪水,青海碳水危机,青海水污染,青海水资源保护,青海水资源,甘肃雨水,甘肃水资源分配,甘肃节水,甘肃调水,甘肃净水,甘肃水资源管理,甘肃水旱,甘肃水情,甘肃人水关系,甘肃洪水,甘肃碳水危机,甘肃水污染,甘肃水资源保护,甘肃水资源,陕西雨水,陕西水资源分配,陕西节水,陕西调水,陕西净水,陕西水资源管理,陕西水旱,陕西水情,陕西人水关系,陕西洪水,陕西碳水危机,陕西水污染,陕西水资源保护,陕西水资源,云南雨水,云南水资源分配,云南节水,云南调水,云南净水,云南水资源管理,云南水旱,云南水情,云南人水关系,云南洪水,云南碳水危机,云南水污染,云南水资源保护,云南水资源,贵州雨水,贵州水资源分配,贵州节水,贵州调水,贵州净水,贵州水资源管理,贵州水旱,贵州水情,贵州人水关系,贵州洪水,贵州碳水危机,贵州水污染,贵州水资源保护,贵州水资源,四川雨水,四川水资源分配,四川节水,四川调水,四川净水,四川水资源管理,四川水旱,四川水情,四川人水关系,四川洪水,四川碳水危机,四川水污染,四川水资源保护,四川水资源,海南雨水,海南水资源分配,海南节水,海南调水,海南净水,海南水资源管理,海南水旱,海南水情,海南人水关系,海南洪水,海南碳水危机,海南水污染,海南水资源保护,海南水资源,广东雨水,广东水资源分配,广东节水,广东调水,广东净水,广东水资源管理,广东水旱,广东水情,广东人水关系,广东洪水,广东碳水危机,广东水污染,广东水资源保护,广东水资源,湖南雨水,湖南水资源分配,湖南节水,湖南调水,湖南净水,湖南水资源管理,湖南水旱,湖南水情,湖南人水关系,湖南洪水,湖南碳水危机,湖南水污染,湖南水资源保护,湖南水资源,湖北雨水,湖北水资源分配,湖北节水,湖北调水,湖北净水,湖北水资源管理,湖北水旱,湖北水情,湖北人水关系,湖北洪水,湖北碳水危机,湖北水污染,湖北水资源保护,湖北水资源,河南雨水,河南水资源分配,河南节水,河南调水,河南净水,河南水资源管理,河南水旱,河南水情,河南人水关系,河南洪水,河南碳水危机,河南水污染,河南水资源保护,河南水资源,山东雨水,山东水资源分配,山东节水,山东调水,山东净水,山东水资源管理,山东水旱,山东水情,山东人水关系,山东洪水,山东碳水危机,山东水污染,山东水资源保护,山东水资源,江西雨水,江西水资源分配,江西节水,江西调水,江西净水,江西水资源管理,江西水旱,江西水情,江西人水关系,江西洪水,江西碳水危机,江西水污染,江西水资源保护,江西水资源,福建雨水,福建水资源分配,福建节水,福建调水,福建净水,福建水资源管理,福建水旱,福建水情,福建人水关系,福建洪水,福建碳水危机,福建水污染,福建水资源保护,福建水资源,安徽雨水,安徽水资源分配,安徽节水,安徽调水,安徽净水,安徽水资源管理,安徽水旱,安徽水情,安徽人水关系,安徽洪水,安徽碳水危机,安徽水污染,安徽水资源保护,安徽水资源,浙江雨水,浙江水资源分配,浙江节水,浙江调水,浙江净水,浙江水资源管理,浙江水旱,浙江水情,浙江人水关系,浙江洪水,浙江碳水危机,浙江水污染,浙江水资源保护,浙江水资源,江苏雨水,江苏水资源分配,江苏节水,江苏调水,江苏净水,江苏水资源管理,江苏水旱,江苏水情,江苏人水关系,江苏洪水,江苏碳水危机,江苏水污染,江苏水资源保护,江苏水资源,黑龙江雨水,黑龙江水资源分配,黑龙江节水,黑龙江调水,黑龙江净水,黑龙江水资源管理,黑龙江水旱,黑龙江水情,黑龙江人水关系,黑龙江洪水,黑龙江碳水危机,黑龙江水污染,黑龙江水资源保护,黑龙江水资源,吉林雨水,吉林水资源分配,吉林节水,吉林调水,吉林净水,吉林水资源管理,吉林水旱,吉林水情,吉林人水关系,吉林洪水,吉林碳水危机,吉林水污染,吉林水资源保护,吉林水资源,辽宁雨水,辽宁水资源分配,辽宁节水,辽宁调水,辽宁净水,辽宁水资源管理,辽宁水旱,辽宁水情,辽宁人水关系,辽宁洪水,辽宁碳水危机,辽宁水污染,辽宁水资源保护,辽宁水资源,山西雨水,山西水资源分配,山西节水,山西调水,山西净水,山西水资源管理,山西水旱,山西水情,山西人水关系,山西洪水,山西碳水危机,山西水污染,山西水资源保护,山西水资源,河北雨水,河北水资源分配,河北节水,河北调水,河北净水,河北水资源管理,河北水旱,河北水情,河北人水关系,河北洪水,河北碳水危机,河北水污染,河北水资源保护,河北水资源,天津雨水,天津水资源分配,天津节水,天津调水,天津净水,天津水资源管理,天津水旱,天津水情,天津人水关系,天津洪水,天津碳水危机,天津水污染,天津水资源保护,天津水资源,重庆雨水,重庆水资源分配,重庆节水,重庆调水,重庆净水,重庆水资源管理,重庆水旱,重庆水情,重庆人水关系,重庆洪水,重庆碳水危机,重庆水污染,重庆水资源保护,重庆水资源,上海雨水,上海水资源分配,上海节水,上海调水,上海净水,上海水资源管理,上海水旱,上海水情,上海人水关系,上海洪水,上海碳水危机,上海水污染,上海水资源保护,上海水资源,北京雨水,北京水资源分配,北京节水,北京调水,北京净水,北京水资源管理,北京水旱,北京水情,北京人水关系,北京洪水,北京碳水危机,北京水污染,北京水资源保护,北京水资源,国外雨水,国外水资源分配,国外节水,国外调水,国外净水,国外水资源管理,国外水旱,国外水情,国外人水关系,国外洪水,国外碳水危机,国外水污染,国外水资源保护,国外水资源,都市雨水,都市水资源分配,都市节水,都市调水,都市净水,都市水资源管理,都市水旱,都市水情,都市人水关系,都市洪水,都市碳水危机,都市水污染,都市水资源保护,都市水资源,地级市雨水,地级市水资源分配,地级市节水,地级市调水,地级市净水,地级市水资源管理,地级市水旱,地级市水情,地级市人水关系,地级市洪水,地级市碳水危机,地级市水污染,地级市水资源保护,地级市水资源,县城雨水,县城水资源分配,县城节水,县城调水,县城净水,县城水资源管理,县城水旱,县城水情,县城人水关系,县城洪水,县城碳水危机,县城水污染,县城水资源保护,县城水资源,乡镇雨水,乡镇水资源分配,乡镇节水,乡镇调水,乡镇净水,乡镇水资源管理,乡镇水旱,乡镇水情,乡镇人水关系,乡镇洪水,乡镇碳水危机,乡镇水污染,乡镇水资源保护,乡镇水资源,地区雨水,地区水资源分配,地区节水,地区调水,地区净水,地区水资源管理,地区水旱,地区水情,地区人水关系,地区洪水,地区碳水危机,地区水污染,地区水资源保护,地区水资源,平原雨水,平原水资源分配,平原节水,平原调水,平原净水,平原水资源管理,平原水旱,平原水情,平原人水关系,平原洪水,平原碳水危机,平原水污染,平原水资源保护,平原水资源,大山雨水,大山水资源分配,大山节水,大山调水,大山净水,大山水资源管理,大山水旱,大山水情,大山人水关系,大山洪水,大山碳水危机,大山水污染,大山水资源保护,大山水资源,沿海地区雨水,沿海地区水资源分配,沿海地区节水,沿海地区调水,沿海地区净水,沿海地区水资源管理,沿海地区水旱,沿海地区水情,沿海地区人水关系,沿海地区洪水,沿海地区碳水危机,沿海地区水污染,沿海地区水资源保护,沿海地区水资源,东部雨水,东部水资源分配,东部节水,东部调水,东部净水,东部水资源管理,东部水旱,东部水情,东部人水关系,东部洪水,东部碳水危机,东部水污染,东部水资源保护,东部水资源,西部雨水,西部水资源分配,西部节水,西部调水,西部净水,西部水资源管理,西部水旱,西部水情,西部人水关系,西部洪水,西部碳水危机,西部水污染,西部水资源保护,西部水资源,南部雨水,南部水资源分配,南部节水,南部调水,南部净水,南部水资源管理,南部水旱,南部水情,南部人水关系,南部洪水,南部碳水危机,南部水污染,南部水资源保护,南部水资源,北部雨水,北部水资源分配,北部节水,北部调水,北部净水,北部水资源管理,北部水旱,北部水情,北部人水关系,北部洪水,北部碳水危机,北部水污染,北部水资源保护,北部水资源,中部雨水,中部水资源分配,中部节水,中部调水,中部净水,中部水资源管理,中部水旱,中部水情,中部人水关系,中部洪水,中部碳水危机,中部水污染,中部水资源保护,中部水资源,大陆雨水,大陆水资源分配,大陆节水,大陆调水,大陆净水,大陆水资源管理,大陆水旱,大陆水情,大陆人水关系,大陆洪水,大陆碳水危机,大陆水污染,大陆水资源保护,大陆水资源,内地雨水,内地水资源分配,内地节水,内地调水,内地净水,内地水资源管理,内地水旱,内地水情,内地人水关系,内地洪水,内地碳水危机,内地水污染,内地水资源保护,内地水资源,华中雨水,华中水资源分配,华中节水,华中调水,华中净水,华中水资源管理,华中水旱,华中水情,华中人水关系,华中洪水,华中碳水危机,华中水污染,华中水资源保护,华中水资源,华南雨水,华南水资源分配,华南节水,华南调水,华南净水,华南水资源管理,华南水旱,华南水情,华南人水关系,华南洪水,华南碳水危机,华南水污染,华南水资源保护,华南水资源,华北雨水,华北水资源分配,华北节水,华北调水,华北净水,华北水资源管理,华北水旱,华北水情,华北人水关系,华北洪水,华北碳水危机,华北水污染,华北水资源保护,华北水资源,西南雨水,西南水资源分配,西南节水,西南调水,西南净水,西南水资源管理,西南水旱,西南水情,西南人水关系,西南洪水,西南碳水危机,西南水污染,西南水资源保护,西南水资源,中国雨水")
+        # 自然灾害相关搜索关键词（扩展版）
+        # 包含用户提供的核心关键词：地震、暴雨、台风、洪涝、涝、连阴雨、持续降雨、暴雪、雪灾、大雪
+        # 以及扩展的相关词汇：余震、地震预警、大暴雨、台风路径、洪水、内涝、雪灾救援等
+        words_str = os.getenv('WORDS_LIST', "地震,余震,震级,震中,地震预警,地震救援,地震灾害,强震,地震局,地震带,暴雨,大暴雨,特大暴雨,强降雨,降雨量,积水,内涝,城市内涝,道路积水,暴雨预警,暴雨红色预警,台风,热带风暴,强台风,超强台风,台风路径,台风预警,台风登陆,台风影响,台风防御,洪涝,洪水,山洪,城市内涝,水位上涨,溃坝,洪水预警,洪水灾害,防汛,抗洪,涝,内涝,城市内涝,农田内涝,连阴雨,持续降雨,连续降雨,阴雨天气,降雨过程,暴雪,大雪,雪灾,积雪,冰冻,道路结冰,雪崩,暴雪预警,雪灾救援,雪灾应对,大雪预警,强降雪,降雪量,雪深,雪情,干旱,旱灾,干旱预警,抗旱,山火,森林火灾,野火,火灾,泥石流,滑坡,山体滑坡,地质灾害,海啸,海啸预警,极端天气,气象灾害,自然灾害,灾害预警,灾害救援,应急响应")
         self.words_list = words_str.split(",")
         super(WeiboSpider, self).__init__(config)
         print("init end ......")
 
-    def parse_url(self, re_url):
-        '''发起请求'''
+    def parse_url(self, url_params, post_data):
+        """
+        发起POST请求
+        url_params: URL查询参数字典
+        post_data: POST请求的form数据字典
+        """
         try:
-            time.sleep(1)
-            print(re_url)
-            res = requests.get(re_url, timeout=10)
+            time.sleep(1)  # 避免请求过快
+            
+            # 构建完整的URL（包含查询参数）
+            url = self.base_url + '?' + urllib.parse.urlencode(url_params)
+            
+            # 打印完整的URL和请求信息
+            logging.info('=' * 80)
+            logging.info('完整请求URL: {}'.format(url))
+            logging.info('请求页码: {}, 搜索词: {}'.format(
+                post_data.get('page', 'N/A'), post_data.get('containerid', '')[:100]))
+            logging.info('=' * 80)
+            
+            # 调试：打印POST数据（前500字符）
+            data_str = '&'.join(['{}={}'.format(k, str(v)[:50]) for k, v in post_data.items()])
+            logging.debug('POST数据: {}'.format(data_str[:500]))
+            
+            # 发送POST请求
+            # 注意：post_data中的值已经是URL编码的字符串
+            # 但requests.post(data=dict)会自动对值进行URL编码
+            # 所以我们需要先解码，再让requests编码，或者手动构建请求体
+            # 这里我们手动构建请求体字符串，完全匹配curl命令的格式
+            form_data_parts = []
+            for k, v in post_data.items():
+                # 值已经是URL编码的，直接使用
+                form_data_parts.append('{}={}'.format(urllib.parse.quote(str(k), safe=''), str(v)))
+            
+            request_body = '&'.join(form_data_parts)
+            
+            res = requests.post(
+                url,
+                headers=self.HEADER,
+                data=request_body,
+                timeout=10
+            )
+            
+            # 记录响应状态和部分内容（用于调试）
+            logging.info('响应状态码: {}, 响应长度: {}'.format(
+                res.status_code, len(res.text)))
+            if res.status_code != 200:
+                logging.warning('响应内容: {}'.format(res.text[:500]))
+            
             return res
         except Exception as e:
-            logging.info('继续尝试一次请求, 报错信息是:{}'.format(e))
-            res = self.parse_url(re_url)
-            return res
+            logging.error('请求失败, 报错信息: {}'.format(e))
+            # 重试一次
+            try:
+                time.sleep(2)
+                url = self.base_url + '?' + urllib.parse.urlencode(url_params)
+                form_data_parts = []
+                for k, v in post_data.items():
+                    form_data_parts.append('{}={}'.format(urllib.parse.quote(str(k), safe=''), str(v)))
+                request_body = '&'.join(form_data_parts)
+                res = requests.post(
+                    url,
+                    headers=self.HEADER,
+                    data=request_body,
+                    timeout=10
+                )
+                return res
+            except Exception as e2:
+                logging.error('重试请求也失败: {}'.format(e2))
+                raise
 
     def get_data_way_1(self, cards, cards_list):
         cards_list = cards.get('cards')[0].get('card_group')
@@ -87,68 +165,473 @@ class WeiboSpider(BaseModel):
             cards_list.append(item)
         return cards_list
 
-    def get_data_way_2(self, cards_list):
-        for index, card in enumerate(cards_list):
-            item = {}
-            card_group = card.get('card_group', [])
-            if not card_group:
+    def parse_date_year(self, date_str):
+        """
+        解析日期字符串，提取年份
+        支持多种日期格式：
+        - "Mon Nov 15 10:30:00 +0800 2024"
+        - "2024-11-15"
+        - "2024/11/15"
+        - "Nov 15 2024"
+        """
+        if not date_str:
+            return None
+        
+        date_str = str(date_str).strip()
+        
+        # 方法1: 尝试从字符串末尾提取4位数字年份（微博API常见格式）
+        year_match = re.search(r'(\d{4})(?:\s|$)', date_str)
+        if year_match:
+            year = int(year_match.group(1))
+            if 2000 <= year <= 2100:  # 合理的年份范围
+                return year
+        
+        # 方法2: 尝试解析标准日期格式
+        date_formats = [
+            '%a %b %d %H:%M:%S %z %Y',  # Mon Nov 15 10:30:00 +0800 2024
+            '%Y-%m-%d',
+            '%Y/%m/%d',
+            '%b %d %Y',  # Nov 15 2024
+            '%d %b %Y',  # 15 Nov 2024
+        ]
+        
+        for fmt in date_formats:
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                return dt.year
+            except (ValueError, TypeError):
                 continue
-            mblog = card_group[0].get('mblog', {})
-            item['id'] = mblog.get('id')
-            item['date'] = mblog.get('created_at')
-            # if '2022' not in item['date']:
-            new_date = mblog.get('created_at')
-            item['date'] = new_date
-            # if new_date[-4:] == "2023":
-            #     pass
-            # else:
-            #     # new_date = str(new_date).replace('Nov', 'Apr').replace('Dec', 'Apr').replace(
-            #     #     'Oct', 'Mar').replace('Sep', 'Mar').replace('Aug', 'Apr').replace('Jul', 'Apr').replace('Jun', 'Apr')  # 12-4 11-4 10-3 9-3 8-2 7-2 6-1 5-1
-            #     item['date'] = new_date[:-4] + "2023"
+        
+        # 方法3: 如果都失败，尝试从字符串中查找年份
+        year_match = re.search(r'(20\d{2})', date_str)
+        if year_match:
+            return int(year_match.group(1))
+        
+        return None
 
-            item['text'] = mblog.get('text')
-            item['location'], item['coordinates'] = self.get_location(mblog)
-            item['user'] = self.get_user(mblog)
-            self.mgo.set(None, item)
+    def get_data_way_2(self, items_list):
+        """
+        处理数据并过滤：只保留2024和2025年的数据
+        支持多种数据结构：
+        1. items[].items[].data (新API格式，category="feed")
+        2. cards[].card_group[].mblog (旧格式)
+        3. cards[].mblog (旧格式)
+        4. 其他可能的格式
+        """
+        saved_count = 0
+        skipped_count = 0
+        
+        for index, top_item in enumerate(items_list):
+            mblog_data = None
+            
+            # 新格式：items[].items[].data (category="feed")
+            if 'items' in top_item:
+                inner_items = top_item.get('items', [])
+                for inner_item in inner_items:
+                    # 只处理category为"feed"的项
+                    if inner_item.get('category') == 'feed' and 'data' in inner_item:
+                        mblog_data = inner_item.get('data', {})
+                        if mblog_data and mblog_data.get('id'):
+                            break
+            
+            # 旧格式1: card.card_group[].mblog
+            if not mblog_data or not mblog_data.get('id'):
+                card_group = top_item.get('card_group', [])
+                if card_group:
+                    for cg_item in card_group:
+                        if 'mblog' in cg_item:
+                            mblog_data = cg_item.get('mblog', {})
+                            if mblog_data and mblog_data.get('id'):
+                                break
+            
+            # 旧格式2: card.mblog (直接包含mblog)
+            if not mblog_data or not mblog_data.get('id'):
+                mblog_data = top_item.get('mblog', {})
+            
+            # 旧格式3: card本身可能就是mblog
+            if not mblog_data or not mblog_data.get('id'):
+                if top_item.get('id') and top_item.get('text'):
+                    mblog_data = top_item
+            
+            if not mblog_data or not mblog_data.get('id'):
+                skipped_count += 1
+                continue
+            
+            # 获取日期
+            created_at = mblog_data.get('created_at')
+            if not created_at:
+                skipped_count += 1
+                continue
+            
+            # 解析年份
+            year = self.parse_date_year(created_at)
+            
+            # 只处理2024和2025年的数据
+            if year not in [2024, 2025]:
+                skipped_count += 1
+                logging.debug('跳过非目标年份数据: year={}, date={}, id={}'.format(
+                    year, created_at, mblog_data.get('id')))
+                continue
+            
+            # 构建数据项
+            item = {}
+            item['id'] = mblog_data.get('id')
+            item['date'] = created_at
+            item['text'] = mblog_data.get('text', '')
+            item['location'], item['coordinates'] = self.get_location(mblog_data)
+            item['user'] = self.get_user(mblog_data)
+            
+            # 保存数据
+            try:
+                self.mgo.set(None, item)
+                saved_count += 1
+                logging.debug('保存数据成功: id={}, year={}, date={}, user={}'.format(
+                    item['id'], year, item['date'], item['user']))
+            except Exception as e:
+                logging.error('保存数据失败: id={}, 错误: {}'.format(item['id'], e))
+                skipped_count += 1
+        
+        logging.info('数据处理完成: 保存={}, 跳过={}'.format(saved_count, skipped_count))
+        return saved_count
+
+    def build_url_params(self, word, search_type="1"):
+        """
+        构建URL查询参数
+        word: 搜索关键词
+        search_type: 搜索类型，默认为"1"
+        """
+        # 构建flowId参数（格式：100103type=1&q=关键词&t=0，需要双重URL编码）
+        flowid_str = '100103type={}&q={}&t=0'.format(search_type, word)
+        flowid_encoded = urllib.parse.quote(flowid_str, safe='')
+        flowid_double_encoded = urllib.parse.quote(flowid_encoded, safe='')
+        
+        # 构建URL查询参数
+        url_params = {
+            'flowId': flowid_double_encoded,
+            'invokeType': 'manual',
+            'manualType': 'scroll',
+            'pageDataType': 'flow',
+            'taskType': 'loadMore',
+            'aid': '01A5OJSVmtNFSPipDOasmlO-mHZk_uCvyfPUaQ--c3U-LzO4I.',
+            'b': '0',
+            'c': 'iphone',
+            'dlang': 'zh-Hans-CN',
+            'from': '10FC093010',
+            'ft': '0',
+            'gsid': self.GSID,
+            'lang': 'zh_CN',
+            'launchid': '10000365--x',
+            'networktype': '5g',
+            's': 'c9ea397b',
+            'sflag': '1',
+            'skin': 'default',
+            'ua': 'iPhone18,1__weibo__15.12.0__iphone__os26.1',
+            'v_f': '1',
+            'v_p': '93',
+            'wm': '3333_2001',
+            'ul_sid': 'AB1C2BA6-278C-44C4-8185-DC0DFB847F94',
+            'ul_hid': 'AD401B8C-CEF9-4E91-9ABF-165CCD3D9A32',
+            'ul_ctime': str(int(time.time() * 1000))  # 当前时间戳（毫秒）
+        }
+        return url_params
+
+    def build_post_data(self, word, search_type="1", page=1, max_id=0):
+        """
+        构建POST请求的form数据
+        word: 搜索关键词
+        search_type: 搜索类型，默认为"1"
+        page: 页码，从1开始
+        max_id: 最大ID，用于分页，默认为0
+        """
+        # 构建containerid和fid参数（格式：100103type=1&q=关键词&t=0）
+        # 注意：这些值需要URL编码
+        containerid_str = '100103type={}&q={}&t=0'.format(search_type, word)
+        containerid_encoded = urllib.parse.quote(containerid_str, safe='')
+        
+        # 构建flowId（与containerid相同）
+        flowid_str = containerid_str
+        flowid_encoded = containerid_encoded
+        
+        # 构建source_code（包含containerid）
+        source_code_str = '10000003_{}'.format(containerid_str)
+        source_code_encoded = urllib.parse.quote(source_code_str, safe='')
+        
+        # 生成搜索会话ID（可以随机生成或使用固定值）
+        import random
+        import string
+        search_ssid = ''.join(random.choices(string.hexdigits.lower(), k=32))
+        search_vsid = search_ssid
+        
+        # 构建POST数据（完全匹配curl命令中的参数）
+        post_data = {
+            'ai_search_client': '1',
+            'ai_search_client_opt': '1',
+            'ai_tab_native_enable': '2',
+            'blog_text_size': '16',
+            'card159164_emoji_enable': '1',
+            'card267_enable': '1',
+            'card89_blue_strip_opt': '1',
+            'containerid': containerid_encoded,  # URL编码后的值
+            'count': str(self.count),
+            'dfp': '1',
+            'discover_flow_enable': '1',
+            'extparam': 'discover',
+            'featurecode': '10000085',
+            'fid': containerid_encoded,  # 与containerid相同
+            'filter_label_word': '全部',
+            'flowId': flowid_encoded,
+            'flowVersion': '0.0.1',
+            'flow_width': '402',
+            'hot_feed_push': '0',
+            'image_type': 'heif',
+            'interval_weibo_count': '15',
+            'invokeType': 'manual',
+            'is_container': '1',
+            'lfid': '102803_ctg1_1780_-_ctg1_1780',
+            'like_data[note_id]': 'f936c',
+            'luicode': '10001344',
+            'manualType': 'scroll',
+            'max_id': str(max_id),
+            'moduleID': 'pagecard',
+            'need_new_pop': '1',
+            'new_hotsearch_header': '0',
+            'new_hotsearch_tab': '0',
+            'orifid': '102803_ctg1_1780_-_ctg1_1780',
+            'oriuicode': '10001344',
+            'page': str(page),
+            'pageDataType': 'flow',
+            'page_refresh_time': str(int(time.time())),
+            'pagingType': 'cursor',
+            'pd_redpacket2022_enable': '1',
+            'pic_tab_front': '0',
+            'request_type': '1',
+            'screen_attrs': '1206_2622_3',
+            'search_mode_info': '0',
+            'search_operation_header_back': '1',
+            'search_result_direct': '1',
+            'search_result_footer_btns_enable': '1',
+            'search_result_notice': '1',
+            'search_rich_avatar_clip_enable': '1',
+            'search_ssid': search_ssid,
+            'search_toolbar_custom_menu_enable': '1',
+            'search_toolbar_interact_enable': '1',
+            'search_vsid': search_vsid,
+            'searchbar_source': 'discover_searchbar',
+            'source_code': source_code_encoded,
+            'source_t': '0',
+            'stream_entry_id': '1',
+            'sys_notify_open': '0',
+            'taskType': 'loadMore',
+            'topn_pos': '17',
+            'transparent_background_height': '0',
+            'uicode': '10000003',
+            'unify_new_bubble_opt': '1',
+        }
+        
+        # 添加用户信息（可选，可通过环境变量配置）
+        user_avatar = os.getenv('USER_AVATAR', 'https://tvax1.sinaimg.cn/crop.0.0.1080.1080.180/0068QMAzly8i81lqbculij30u00u0wju.jpg?KID=imgbed,tva&Expires=1765283558&ssig=0XP%2B8hLNcx')
+        user_nickname = os.getenv('USER_NICKNAME', '李琦玉Works')
+        if user_avatar:
+            post_data['user_avatar'] = urllib.parse.quote(user_avatar, safe='')
+        if user_nickname:
+            post_data['user_nickname'] = urllib.parse.quote(user_nickname, safe='')
+        
+        return post_data
 
     @decorate.exception_capture_close_datebase
     def run(self, task={}):
         for word in self.words_list:
-            logging.info('word={}'.format(word))
-            # 1,61,......
-            for type in ["1"]: # ,"61", "3", "62", "64", "63", "60", "38", "98", "92"
-                logging.info('type={}'.format(type))
-                containerid = urllib.parse.quote('100103type={}&q={}'.format(
-                    type, word), safe='/', encoding=None, errors=None)
-
-                page = 2  # 起始页必须为第二页
-
-                while True:
-                    logging.info('此时遍历的起始页：{}'.format(page))
-                    r = self.parse_url(self.url.format(
-                        self.GSID, self.count, page, containerid))
-                    if r.status_code == 200:
-                        cards = json.loads(r.text)
-                        cards_list = cards.get('cards', [])
-                        total = len(cards_list)
-                        logging.info('该数据条数是：{} , page={}'.format(total, page))
-                        if total < 1:
+            logging.info('搜索关键词: {}'.format(word))
+            # 搜索类型，目前只使用"1"
+            for search_type in ["1"]:  # 可以扩展: "61", "3", "62", "64", "63", "60", "38", "98", "92"
+                logging.info('搜索类型: {}'.format(search_type))
+                
+                # 构建URL查询参数
+                url_params = self.build_url_params(word, search_type)
+                
+                page = 1  # 从第1页开始
+                max_id = 0  # 初始max_id为0
+                max_pages = 100  # 最大页数限制
+                
+                while page <= max_pages:
+                    logging.info('当前页码: {}, max_id: {}'.format(page, max_id))
+                    
+                    # 构建POST数据
+                    post_data = self.build_post_data(word, search_type, page, max_id)
+                    
+                    try:
+                        r = self.parse_url(url_params, post_data)
+                    
+                        if r.status_code == 200:
+                            try:
+                                response_json = json.loads(r.text)
+                                
+                                # 打印响应结构的所有顶级键
+                                if isinstance(response_json, dict):
+                                    logging.info('响应结构顶级键: {}'.format(list(response_json.keys())))
+                                    # 记录响应结构（前2000字符，用于调试）
+                                    logging.debug('API响应结构: {}'.format(
+                                        json.dumps(response_json, ensure_ascii=False)[:2000]))
+                                else:
+                                    logging.warning('响应不是字典格式: {}'.format(type(response_json)))
+                                
+                                # 检查响应结构 - 尝试多种可能的数据字段
+                                items_list = None
+                                
+                                # 方式1: 查找items字段（新API格式）
+                                if 'items' in response_json:
+                                    items_list = response_json.get('items', [])
+                                    logging.info('找到items字段，items数量: {}'.format(len(items_list)))
+                                # 方式2: 直接查找cards字段（旧格式）
+                                elif 'cards' in response_json:
+                                    items_list = response_json.get('cards', [])
+                                    logging.info('找到cards字段，cards数量: {}'.format(len(items_list)))
+                                # 方式3: 查找data.cards
+                                elif 'data' in response_json and isinstance(response_json.get('data'), dict):
+                                    data = response_json.get('data', {})
+                                    if 'cards' in data:
+                                        items_list = data.get('cards', [])
+                                    elif 'statuses' in data:
+                                        items_list = data.get('statuses', [])
+                                # 方式4: 查找statuses字段
+                                elif 'statuses' in response_json:
+                                    items_list = response_json.get('statuses', [])
+                                
+                                if items_list is not None:
+                                    total = len(items_list)
+                                    logging.info('找到数据，该页数据条数: {}, 页码: {}'.format(total, page))
+                                    
+                                    if total > 0:
+                                        # 处理数据
+                                        processed_count = self.get_data_way_2(items_list)
+                                        
+                                        # 尝试获取下一页的max_id（从响应中提取）
+                                        # 从最后一个item中提取id作为max_id
+                                        if items_list and len(items_list) > 0:
+                                            try:
+                                                last_item = items_list[-1]
+                                                # 新格式：从items[].items[].data中提取
+                                                if 'items' in last_item:
+                                                    inner_items = last_item.get('items', [])
+                                                    for inner_item in inner_items:
+                                                        if inner_item.get('category') == 'feed' and 'data' in inner_item:
+                                                            data = inner_item.get('data', {})
+                                                            if data and data.get('id'):
+                                                                max_id = int(data.get('id'))
+                                                                logging.info('更新max_id: {}'.format(max_id))
+                                                                break
+                                                # 旧格式：从mblog中提取
+                                                elif 'mblog' in last_item:
+                                                    mblog = last_item.get('mblog', {})
+                                                    if mblog and mblog.get('id'):
+                                                        max_id = int(mblog.get('id'))
+                                                        logging.info('更新max_id: {}'.format(max_id))
+                                                elif last_item.get('id'):
+                                                    max_id = int(last_item.get('id'))
+                                                    logging.info('更新max_id: {}'.format(max_id))
+                                            except Exception as e:
+                                                logging.debug('提取max_id失败: {}'.format(e))
+                                                pass
+                                        
+                                        # 如果返回的数据少于count，可能已经是最后一页
+                                        if total < self.count:
+                                            logging.info('已到达最后一页（返回数据少于count）')
+                                            break
+                                    else:
+                                        logging.info('没有更多数据，停止翻页')
+                                        break
+                                        
+                                elif 'ok' in response_json:
+                                    # 可能返回了错误信息
+                                    ok_status = response_json.get('ok', 0)
+                                    if ok_status != 1:
+                                        error_msg = response_json.get('msg', '未知错误')
+                                        logging.warning('API返回错误: ok={}, msg={}'.format(ok_status, error_msg))
+                                        break
+                                    else:
+                                        # ok=1但没有cards字段，可能是其他格式
+                                        logging.warning('响应格式异常: ok=1但没有cards字段，响应内容: {}'.format(
+                                            json.dumps(response_json, ensure_ascii=False)[:500]))
+                                        break
+                                else:
+                                    # 尝试打印完整的响应结构以便调试
+                                    logging.warning('响应中没有找到items/cards/statuses字段')
+                                    logging.warning('响应结构: {}'.format(
+                                        json.dumps(response_json, ensure_ascii=False, indent=2)[:2000] if isinstance(response_json, dict) else r.text[:2000]))
+                                    
+                                    # 尝试查找其他可能包含数据的字段
+                                    if isinstance(response_json, dict):
+                                        for key in response_json.keys():
+                                            value = response_json[key]
+                                            if isinstance(value, list) and len(value) > 0:
+                                                logging.info('发现列表字段 "{}"，长度: {}'.format(key, len(value)))
+                                                # 检查第一个元素的结构
+                                                if len(value) > 0:
+                                                    logging.info('第一个元素结构: {}'.format(
+                                                        json.dumps(value[0], ensure_ascii=False)[:500] if isinstance(value[0], dict) else str(value[0])[:500]))
+                                    break
+                                    
+                            except json.JSONDecodeError as e:
+                                logging.error('JSON解析失败: {}, 响应内容: {}'.format(e, r.text[:500]))
+                                break
+                            except Exception as e:
+                                logging.error('处理响应时出错: {}, 响应内容: {}'.format(e, r.text[:500]))
+                                break
+                        elif r.status_code == 401:
+                            logging.error('认证失败，请检查Authorization等认证信息')
                             break
-                        self.get_data_way_2(cards_list)
+                        elif r.status_code == 403:
+                            logging.error('访问被拒绝，可能需要更新认证信息')
+                            break
+                        else:
+                            logging.warning('请求返回状态码: {}, 响应内容: {}'.format(r.status_code, r.text[:200]))
+                            break
+                                
+                    except Exception as e:
+                        logging.error('处理请求时出错: {}'.format(e))
+                        break
+                    
                     page += 1
+                    
+                logging.info('关键词 "{}" 搜索完成'.format(word))
 
     def get_location(self, mblog):
         '''获取定位'''
-        location = mblog.get('user', {}).get('location', '')
+        # 新格式：从status_province和status_city获取
+        location = ''
+        if 'status_province' in mblog and 'status_city' in mblog:
+            province = mblog.get('status_province', '')
+            city = mblog.get('status_city', '')
+            if province and city:
+                location = '{}{}'.format(province, city)
+            elif province:
+                location = province
+            elif city:
+                location = city
+        
+        # 旧格式：从user.location获取
+        if not location:
+            location = mblog.get('user', {}).get('location', '')
+        
+        # 获取坐标
+        coordinates = '无坐标'
         try:
-            longitude = mblog.get('geo', {}).get('coordinates', [])[0]
-            latitude = mblog.get('geo', {}).get('coordinates', [])[1]
-            coordinates = f'({latitude},{longitude})'
+            # 新格式：可能没有geo字段
+            if 'geo' in mblog:
+                geo = mblog.get('geo', {})
+                coords = geo.get('coordinates', [])
+                if len(coords) >= 2:
+                    longitude = coords[0]
+                    latitude = coords[1]
+                    coordinates = f'({latitude},{longitude})'
         except Exception as e:
-            coordinates = '无坐标'
+            pass
+        
         return location, coordinates
 
     def get_user(self, mblog):
         '''获取用户名'''
-        name = mblog.get('user', {}).get('name', '')
+        # 新格式和旧格式都从user.name或user.screen_name获取
+        user = mblog.get('user', {})
+        name = user.get('name', '') or user.get('screen_name', '')
         return name
