@@ -553,7 +553,7 @@ class SyncGlobalVesselsFuelFromAxs(SyncShipsFuelFromAxs):
 
         # 从mongo中获取global_vessels集合中的数据mmsi数据，去重
         imo_list = self.mgo_db["global_vessels"].find(
-            {"imo": {"$exists": True}, "vesselTypeNameCn": "干散货"}, {"imo": 1, "_id": 0}).distinct("imo")
+            {"imo": {"$exists": True}, "vesselTypeNameCn": "杂货船"}, {"imo": 1, "_id": 0}).distinct("imo")
         print(f"从mongo中获取到 {len(imo_list)} 个imo")
         
         # 获取axs_vessel_fuel_data中已存在的imo列表，用于去重
@@ -572,7 +572,6 @@ class SyncGlobalVesselsFuelFromAxs(SyncShipsFuelFromAxs):
             try:
                 print(f"处理 imo: {imo}")
                 skip_count, success_count = self.get_vessel_info_from_imo(imo, cookie, 0, 0)
-                time.sleep(1)
             except Exception as e:
                 print(f"获取imo为 {imo} 的船舶失败: {e}")
                 continue
