@@ -1,0 +1,25 @@
+{
+  "cookies": [
+    {
+      "name": "AUTH-SHIRO-JSESSIONID",
+      "value": "c9dfe9ba-c487-4e07-b4da-e20b67c2de1a",
+      "domain": "fy4.nsmc.org.cn",
+      "path": "/center",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "SHIRO-JSESSIONID",
+      "value": "f6892c8c-0f97-48c9-acd9-93e39ad926ba",
+      "domain": "satellite.nsmc.org.cn",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}
