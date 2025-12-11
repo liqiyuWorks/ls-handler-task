@@ -110,18 +110,18 @@ class EnhancedFormatter:
     
     def _extract_ffa_contracts(self, rows: List[List[str]]):
         """提取FFA合约数据"""
-        # 查找C5TC+1和P4TC+1合约数据（注意使用全角加号）
+        # 查找C5TC+1和P5TC+1合约数据（注意使用全角加号）
         c5tc_data = self._parse_contract_data(rows, "C5TC＋1")
-        p4tc_data = self._parse_contract_data(rows, "P4TC＋1")
+        p5tc_data = self._parse_contract_data(rows, "P5TC＋1")
         
         if c5tc_data:
             # 将全角加号转换为半角加号用于存储
             c5tc_data["contract_name"] = "C5TC+1"
             self.contracts["C5TC+1"] = c5tc_data
-        if p4tc_data:
+        if p5tc_data:
             # 将全角加号转换为半角加号用于存储
-            p4tc_data["contract_name"] = "P4TC+1"
-            self.contracts["P4TC+1"] = p4tc_data
+            p5tc_data["contract_name"] = "P5TC+1"
+            self.contracts["P5TC+1"] = p5tc_data
     
     def _parse_contract_data(self, rows: List[List[str]], contract_name: str) -> Optional[Dict[str, Any]]:
         """解析合约数据"""
@@ -282,7 +282,7 @@ class EnhancedFormatter:
         has_p4tc_keywords = any(keyword in data_text for keyword in p4tc_keywords)
         
         # 检查是否包含FFA特有的关键词
-        ffa_keywords = ["C5TC＋1", "P4TC＋1", "预测值", "当前值", "偏离度", "入场区间", "离场区间"]
+        ffa_keywords = ["C5TC＋1", "P5TC＋1", "预测值", "当前值", "偏离度", "入场区间", "离场区间"]
         has_ffa_keywords = any(keyword in data_text for keyword in ffa_keywords)
         
         print(f"数据检测: P4TC关键词={has_p4tc_keywords}, FFA关键词={has_ffa_keywords}")
@@ -672,7 +672,7 @@ class EnhancedFormatter:
         
         # 为FFA页面添加特定摘要
         if 'FFA价格信号' in self.page_name:
-            ffa_contracts = [k for k in self.contracts.keys() if k in ['C5TC+1', 'P4TC+1']]
+            ffa_contracts = [k for k in self.contracts.keys() if k in ['C5TC+1', 'P5TC+1']]
             summary["ffa_contracts"] = ffa_contracts
             summary["data_type"] = "FFA价格信号"
         elif 'P4TC现货应用决策' in self.page_name:

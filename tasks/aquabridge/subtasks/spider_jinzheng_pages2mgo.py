@@ -561,7 +561,7 @@ class SpiderJinzhengPages2mgo(BaseModel):
             return default_value
         
         # 从环境变量或task参数中获取配置
-        page_key = get_config('page_key', 'c5_spot_decision_42d', 'SPIDER_PAGE_KEY')
+        page_key = get_config('page_key', 'ffa_price_signals', 'SPIDER_PAGE_KEY')
         browser = get_config('browser', 'firefox', 'SPIDER_BROWSER')
         headless = get_config('headless', False, 'SPIDER_HEADLESS')
         save_file = get_config('save_file', True, 'SPIDER_SAVE_FILE')
