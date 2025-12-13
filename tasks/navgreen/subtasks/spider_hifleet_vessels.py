@@ -56,11 +56,11 @@ class SpiderHifleetVessels(BaseModel):
 
     def __init__(self):
         self.PAGE_START = int(os.getenv('PAGE_START', '1'))
-        self.PAGE_END = int(os.getenv('PAGE_END', '30'))  # 从114页开始（输入 115）
+        self.PAGE_END = int(os.getenv('PAGE_END', '31'))  # 从114页开始（输入 115）
         self.HIFLEET_VESSELS_LIMIT = int(
-            os.getenv('HIFLEET_VESSELS_LIMIT', '1000'))
+            os.getenv('HIFLEET_VESSELS_LIMIT', '500'))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
-        self.shiptype = os.getenv('SHIPTYPE', '散货船') # 散货船,杂货船，滚装船，石油化学品船********
+        self.shiptype = os.getenv('SHIPTYPE', '杂货船') # 散货船,杂货船，滚装船，石油化学品船********
 
         # 代理配置（可选）
         self.use_proxy = os.getenv('USE_PROXY', 'false').lower() == 'true'
@@ -93,8 +93,9 @@ class SpiderHifleetVessels(BaseModel):
                 "loamax": -1,
                 "dwtmin": -1,
                 "dwtmax": -1,
-                "sortcolumn": "shipname",
-                "sorttype": "asc",
+                "sortcolumn": "yearofbuild",
+                "shiptype": "散货船",
+                "sorttype": "desc",
                 "isFleetShip": 0
             }
         }
