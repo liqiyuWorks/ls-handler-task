@@ -39,6 +39,7 @@ class UpdateYearOfBuild(BaseModel):
     def __init__(self):
         self.batch_size = int(os.getenv('BATCH_SIZE', 1000))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
+        self.api_key = os.getenv('API_KEY', "266102ea-ca32-4ad8-8292-17c952a81a56")
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -57,6 +58,32 @@ class UpdateYearOfBuild(BaseModel):
             return int(value)
         except (ValueError, TypeError):
             print(f"{field_name} 字段格式异常: {value}")
+            return None
+
+    def _get_latest_mmsi_by_imo(self, imo):
+        """通过IMO调用navgreen接口获取最新的MMSI"""
+        try:
+            url = f"https://openapi.navgreen.cn/api/vessel/fuzzy?key_words={imo}&api_key={self.api_key}"
+            response = requests.get(url, timeout=30)
+            response.raise_for_status()
+            res_json = response.json()
+            
+            # 从返回数据中提取mmsi
+            data = res_json.get("data", [])
+            if data and isinstance(data, list) and len(data) > 0:
+                # 取第一个结果的mmsi
+                first_item = data[0]
+                mmsi = first_item.get("mmsi")
+                if mmsi:
+                    mmsi = self._normalize_int_field(mmsi, "mmsi")
+                    if mmsi and mmsi > 0:
+                        return mmsi
+            return None
+        except requests.exceptions.RequestException as e:
+            print(f"调用navgreen接口获取MMSI异常 (imo: {imo}): {e}")
+            return None
+        except Exception as e:
+            print(f"解析navgreen接口返回异常 (imo: {imo}): {e}")
             return None
 
     def _build_update_data(self, item):
@@ -94,22 +121,49 @@ class UpdateYearOfBuild(BaseModel):
         
         return imo, mmsi, update_data
 
-    def update_year_of_build(self, mmsi_list):
-        """批量更新YearOfBuild字段"""
+    def update_year_of_build(self, mmsi_imo_map):
+        """批量更新YearOfBuild字段
+        Args:
+            mmsi_imo_map: dict, key为mmsi，value为imo，用于跟踪mmsi和imo的对应关系
+        """
         try:
+            mmsi_list = list(mmsi_imo_map.keys())
             res = request_wmy_detail(mmsi_list)
             
             if not res:
-                # 接口返回空，标记未获取到详情
-                for mmsi_str in mmsi_list:
+                # 接口返回空，尝试通过imo获取最新mmsi
+                print("接口返回空，尝试通过IMO获取最新MMSI...")
+                for mmsi_str, imo in mmsi_imo_map.items():
                     mmsi = self._normalize_int_field(mmsi_str, "mmsi")
-                    if mmsi is None:
+                    if mmsi is None or imo is None:
                         continue
-                    self.mgo_db["global_vessels"].update_one(
-                        {"mmsi": mmsi},
-                        {"$set": {"info_update_desc": "未获取到详情"}}
-                    )
-                    print(f"接口全空: mmsi: {mmsi}")
+                    
+                    # 通过imo获取最新mmsi
+                    latest_mmsi = self._get_latest_mmsi_by_imo(imo)
+                    if latest_mmsi and latest_mmsi != mmsi:
+                        print(f"通过IMO {imo} 获取到新MMSI: {latest_mmsi} (原MMSI: {mmsi})")
+                        # 更新数据库中的mmsi
+                        self.mgo_db["global_vessels"].update_one(
+                            {"imo": imo},
+                            {"$set": {"mmsi": latest_mmsi, "info_update_desc": f"已更新MMSI: {mmsi} -> {latest_mmsi}"}}
+                        )
+                        # 用新mmsi再次获取档案
+                        new_res = request_wmy_detail([latest_mmsi])
+                        if new_res:
+                            for item in new_res:
+                                item_imo, item_mmsi, update_data = self._build_update_data(item)
+                                if item_imo == imo and item_mmsi == latest_mmsi and update_data and "YearOfBuild" in update_data:
+                                    self.mgo_db["global_vessels"].update_one(
+                                        {"imo": imo},
+                                        {"$set": update_data}
+                                    )
+                                    print(f"使用新MMSI更新成功 - imo: {imo}, mmsi: {latest_mmsi}, YearOfBuild: {update_data.get('YearOfBuild')}")
+                    else:
+                        self.mgo_db["global_vessels"].update_one(
+                            {"mmsi": mmsi},
+                            {"$set": {"info_update_desc": "未获取到详情"}}
+                        )
+                        print(f"接口全空且未获取到新MMSI: mmsi: {mmsi}, imo: {imo}")
                 return
             
             print(f"接口返回数据条数: {len(res)}")
@@ -135,7 +189,7 @@ class UpdateYearOfBuild(BaseModel):
                 
                 returned_mmsi_set.add(mmsi)
             
-            # 记录未返回的数据
+            # 记录未返回的数据，尝试通过imo获取最新mmsi
             missing_mmsi_list = []
             for mmsi_str in mmsi_list:
                 mmsi = self._normalize_int_field(mmsi_str, "mmsi")
@@ -143,13 +197,44 @@ class UpdateYearOfBuild(BaseModel):
                     continue
                 if mmsi not in returned_mmsi_set:
                     missing_mmsi_list.append(mmsi)
-                    self.mgo_db["global_vessels"].update_one(
-                        {"mmsi": mmsi},
-                        {"$set": {"info_update_desc": "未获取到详情"}}
-                    )
+                    imo = mmsi_imo_map.get(mmsi_str)
+                    
+                    # 通过imo获取最新mmsi
+                    latest_mmsi = self._get_latest_mmsi_by_imo(imo) if imo else None
+                    if latest_mmsi and latest_mmsi != mmsi:
+                        print(f"未获取到数据，通过IMO {imo} 获取到新MMSI: {latest_mmsi} (原MMSI: {mmsi})")
+                        # 更新数据库中的mmsi
+                        self.mgo_db["global_vessels"].update_one(
+                            {"imo": imo},
+                            {"$set": {"mmsi": latest_mmsi, "info_update_desc": f"已更新MMSI: {mmsi} -> {latest_mmsi}"}}
+                        )
+                        # 用新mmsi再次获取档案
+                        new_res = request_wmy_detail([latest_mmsi])
+                        if new_res:
+                            for item in new_res:
+                                item_imo, item_mmsi, update_data = self._build_update_data(item)
+                                if item_imo == imo and item_mmsi == latest_mmsi and update_data and "YearOfBuild" in update_data:
+                                    self.mgo_db["global_vessels"].update_one(
+                                        {"imo": imo},
+                                        {"$set": update_data}
+                                    )
+                                    print(f"使用新MMSI更新成功 - imo: {imo}, mmsi: {latest_mmsi}, YearOfBuild: {update_data.get('YearOfBuild')}")
+                                    # 从missing列表中移除，因为已经成功更新
+                                    if mmsi in missing_mmsi_list:
+                                        missing_mmsi_list.remove(mmsi)
+                        else:
+                            self.mgo_db["global_vessels"].update_one(
+                                {"imo": imo},
+                                {"$set": {"info_update_desc": f"已更新MMSI但未获取到详情: {mmsi} -> {latest_mmsi}"}}
+                            )
+                    else:
+                        self.mgo_db["global_vessels"].update_one(
+                            {"mmsi": mmsi},
+                            {"$set": {"info_update_desc": "未获取到详情"}}
+                        )
             
             if missing_mmsi_list:
-                print(f"未获取到数据的MMSI数量: {len(missing_mmsi_list)}")
+                print(f"最终未获取到数据的MMSI数量: {len(missing_mmsi_list)}")
                 print(f"示例MMSI: {missing_mmsi_list[:10]}")
             
             print(f"本次批量更新成功: {updated_count} 条记录")
@@ -184,32 +269,35 @@ class UpdateYearOfBuild(BaseModel):
                 print("没有需要更新的记录，任务结束")
                 return
             
-            # 过滤掉无效的 imo 和 mmsi，以 imo 为唯一键去重
-            valid_mmsi_list = []
+            # 过滤掉无效的 imo 和 mmsi，以 imo 为唯一键去重，建立mmsi和imo的映射关系
+            valid_mmsi_imo_map = {}  # key为mmsi(str)，value为imo(int)
             seen_imo = set()  # 用于去重，确保每个 imo 只处理一次
             for item in need_update_list:
                 imo = self._normalize_int_field(item.get("imo"), "imo")
                 mmsi = self._normalize_int_field(item.get("mmsi"), "mmsi")
                 # 排除异常数据：imo 必须大于0，且每个 imo 只处理一次
                 if imo is not None and imo > 0 and mmsi is not None and imo not in seen_imo:
-                    valid_mmsi_list.append(mmsi)
+                    valid_mmsi_imo_map[str(mmsi)] = imo
                     seen_imo.add(imo)
             
-            if not valid_mmsi_list:
+            if not valid_mmsi_imo_map:
                 print("没有有效的MMSI，任务结束")
                 return
             
-            print(f"有效的MMSI数量: {len(valid_mmsi_list)}")
+            print(f"有效的MMSI数量: {len(valid_mmsi_imo_map)}")
             
             # 按批次处理
             batch_size = self.batch_size
-            batches = [valid_mmsi_list[i:i + batch_size]
-                      for i in range(0, len(valid_mmsi_list), batch_size)]
+            mmsi_list = list(valid_mmsi_imo_map.keys())
+            batches = [mmsi_list[i:i + batch_size]
+                      for i in range(0, len(mmsi_list), batch_size)]
             
             total_batches = len(batches)
-            for idx, batch in enumerate(batches, 1):
-                print(f"\n处理批次 {idx}/{total_batches}, 本批次数量: {len(batch)}")
-                self.update_year_of_build(batch)
+            for idx, batch_mmsi_list in enumerate(batches, 1):
+                print(f"\n处理批次 {idx}/{total_batches}, 本批次数量: {len(batch_mmsi_list)}")
+                # 构建当前批次的mmsi-imo映射
+                batch_mmsi_imo_map = {mmsi: valid_mmsi_imo_map[mmsi] for mmsi in batch_mmsi_list}
+                self.update_year_of_build(batch_mmsi_imo_map)
                 
                 # 最后一个批次不需要等待
                 if idx < total_batches:
