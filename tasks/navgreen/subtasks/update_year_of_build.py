@@ -67,7 +67,11 @@ class UpdateYearOfBuild(BaseModel):
         imo = self._normalize_int_field(item.get("imo"), "imo")
         mmsi = self._normalize_int_field(item.get("mmsi"), "mmsi")
         
-        if imo is None or mmsi is None:
+        # 排除异常数据：imo 不能为 None、0 或负数
+        if imo is None or imo <= 0:
+            return None, None, None
+        
+        if mmsi is None:
             return None, None, None
         
         # 字段映射 - 重点关注 YearOfBuild
@@ -161,13 +165,14 @@ class UpdateYearOfBuild(BaseModel):
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             print("开始更新YearOfBuild字段:", dataTime)
             
-            # 查询 YearOfBuild 为 ****** 的记录
+            # 查询 YearOfBuild 为 ****** 的记录，以 imo 为唯一键，排除异常数据
             query = {
                 "YearOfBuild": "******",
+                "imo": {"$exists": True, "$ne": None, "$gt": 0},  # imo 必须存在且大于0
                 "mmsi": {"$exists": True, "$ne": None}  # 确保有mmsi字段
             }
             
-            # 获取需要更新的记录
+            # 获取需要更新的记录（以 imo 为唯一键）
             need_update_list = list(self.mgo_db["global_vessels"].find(
                 query,
                 {"_id": 0, "imo": 1, "mmsi": 1}
@@ -179,12 +184,16 @@ class UpdateYearOfBuild(BaseModel):
                 print("没有需要更新的记录，任务结束")
                 return
             
-            # 过滤掉无效的mmsi
+            # 过滤掉无效的 imo 和 mmsi，以 imo 为唯一键去重
             valid_mmsi_list = []
+            seen_imo = set()  # 用于去重，确保每个 imo 只处理一次
             for item in need_update_list:
+                imo = self._normalize_int_field(item.get("imo"), "imo")
                 mmsi = self._normalize_int_field(item.get("mmsi"), "mmsi")
-                if mmsi is not None:
+                # 排除异常数据：imo 必须大于0，且每个 imo 只处理一次
+                if imo is not None and imo > 0 and mmsi is not None and imo not in seen_imo:
                     valid_mmsi_list.append(mmsi)
+                    seen_imo.add(imo)
             
             if not valid_mmsi_list:
                 print("没有有效的MMSI，任务结束")
