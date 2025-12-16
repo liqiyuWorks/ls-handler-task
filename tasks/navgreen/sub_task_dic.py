@@ -8,6 +8,7 @@ from tasks.navgreen.subtasks.spider_windy_zoom_storms import SpiderWindyZoomStor
 from tasks.navgreen.subtasks.calc_vessel_performance_details_from_wmy import CalcVesselPerformanceDetailsFromWmy
 from tasks.navgreen.subtasks.spider_vessel_Lloyd_info import SpiderVesselsLloydInfo
 from tasks.navgreen.subtasks.rich_hifleet_vessels_info import RichHifleetVesselsInfo,ModifyVesselsInfoInMgo
+from tasks.navgreen.subtasks.update_year_of_build import UpdateYearOfBuild
 from tasks.navgreen.subtasks.spider_wni_ai_weather_analyze import SpiderWniAiWeatherAnalyze
 
 def get_task_dic():
@@ -15,7 +16,8 @@ def get_task_dic():
         "spider_hifleet_vessels": (lambda: SpiderHifleetVessels(), 'Navgreen => 1、全量-爬取hifleet的船舶列表'),
         "spider_hifleet_newbuilding_vessels": (lambda: SpiderHifleetNewbuildingVessels(), 'Navgreen => 1.1、更新新造船数据（干散货、杂货船）'),
         
-        "rich_hifleet_vessels_info": (lambda: RichHifleetVesselsInfo(), 'Navgreen => 2、丰富hifleet的船舶详情档案'),
+        "rich_hifleet_vessels_info": (lambda: RichHifleetVesselsInfo(), 'Navgreen => 2、基于船视宝档案去丰富global_vessels的船舶详情档案'),
+        "update_year_of_build": (lambda: UpdateYearOfBuild(), 'Navgreen => 2.1、更新YearOfBuild字段为******的船舶记录'),
         # "modify_vessels_info_in_mgo": (lambda: ModifyVesselsInfoInMgo(), 'Navgreen => 3、修改mgo中的船舶详情档案'),
         
         "spider_vessel_Lloyd_info": (lambda: SpiderVesselsLloydInfo(), 'Navgreen => ***查询船舶劳氏船级社的档案'),

@@ -187,7 +187,7 @@ class RichHifleetVesselsInfo(BaseModel):
             # ))
             
             # 4. 补充指定的imo 船舶
-            need_sync_list = [{"imo": 9253997, "mmsi": 440351000}]
+            # need_sync_list = [{"imo": 9253997, "mmsi": 440351000}]
 
             print("库内总船数:", len(need_sync_list))
 
