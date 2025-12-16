@@ -13,7 +13,6 @@ export REDIS_HOST=153.35.96.86
 export REDIS_PORT=6379
 export REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 export SELECTED_DIRECTORY=navgreen
-# export TASK_TYPE=calculate_vessel_performance
 export WMY_URL=http://153.35.96.86
 export IS_CONSUMER=0
 export RUN_ONCE=1

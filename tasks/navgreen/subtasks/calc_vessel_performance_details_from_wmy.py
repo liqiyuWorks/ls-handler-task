@@ -918,7 +918,7 @@ def validate_weather_data_consistency(data: List[Dict[str, Any]]) -> Dict[str, A
 class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def __init__(self):
         # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
-        self.vessel_types = os.getenv('VESSEL_TYPES', "")
+        self.vessel_types = os.getenv('VESSEL_TYPES', "干散货,杂货船")
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.1")
@@ -1668,47 +1668,122 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         total_num = 0
         
         try:
-            query_sql: Dict[str, Any] = {
-                "imo": {"$exists": True}, "perf_calculated": {"$ne": 0}}
+            # 简化查询条件构建：使用 $and 明确组合所有条件，避免隐式组合问题
+            query_conditions = []
+            
+            # 1. 基础条件：imo 必须存在
+            query_conditions.append({"imo": {"$exists": True, "$ne": None}})
+            
+            # 2. 船舶类型过滤
             if self.vessel_types:
-                query_sql["vesselTypeNameCn"] = {"$in": self.vessel_types}
-
-
-            # 计算xxx天前的时间戳【用于测试】
+                query_conditions.append({"vesselTypeNameCn": {"$in": self.vessel_types}})
+            
+            # 3. 数据完整性条件：必须有吃水和速度
+            query_conditions.append({"draught": {"$exists": True, "$ne": None, "$gt": 0}})
+            query_conditions.append({"speed": {"$exists": True, "$ne": None, "$gt": 0}})
+            
+            # 4. 时间条件：如果需要更新时间过滤
             if self.time_days:
                 try:
                     ten_days_ago = datetime.now() - timedelta(days=self.time_days)
-                    log_debug(f"ten_days_ago: {ten_days_ago}")
-
-                    # 构建排除最近10天内的updated_at条件
-                    query_sql_with_time = dict(query_sql)
-                    query_sql_with_time["$or"] = [
-                        {"perf_calculated_updated_at": {"$lt": ten_days_ago}},
-                        {"perf_calculated_updated_at": {"$exists": False}}
-                    ]
+                    # perf_calculated_updated_at 在数据库中存储为字符串格式 "YYYY-MM-DD HH:MM:SS"
+                    ten_days_ago_str = ten_days_ago.strftime("%Y-%m-%d %H:%M:%S")
+                    log_debug(f"ten_days_ago: {ten_days_ago_str}")
+                    # 时间条件：perf_calculated_updated_at 不存在或小于指定时间（字符串比较）
+                    query_conditions.append({
+                        "$or": [
+                            {"perf_calculated_updated_at": {"$lt": ten_days_ago_str}},
+                            {"perf_calculated_updated_at": {"$exists": False}}
+                        ]
+                    })
                 except Exception as e:
-                    logger.warning(f"构建时间查询条件时出错: {e}，使用默认查询")
-                    query_sql_with_time = query_sql
+                    logger.warning(f"构建时间查询条件时出错: {e}，跳过时间过滤")
+            
+            # 构建最终查询条件
+            if len(query_conditions) == 1:
+                query_sql_with_data = query_conditions[0]
             else:
-                query_sql_with_time = query_sql
-
-            # 优化：在查询时就过滤掉没有吃水或设计速度的记录，提高效率
-            try:
-                query_sql_with_data = dict(query_sql_with_time)
-                query_sql_with_data["$and"] = [
-                    {"draught": {"$exists": True, "$ne": None, "$gt": 0}},
-                    {"speed": {"$exists": True, "$ne": None, "$gt": 0}},
-                    {"imo": {"$exists": True, "$ne": None}}
-                ]
-            except Exception as e:
-                logger.error(f"构建数据查询条件时出错: {e}")
-                return
+                query_sql_with_data = {"$and": query_conditions}
+            
+            logger.info(f"查询条件数量: {len(query_conditions)}")
+            logger.info(f"船舶类型过滤: {self.vessel_types}")
 
             # 先获取总数，避免游标超时问题
             try:
-                total_num = self.mgo_db["global_vessels"].count_documents(
-                    query_sql_with_data)
+                # 添加调试日志：输出查询条件
+                logger.info(f"查询条件: {json.dumps(query_sql_with_data, ensure_ascii=False, default=str, indent=2)}")
+                logger.info(f"船舶类型过滤: {self.vessel_types}")
+                
+                # 先测试查询条件是否正确
+                test_count = self.mgo_db["global_vessels"].count_documents(query_sql_with_data)
+                logger.info(f"测试查询结果: {test_count} 条记录")
+                
+                total_num = test_count
                 logger.info(f"开始处理船舶性能计算，总计: {total_num} 艘（已过滤缺少必要数据的记录）")
+                
+                # 如果总数为0，输出更详细的诊断信息
+                if total_num == 0:
+                    logger.warning("⚠️ 查询结果为0条记录，开始诊断...")
+                    # 检查基础查询条件
+                    base_count = self.mgo_db["global_vessels"].count_documents({"imo": {"$exists": True}})
+                    logger.info(f"  基础查询（仅imo存在）: {base_count} 条")
+                    
+                    # 检查类型过滤
+                    if self.vessel_types:
+                        for vessel_type in self.vessel_types:
+                            type_count = self.mgo_db["global_vessels"].count_documents(
+                                {"vesselTypeNameCn": vessel_type, "imo": {"$exists": True}})
+                            logger.info(f"  类型 '{vessel_type}' 的记录数: {type_count} 条")
+                    
+                    # 检查数据完整性条件
+                    data_count = self.mgo_db["global_vessels"].count_documents({
+                        "imo": {"$exists": True},
+                        "draught": {"$exists": True, "$ne": None, "$gt": 0},
+                        "speed": {"$exists": True, "$ne": None, "$gt": 0}
+                    })
+                    logger.info(f"  有完整数据（imo+吃水+速度）的记录数: {data_count} 条")
+                    
+                    # 检查类型+数据完整性组合
+                    if self.vessel_types:
+                        type_data_count = self.mgo_db["global_vessels"].count_documents({
+                            "imo": {"$exists": True},
+                            "vesselTypeNameCn": {"$in": self.vessel_types},
+                            "draught": {"$exists": True, "$ne": None, "$gt": 0},
+                            "speed": {"$exists": True, "$ne": None, "$gt": 0}
+                        })
+                        logger.info(f"  类型+完整数据组合的记录数: {type_data_count} 条")
+                    
+                    # 检查时间条件
+                    if self.time_days:
+                        try:
+                            ten_days_ago = datetime.now() - timedelta(days=self.time_days)
+                            ten_days_ago_str = ten_days_ago.strftime("%Y-%m-%d %H:%M:%S")
+                            time_count = self.mgo_db["global_vessels"].count_documents({
+                                "imo": {"$exists": True},
+                                "$or": [
+                                    {"perf_calculated_updated_at": {"$lt": ten_days_ago_str}},
+                                    {"perf_calculated_updated_at": {"$exists": False}}
+                                ]
+                            })
+                            logger.info(f"  满足时间条件（{self.time_days}天前）的记录数: {time_count} 条")
+                            
+                            # 检查类型+数据+时间组合
+                            if self.vessel_types:
+                                full_condition_count = self.mgo_db["global_vessels"].count_documents({
+                                    "imo": {"$exists": True},
+                                    "vesselTypeNameCn": {"$in": self.vessel_types},
+                                    "draught": {"$exists": True, "$ne": None, "$gt": 0},
+                                    "speed": {"$exists": True, "$ne": None, "$gt": 0},
+                                    "$or": [
+                                        {"perf_calculated_updated_at": {"$lt": ten_days_ago_str}},
+                                        {"perf_calculated_updated_at": {"$exists": False}}
+                                    ]
+                                })
+                                logger.info(f"  完整条件组合（类型+数据+时间）的记录数: {full_condition_count} 条")
+                        except Exception as e:
+                            logger.warning(f"  检查时间条件时出错: {e}")
+                    
+                    logger.warning("⚠️ 请检查上述诊断信息，确认查询条件是否正确")
             except Exception as e:
                 logger.error(f"获取船舶总数时出错: {e}")
                 return
