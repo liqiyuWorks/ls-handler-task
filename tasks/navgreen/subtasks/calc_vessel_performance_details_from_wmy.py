@@ -923,7 +923,8 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.1")
         self.time_days = int(os.getenv('TIME_DAYS', "15"))
-        self.calc_days = int(os.getenv('CALC_DAYS', "365"))
+        self.calc_days = int(os.getenv('CALC_DAYS', "180"))
+        self.interval_hour = os.getenv('TRACE_INTERVAL_HOUR', "6")
         self.api_key = os.getenv('API_KEY', "266102ea-ca32-4ad8-8292-17c952a81a56")
 
         if self.vessel_types:
@@ -1583,7 +1584,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         try:
             payload = json.dumps({
                 "mmsi": mmsi,
-                "interval_hour": 3,
+                "interval_hour": int(self.interval_hour),
                 "start_timestamp": start_time,
                 "end_timestamp": end_time
             })
@@ -1631,6 +1632,19 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     if not isinstance(data, list):
                         logger.warning(f"MMSI {mmsi} API返回数据格式错误，期望列表")
                         return []
+                    
+                    # 验证返回的数据质量
+                    if len(data) == 0:
+                        log_debug(f"MMSI {mmsi} API返回空数据列表")
+                    else:
+                        log_debug(f"MMSI {mmsi} API返回 {len(data)} 条轨迹数据")
+                        # 检查第一条数据是否包含必要字段
+                        if data and isinstance(data[0], dict):
+                            sample_fields = ["wind_level", "wave_level", "wave_height", "sog", "hdg", "draught"]
+                            missing_fields = [f for f in sample_fields if f not in data[0]]
+                            if missing_fields:
+                                log_debug(f"MMSI {mmsi} 轨迹数据缺少字段: {missing_fields}")
+                    
                     return data
                 else:
                     error_msg = response_data.get('state', {}).get('message', '未知错误')
@@ -1666,6 +1680,17 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         mmsi = None  # 初始化变量，避免在异常处理中引用未定义变量
         num = 0
         total_num = 0
+        success_count = 0  # 成功处理计数
+        total_failed_count = 0  # 总失败计数
+        # 统计信息
+        stats = {
+            'no_trace_data': 0,  # 无轨迹数据
+            'invalid_trace_data': 0,  # 无效轨迹数据
+            'calculation_errors': 0,  # 计算错误
+            'validation_failed': 0,  # 验证失败
+            'save_errors': 0,  # 保存错误
+            'data_quality_warnings': 0  # 数据质量警告
+        }
         
         try:
             # 简化查询条件构建：使用 $and 明确组合所有条件，避免隐式组合问题
@@ -1790,8 +1815,6 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
             # 简化流程：直接使用游标遍历，无需分批处理
             num = 0
-            success_count = 0  # 成功处理计数
-            total_failed_count = 0  # 总失败计数
             
             # 使用聚合管道实现散货船优先处理
             pipeline = [
@@ -1899,6 +1922,27 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                             logger.error(f"[{num}/{total_num}] MMSI {mmsi} 获取轨迹数据异常: {e}")
                             trace = []
 
+                        # 验证轨迹数据
+                        if trace:
+                            # 验证轨迹数据的基本质量
+                            trace_count = len(trace)
+                            if trace_count < 10:
+                                logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 轨迹数据点过少（{trace_count}个），可能影响计算准确性")
+                            
+                            # 检查必要字段是否存在
+                            valid_trace_count = 0
+                            required_fields = ["wind_level", "hdg", "sog", "draught"]
+                            for point in trace:
+                                has_wave = is_valid_type(point.get("wave_level")) or is_valid_type(point.get("wave_height"))
+                                if all(is_valid_type(point.get(field)) for field in required_fields) and has_wave:
+                                    valid_trace_count += 1
+                            
+                            if valid_trace_count < 5:
+                                logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 有效轨迹数据点过少（{valid_trace_count}/{trace_count}），跳过计算")
+                                trace = []  # 数据质量不足，清空轨迹数据
+                            else:
+                                log_debug(f"[{num}/{total_num}] MMSI {mmsi} 轨迹数据: 总数={trace_count}, 有效数={valid_trace_count}")
+
                         # 初始化性能数据变量
                         current_good_weather_performance = None
                         current_bad_weather_performance = None
@@ -1909,6 +1953,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                     trace, draught, design_speed)
                             except Exception as e:
                                 logger.error(f"[{num}/{total_num}] MMSI {mmsi} 处理好天气性能数据失败: {e}")
+                                stats['calculation_errors'] += 1
                                 current_good_weather_performance = {
                                     "avg_good_weather_speed": 0.0,
                                     "avg_downstream_speed": 0.0,
@@ -1920,6 +1965,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                     trace, draught, design_speed)
                             except Exception as e:
                                 logger.error(f"[{num}/{total_num}] MMSI {mmsi} 处理坏天气性能数据失败: {e}")
+                                stats['calculation_errors'] += 1
                                 current_bad_weather_performance = {
                                     "avg_bad_weather_speed": 0.0,
                                     "avg_downstream_bad_weather_speed": 0.0,
@@ -1930,6 +1976,35 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                             try:
                                 good_speed = current_good_weather_performance.get('avg_good_weather_speed', 0) or 0
                                 bad_speed = current_bad_weather_performance.get('avg_bad_weather_speed', 0) or 0
+                                
+                                # 数据合理性检查
+                                if good_speed > 0 and bad_speed > 0:
+                                    # 检查好天气速度是否合理（应该在设计速度的50%-130%之间）
+                                    if good_speed < design_speed * 0.5 or good_speed > design_speed * 1.3:
+                                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 好天气速度异常: {good_speed}节 (设计速度: {design_speed}节)")
+                                    
+                                    # 检查坏天气速度是否合理
+                                    if bad_speed < design_speed * 0.3 or bad_speed > design_speed * 1.1:
+                                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 坏天气速度异常: {bad_speed}节 (设计速度: {design_speed}节)")
+                                    
+                                    # 检查好天气速度应该大于坏天气速度
+                                    if good_speed <= bad_speed:
+                                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 数据异常: 好天气速度({good_speed}节) <= 坏天气速度({bad_speed}节)")
+                                        stats['data_quality_warnings'] += 1
+                                    
+                                    # 检查速度差异是否合理（应该在5%-60%之间）
+                                    speed_diff_percent = ((good_speed - bad_speed) / good_speed * 100) if good_speed > 0 else 0
+                                    if speed_diff_percent < 5:
+                                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 速度差异过小: {speed_diff_percent:.1f}%，可能数据质量有问题")
+                                        stats['data_quality_warnings'] += 1
+                                    elif speed_diff_percent > 60:
+                                        logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 速度差异过大: {speed_diff_percent:.1f}%，请检查数据")
+                                        stats['data_quality_warnings'] += 1
+                                
+                                # 如果好天气速度为0，记录警告
+                                if good_speed == 0:
+                                    logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 好天气速度为0，可能没有符合条件的好天气数据")
+                                
                             except Exception as e:
                                 logger.error(f"[{num}/{total_num}] MMSI {mmsi} 获取性能速度失败: {e}")
                                 good_speed = 0
@@ -1953,6 +2028,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
                             # 如果验证失败，进行数据后处理
                             if not validation_result.get('is_valid', True):
+                                stats['validation_failed'] += 1
                                 if LOG_CONFIG['enable_validation_logs']:
                                     logger.warning(
                                         f"MMSI {mmsi} 性能数据验证失败: {validation_result.get('errors', [])}")
@@ -2016,18 +2092,40 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
 
                             # 更新 mongo 的数据（插入或更新时都包含 mmsi 和 imo）
                             try:
+                                # 验证数据完整性后再保存
+                                if not current_good_weather_performance or not current_bad_weather_performance:
+                                    logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 性能数据不完整，跳过保存")
+                                    total_failed_count += 1
+                                    continue
+                                
+                                # 确保至少有好天气速度数据
+                                if not current_good_weather_performance.get('avg_good_weather_speed'):
+                                    logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 好天气速度数据缺失，跳过保存")
+                                    total_failed_count += 1
+                                    continue
+                                
+                                # 构建保存数据
+                                save_data = {
+                                    "imo": imo,
+                                    "mmsi": mmsi,
+                                    "current_good_weather_performance": current_good_weather_performance,
+                                    "current_bad_weather_performance": current_bad_weather_performance,
+                                    "perf_calculated": 1,
+                                    "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                    # 添加元数据
+                                    "trace_data_count": len(trace) if trace else 0,
+                                    "design_speed": design_speed,
+                                    "draught": draught
+                                }
+                                
                                 self.mgo_db["global_vessels_performance_details"].update_one(
                                     {"imo": imo},
-                                    {"$set": {
-                                        "imo": imo,
-                                        "mmsi": mmsi,  # 添加 mmsi 字段
-                                        "current_good_weather_performance": current_good_weather_performance,
-                                        "current_bad_weather_performance": current_bad_weather_performance,
-                                        "perf_calculated": 1,
-                                        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                                    }}, upsert=True)
+                                    {"$set": save_data},
+                                    upsert=True)
                             except Exception as e:
                                 logger.error(f"[{num}/{total_num}] MMSI {mmsi} 更新性能详情失败: {e}")
+                                logger.error(f"异常详情: {traceback.format_exc()}")
+                                stats['save_errors'] += 1
                                 total_failed_count += 1
                                 continue
 
@@ -2043,7 +2141,9 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                 logger.error(f"[{num}/{total_num}] MMSI {mmsi} 更新船舶状态失败: {e}")
                             
                             # 简化成功日志：只显示计算结果
-                            logger.info(f"[{num}/{total_num}] MMSI {mmsi} 计算成功，结果是：好天气速度 {good_speed}节, 坏天气速度 {bad_speed}节")
+                            speed_diff = good_speed - bad_speed if (good_speed > 0 and bad_speed > 0) else 0
+                            speed_diff_percent = (speed_diff / good_speed * 100) if good_speed > 0 else 0
+                            logger.info(f"[{num}/{total_num}] MMSI {mmsi} 计算成功: 好天气={good_speed}节, 坏天气={bad_speed}节, 差异={speed_diff:.2f}节({speed_diff_percent:.1f}%)")
                             success_count += 1
                             vessel_processed = True
 
@@ -2055,8 +2155,18 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                                     f"MMSI {mmsi} 坏天气 性能数据: {current_bad_weather_performance}")
 
                         else:
-                            # 未获取到轨迹数据，直接更新数据库
-                            logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：未获取到轨迹数据")
+                            # 未获取到轨迹数据或数据质量不足，直接更新数据库
+                            if trace is None or len(trace) == 0:
+                                reason = "未获取到轨迹数据" if trace is None else "轨迹数据质量不足"
+                                logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：{reason}")
+                                if trace is None:
+                                    stats['no_trace_data'] += 1
+                                else:
+                                    stats['invalid_trace_data'] += 1
+                            else:
+                                logger.warning(f"[{num}/{total_num}] MMSI {mmsi} 计算失败：轨迹数据无效")
+                                stats['invalid_trace_data'] += 1
+                            
                             try:
                                 filter_condition = {"imo": imo} if imo else {"mmsi": mmsi}
                                 update_data = {"$set": {
@@ -2121,8 +2231,22 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             try:
                 if total_num > 0:
                     success_rate = (success_count / total_num) * 100 if total_num > 0 else 0
-                    logger.info(f"处理完成 - 总计: {total_num}, 成功: {success_count}, 失败: {total_failed_count}, 成功率: {success_rate:.1f}%")
-                    logger.info(f"最终处理状态: 实际处理数量={num}")
+                    logger.info("=" * 80)
+                    logger.info("处理完成统计")
+                    logger.info("=" * 80)
+                    logger.info(f"总计: {total_num} 艘")
+                    logger.info(f"成功: {success_count} 艘 ({success_rate:.1f}%)")
+                    logger.info(f"失败: {total_failed_count} 艘 ({100-success_rate:.1f}%)")
+                    logger.info(f"实际处理: {num} 艘")
+                    if stats:
+                        logger.info("失败原因统计:")
+                        logger.info(f"  - 无轨迹数据: {stats.get('no_trace_data', 0)} 艘")
+                        logger.info(f"  - 无效轨迹数据: {stats.get('invalid_trace_data', 0)} 艘")
+                        logger.info(f"  - 计算错误: {stats.get('calculation_errors', 0)} 艘")
+                        logger.info(f"  - 验证失败: {stats.get('validation_failed', 0)} 艘")
+                        logger.info(f"  - 保存错误: {stats.get('save_errors', 0)} 艘")
+                        logger.info(f"  - 数据质量警告: {stats.get('data_quality_warnings', 0)} 艘")
+                    logger.info("=" * 80)
             except Exception as e:
                 logger.error(f"输出最终统计信息时出错: {e}")
                 logger.error(f"统计异常详情: {traceback.format_exc()}")
