@@ -17,6 +17,8 @@ class UpdateMmsi(BaseModel):
     def __init__(self):
         self.batch_size = int(os.getenv('BATCH_SIZE', 1000))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
+        # 请求延迟配置（秒）
+        self.request_delay_seconds = float(os.getenv('REQUEST_DELAY_SECONDS', 0.5))  # 默认0.5秒
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -68,6 +70,10 @@ class UpdateMmsi(BaseModel):
     def _get_vessel_detail_by_mmsi(self, mmsi):
         """通过MMSI调用cosco接口获取船舶档案详情"""
         try:
+            # 请求前延迟
+            if self.request_delay_seconds > 0:
+                time.sleep(self.request_delay_seconds)
+            
             url = f"http://8.153.76.2:10010/api/cosco/vessel/detail?mmsi={mmsi}"
             
             response = requests.get(url, timeout=30)
@@ -162,6 +168,10 @@ class UpdateMmsi(BaseModel):
     def _get_latest_mmsi_by_imo(self, imo):
         """通过IMO调用cosco接口获取最新的MMSI"""
         try:
+            # 请求前延迟
+            if self.request_delay_seconds > 0:
+                time.sleep(self.request_delay_seconds)
+            
             # 标准化传入的IMO，确保比较时一致
             imo_normalized = self._normalize_int_field(imo, "imo")
             if imo_normalized is None or imo_normalized <= 0:
@@ -262,7 +272,7 @@ class UpdateMmsi(BaseModel):
                     if idx % 100 == 0 or idx == total:
                         print(f"  进度: {idx}/{total} ({idx*100//total}%)")
                     
-                    # 通过imo获取最新mmsi
+                    # 通过imo获取最新mmsi（方法内部已包含延迟）
                     latest_mmsi = self._get_latest_mmsi_by_imo(imo)
                     
                     # 准备更新数据，无论是否更新MMSI，都要更新检查时间
@@ -280,6 +290,9 @@ class UpdateMmsi(BaseModel):
                         )
                         if idx % 10 == 0:  # 每10条错误才打印一次，避免日志过多
                             print(f"  未获取到最新MMSI - imo: {imo}, 当前MMSI: {current_mmsi}")
+                        # 请求失败后也需要延迟
+                        if self.request_delay_seconds > 0 and idx < total:
+                            time.sleep(self.request_delay_seconds)
                         continue
                     
                     # 判断是否需要更新
@@ -297,7 +310,7 @@ class UpdateMmsi(BaseModel):
                         updated_count += 1
                         print(f"  ✓ 更新MMSI - imo: {imo}, 原MMSI: {current_mmsi}, 新MMSI: {latest_mmsi}")
                         
-                        # MMSI更新后，立即获取新的船舶档案数据
+                        # MMSI更新后，立即获取新的船舶档案数据（方法内部已包含延迟）
                         try:
                             vessel_data = self._get_vessel_detail_by_mmsi(latest_mmsi)
                             if vessel_data:
@@ -319,6 +332,10 @@ class UpdateMmsi(BaseModel):
                         no_change_count += 1
                         # 只在调试模式下显示无需更新的信息，减少日志输出
                         # print(f"  ○ MMSI已是最新 - imo: {imo}, MMSI: {current_mmsi}")
+                    
+                    # 每个请求后额外延迟，防止请求过快
+                    if self.request_delay_seconds > 0 and idx < total:
+                        time.sleep(self.request_delay_seconds)
                         
                 except Exception as e:
                     print(f"  ✗ 处理异常 - imo: {imo}, 当前MMSI: {current_mmsi}, 错误: {e}")
