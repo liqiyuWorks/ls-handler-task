@@ -60,30 +60,93 @@ class UpdateYearOfBuild(BaseModel):
             print(f"{field_name} 字段格式异常: {value}")
             return None
 
-    def _get_latest_mmsi_by_imo(self, imo):
-        """通过IMO调用navgreen接口获取最新的MMSI"""
+    def _parse_postime(self, postime):
+        """解析postime字段，转换为datetime对象用于比较
+        例如: "2025-12-17 22:31:08" -> datetime对象
+        """
+        if not postime:
+            return None
+        
         try:
-            url = f"https://openapi.navgreen.cn/api/vessel/fuzzy?key_words={imo}&api_key={self.api_key}"
-            response = requests.get(url, timeout=30)
+            # 解析时间字符串格式: "2025-12-17 22:31:08"
+            time_str = str(postime).strip()
+            if not time_str or time_str == "-" or time_str.lower() == "null":
+                return None
+            
+            # 尝试解析时间字符串
+            time_format = "%Y-%m-%d %H:%M:%S"
+            return datetime.datetime.strptime(time_str, time_format)
+        except ValueError:
+            # 如果格式不匹配，尝试其他常见格式
+            try:
+                time_format = "%Y-%m-%d %H:%M:%S.%f"
+                return datetime.datetime.strptime(time_str, time_format)
+            except ValueError:
+                print(f"无法解析postime格式 ({postime})")
+                return None
+        except Exception as e:
+            print(f"解析postime异常 ({postime}): {e}")
+            return None
+
+    def _get_latest_mmsi_by_imo(self, imo):
+        """通过IMO调用cosco接口获取最新的MMSI"""
+        try:
+            url = "http://8.153.76.2:10010/api/cosco/vessel/fuzzy"
+            
+            payload = json.dumps({
+                "kw": str(imo),
+                "search_gb": 1,
+                "include_fish": False,
+                "cascade_type": 0,
+                "ignore_no_dynamics": False,
+                "ignore_retired": False,
+                "ignore_pinyin": False
+            })
+            
+            headers = {
+                'Content-Type': 'application/json'
+            }
+            
+            response = requests.post(url, headers=headers, data=payload, timeout=30)
             response.raise_for_status()
             res_json = response.json()
             
             # 从返回数据中提取mmsi
-            data = res_json.get("data", [])
-            if data and isinstance(data, list) and len(data) > 0:
-                # 取第一个结果的mmsi
-                first_item = data[0]
-                mmsi = first_item.get("mmsi")
-                if mmsi:
-                    mmsi = self._normalize_int_field(mmsi, "mmsi")
-                    if mmsi and mmsi > 0:
-                        return mmsi
+            data_list = res_json.get("data", [])
+            if data_list and isinstance(data_list, list) and len(data_list) > 0:
+                # 如果有多个结果，选择postime最大的（最新的）
+                best_item = None
+                best_postime = None
+                
+                for item in data_list:
+                    mmsi = item.get("mmsi") or item.get("vesselMmsi")
+                    if not mmsi:
+                        continue
+                    
+                    postime = item.get("postime")
+                    postime_dt = self._parse_postime(postime)
+                    
+                    # 选择时间最大的（最新的）
+                    if postime_dt is not None:
+                        if best_postime is None or postime_dt > best_postime:
+                            best_postime = postime_dt
+                            best_item = item
+                    elif best_postime is None:
+                        # 如果当前项没有有效时间，但还没有找到任何有效时间的项，则使用它作为备选
+                        best_item = item
+                
+                if best_item:
+                    mmsi = best_item.get("mmsi") or best_item.get("vesselMmsi")
+                    if mmsi:
+                        mmsi = self._normalize_int_field(mmsi, "mmsi")
+                        if mmsi and mmsi > 0:
+                            return mmsi
             return None
         except requests.exceptions.RequestException as e:
-            print(f"调用navgreen接口获取MMSI异常 (imo: {imo}): {e}")
+            print(f"调用cosco接口获取MMSI异常 (imo: {imo}): {e}")
             return None
         except Exception as e:
-            print(f"解析navgreen接口返回异常 (imo: {imo}): {e}")
+            print(f"解析cosco接口返回异常 (imo: {imo}): {e}")
             return None
 
     def _build_update_data(self, item):
@@ -254,7 +317,8 @@ class UpdateYearOfBuild(BaseModel):
             query = {
                 "YearOfBuild": "******",
                 "imo": {"$exists": True, "$ne": None, "$gt": 0},  # imo 必须存在且大于0
-                "mmsi": {"$exists": True, "$ne": None}  # 确保有mmsi字段
+                "mmsi": {"$exists": True, "$ne": None},  # 确保有mmsi字段
+                "type": {"$in": ["散货船", "杂货船"]}  # 只查询散货船和杂货船类型
             }
             
             # 获取需要更新的记录（以 imo 为唯一键）
