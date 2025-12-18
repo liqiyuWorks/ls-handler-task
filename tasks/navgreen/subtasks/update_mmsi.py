@@ -19,6 +19,11 @@ class UpdateMmsi(BaseModel):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 20))
         # 请求延迟配置（秒）
         self.request_delay_seconds = float(os.getenv('REQUEST_DELAY_SECONDS', 0.5))  # 默认0.5秒
+        # 船舶类型配置，支持多个类型，用逗号分隔，例如："散货船,杂货船"
+        vessel_types_env = os.getenv('VESSEL_TYPES', '杂货船')
+        self.vessel_types = [t.strip() for t in vessel_types_env.split(',') if t.strip()]
+        if not self.vessel_types:
+            self.vessel_types = ['散货船']  # 如果环境变量为空，使用默认值
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -367,7 +372,8 @@ class UpdateMmsi(BaseModel):
         """主执行方法"""
         try:
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            print("开始检查并更新干散货和杂货船的MMSI:", dataTime)
+            vessel_types_str = ', '.join(self.vessel_types)
+            print(f"开始检查并更新{vessel_types_str}的MMSI:", dataTime)
             
             # 计算30天前的时间
             days_threshold = 30
@@ -375,11 +381,12 @@ class UpdateMmsi(BaseModel):
             threshold_time_str = threshold_time.strftime("%Y-%m-%d %H:%M:%S")
             
             print(f"检查时间阈值: {threshold_time_str} (超过{days_threshold}天未检查的记录)")
+            print(f"船舶类型配置: {', '.join(self.vessel_types)}")
             
-            # 查询干散货和杂货船类型的记录
+            # 查询指定类型的记录
             # 条件：要么没有 mmsi_check_timestamp 字段，要么检查时间戳超过30天
             query = {
-                "type": {"$in": ["散货船"]},
+                "type": {"$in": self.vessel_types},
                 "imo": {"$exists": True, "$ne": None, "$gt": 0},  # imo 必须存在且大于0
                 "mmsi": {"$exists": True, "$ne": None},  # 确保有mmsi字段
                 "$or": [
