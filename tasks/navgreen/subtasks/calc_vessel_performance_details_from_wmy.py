@@ -462,60 +462,6 @@ def classify_weather_conditions(wind_level: int, wave_height: float) -> Dict[str
     return result
 
 
-def calculate_speed_performance_score(good_speed: float, design_speed: float, vessel_data: Dict[str, Any]) -> float:
-    """
-    计算速度性能评分
-
-    评分标准：
-    - 好天气速度与设计速度的匹配度
-    - 考虑船舶类型和载重的实际影响
-    """
-    if good_speed <= 0 or design_speed <= 0:
-        return 60.0  # 数据缺失，给予及格分
-
-    # 计算速度匹配度
-    speed_ratio = good_speed / design_speed
-
-    # 基于实际航运经验的评分
-    if speed_ratio >= 0.95:  # 达到设计速度的95%以上
-        base_score = 95
-    elif speed_ratio >= 0.90:  # 达到设计速度的90%以上
-        base_score = 90
-    elif speed_ratio >= 0.85:  # 达到设计速度的85%以上
-        base_score = 85
-    elif speed_ratio >= 0.80:  # 达到设计速度的80%以上
-        base_score = 80
-    elif speed_ratio >= 0.75:  # 达到设计速度的75%以上
-        base_score = 75
-    elif speed_ratio >= 0.70:  # 达到设计速度的70%以上
-        base_score = 70
-    else:  # 低于设计速度的70%
-        base_score = 60
-
-    # 考虑船舶类型的调整
-    vessel_type = vessel_data.get('vesselTypeNameCn', '')
-    if '集装箱' in vessel_type:
-        # 集装箱船对速度要求较高
-        if speed_ratio < 0.85:
-            base_score -= 5
-    elif 'LNG' in vessel_type or '液化气' in vessel_type:
-        # LNG船对速度要求相对较低
-        if speed_ratio >= 0.80:
-            base_score += 3
-
-    # 考虑载重的影响
-    dwt = vessel_data.get('dwt', 0)
-    if dwt > 0:
-        if dwt >= 100000:  # 大型船舶
-            if speed_ratio >= 0.85:
-                base_score += 2
-        elif dwt < 10000:  # 小型船舶
-            if speed_ratio >= 0.90:
-                base_score += 3
-
-    return min(100.0, max(0.0, base_score))
-
-
 def calculate_weather_adaptability_score(
     good_speed: float, bad_speed: float, severe_speed: float,
     moderate_speed: float, general_speed: float
@@ -640,55 +586,6 @@ def calculate_stability_score(weather_performance: Dict[str, float], vessel_data
     final_score = min(100.0, max(0.0, base_score))
     return round(final_score, 1)
 
-
-def calculate_efficiency_score(weather_performance: Dict[str, float], vessel_data: Dict[str, Any]) -> float:
-    """
-    计算效率评分
-
-    评分标准：
-    - 燃油效率（基于速度变化）
-    - 运营效率（基于天气适应性）
-    """
-    good_speed = weather_performance.get('avg_good_weather_speed', 0) or 0
-    bad_speed = weather_performance.get('avg_bad_weather_speed', 0) or 0
-
-    if good_speed <= 0:
-        return 75.0
-
-    # 基于天气适应性的效率评分
-    if bad_speed > 0:
-        efficiency_ratio = bad_speed / good_speed
-
-        if efficiency_ratio >= 0.80:
-            base_score = 95  # 效率优异
-        elif efficiency_ratio >= 0.70:
-            base_score = 90  # 效率良好
-        elif efficiency_ratio >= 0.60:
-            base_score = 85  # 效率较好
-        elif efficiency_ratio >= 0.50:
-            base_score = 80  # 效率一般
-        elif efficiency_ratio >= 0.40:
-            base_score = 75  # 效率较差
-        else:
-            base_score = 70  # 效率差
-    else:
-        base_score = 80
-
-    # 考虑船型的效率特点
-    vessel_type = vessel_data.get('vesselTypeNameCn', '')
-    if '集装箱' in vessel_type:
-        # 集装箱船对效率要求较高
-        if base_score >= 85:
-            base_score += 3
-        elif base_score < 75:
-            base_score -= 2
-    elif 'LNG' in vessel_type or '液化气' in vessel_type:
-        # LNG船效率要求相对较低
-        if base_score >= 80:
-            base_score += 2
-
-    final_score = min(100.0, max(0.0, base_score))
-    return round(final_score, 1)
 
 
 def enhanced_data_quality_control(data: List[Dict[str, Any]], design_speed: float) -> List[Dict[str, Any]]:
@@ -917,8 +814,8 @@ def validate_weather_data_consistency(data: List[Dict[str, Any]]) -> Dict[str, A
 
 class CalcVesselPerformanceDetailsFromWmy(BaseModel):
     def __init__(self):
-        # "客船,干散货,杂货船,液体散货,特种船,集装箱"]
-        self.vessel_types = os.getenv('VESSEL_TYPES', "干散货,杂货船")
+        # "客船,散货船,杂货船,液体散货,特种船,集装箱"]
+        self.vessel_types = os.getenv('VESSEL_TYPES', "散货船,杂货船")
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
         self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
         self.time_sleep = os.getenv('TIME_SLEEP', "0.1")
@@ -1701,7 +1598,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
             
             # 2. 船舶类型过滤
             if self.vessel_types:
-                query_conditions.append({"vesselTypeNameCn": {"$in": self.vessel_types}})
+                query_conditions.append({"type": {"$in": self.vessel_types}})
             
             # 3. 数据完整性条件：必须有吃水和速度
             query_conditions.append({"draught": {"$exists": True, "$ne": None, "$gt": 0}})
@@ -1757,7 +1654,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     if self.vessel_types:
                         for vessel_type in self.vessel_types:
                             type_count = self.mgo_db["global_vessels"].count_documents(
-                                {"vesselTypeNameCn": vessel_type, "imo": {"$exists": True}})
+                                {"type": vessel_type, "imo": {"$exists": True}})
                             logger.info(f"  类型 '{vessel_type}' 的记录数: {type_count} 条")
                     
                     # 检查数据完整性条件
@@ -1772,7 +1669,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                     if self.vessel_types:
                         type_data_count = self.mgo_db["global_vessels"].count_documents({
                             "imo": {"$exists": True},
-                            "vesselTypeNameCn": {"$in": self.vessel_types},
+                            "type": {"$in": self.vessel_types},
                             "draught": {"$exists": True, "$ne": None, "$gt": 0},
                             "speed": {"$exists": True, "$ne": None, "$gt": 0}
                         })
@@ -1796,7 +1693,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                             if self.vessel_types:
                                 full_condition_count = self.mgo_db["global_vessels"].count_documents({
                                     "imo": {"$exists": True},
-                                    "vesselTypeNameCn": {"$in": self.vessel_types},
+                                    "type": {"$in": self.vessel_types},
                                     "draught": {"$exists": True, "$ne": None, "$gt": 0},
                                     "speed": {"$exists": True, "$ne": None, "$gt": 0},
                                     "$or": [
@@ -1824,7 +1721,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         # 添加排序字段：散货船为0（优先），其他为1
                         "sort_priority": {
                             "$cond": [
-                                {"$eq": ["$vesselTypeNameCn", "干散货"]},
+                                {"$eq": ["$type", "散货船"]},
                                 0,  # 散货船优先级为0（优先）
                                 1   # 其他类型优先级为1
                             ]
@@ -1850,7 +1747,7 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
                         "mmsi": 1,
                         "draught": 1,
                         "speed": 1,
-                        "vesselTypeNameCn": 1,
+                        "type": 1,
                         "_id": 0
                     }
                 }
