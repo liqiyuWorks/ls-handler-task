@@ -21,25 +21,25 @@ class WeiboSpider(BaseModel):
 
         # 从环境变量获取认证信息，如果没有则使用默认值
         self.AUTHORIZATION = os.getenv(
-            "AUTHORIZATION", "WB-SUT _2A95EM5iQDeRxGeNI6VUU-CnJyjmIHXVlaKtYrDV6PUJbkdAbLVfGkWpNSJyouxsGtoPfn7F_HZQsWADJWGywazUA")
+            "AUTHORIZATION", "WB-SUT _2A95EQfR6DeRxGeNI6VUU-CnJyjmIHXVlVwCyrDV6PUJbkdAbLVfGkWpNSJyou4Mp1ONPKVqkTEKMXKRnlrxiJwqT")
         self.X_SESSIONID = os.getenv(
-            "X_SESSIONID", "FB8B58EC-EF75-4E7B-8B3B-39FA9F3FD4C4")
+            "X_SESSIONID", "0ECDE49D-D4CB-4E1D-B5FB-7230571301FA")
         self.X_LOG_UID = os.getenv("X_LOG_UID", "5627587515")
         self.X_SHANHAI_PASS = os.getenv(
-            "X_SHANHAI_PASS", "3.DO5d_NHURFe8F1d5hYGAh4Ad3lc")
+            "X_SHANHAI_PASS", "3.Mbk4rw6ZDZNzh3RDSoeTwEyE7F8")
         self.X_VALIDATOR = os.getenv(
-            "X_VALIDATOR", "i2aluK9XPAyaavYbU1yxcVTYIVKhk8qlvE5FahsN27E=")
+            "X_VALIDATOR", "vEJ4OFeqrek1ug+/0pp8t5dhAn/4B02/e2I0XRTjzPU=")
         self.GSID = os.getenv(
-            "GSID", "_2A25EM5iQDeRxGeNI6VUU-CnJyjmIHXVlaKtYrDV6PUJbkdAbLU_8kWpNSJyou3pblgVSLko_7QZyr3L3HW_B9UUi")
+            "GSID", "_2A25EQfR6DeRxGeNI6VUU-CnJyjmIHXVlVwCyrDV6PUJbkdAbLU_8kWpNSJyouyezouAS63CB7Zz64l0JedKEhfxV")
 
         # 更新请求头以匹配curl命令
         self.HEADER = {
             'Accept-Language': 'en-US,en',
             'X-Sessionid': self.X_SESSIONID,
             'SNRT': 'normal',
-            'cronet_rid': '7557284',
+            'cronet_rid': '5504886',
             'x-shanhai-pass': self.X_SHANHAI_PASS,
-            'User-Agent': 'Weibo/97034 (iPhone; iOS 26.1; Scale/3.00)',
+            'User-Agent': 'Weibo/97296 (iPhone; iOS 26.2; Scale/3.00)',
             'Authorization': self.AUTHORIZATION,
             'X-Log-Uid': self.X_LOG_UID,
             'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
@@ -117,11 +117,19 @@ class WeiboSpider(BaseModel):
 
             # 发送POST请求
             # 手动构建请求体字符串，完全匹配curl命令的格式
+            # 注意：键不需要编码，值如果已经是URL编码的（如containerid_encoded）则直接使用
+            # 已编码的字段列表（这些字段在build_post_data中已经进行了URL编码）
+            encoded_fields = {'containerid', 'fid', 'flowId', 'source_code', 'user_avatar', 'user_nickname'}
+            
             form_data_parts = []
             for k, v in post_data.items():
-                # 值已经是URL编码的，直接使用
-                form_data_parts.append('{}={}'.format(
-                    urllib.parse.quote(str(k), safe=''), str(v)))
+                v_str = str(v)
+                # 如果字段已经在build_post_data中编码过，直接使用
+                if k in encoded_fields:
+                    form_data_parts.append('{}={}'.format(k, v_str))
+                else:
+                    # 对其他字段的值进行URL编码
+                    form_data_parts.append('{}={}'.format(k, urllib.parse.quote(v_str, safe='')))
 
             request_body = '&'.join(form_data_parts)
 
@@ -379,12 +387,12 @@ class WeiboSpider(BaseModel):
         word: 搜索关键词
         search_type: 搜索类型，默认为"1"
         """
-        # 构建flowId参数（格式：100103type=1&q=关键词&t=0，需要双重URL编码）
-        flowid_str = '100103type={}&q={}&t=0'.format(search_type, word)
+        # 构建flowId参数（格式：100103type=1&q=关键词&t=1，需要双重URL编码）
+        flowid_str = '100103type={}&q={}&t=1'.format(search_type, word)
         flowid_encoded = urllib.parse.quote(flowid_str, safe='')
         flowid_double_encoded = urllib.parse.quote(flowid_encoded, safe='')
 
-        # 构建URL查询参数
+        # 构建URL查询参数（匹配curl命令中的参数）
         url_params = {
             'flowId': flowid_double_encoded,
             'invokeType': 'manual',
@@ -395,21 +403,21 @@ class WeiboSpider(BaseModel):
             'b': '0',
             'c': 'iphone',
             'dlang': 'zh-Hans-CN',
-            'from': '10FC093010',
+            'from': '10FC293010',
             'ft': '0',
             'gsid': self.GSID,
             'lang': 'zh_CN',
             'launchid': '10000365--x',
-            'networktype': '5g',
-            's': 'c9ea397b',
+            'networktype': 'wifi',
+            's': '22fae406',
             'sflag': '1',
             'skin': 'default',
-            'ua': 'iPhone18,1__weibo__15.12.0__iphone__os26.1',
+            'ua': 'iPhone18,1__weibo__15.12.2__iphone__os26.2',
             'v_f': '1',
             'v_p': '93',
             'wm': '3333_2001',
-            'ul_sid': 'AB1C2BA6-278C-44C4-8185-DC0DFB847F94',
-            'ul_hid': 'AD401B8C-CEF9-4E91-9ABF-165CCD3D9A32',
+            'ul_sid': '86817727-0937-4E6C-8FC3-7B96ECC875D9',
+            'ul_hid': '86817727-0937-4E6C-8FC3-7B96ECC875D9',
             'ul_ctime': str(int(time.time() * 1000))  # 当前时间戳（毫秒）
         }
         return url_params
@@ -423,9 +431,9 @@ class WeiboSpider(BaseModel):
         max_id: 最大ID，用于游标分页，默认为0
         topn_pos: 位置参数，用于分页，默认为17
         """
-        # 构建containerid和fid参数（格式：100103type=1&q=关键词&t=0）
+        # 构建containerid和fid参数（格式：100103type=1&q=关键词&t=1）
         # 注意：这些值需要URL编码
-        containerid_str = '100103type={}&q={}&t=0'.format(search_type, word)
+        containerid_str = '100103type={}&q={}&t=1'.format(search_type, word)
         containerid_encoded = urllib.parse.quote(containerid_str, safe='')
 
         # 构建flowId（与containerid相同）
@@ -447,7 +455,7 @@ class WeiboSpider(BaseModel):
             'ai_search_client': '1',
             'ai_search_client_opt': '1',
             'ai_tab_native_enable': '2',
-            'blog_text_size': '16',
+            'blog_text_size': '14',
             'card159164_emoji_enable': '1',
             'card267_enable': '1',
             'card89_blue_strip_opt': '1',
@@ -459,12 +467,16 @@ class WeiboSpider(BaseModel):
             'featurecode': '10000085',
             'fid': containerid_encoded,  # 与containerid相同
             'filter_label_word': '全部',
+            'float_bottom_query_source': 'pusou',
+            'float_bottom_source': 'search:ccf',
+            'float_bottom_topic_flag': '0',
+            'float_bottom_word': word,  # 使用搜索关键词
             'flowId': flowid_encoded,
             'flowVersion': '0.0.1',
             'flow_width': '402',
             'hot_feed_push': '0',
             'image_type': 'heif',
-            'interval_weibo_count': '15',
+            'interval_weibo_count': '23',
             'invokeType': 'manual',
             'is_container': '1',
             'lfid': '102803_ctg1_1780_-_ctg1_1780',
@@ -488,6 +500,7 @@ class WeiboSpider(BaseModel):
             'screen_attrs': '1206_2622_3',
             'search_mode_info': '0',
             'search_operation_header_back': '1',
+            'search_pop_id': self.X_LOG_UID,  # 使用X-Log-Uid
             'search_result_direct': '1',
             'search_result_footer_btns_enable': '1',
             'search_result_notice': '1',
@@ -498,7 +511,7 @@ class WeiboSpider(BaseModel):
             'search_vsid': search_vsid,
             'searchbar_source': 'discover_searchbar',
             'source_code': source_code_encoded,
-            'source_t': '0',
+            'source_t': '1',
             'stream_entry_id': '1',
             'sys_notify_open': '0',
             'taskType': 'loadMore',
@@ -1006,6 +1019,7 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
     微博爬虫类：专门用于收集地理教育相关数据
     核心关键词：地理、教育
     搜索关键词：地理课、地理老师、地理教材、地理书、地理试题、地理高考、地理中考、高中地理、初中地理、地理教师、地理考试等
+    支持经济区分类：根据8大经济区及其省份进行关键词扩展
     """
 
     def __init__(self):
@@ -1015,6 +1029,23 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
         collection_name = os.getenv(
             'COLLECTION', "weibo_geography_education")
 
+        # 定义8大经济区及其省份
+        self.economic_zones = {
+            "东北地区经济区": ["吉林", "辽宁", "黑龙江"],
+            "北部沿海经济区": ["北京", "天津", "河北", "山东"],
+            "东部沿海经济区": ["江苏", "浙江", "上海"],
+            "南部沿海经济区": ["广东", "福建", "海南"],
+            "黄河中游经济区": ["陕西", "山西", "内蒙古", "河南"],
+            "长江中游经济区": ["湖北", "湖南", "江西", "安徽"],
+            "西南地区经济区": ["云南", "贵州", "四川", "重庆", "广西"],
+            "西北地区经济区": ["甘肃", "青海", "宁夏", "西藏", "新疆"]
+        }
+        
+        # 获取所有省份列表
+        all_provinces = []
+        for provinces in self.economic_zones.values():
+            all_provinces.extend(provinces)
+        
         # 设置搜索关键词列表（用于搜索）
         # 基础地理教育关键词
         base_keywords = [
@@ -1025,7 +1056,7 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             "地理中学", "地理培训机构", "地理辅导班", "地理网校", "地理网课"
         ]
         
-        # 教育相关词
+        # 教育相关词（用于组合）
         education_keywords = [
             "上课", "学习", "教学", "考试", "高考", "中考", "期末", "作业", "成绩", "分数",
             "升学", "择校", "课程", "课堂", "校区", "分校", "学校", "大学", "中学", "高中", "初中",
@@ -1048,6 +1079,17 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             "地理问题", "地理分析", "地理思维", "地理素养", "地理能力", "地理技能"
         ]
         
+        # 核心地理教育词（用于与省份组合）
+        core_geo_edu_keywords = [
+            "地理", "地理课", "地理老师", "地理教师", "地理教学", "地理学习", "地理教育",
+            "地理考试", "地理高考", "地理中考", "高中地理", "初中地理", "地理教材"
+        ]
+        
+        # 核心教育词（用于与省份组合）
+        core_edu_keywords = [
+            "教育", "教学", "学习", "考试", "高考", "中考", "课程", "课堂", "学校", "教师", "老师"
+        ]
+        
         # 组合关键词：地理 + 教育相关词
         combined_keywords = []
         for geo in ["地理"]:
@@ -1058,8 +1100,43 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
         for edu in ["学习", "教学", "考试", "课程", "课堂", "作业", "成绩", "教师", "老师"]:
             combined_keywords.append(edu + "地理")
         
+        # 关键词扩展：地理教育词 + 省份
+        province_geo_keywords = []
+        for geo_edu in core_geo_edu_keywords:
+            for province in all_provinces:
+                province_geo_keywords.append(geo_edu + province)
+                province_geo_keywords.append(province + geo_edu)
+        
+        # 关键词扩展：教育词 + 省份 + 地理
+        province_edu_geo_keywords = []
+        for edu in core_edu_keywords:
+            for province in all_provinces:
+                province_edu_geo_keywords.append(edu + province + "地理")
+                province_edu_geo_keywords.append(province + edu + "地理")
+                province_edu_geo_keywords.append(province + "地理" + edu)
+        
+        # 关键词扩展：经济区名称 + 地理教育词
+        zone_geo_keywords = []
+        for zone_name in self.economic_zones.keys():
+            for geo_edu in core_geo_edu_keywords[:8]:  # 取前8个核心词
+                zone_geo_keywords.append(zone_name + geo_edu)
+                zone_geo_keywords.append(geo_edu + zone_name)
+        
+        # 关键词扩展：省份 + 地理教育相关组合
+        province_combined_keywords = []
+        for province in all_provinces:
+            # 省份 + 地理 + 教育词
+            for edu in ["教育", "教学", "学习", "考试", "课程", "学校"]:
+                province_combined_keywords.append(province + "地理" + edu)
+                province_combined_keywords.append(province + edu + "地理")
+            # 地理 + 省份 + 教育词
+            for edu in ["教育", "教学", "学习"]:
+                province_combined_keywords.append("地理" + province + edu)
+        
         # 合并所有关键词
-        words_list = base_keywords + education_keywords + geography_keywords + combined_keywords
+        words_list = (base_keywords + education_keywords + geography_keywords + 
+                     combined_keywords + province_geo_keywords + province_edu_geo_keywords + 
+                     zone_geo_keywords + province_combined_keywords)
         # 去重并保持顺序
         seen = set()
         words_list = [x for x in words_list if not (x in seen or seen.add(x))]
@@ -1178,6 +1255,37 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
         
         return has_geography and has_education
 
+    def identify_province_and_zone(self, text):
+        """
+        识别文本中提到的省份和经济区
+        Args:
+            text: 微博文本内容
+        Returns:
+            tuple: (省份列表, 经济区列表)
+        """
+        identified_provinces = []
+        identified_zones = []
+        
+        if not text:
+            return identified_provinces, identified_zones
+        
+        # 检查每个省份
+        for zone_name, provinces in self.economic_zones.items():
+            for province in provinces:
+                if province in text:
+                    if province not in identified_provinces:
+                        identified_provinces.append(province)
+                    # 如果找到省份，也标记对应的经济区
+                    if zone_name not in identified_zones:
+                        identified_zones.append(zone_name)
+            
+            # 检查经济区名称
+            if zone_name in text:
+                if zone_name not in identified_zones:
+                    identified_zones.append(zone_name)
+        
+        return identified_provinces, identified_zones
+
     def get_data_way_2(self, items_list):
         """
         处理数据并过滤：只保留2024和2025年的数据
@@ -1253,6 +1361,9 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
                     mblog_data.get('id'), text[:50] + '...' if len(text) > 50 else text))
                 continue
 
+            # 识别文本中的省份和经济区
+            identified_provinces, identified_zones = self.identify_province_and_zone(text)
+            
             # 构建数据项
             item = {}
             item['id'] = mblog_data.get('id')
@@ -1261,13 +1372,24 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             item['location'], item['coordinates'] = self.get_location(
                 mblog_data)
             item['user'] = self.get_user(mblog_data)
+            
+            # 添加经济区分类信息
+            if identified_provinces:
+                item['provinces'] = identified_provinces
+            if identified_zones:
+                item['economic_zones'] = identified_zones
 
             # 保存数据
             try:
                 self.mgo.set(None, item)
                 saved_count += 1
-                logging.info('保存数据成功: id={}, year={}, date={}, user={}, text={}'.format(
-                    item['id'], year, item['date'], item['user'], text[:30] + '...' if len(text) > 30 else text))
+                log_msg = '保存数据成功: id={}, year={}, date={}, user={}'.format(
+                    item['id'], year, item['date'], item['user'])
+                if identified_zones:
+                    log_msg += ', 经济区: {}'.format(','.join(identified_zones))
+                if identified_provinces:
+                    log_msg += ', 省份: {}'.format(','.join(identified_provinces))
+                logging.info(log_msg)
             except Exception as e:
                 logging.error('保存数据失败: id={}, 错误: {}'.format(item['id'], e))
                 skipped_count += 1
