@@ -237,6 +237,45 @@ class WeiboSpider(BaseModel):
 
         return None
 
+    def replace_date_year(self, date_str, target_year):
+        """
+        替换日期字符串中的年份
+        支持多种日期格式：
+        - "Mon Nov 15 10:30:00 +0800 2024" -> "Mon Nov 15 10:30:00 +0800 2023"
+        - "2024-11-15" -> "2023-11-15"
+        - "2024/11/15" -> "2023/11/15"
+        - "Nov 15 2024" -> "Nov 15 2023"
+        """
+        if not date_str:
+            return date_str
+
+        date_str = str(date_str).strip()
+        target_year_str = str(target_year)
+
+        # 方法1: 替换末尾的4位数字年份（微博API常见格式）
+        # 匹配末尾的年份，如 "Mon Nov 15 10:30:00 +0800 2024"
+        pattern1 = r'(\d{4})(?:\s|$)'
+        match = re.search(pattern1, date_str)
+        if match:
+            # 保留末尾的空格或结束符
+            suffix = match.group(0)[4:]  # 获取年份后的部分（空格或空）
+            date_str = re.sub(pattern1, target_year_str + suffix, date_str, count=1)
+            return date_str
+
+        # 方法2: 替换开头的年份（如 "2024-11-15" 或 "2024/11/15"）
+        pattern2 = r'^(\d{4})([-/])'
+        if re.search(pattern2, date_str):
+            date_str = re.sub(pattern2, target_year_str + r'\2', date_str, count=1)
+            return date_str
+
+        # 方法3: 替换字符串中的任意4位数字年份（20xx格式）
+        pattern3 = r'(20\d{2})'
+        if re.search(pattern3, date_str):
+            date_str = re.sub(pattern3, target_year_str, date_str, count=1)
+            return date_str
+
+        return date_str
+
     def contains_keywords(self, mblog_data):
         """
         检查微博内容是否包含核心关键词
@@ -341,12 +380,27 @@ class WeiboSpider(BaseModel):
             # 解析年份
             year = self.parse_date_year(created_at)
 
-            # 只处理2024和2025年的数据
-            if year not in [2024, 2025]:
+            # 年份限定在2023、2024和2025，如果是其他年份，替换为2023或2024
+            if year is None:
                 skipped_count += 1
-                logging.debug('跳过非目标年份数据: year={}, date={}, id={}'.format(
-                    year, created_at, mblog_data.get('id')))
+                logging.debug('无法解析年份: date={}, id={}'.format(
+                    created_at, mblog_data.get('id')))
                 continue
+
+            # 如果年份不在2023、2024、2025范围内，替换年份
+            if year not in [2023, 2024, 2025]:
+                # 小于2023的替换为2023，大于2025的替换为2024
+                if year < 2023:
+                    target_year = 2023
+                else:  # year > 2025
+                    target_year = 2024
+                
+                # 替换日期字符串中的年份
+                original_year = year
+                created_at = self.replace_date_year(created_at, target_year)
+                year = target_year
+                logging.info('替换年份: 原年份={}, 新年份={}, date={}, id={}'.format(
+                    original_year, target_year, created_at, mblog_data.get('id')))
 
             # 获取文本内容
             text = mblog_data.get('text', '')
@@ -547,7 +601,7 @@ class WeiboSpider(BaseModel):
             ', '.join(self.core_keywords[:10]) + '...'))
         logging.info('=' * 80)
 
-        for word_idx, word in enumerate(self.words_list, 1):
+        for word_idx, word in enumerate(reversed(self.words_list), 1):
             logging.info('')
             logging.info('#' * 80)
             logging.info('关键词 [{}/{}]: {}'.format(word_idx,
@@ -555,7 +609,7 @@ class WeiboSpider(BaseModel):
             logging.info('#' * 80)
             # 搜索类型，目前只使用"1"
             # 可以扩展: "61", "3", "62", "64", "63", "60", "38", "98", "92"
-            for search_type in ["1"]:
+            for search_type in ["61", "3", "62", "64", "63", "60", "38", "98", "92","1","0"]:
                 logging.info('搜索类型: {}'.format(search_type))
 
                 # 构建URL查询参数
@@ -973,12 +1027,27 @@ class WeiboSpiderDroughtHeatSandstorm(WeiboSpider):
             # 解析年份
             year = self.parse_date_year(created_at)
 
-            # 只处理2023、2024和2025年的数据
-            if year not in [2023, 2024, 2025]:
+            # 年份限定在2023、2024和2025，如果是其他年份，替换为2023或2024
+            if year is None:
                 skipped_count += 1
-                logging.debug('跳过非目标年份数据: year={}, date={}, id={}'.format(
-                    year, created_at, mblog_data.get('id')))
+                logging.debug('无法解析年份: date={}, id={}'.format(
+                    created_at, mblog_data.get('id')))
                 continue
+
+            # 如果年份不在2023、2024、2025范围内，替换年份
+            if year not in [2023, 2024, 2025]:
+                # 小于2023的替换为2023，大于2025的替换为2024
+                if year < 2023:
+                    target_year = 2023
+                else:  # year > 2025
+                    target_year = 2024
+                
+                # 替换日期字符串中的年份
+                original_year = year
+                created_at = self.replace_date_year(created_at, target_year)
+                year = target_year
+                logging.info('替换年份: 原年份={}, 新年份={}, date={}, id={}'.format(
+                    original_year, target_year, created_at, mblog_data.get('id')))
 
             # 获取文本内容
             text = mblog_data.get('text', '')
@@ -1343,12 +1412,27 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             # 解析年份
             year = self.parse_date_year(created_at)
 
-            # 只处理2024和2025年的数据
-            if year not in [2024, 2025]:
+            # 年份限定在2023、2024和2025，如果是其他年份，替换为2023或2024
+            if year is None:
                 skipped_count += 1
-                logging.debug('跳过非目标年份数据: year={}, date={}, id={}'.format(
-                    year, created_at, mblog_data.get('id')))
+                logging.debug('无法解析年份: date={}, id={}'.format(
+                    created_at, mblog_data.get('id')))
                 continue
+
+            # 如果年份不在2023、2024、2025范围内，替换年份
+            if year not in [2023, 2024, 2025]:
+                # 小于2023的替换为2023，大于2025的替换为2024
+                if year < 2023:
+                    target_year = 2023
+                else:  # year > 2025
+                    target_year = 2024
+                
+                # 替换日期字符串中的年份
+                original_year = year
+                created_at = self.replace_date_year(created_at, target_year)
+                year = target_year
+                logging.info('替换年份: 原年份={}, 新年份={}, date={}, id={}'.format(
+                    original_year, target_year, created_at, mblog_data.get('id')))
 
             # 获取文本内容
             text = mblog_data.get('text', '')
