@@ -369,12 +369,16 @@ class WeiboSpider(BaseModel):
 
             if not mblog_data or not mblog_data.get('id'):
                 skipped_count += 1
+                logging.warning('跳过：mblog_data为空或没有id, top_item keys: {}'.format(
+                    list(top_item.keys()) if isinstance(top_item, dict) else type(top_item)))
                 continue
 
             # 获取日期
             created_at = mblog_data.get('created_at')
             if not created_at:
                 skipped_count += 1
+                logging.warning('跳过：created_at为空, id={}, mblog_data keys: {}'.format(
+                    mblog_data.get('id'), list(mblog_data.keys()) if isinstance(mblog_data, dict) else type(mblog_data)))
                 continue
 
             # 解析年份
@@ -383,7 +387,7 @@ class WeiboSpider(BaseModel):
             # 年份限定在2023、2024和2025，如果是其他年份，替换为2023或2024
             if year is None:
                 skipped_count += 1
-                logging.debug('无法解析年份: date={}, id={}'.format(
+                logging.warning('跳过：无法解析年份, date={}, id={}'.format(
                     created_at, mblog_data.get('id')))
                 continue
 
@@ -688,10 +692,21 @@ class WeiboSpider(BaseModel):
                                         consecutive_empty_pages = 0
 
                                         # 处理数据
-                                        processed_count = self.get_data_way_2(
-                                            items_list)
+                                        result = self.get_data_way_2(items_list)
+                                        if isinstance(result, tuple):
+                                            processed_count, skip_reasons = result
+                                        else:
+                                            # 兼容旧版本，如果没有返回skip_reasons
+                                            processed_count = result
+                                            skip_reasons = {}
+                                        
                                         total_saved += processed_count
                                         total_processed += total
+
+                                        # 如果所有数据都因为mblog_data为空而跳过，停止翻页
+                                        if skip_reasons.get('no_mblog_data', 0) == total and total > 0:
+                                            logging.warning('所有数据都因为mblog_data为空而跳过，停止翻页')
+                                            break
 
                                         # 尝试获取下一页的max_id和topn_pos（从响应中提取）
                                         # 遍历所有items，找到最后一个有效的微博ID
@@ -705,26 +720,28 @@ class WeiboSpider(BaseModel):
 
                                                     # 新格式：从items[].items[].data中提取
                                                     if 'items' in item:
-                                                        inner_items = item.get(
-                                                            'items', [])
+                                                        inner_items = item.get('items', [])
                                                         for inner_item in inner_items:
-                                                            if inner_item.get('category') == 'feed' and 'data' in inner_item:
-                                                                data = inner_item.get(
-                                                                    'data', {})
+                                                            category = inner_item.get('category', '')
+                                                            # 优先处理feed类型
+                                                            if category == 'feed' and 'data' in inner_item:
+                                                                data = inner_item.get('data', {})
                                                                 if data and data.get('id'):
-                                                                    temp_id = int(
-                                                                        data.get('id'))
+                                                                    temp_id = int(data.get('id'))
+                                                                    break
+                                                            # 如果没有feed类型，尝试其他有data的类型
+                                                            elif 'data' in inner_item and not temp_id:
+                                                                data = inner_item.get('data', {})
+                                                                if data and data.get('id'):
+                                                                    temp_id = int(data.get('id'))
                                                                     break
                                                     # 旧格式：从mblog中提取
                                                     elif 'mblog' in item:
-                                                        mblog = item.get(
-                                                            'mblog', {})
+                                                        mblog = item.get('mblog', {})
                                                         if mblog and mblog.get('id'):
-                                                            temp_id = int(
-                                                                mblog.get('id'))
+                                                            temp_id = int(mblog.get('id'))
                                                     elif item.get('id'):
-                                                        temp_id = int(
-                                                            item.get('id'))
+                                                        temp_id = int(item.get('id'))
 
                                                     # 如果找到有效的ID，使用它作为max_id
                                                     if temp_id:
@@ -734,11 +751,9 @@ class WeiboSpider(BaseModel):
                                                 # 更新max_id
                                                 if new_max_id:
                                                     max_id = new_max_id
-                                                    logging.info(
-                                                        '更新max_id: {}'.format(max_id))
+                                                    logging.info('更新max_id: {}'.format(max_id))
                                                 else:
-                                                    logging.warning(
-                                                        '未能提取到有效的max_id，使用当前值: {}'.format(max_id))
+                                                    logging.warning('未能提取到有效的max_id，使用当前值: {}'.format(max_id))
 
                                                 # 动态更新topn_pos（每页递增，基于实际返回的数据量）
                                                 topn_pos += total
@@ -1016,12 +1031,16 @@ class WeiboSpiderDroughtHeatSandstorm(WeiboSpider):
 
             if not mblog_data or not mblog_data.get('id'):
                 skipped_count += 1
+                logging.warning('跳过：mblog_data为空或没有id, top_item keys: {}'.format(
+                    list(top_item.keys()) if isinstance(top_item, dict) else type(top_item)))
                 continue
 
             # 获取日期
             created_at = mblog_data.get('created_at')
             if not created_at:
                 skipped_count += 1
+                logging.warning('跳过：created_at为空, id={}, mblog_data keys: {}'.format(
+                    mblog_data.get('id'), list(mblog_data.keys()) if isinstance(mblog_data, dict) else type(mblog_data)))
                 continue
 
             # 解析年份
@@ -1030,7 +1049,7 @@ class WeiboSpiderDroughtHeatSandstorm(WeiboSpider):
             # 年份限定在2023、2024和2025，如果是其他年份，替换为2023或2024
             if year is None:
                 skipped_count += 1
-                logging.debug('无法解析年份: date={}, id={}'.format(
+                logging.warning('跳过：无法解析年份, date={}, id={}'.format(
                     created_at, mblog_data.get('id')))
                 continue
 
@@ -1357,15 +1376,23 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
 
     def get_data_way_2(self, items_list):
         """
-        处理数据并过滤：只保留2024和2025年的数据
+        处理数据并过滤：只保留2023、2024和2025年的数据
         支持多种数据结构：
         1. items[].items[].data (新API格式，category="feed")
         2. cards[].card_group[].mblog (旧格式)
         3. cards[].mblog (旧格式)
         4. 其他可能的格式
+        返回: (saved_count, skip_reasons)
+        skip_reasons是一个字典，记录跳过的原因统计
         """
         saved_count = 0
         skipped_count = 0
+        skip_reasons = {
+            'no_mblog_data': 0,  # mblog_data为空或没有id
+            'no_created_at': 0,  # created_at为空
+            'no_year': 0,  # 无法解析年份
+            'save_error': 0  # 保存失败
+        }
 
         for index, top_item in enumerate(items_list):
             mblog_data = None
@@ -1374,10 +1401,19 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             if 'items' in top_item:
                 inner_items = top_item.get('items', [])
                 for inner_item in inner_items:
-                    # 只处理category为"feed"的项
-                    if inner_item.get('category') == 'feed' and 'data' in inner_item:
+                    category = inner_item.get('category', '')
+                    # 优先处理category为"feed"的项
+                    if category == 'feed' and 'data' in inner_item:
                         mblog_data = inner_item.get('data', {})
                         if mblog_data and mblog_data.get('id'):
+                            break
+                    # 如果没有feed类型，尝试其他有data的类型
+                    elif 'data' in inner_item and not mblog_data:
+                        temp_data = inner_item.get('data', {})
+                        if temp_data and temp_data.get('id') and temp_data.get('created_at'):
+                            mblog_data = temp_data
+                            logging.debug('使用非feed category数据: category={}, id={}'.format(
+                                category, temp_data.get('id')))
                             break
 
             # 旧格式1: card.card_group[].mblog
@@ -1401,12 +1437,18 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
 
             if not mblog_data or not mblog_data.get('id'):
                 skipped_count += 1
+                skip_reasons['no_mblog_data'] += 1
+                logging.warning('跳过：mblog_data为空或没有id, top_item keys: {}'.format(
+                    list(top_item.keys()) if isinstance(top_item, dict) else type(top_item)))
                 continue
 
             # 获取日期
             created_at = mblog_data.get('created_at')
             if not created_at:
                 skipped_count += 1
+                skip_reasons['no_created_at'] += 1
+                logging.warning('跳过：created_at为空, id={}, mblog_data keys: {}'.format(
+                    mblog_data.get('id'), list(mblog_data.keys()) if isinstance(mblog_data, dict) else type(mblog_data)))
                 continue
 
             # 解析年份
@@ -1415,7 +1457,8 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             # 年份限定在2023、2024和2025，如果是其他年份，替换为2023或2024
             if year is None:
                 skipped_count += 1
-                logging.debug('无法解析年份: date={}, id={}'.format(
+                skip_reasons['no_year'] += 1
+                logging.warning('跳过：无法解析年份, date={}, id={}'.format(
                     created_at, mblog_data.get('id')))
                 continue
 
@@ -1436,14 +1479,6 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
 
             # 获取文本内容
             text = mblog_data.get('text', '')
-
-            # 检查内容是否包含核心关键词（必须同时包含"地理"和"教育"相关词）
-            # 检查范围：文本内容、标题、话题等
-            if not self.contains_keywords(mblog_data):
-                skipped_count += 1
-                logging.debug('跳过不包含核心关键词的数据: id={}, text={}'.format(
-                    mblog_data.get('id'), text[:50] + '...' if len(text) > 50 else text))
-                continue
 
             # 识别文本中的省份和经济区
             identified_provinces, identified_zones = self.identify_province_and_zone(text)
@@ -1477,6 +1512,8 @@ class WeiboSpiderGeographyEducation(WeiboSpider):
             except Exception as e:
                 logging.error('保存数据失败: id={}, 错误: {}'.format(item['id'], e))
                 skipped_count += 1
+                skip_reasons['save_error'] += 1
 
-        logging.info('数据处理完成: 保存={}, 跳过={}'.format(saved_count, skipped_count))
-        return saved_count
+        logging.info('数据处理完成: 保存={}, 跳过={}, 跳过原因: {}'.format(
+            saved_count, skipped_count, skip_reasons))
+        return saved_count, skip_reasons
