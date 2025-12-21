@@ -51,12 +51,12 @@ class SpiderVesselsLloydInfo(BaseModel):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', 10))
         # "客船,干散货-ok,杂货船-ok,液体散货,特种船,集装箱"]
         self.batch_size = int(os.getenv('BATCH_SIZE', 1000))
-        # self.hifleet_types = os.getenv('HIFLEET_TYPES', None)
-        self.hifleet_types = os.getenv('HIFLEET_TYPES', None)
-        if self.hifleet_types:
-            self.hifleet_types = self.hifleet_types.split(",")
-        else:
-            self.hifleet_types = []
+        # 仅更新散货船和杂货船的数据，可通过环境变量HIFLEET_TYPES自定义
+        hifleet_types_env = os.getenv('HIFLEET_TYPES', '散货船,杂货船')
+        self.hifleet_types = [t.strip() for t in hifleet_types_env.split(',') if t.strip()]
+        if not self.hifleet_types:
+            # 如果环境变量为空，使用默认值：散货船和杂货船
+            self.hifleet_types = ['散货船', '杂货船']
 
         self.vessel_types = os.getenv('VESSEL_TYPES', "特种船")
         if self.vessel_types:
@@ -81,20 +81,14 @@ class SpiderVesselsLloydInfo(BaseModel):
             dataTime = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
             print(dataTime)
 
-            if self.hifleet_types:
-                imo_list = self.mgo_db["global_vessels"].find({
-                    "imo": {
-                        "$exists": True
-                    },
-                    "type": {"$in": self.hifleet_types}
-                }).distinct("imo")
-            else:
-                imo_list = self.mgo_db["global_vessels"].find({
-                    "imo": {
-                        "$exists": True
-                    },
-                    # "vesselTypeNameCn": {"$in": self.vessel_types}
-                }).distinct("imo")
+            # 仅查询散货船和杂货船类型的数据
+            imo_list = self.mgo_db["global_vessels"].find({
+                "imo": {
+                    "$exists": True
+                },
+                "type": {"$in": self.hifleet_types}
+            }).distinct("imo")
+            print(f"筛选条件: 船舶类型={self.hifleet_types}, 找到 {len(imo_list)} 条船舶数据")
 
             # 获取已存在的lrno列表
             existing_lrno_list = self.mgo_db["global_Lloyd_info_vessels"].distinct(
