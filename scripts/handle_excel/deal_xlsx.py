@@ -120,7 +120,7 @@ class BacktestDataProcessor:
     
     def extract_contract_type(self, filename: str) -> str:
         """
-        从文件名中提取合约类型（如 P3A, P5, P6, C3, C5）
+        从文件名中提取合约类型（如 P3A, P5, P6, C3, C5, C5TC, P5TC）
         
         Args:
             filename: 文件名
@@ -128,7 +128,7 @@ class BacktestDataProcessor:
         Returns:
             合约类型
         """
-        match = re.search(r'([PC]\d+[A-Z]?)-', filename)
+        match = re.search(r'([PC]\d+[A-Z]*)-', filename)
         if match:
             return match.group(1)
         return "UNKNOWN"
