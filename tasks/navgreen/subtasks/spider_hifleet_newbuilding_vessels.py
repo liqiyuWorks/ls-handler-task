@@ -252,25 +252,12 @@ class SpiderHifleetNewbuildingVessels(BaseModel):
                                     page_inserted += 1
                                     total_inserted += 1
                                 else:
-                                    # 更新已有记录的新造船信息
-                                    update_data = {
-                                        "is_newbuilding": True,
-                                        "newbuilding_update_time": processed_item["newbuilding_update_time"]
-                                    }
-                                    # 如果已有记录中没有某些字段，也更新这些字段
-                                    for key in ["mmsi", "shipname", "shiptype", "yearofbuild"]:
-                                        if key in processed_item and key not in existing_record:
-                                            update_data[key] = processed_item[key]
-                                    
-                                    self.mgo_db["global_vessels"].update_one(
-                                        {"imo": imo_val},
-                                        {"$set": update_data}
-                                    )
-                                    print(f"更新已有记录: imo={imo_val}, 类型={shiptype}")
+                                    # 已存在的记录跳过，不做任何更新操作
+                                    print(f"跳过已存在记录: imo={imo_val}, 类型={shiptype}, 船名={item.get('shipname', 'N/A')}")
                                     page_existing += 1
                                     total_existing += 1
 
-                            print(f"第 {page} 页完成 - 新增: {page_inserted}, 更新: {page_existing}")
+                            print(f"第 {page} 页完成 - 新增: {page_inserted}, 已存在: {page_existing}")
                             
                             # 如果这页没有新数据，可能已经到底了
                             if page_inserted == 0 and page_existing == 0:
@@ -293,7 +280,7 @@ class SpiderHifleetNewbuildingVessels(BaseModel):
 
             print("\n" + "=" * 60)
             print(f"新造船数据爬取完成！")
-            print(f"总计 - 新增: {total_inserted}, 更新: {total_existing}")
+            print(f"总计 - 新增: {total_inserted}, 已存在: {total_existing}")
             print("=" * 60)
 
         except Exception as e:
