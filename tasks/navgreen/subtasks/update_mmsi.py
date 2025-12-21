@@ -151,11 +151,12 @@ class UpdateMmsi(BaseModel):
             # 添加更新时间标记
             current_time_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             update_data["info_update"] = current_time_str
-            # 记录前一个MMSI号码
+            update_data["info_update_desc"] = "已获取到详情"
+            # 单独记录MMSI变更信息
             if previous_mmsi:
-                update_data["info_update_desc"] = f"已获取到详情（MMSI更新后：{previous_mmsi} -> {mmsi_normalized}）"
+                update_data["mmsi_update_info"] = f"MMSI更新：{previous_mmsi} -> {mmsi_normalized}"
             else:
-                update_data["info_update_desc"] = f"已获取到详情（MMSI更新后：{mmsi_normalized}）"
+                update_data["mmsi_update_info"] = f"MMSI更新：{mmsi_normalized}"
             
             # 更新数据库
             self.mgo_db["global_vessels"].update_one(
@@ -306,7 +307,7 @@ class UpdateMmsi(BaseModel):
                         update_data.update({
                             "mmsi": latest_mmsi,
                             "info_update": current_time_str,
-                            "info_update_desc": f"已更新MMSI: {current_mmsi} -> {latest_mmsi}"
+                            "mmsi_update_info": f"MMSI更新：{current_mmsi} -> {latest_mmsi}"
                         })
                         self.mgo_db["global_vessels"].update_one(
                             {"imo": imo},
