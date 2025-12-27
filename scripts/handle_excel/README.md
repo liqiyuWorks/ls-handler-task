@@ -41,7 +41,7 @@ python3 scripts/handle_excel/deal_xlsx.py
 ### 方法 3: 直接运行（使用默认配置）
 
 如果环境变量未设置，脚本会使用默认的 MongoDB 配置：
-- Host: 153.35.96.86
+- Host: 153.35.13.226
 - Port: 27017
 - Database: aquabridge
 - User: aquabridge

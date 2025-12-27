@@ -13,12 +13,12 @@ from loguru import logger
 import os
 
 
-# export REDIS_HOST=153.35.96.86
+# export REDIS_HOST=153.35.13.226
 # export REDIS_PORT=6379
 # export REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 # export SELECTED_DIRECTORY=navgreen
 
-REDIS_HOST = os.getenv('REDIS_HOST', '153.35.96.86')
+REDIS_HOST = os.getenv('REDIS_HOST', '153.35.13.226')
 REDIS_PORT = os.getenv('REDIS_PORT', 6379)
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', "5S4Zt7wCCktYJnpAQPHZ")
 REDIS_DB = os.getenv('REDIS_DB', 1)

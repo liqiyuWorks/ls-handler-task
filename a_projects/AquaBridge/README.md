@@ -28,7 +28,7 @@ playwright install firefox
 {
   "mongodb": {
     "enabled": true,
-    "host": "153.35.96.86",
+    "host": "153.35.13.226",
     "port": 27017,
     "database": "aquabridge",
     "username": "aquabridge",

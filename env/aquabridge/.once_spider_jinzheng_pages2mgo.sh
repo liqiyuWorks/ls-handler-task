@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-export MONGO_HOST=153.35.96.86
+export MONGO_HOST=153.35.13.226
 export MONGO_PORT=27017
 export MONGO_DB=aquabridge
 export MONGO_PASSWORD=Aquabridge#2025
 export MONGO_USER=aquabridge
-export CACHE_REDIS_HOST=153.35.96.86
+export CACHE_REDIS_HOST=153.35.13.226
 export CACHE_REDIS_PORT=6379
 export CACHE_REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 export SELECTED_DIRECTORY=aquabridge

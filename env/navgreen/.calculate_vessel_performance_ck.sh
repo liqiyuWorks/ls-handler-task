@@ -1,6 +1,6 @@
 @@ -1,18 +0,0 @@
 #!/usr/bin/env bash
-export MONGO_HOST=153.35.96.86
+export MONGO_HOST=153.35.13.226
 export MONGO_PORT=27017
 export MONGO_DB=navgreen
 export MONGO_PASSWORD=Navgreen#0817

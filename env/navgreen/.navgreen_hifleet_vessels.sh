@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-export MONGO_HOST=153.35.96.86
+export MONGO_HOST=153.35.13.226
 export MONGO_PORT=27017
 export MONGO_DB=navgreen
 export MONGO_PASSWORD=Navgreen#0817
 export MONGO_USER=navgreen
 
-export CACHE_REDIS_HOST=153.35.96.86
+export CACHE_REDIS_HOST=153.35.13.226
 export CACHE_REDIS_PORT=6379
 export CACHE_REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 
-export REDIS_HOST=153.35.96.86
+export REDIS_HOST=153.35.13.226
 export REDIS_PORT=6379
 export REDIS_PASSWORD=5S4Zt7wCCktYJnpAQPHZ
 export SELECTED_DIRECTORY=navgreen
@@ -17,7 +17,7 @@ export SELECTED_DIRECTORY=navgreen
 export USE_PROXY=true
 export PROXY_URL=http://127.0.0.1:7890
 export TASK_TYPE=spider_hifleet_vessels
-export WMY_URL=http://153.35.96.86
+export WMY_URL=http://153.35.13.226
 export IS_CONSUMER=0
 export RUN_ONCE=1
 export IS_OPEN_RDS=0

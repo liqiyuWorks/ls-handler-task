@@ -18,7 +18,7 @@ class MongoDBStorage:
     """MongoDB 消息存储类"""
     
     def __init__(self, 
-                 host: str = "153.35.96.86",
+                 host: str = "153.35.13.226",
                  port: int = 27017,
                  database: str = "aquabridge",
                  username: str = "aquabridge",

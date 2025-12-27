@@ -115,7 +115,7 @@ if monitor.connect_wechat():
   "export_format": "json",                    // 导出格式
   "mongodb": {                                // MongoDB 配置
     "enabled": true,                          // 是否启用 MongoDB
-    "host": "153.35.96.86",                   // 数据库主机
+    "host": "153.35.13.226",                   // 数据库主机
     "port": 27017,                            // 数据库端口
     "database": "aquabridge",                 // 数据库名称
     "username": "aquabridge",                 // 用户名

@@ -117,7 +117,7 @@ class WeChatGroupMonitor:
         
         try:
             self.mongodb_storage = MongoDBStorage(
-                host=mongodb_config.get('host', '153.35.96.86'),
+                host=mongodb_config.get('host', '153.35.13.226'),
                 port=mongodb_config.get('port', 27017),
                 database=mongodb_config.get('database', 'aquabridge'),
                 username=mongodb_config.get('username', 'aquabridge'),

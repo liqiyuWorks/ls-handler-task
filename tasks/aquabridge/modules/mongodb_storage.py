@@ -432,7 +432,7 @@ def load_config(config_file: str = "mongodb_config.json") -> Dict[str, Any]:
         logger.warning(f"配置文件不存在: {config_file}，使用默认配置")
         return {
             "enabled": True,
-            "host": "153.35.96.86",
+            "host": "153.35.13.226",
             "port": 27017,
             "database": "aquabridge",
             "username": "aquabridge",
