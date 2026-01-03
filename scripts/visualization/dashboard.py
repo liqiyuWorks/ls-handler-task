@@ -35,32 +35,72 @@ if data is None:
     st.error(f"Data file not found: {selected_file}")
 else:
     # 2. Select Product
-    # Calculate row counts per product to determine default popularity
-    product_counts = data['Product'].value_counts()
-    sorted_products = product_counts.index.tolist()
+    # Define Priority List (High liquidity first)
+    # User specifically mentioned C5TC (Baltic Capesize 5TC Avg)
+    PRIORITY_PRODUCTS = [
+        "Baltic Capesize 5TC Avg",
+        "Baltic Panamax 4TC Avg",
+        "Baltic Supramax 10TC Avg",
+        "Baltic Handysize 7TC Avg"
+    ]
+    
+    # Get all unique products
+    all_products = sorted(data['Product'].unique().tolist())
+    
+    # Split into priority and others
+    priority_list = [p for p in PRIORITY_PRODUCTS if p in all_products]
+    other_list = [p for p in all_products if p not in priority_list]
+    
+    # Combined sorted list
+    sorted_products = priority_list + other_list
     
     selected_product = st.sidebar.selectbox("Product", sorted_products)
     
     # Filter by Product
-    df_product = data[data['Product'] == selected_product]
+    df_product = data[data['Product'] == selected_product].copy()
     
     # 3. Select Contract
-    # Create label first
+    # Create label: "Month (Type)"
     df_product['Contract_Label'] = df_product['Contract Month'] + " (" + df_product['Contract Type'] + ")"
     
-    # Sort contracts by trade activity (row count)
-    contract_counts = df_product['Contract_Label'].value_counts()
-    sorted_contracts = contract_counts.index.tolist()
+    # Sort Contracts Chronologically (Time Sequence)
+    # We need to parse 'Contract Month' (e.g., "Oct 2016", "Q1 2025") to sort correctly.
+    # Since we don't have a dedicated date column for contract expiry in this view, 
+    # we can try to extract the earliest trade date for each contract as a proxy for sorting,
+    # OR try to parse the string.
+    # Using "Earliest Trade Date" is a robust proxy for chronological listing.
     
-    st.sidebar.markdown(f"**Most Active Contract**: {sorted_contracts[0] if sorted_contracts else 'None'}")
+    # Ensure 'DateTime' column is datetime type for sorting
+    df_product['DateTime'] = pd.to_datetime(df_product['Date'])
+
+    # Group by Contract Label and find min Date
+    contract_sort_map = df_product.groupby('Contract_Label')['DateTime'].min().sort_values()
+    sorted_contracts = contract_sort_map.index.tolist()
     
-    selected_contract_label = st.sidebar.selectbox("Contract", sorted_contracts)
+    # Default selection: The most recent one (last in list) or the closest forward one?
+    # Usually users want the "Front Month" (closest future). 
+    # But simply picking the last one (furthest future) or first (oldest history) might not be ideal.
+    # Let's pick the one with most recent activity (latest max date) or just default to the first one in the sorted list?
+    # TradingView usually defaults to current/front.
+    # Let's default to the *last* recorded trade's contract? Or just the top of the list (Oldest).
+    # User asked for "Normal logic", usually Front Month.
+    # Let's stick to the first in the chronological list (Oldest -> Newest).
+    
+    # However, to be helpful, let's select the one with the *latest* activity by default (likely current front month).
+    stats = df_product.groupby('Contract_Label')['DateTime'].max()
+    most_recent_contract = stats.idxmax() if not stats.empty else (sorted_contracts[0] if sorted_contracts else None)
+    
+    # Find index of most recent to set default
+    default_index = sorted_contracts.index(most_recent_contract) if most_recent_contract and most_recent_contract in sorted_contracts else 0
+    
+    st.sidebar.markdown(f"**Most Recent Contract**: {most_recent_contract if most_recent_contract else 'None'}")
+    
+    selected_contract_label = st.sidebar.selectbox("Contract", sorted_contracts, index=default_index)
     
     # Filter by Contract
     df_chart = df_product[df_product['Contract_Label'] == selected_contract_label].copy()
     
     # Sort by Date/Time
-    df_chart['DateTime'] = pd.to_datetime(df_chart['Date'])
     df_chart = df_chart.sort_values('DateTime')
     
     # --- Enhancements ---
