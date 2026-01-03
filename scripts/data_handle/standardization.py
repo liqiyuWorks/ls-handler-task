@@ -174,8 +174,53 @@ def main():
         print("Sample Output:")
         print(output_df.head())
         
-        print(f"Saving to {OUTPUT_FILE}...")
-        output_df.to_csv(OUTPUT_FILE, index=False)
+        
+        # --- 4-Hour Aggregation ---
+        print("\nAggregating 4-Hour OHLCV...")
+        # For 4H, we need to group by Product/Contract first, then resample by DateTime
+        # pd.Grouper(key='DateTime', freq='4H') is useful here.
+        
+        grouped_4h = full_df.groupby([
+            'Product', 
+            'Contract Month', 
+            'Contract Type',
+            pd.Grouper(key='DateTime', freq='4H')
+        ]).agg(aggregation)
+        
+        grouped_4h.columns = ['Volume', 'Open', 'High', 'Low', 'Close']
+        grouped_4h = grouped_4h.dropna(subset=['Open']) # Remove empty intervals
+        grouped_4h = grouped_4h.reset_index()
+        
+        # Rename DateTime to Date (or keep as Time)
+        # User output requirement: "Product, Contract Month, Date, ..."
+        # For 4H, 'Date' usually implies the start time of the bar.
+        output_4h = grouped_4h[[
+            'Product', 
+            'Contract Month', 
+            'Contract Type',
+            'DateTime', 
+            'Volume', 
+            'Open', 
+            'Close', 
+            'High', 
+            'Low'
+        ]].copy()
+        
+        output_4h.rename(columns={'DateTime': 'Date'}, inplace=True)
+        
+        # Sort strict by Time
+        output_4h = output_4h.sort_values(by=['Date', 'Product', 'Contract Month'])
+        
+        # Format Date to YYYY.MM.DD HH:MM
+        output_4h['Date'] = output_4h['Date'].dt.strftime('%Y.%m.%d %H:%M')
+        output_4h['Volume'] = output_4h['Volume'].astype(int)
+
+        print("Sample 4H Output:")
+        print(output_4h.head())
+        
+        OUTPUT_FILE_4H = OUTPUT_FILE.replace('.csv', '_4h.csv')
+        print(f"Saving to {OUTPUT_FILE_4H}...")
+        output_4h.to_csv(OUTPUT_FILE_4H, index=False)
         print("Done.")
 
     except Exception as e:
