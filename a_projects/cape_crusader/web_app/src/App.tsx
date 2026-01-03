@@ -7,88 +7,88 @@ import { Upload, Activity, ArrowRight, TrendingUp, TrendingDown, Crosshair, Doll
 // ==========================================
 
 const parseCSV = (text) => {
-  const lines = text.split('\n').filter(l => l.trim() !== '');
-  const headers = lines[0].split(',').map(h => h.trim());
-  
-  const idxProd = headers.indexOf('Product');
-  const idxMonth = headers.indexOf('Contract Month');
-  const idxDate = headers.indexOf('Date');
-  const idxClose = headers.indexOf('Close');
-  const idxHigh = headers.indexOf('High');
-  const idxLow = headers.indexOf('Low');
-  const idxOpen = headers.indexOf('Open');
+    const lines = text.split('\n').filter(l => l.trim() !== '');
+    const headers = lines[0].split(',').map(h => h.trim());
 
-  const rawData = [];
-  const productsSet = new Set();
-  const monthMap = {'Jan':0,'Feb':1,'Mar':2,'Apr':3,'May':4,'Jun':5,'Jul':6,'Aug':7,'Sep':8,'Oct':9,'Nov':10,'Dec':11};
-  
-  let minTime = Infinity;
-  let maxTime = -Infinity;
+    const idxProd = headers.indexOf('Product');
+    const idxMonth = headers.indexOf('Contract Month');
+    const idxDate = headers.indexOf('Date');
+    const idxClose = headers.indexOf('Close');
+    const idxHigh = headers.indexOf('High');
+    const idxLow = headers.indexOf('Low');
+    const idxOpen = headers.indexOf('Open');
 
-  for (let i = 1; i < lines.length; i++) {
-    const cols = lines[i].split(',');
-    if (cols.length < headers.length) continue;
+    const rawData = [];
+    const productsSet = new Set();
+    const monthMap = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 };
 
-    const product = cols[idxProd];
-    if (!product) continue;
-    productsSet.add(product);
+    let minTime = Infinity;
+    let maxTime = -Infinity;
 
-    const dateStr = cols[idxDate];
-    const parts = dateStr.split(' ');
-    const ymd = parts[0].split('.');
-    const dateObj = new Date(parseInt(ymd[0]), parseInt(ymd[1])-1, parseInt(ymd[2]), parseInt(parts[1].split(':')[0]));
-    const timeVal = dateObj.getTime();
-    
-    if (timeVal < minTime) minTime = timeVal;
-    if (timeVal > maxTime) maxTime = timeVal;
+    for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',');
+        if (cols.length < headers.length) continue;
 
-    const monthStr = cols[idxMonth];
-    const mMatch = monthStr.match(/([A-Za-z]{3})\s?(\d{2,4})/);
-    let expiryDate = null;
-    let contractMonthKey = null; // e.g. "Oct 2024"
-    
-    if (mMatch) {
-        const mName = mMatch[1]; 
-        let year = parseInt(mMatch[2]);
-        if (year < 100) year += 2000;
-        
-        const mKey = mName.charAt(0).toUpperCase() + mName.slice(1).toLowerCase();
-        const mIdx = monthMap[mKey];
-        
-        if (mIdx !== undefined) {
-             let nextM = mIdx + 1;
-             let nextY = year;
-             if(nextM > 11) { nextM = 0; nextY++; }
-             expiryDate = new Date(nextY, nextM, 1);
-             expiryDate.setDate(expiryDate.getDate() - 1);
-             contractMonthKey = `${mKey} ${year}`;
+        const product = cols[idxProd];
+        if (!product) continue;
+        productsSet.add(product);
+
+        const dateStr = cols[idxDate];
+        const parts = dateStr.split(' ');
+        const ymd = parts[0].split('.');
+        const dateObj = new Date(parseInt(ymd[0]), parseInt(ymd[1]) - 1, parseInt(ymd[2]), parseInt(parts[1].split(':')[0]));
+        const timeVal = dateObj.getTime();
+
+        if (timeVal < minTime) minTime = timeVal;
+        if (timeVal > maxTime) maxTime = timeVal;
+
+        const monthStr = cols[idxMonth];
+        const mMatch = monthStr.match(/([A-Za-z]{3})\s?(\d{2,4})/);
+        let expiryDate = null;
+        let contractMonthKey = null; // e.g. "Oct 2024"
+
+        if (mMatch) {
+            const mName = mMatch[1];
+            let year = parseInt(mMatch[2]);
+            if (year < 100) year += 2000;
+
+            const mKey = mName.charAt(0).toUpperCase() + mName.slice(1).toLowerCase();
+            const mIdx = monthMap[mKey];
+
+            if (mIdx !== undefined) {
+                let nextM = mIdx + 1;
+                let nextY = year;
+                if (nextM > 11) { nextM = 0; nextY++; }
+                expiryDate = new Date(nextY, nextM, 1);
+                expiryDate.setDate(expiryDate.getDate() - 1);
+                contractMonthKey = `${mKey} ${year}`;
+            }
         }
+
+        if (!expiryDate || isNaN(timeVal)) continue;
+
+        const close = parseFloat(cols[idxClose]);
+        if (close < 2000) continue;
+
+        rawData.push({
+            product: product,
+            date: dateObj,
+            expiry: expiryDate,
+            contractMonth: contractMonthKey,
+            close: close,
+            high: parseFloat(cols[idxHigh]),
+            low: parseFloat(cols[idxLow]),
+            open: parseFloat(cols[idxOpen]),
+            timeToExpiry: (expiryDate as any) - (dateObj as any)
+        });
     }
 
-    if (!expiryDate || isNaN(timeVal)) continue;
-
-    const close = parseFloat(cols[idxClose]);
-    if (close < 2000) continue;
-
-    rawData.push({
-      product: product,
-      date: dateObj,
-      expiry: expiryDate,
-      contractMonth: contractMonthKey,
-      close: close,
-      high: parseFloat(cols[idxHigh]),
-      low: parseFloat(cols[idxLow]),
-      open: parseFloat(cols[idxOpen]),
-      timeToExpiry: expiryDate - dateObj
-    });
-  }
-
-  return {
-      data: rawData.filter(d => d.timeToExpiry >= 0),
-      products: Array.from(productsSet).sort(),
-      minDate: new Date(minTime),
-      maxDate: new Date(maxTime)
-  };
+    return {
+        data: rawData.filter(d => d.timeToExpiry >= 0),
+        products: Array.from(productsSet).sort(),
+        minDate: new Date(minTime),
+        maxDate: new Date(maxTime)
+    };
 };
 
 // Mode A: Time Weighted
@@ -97,8 +97,8 @@ const processTimeWeightedData = (rawData, selectedProduct) => {
     const grouped = {};
     productData.forEach(d => {
         // Keep full timestamp for 4H precision
-        const k = d.date.toISOString(); 
-        if(!grouped[k]) grouped[k] = [];
+        const k = d.date.toISOString();
+        if (!grouped[k]) grouped[k] = [];
         grouped[k].push(d);
     });
 
@@ -110,36 +110,36 @@ const processTimeWeightedData = (rawData, selectedProduct) => {
         // For each timestamp, find contracts
         const contractsMap = {};
         records.forEach(r => contractsMap[r.expiry.getTime()] = r);
-        const uniqueContracts = Object.values(contractsMap).sort((a,b) => a.timeToExpiry - b.timeToExpiry);
+        const uniqueContracts = Object.values(contractsMap).sort((a: any, b: any) => a.timeToExpiry - b.timeToExpiry);
 
         if (uniqueContracts.length >= 2) {
             const m1 = uniqueContracts[0];
             const m2 = uniqueContracts[1];
 
-            const monthStart = new Date(m1.expiry);
-            monthStart.setDate(1); 
-            
-            const totalDuration = m1.expiry - monthStart;
-            const timeLeft = m1.expiry - m1.date;
-            
+            const monthStart = new Date((m1 as any).expiry);
+            monthStart.setDate(1);
+
+            const totalDuration = (m1 as any).expiry - (monthStart as any);
+            const timeLeft = (m1 as any).expiry - (m1 as any).date;
+
             let w2 = 1 - (timeLeft / totalDuration);
             w2 = Math.max(0, Math.min(1, w2));
             const w1 = 1 - w2;
 
-            const synthClose = m1.close * w1 + m2.close * w2;
-            const synthHigh = m1.high * w1 + m2.high * w2;
-            const synthLow = m1.low * w1 + m2.low * w2;
-            
+            const synthClose = (m1 as any).close * w1 + (m2 as any).close * w2;
+            const synthHigh = (m1 as any).high * w1 + (m2 as any).high * w2;
+            const synthLow = (m1 as any).low * w1 + (m2 as any).low * w2;
+
             dailyData.push({
-                date: m1.date, // Date Object
+                date: (m1 as any).date, // Date Object
                 dateStr: dateKey,
                 close: synthClose,
                 high: synthHigh,
                 low: synthLow,
-                spread: m1.close - m2.close,
+                spread: (m1 as any).close - (m2 as any).close,
                 weight_m2: w2,
-                M1_Price: m1.close,
-                M2_Price: m2.close,
+                M1_Price: (m1 as any).close,
+                M2_Price: (m2 as any).close,
                 Synthetic: synthClose
             });
         }
@@ -152,13 +152,13 @@ const processTimeWeightedData = (rawData, selectedProduct) => {
 const processSingleContractData = (rawData, selectedProduct, selectedContract) => {
     const contractData = rawData
         .filter(d => d.product === selectedProduct && d.contractMonth === selectedContract)
-        .sort((a,b) => a.date - b.date);
+        .sort((a, b) => a.date - b.date);
 
     // Group by timestamp (no heavy synthesis needed)
     const grouped = {};
     contractData.forEach(d => {
         const k = d.date.toISOString();
-        if(!grouped[k]) grouped[k] = [];
+        if (!grouped[k]) grouped[k] = [];
         grouped[k].push(d);
     });
 
@@ -168,13 +168,13 @@ const processSingleContractData = (rawData, selectedProduct, selectedContract) =
     sortedDates.forEach(dateKey => {
         const records = grouped[dateKey];
         const last = records[records.length - 1];
-        
+
         dailyData.push({
             date: last.date, // Date Object
             dateStr: dateKey,
             close: last.close,
-            high: Math.max(...records.map(r=>r.high)),
-            low: Math.min(...records.map(r=>r.low)),
+            high: Math.max(...records.map(r => r.high)),
+            low: Math.min(...records.map(r => r.low)),
             spread: 0,
             weight_m2: 0,
             M1_Price: last.close,
@@ -195,7 +195,7 @@ const resampleData = (data, timeframe) => {
     data.forEach(d => {
         let key;
         const date = new Date(d.date);
-        
+
         if (timeframe === '1D') {
             key = date.toISOString().split('T')[0];
         } else if (timeframe === '1W') {
@@ -205,7 +205,7 @@ const resampleData = (data, timeframe) => {
             const monday = new Date(date.setDate(diff));
             key = monday.toISOString().split('T')[0];
         }
-        
+
         if (!grouped[key]) grouped[key] = [];
         grouped[key].push(d);
     });
@@ -217,10 +217,10 @@ const resampleData = (data, timeframe) => {
         const bars = grouped[k];
         const first = bars[0];
         const last = bars[bars.length - 1];
-        
+
         const high = Math.max(...bars.map(b => b.high));
         const low = Math.min(...bars.map(b => b.low));
-        
+
         // Average spread/weight for simplicity in chart
         const avgSpread = bars.reduce((sum, b) => sum + b.spread, 0) / bars.length;
 
@@ -247,26 +247,26 @@ const calculateIndicators = (data, params) => {
 
     let atr = 0;
     let prevClose = data[0].close;
-    
-    let fu = 0, fl = 0, trend = 1; 
+
+    let fu = 0, fl = 0, trend = 1;
     let bu = 0, bl = 0;
 
     let emaFast = data[0].close;
     let emaSlow = data[0].close;
-    let emaSignal = 0; 
+    let emaSignal = 0;
 
-    let bs = 0, ss = 0; 
-    let bc = 0, sc = 0; 
+    let bs = 0, ss = 0;
+    let bc = 0, sc = 0;
     let bcActive = false, scActive = false;
 
     const alphaFast = 2 / (macdFast + 1);
     const alphaSlow = 2 / (macdSlow + 1);
     const alphaSig = 2 / (macdSig + 1);
-    const alphaAtr = 2 / (atrPeriod + 1); 
+    const alphaAtr = 2 / (atrPeriod + 1);
 
     const enriched = data.map((d, i) => {
         const { close, high, low } = d;
-        
+
         // 1. ATR
         const tr = Math.max(high - low, Math.abs(close - prevClose));
         if (i === 0) atr = tr;
@@ -290,28 +290,28 @@ const calculateIndicators = (data, params) => {
                 if (close > fu) trend = 1;
             }
         }
-        
+
         const stopLine = trend === 1 ? fl : fu;
 
         // 3. MACD
         emaFast = (close - emaFast) * alphaFast + emaFast;
         emaSlow = (close - emaSlow) * alphaSlow + emaSlow;
         const macdLine = emaFast - emaSlow; // DIF
-        
+
         if (i === 0) emaSignal = macdLine;
         else emaSignal = (macdLine - emaSignal) * alphaSig + emaSignal; // DEA
-        
+
         const histogram = macdLine - emaSignal;
 
         // 4. TD Sequential
-        const close4 = i >= 4 ? data[i-4].close : null;
-        const high2 = i >= 2 ? data[i-2].high : null;
-        const low2 = i >= 2 ? data[i-2].low : null;
+        const close4 = i >= 4 ? data[i - 4].close : null;
+        const high2 = i >= 2 ? data[i - 2].high : null;
+        const low2 = i >= 2 ? data[i - 2].low : null;
 
         // A. Setup Phase
         if (close4 !== null) {
-            if (close < close4) { bs++; ss = 0; } 
-            else if (close > close4) { ss++; bs = 0; } 
+            if (close < close4) { bs++; ss = 0; }
+            else if (close > close4) { ss++; bs = 0; }
             else { bs = 0; ss = 0; }
         }
         const tdB9 = bs === 9;
@@ -323,7 +323,7 @@ const calculateIndicators = (data, params) => {
 
         let tdB13 = false;
         let tdS13 = false;
-        
+
         // Use temp variable to capture value for this bar before reset
         let currentBc = 0;
         let currentSc = 0;
@@ -331,20 +331,20 @@ const calculateIndicators = (data, params) => {
         if (bcActive && low2 !== null && close <= low2) {
             bc++;
             currentBc = bc;
-            if (bc === 13) { 
-                tdB13 = true; 
-                bcActive = false; 
-                bc = 0; 
+            if (bc === 13) {
+                tdB13 = true;
+                bcActive = false;
+                bc = 0;
             }
         }
-        
+
         if (scActive && high2 !== null && close >= high2) {
             sc++;
             currentSc = sc;
-            if (sc === 13) { 
-                tdS13 = true; 
-                scActive = false; 
-                sc = 0; 
+            if (sc === 13) {
+                tdS13 = true;
+                scActive = false;
+                sc = 0;
             }
         }
 
@@ -355,10 +355,10 @@ const calculateIndicators = (data, params) => {
             atr,
             trend,
             stopLine,
-            trenderGreen: trend === 1 ? stopLine : null, 
-            trenderRed: trend === -1 ? stopLine : null,  
+            trenderGreen: trend === 1 ? stopLine : null,
+            trenderRed: trend === -1 ? stopLine : null,
             macd: { line: macdLine, signal: emaSignal, hist: histogram },
-            td: { 
+            td: {
                 buy9: tdB9, sell9: tdS9, buy13: tdB13, sell13: tdS13,
                 bs: bs > 0 ? bs : null, // Setup Count
                 ss: ss > 0 ? ss : null, // Setup Count
@@ -376,24 +376,24 @@ const runBacktest = (data, params) => {
     const INITIAL_CAPITAL = 1000000;
 
     let equity = INITIAL_CAPITAL;
-    let position = 0; 
+    let position = 0;
     let entryPrice = 0;
-    
+
     let peakEquity = INITIAL_CAPITAL;
     let maxDrawdown = 0;
-    
+
     const tradeLog = [];
     const equityCurve = [];
 
     for (let i = 1; i < data.length; i++) {
         const d = data[i];
-        const prev = data[i-1];
-        
+        const prev = data[i - 1];
+
         const price = d.close;
-        const trend = d.trend; 
+        const trend = d.trend;
         const prevTrend = prev.trend;
         const spread = d.spread;
-        
+
         const trendFlipBull = trend === 1 && prevTrend === -1;
         const trendFlipBear = trend === -1 && prevTrend === 1;
         const tdBuy9 = d.td.buy9;
@@ -431,7 +431,7 @@ const runBacktest = (data, params) => {
             const riskAmt = equity * (riskTarget / 100);
             const stopDist = 2 * d.atr;
             let rawSize = stopDist > 0 ? Math.round(riskAmt / stopDist) : 0;
-            rawSize = Math.min(rawSize, 1000); 
+            rawSize = Math.min(rawSize, 1000);
 
             if (rawSize > 0) {
                 // LONG
@@ -441,7 +441,7 @@ const runBacktest = (data, params) => {
                     let reason = trendFlipBull ? 'Trend Flip' : (tdBuy13 ? 'TD Buy 13' : 'TD Buy 9');
                     position = finalSize;
                     entryPrice = price;
-                    tradeLog.push({ date: d.dateStr, type: 'Open Long', price, size: finalSize, pnl:0, reason, equity });
+                    tradeLog.push({ date: d.dateStr, type: 'Open Long', price, size: finalSize, pnl: 0, reason, equity });
                 }
                 // SHORT
                 const entrySignalShort = trendFlipBear || (trend === -1 && (tdSell9 || tdSell13));
@@ -451,9 +451,9 @@ const runBacktest = (data, params) => {
                     let skip = false;
 
                     if (spread > spreadThreshold) {
-                        skip = true; 
+                        skip = true;
                     } else if (spread > 0) {
-                        finalSize = Math.round(rawSize * 0.5); 
+                        finalSize = Math.round(rawSize * 0.5);
                         reason += " (Backwd Cut)";
                     } else {
                         reason += " (Contango)";
@@ -462,7 +462,7 @@ const runBacktest = (data, params) => {
                     if (!skip && finalSize > 0) {
                         position = -finalSize;
                         entryPrice = price;
-                        tradeLog.push({ date: d.dateStr, type: 'Open Short', price, size: finalSize, pnl:0, reason, equity });
+                        tradeLog.push({ date: d.dateStr, type: 'Open Short', price, size: finalSize, pnl: 0, reason, equity });
                     }
                 }
             }
@@ -482,13 +482,13 @@ const runBacktest = (data, params) => {
         if (dd > maxDrawdown) maxDrawdown = dd;
     }
 
-    const days = data.length > 0 ? (new Date(data[data.length-1].date) - new Date(data[0].date)) / (1000 * 3600 * 24) : 0;
+    const days = data.length > 0 ? ((new Date(data[data.length - 1].date) as any) - (new Date(data[0].date) as any)) / (1000 * 3600 * 24) : 0;
     const years = days / 365;
     const totalReturn = (equity - INITIAL_CAPITAL) / INITIAL_CAPITAL;
-    const cagr = years > 0 ? Math.pow((equity / INITIAL_CAPITAL), 1/years) - 1 : 0;
+    const cagr = years > 0 ? Math.pow((equity / INITIAL_CAPITAL), 1 / years) - 1 : 0;
 
-    return { 
-        resultData: equityCurve, 
+    return {
+        resultData: equityCurve,
         trades: tradeLog,
         stats: { finalEquity: equity, totalReturn, cagr, maxDrawdown }
     };
@@ -518,7 +518,7 @@ const StatCard = ({ title, value, subtext, type = "neutral" }) => {
 const SignalMarker = (props) => {
     const { cx, cy, payload, visible } = props;
     if (!payload || !visible) return null;
-    
+
     const { bs, ss, bc, sc } = payload.td;
     const markers = [];
 
@@ -526,13 +526,13 @@ const SignalMarker = (props) => {
     // Buy Setup (Green, Below)
     if (bs) {
         markers.push(
-            <text key="bs" x={cx} y={cy + 15} textAnchor="middle" fill="#22c55e" fontSize={bs===9?12:9} fontWeight={bs===9?"bold":"normal"}>{bs}</text>
+            <text key="bs" x={cx} y={cy + 15} textAnchor="middle" fill="#22c55e" fontSize={bs === 9 ? 12 : 9} fontWeight={bs === 9 ? "bold" : "normal"}>{bs}</text>
         );
     }
     // Sell Setup (Red, Above)
     if (ss) {
         markers.push(
-            <text key="ss" x={cx} y={cy - 10} textAnchor="middle" fill="#ef4444" fontSize={ss===9?12:9} fontWeight={ss===9?"bold":"normal"}>{ss}</text>
+            <text key="ss" x={cx} y={cy - 10} textAnchor="middle" fill="#ef4444" fontSize={ss === 9 ? 12 : 9} fontWeight={ss === 9 ? "bold" : "normal"}>{ss}</text>
         );
     }
 
@@ -540,13 +540,13 @@ const SignalMarker = (props) => {
     // Buy Countdown (Dark Green, Further Below)
     if (bc) {
         markers.push(
-            <text key="bc" x={cx} y={cy + 28} textAnchor="middle" fill="#15803d" fontSize={bc===13?12:9} fontWeight={bc===13?"bold":"normal"}>{bc}</text>
+            <text key="bc" x={cx} y={cy + 28} textAnchor="middle" fill="#15803d" fontSize={bc === 13 ? 12 : 9} fontWeight={bc === 13 ? "bold" : "normal"}>{bc}</text>
         );
     }
     // Sell Countdown (Dark Red, Further Above)
     if (sc) {
         markers.push(
-            <text key="sc" x={cx} y={cy - 22} textAnchor="middle" fill="#b91c1c" fontSize={sc===13?12:9} fontWeight={sc===13?"bold":"normal"}>{sc}</text>
+            <text key="sc" x={cx} y={cy - 22} textAnchor="middle" fill="#b91c1c" fontSize={sc === 13 ? 12 : 9} fontWeight={sc === 13 ? "bold" : "normal"}>{sc}</text>
         );
     }
 
@@ -556,8 +556,8 @@ const SignalMarker = (props) => {
 const TradeLogTable = ({ trades }) => {
     return (
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-             <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                <h3 className="font-bold text-slate-700 flex items-center gap-2"><List size={18}/> Trade Log</h3>
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 className="font-bold text-slate-700 flex items-center gap-2"><List size={18} /> Trade Log</h3>
                 <span className="text-xs text-slate-500">{trades.length} trades executed</span>
             </div>
             <div className="max-h-96 overflow-y-auto">
@@ -592,7 +592,7 @@ const TradeLogTable = ({ trades }) => {
                             </tr>
                         ))}
                         {trades.length === 0 && (
-                            <tr><td colSpan="7" className="p-8 text-center text-slate-400">No trades generated yet. Click "Run Backtest" to start.</td></tr>
+                            <tr><td colSpan={7} className="p-8 text-center text-slate-400">No trades generated yet. Click "Run Backtest" to start.</td></tr>
                         )}
                     </tbody>
                 </table>
@@ -610,7 +610,7 @@ export default function App() {
     const [status, setStatus] = useState("idle");
     const [rawData, setRawData] = useState([]);
     const [metadata, setMetadata] = useState({ products: [], minDate: new Date(), maxDate: new Date(), allContracts: [] });
-    
+
     const [activeConfig, setActiveConfig] = useState(null);
     const [draftConfig, setDraftConfig] = useState({ product: "", start: null, end: null, mode: "timeWeighted", contract: "" });
 
@@ -620,8 +620,8 @@ export default function App() {
         macdFast: 8,
         macdSlow: 21,
         macdSig: 5,
-        riskTarget: 2.0, 
-        spreadThreshold: 500 
+        riskTarget: 2.0,
+        spreadThreshold: 500
     });
 
     // Timeframe State
@@ -629,7 +629,7 @@ export default function App() {
 
     const [isOptimizing, setIsOptimizing] = useState(false);
     const [optResult, setOptResult] = useState(null);
-    
+
     const [layers, setLayers] = useState({
         price: true,
         trender: true,
@@ -643,13 +643,13 @@ export default function App() {
     // Helpers
     const getAvailableContracts = (product) => {
         const contracts = new Set(rawData.filter(d => d.product === product).map(d => d.contractMonth));
-        return Array.from(contracts).sort((a,b) => {
+        return Array.from(contracts).sort((a, b) => {
             const parse = (s) => {
                 const match = s.match(/([A-Za-z]{3})\s?(\d{2,4})/);
-                if(!match) return 0;
+                if (!match) return 0;
                 let y = parseInt(match[2]);
-                if(y<100) y+=2000;
-                const m = {'Jan':0,'Feb':1,'Mar':2,'Apr':3,'May':4,'Jun':5,'Jul':6,'Aug':7,'Sep':8,'Oct':9,'Nov':10,'Dec':11}[match[1]];
+                if (y < 100) y += 2000;
+                const m = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 }[match[1]];
                 return new Date(y, m).getTime();
             };
             return parse(a) - parse(b);
@@ -665,10 +665,10 @@ export default function App() {
             try {
                 const res = parseCSV(e.target.result);
                 setRawData(res.data);
-                setMetadata({ products: res.products, minDate: res.minDate, maxDate: res.maxDate });
-                const defProd = res.products.find(p => p.includes('Capesize') || p.includes('5TC')) || res.products[0];
+                setMetadata({ products: res.products, minDate: res.minDate, maxDate: res.maxDate, allContracts: [] });
+                const defProd = res.products.find((p: any) => p.includes('Capesize') || p.includes('5TC')) || res.products[0];
                 const defRange = { start: res.minDate, end: res.maxDate };
-                setDraftConfig({ product: defProd, ...defRange, mode: "timeWeighted", contract: "" });
+                setDraftConfig({ product: defProd as string, ...defRange, mode: "timeWeighted", contract: "" });
                 setActiveConfig({ product: defProd, ...defRange, mode: "timeWeighted", contract: "" });
                 setStatus("ready");
             } catch (err) {
@@ -682,9 +682,9 @@ export default function App() {
         if (!draftConfig.product) return;
         if (draftConfig.mode === "single" && !draftConfig.contract) {
             const avail = getAvailableContracts(draftConfig.product);
-            if(avail.length > 0) {
-                setDraftConfig(prev => ({...prev, contract: avail[avail.length-1]}));
-                setActiveConfig({...draftConfig, contract: avail[avail.length-1]});
+            if (avail.length > 0) {
+                setDraftConfig(prev => ({ ...prev, contract: avail[avail.length - 1] }));
+                setActiveConfig({ ...draftConfig, contract: avail[avail.length - 1] });
                 return;
             }
         }
@@ -703,7 +703,7 @@ export default function App() {
             stats: backtestRes.stats,
             last: backtestRes.resultData[backtestRes.resultData.length - 1]
         });
-        setOptResult(null); 
+        setOptResult(null);
     };
 
     const handleOptimize = async () => {
@@ -712,7 +712,7 @@ export default function App() {
         setOptResult(null);
 
         const resampled = resampleData(processedData, timeframe);
-        
+
         const atrRange = [30, 50, 70];
         const multRange = [2.0, 2.5, 3.0];
         const riskRange = [1.0, 2.0, 3.0];
@@ -722,9 +722,9 @@ export default function App() {
         let bestStats = null;
 
         setTimeout(() => {
-            for(let a of atrRange) {
-                for(let m of multRange) {
-                    for(let r of riskRange) {
+            for (let a of atrRange) {
+                for (let m of multRange) {
+                    for (let r of riskRange) {
                         const testParams = { ...stratParams, atrPeriod: a, trenderMult: m, riskTarget: r };
                         const withInd = calculateIndicators(resampled, testParams);
                         const res = runBacktest(withInd, testParams);
@@ -756,7 +756,7 @@ export default function App() {
     // Data Processing Effect
     useEffect(() => {
         if (!activeConfig || rawData.length === 0) return;
-        
+
         let result = [];
         if (activeConfig.mode === "single") {
             result = processSingleContractData(rawData, activeConfig.product, activeConfig.contract);
@@ -769,9 +769,9 @@ export default function App() {
                 return t >= s && t <= e;
             });
         }
-        
+
         setProcessedData(result);
-        setStrategyData(null); 
+        setStrategyData(null);
     }, [activeConfig, rawData]);
 
     const formatDate = (d) => d ? d.toISOString().split('T')[0] : '';
@@ -784,10 +784,10 @@ export default function App() {
         return max / (max - min);
     };
 
-    const toggleLayer = (key) => setLayers(prev => ({...prev, [key]: !prev[key]}));
+    const toggleLayer = (key) => setLayers(prev => ({ ...prev, [key]: !prev[key] }));
 
     const availableContracts = useMemo(() => {
-        if(!draftConfig.product) return [];
+        if (!draftConfig.product) return [];
         return getAvailableContracts(draftConfig.product);
     }, [draftConfig.product, rawData]);
 
@@ -808,8 +808,8 @@ export default function App() {
                     <h1 className="text-xl font-bold text-slate-800">Cape Crusader <span className="text-slate-400 font-normal">v3.6</span></h1>
                 </div>
                 <div className="flex bg-slate-100 p-1 rounded-lg">
-                    <button onClick={() => setStep(1)} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${step===1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>1. Data Processor</button>
-                    <button onClick={() => setStep(2)} disabled={status !== 'ready'} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${step===2 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>2. Strategy Analysis</button>
+                    <button onClick={() => setStep(1)} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${step === 1 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>1. Data Processor</button>
+                    <button onClick={() => setStep(2)} disabled={status !== 'ready'} className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${step === 2 ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>2. Strategy Analysis</button>
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold">
                     <Upload size={16} /> Import CSV
@@ -819,7 +819,7 @@ export default function App() {
 
             <main className="p-6 max-w-7xl mx-auto">
                 {status === "idle" && (
-                     <div className="flex flex-col items-center justify-center h-96 bg-white rounded-xl border-2 border-dashed border-slate-300 text-slate-400">
+                    <div className="flex flex-col items-center justify-center h-96 bg-white rounded-xl border-2 border-dashed border-slate-300 text-slate-400">
                         <Upload size={48} className="mb-4 text-slate-300" />
                         <p className="text-lg font-medium">Please Upload CSV</p>
                     </div>
@@ -830,30 +830,30 @@ export default function App() {
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6 grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Product</label>
-                                <select value={draftConfig.product} onChange={(e) => setDraftConfig({...draftConfig, product: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold">
+                                <select value={draftConfig.product} onChange={(e) => setDraftConfig({ ...draftConfig, product: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-bold">
                                     {metadata.products.map(p => <option key={p} value={p}>{p}</option>)}
                                 </select>
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase">Processing Mode</label>
                                 <div className="flex bg-slate-100 p-1 rounded-lg">
-                                    <button onClick={() => setDraftConfig({...draftConfig, mode: 'timeWeighted'})} className={`flex-1 text-xs py-1.5 rounded font-bold transition-all ${draftConfig.mode === 'timeWeighted' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Time Weighted</button>
-                                    <button onClick={() => setDraftConfig({...draftConfig, mode: 'single'})} className={`flex-1 text-xs py-1.5 rounded font-bold transition-all ${draftConfig.mode === 'single' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Single Contract</button>
+                                    <button onClick={() => setDraftConfig({ ...draftConfig, mode: 'timeWeighted' })} className={`flex-1 text-xs py-1.5 rounded font-bold transition-all ${draftConfig.mode === 'timeWeighted' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Time Weighted</button>
+                                    <button onClick={() => setDraftConfig({ ...draftConfig, mode: 'single' })} className={`flex-1 text-xs py-1.5 rounded font-bold transition-all ${draftConfig.mode === 'single' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}>Single Contract</button>
                                 </div>
                             </div>
                             {draftConfig.mode === 'timeWeighted' ? (
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Date Range</label>
                                     <div className="flex gap-4">
-                                        <input type="date" className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm" value={formatDate(draftConfig.start)} onChange={(e) => setDraftConfig({...draftConfig, start: new Date(e.target.value)})}/>
-                                        <ArrowRight className="text-slate-300 my-auto" size={16}/>
-                                        <input type="date" className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm" value={formatDate(draftConfig.end)} onChange={(e) => setDraftConfig({...draftConfig, end: new Date(e.target.value)})}/>
+                                        <input type="date" className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm" value={formatDate(draftConfig.start)} onChange={(e) => setDraftConfig({ ...draftConfig, start: new Date(e.target.value) })} />
+                                        <ArrowRight className="text-slate-300 my-auto" size={16} />
+                                        <input type="date" className="flex-1 p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm" value={formatDate(draftConfig.end)} onChange={(e) => setDraftConfig({ ...draftConfig, end: new Date(e.target.value) })} />
                                     </div>
                                 </div>
                             ) : (
                                 <div className="space-y-2 md:col-span-2">
                                     <label className="text-xs font-bold text-slate-500 uppercase">Select Contract Month</label>
-                                    <select value={draftConfig.contract} onChange={(e) => setDraftConfig({...draftConfig, contract: e.target.value})} className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium">
+                                    <select value={draftConfig.contract} onChange={(e) => setDraftConfig({ ...draftConfig, contract: e.target.value })} className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-sm font-medium">
                                         <option value="">-- Select Contract --</option>
                                         {availableContracts.map(c => <option key={c} value={c}>{c}</option>)}
                                     </select>
@@ -864,17 +864,17 @@ export default function App() {
                         {processedData.length > 0 && (
                             <div className="space-y-6">
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-96">
-                                    <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><Activity size={16}/> Price Data Check</h3>
+                                    <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><Activity size={16} /> Price Data Check</h3>
                                     <ResponsiveContainer width="100%" height="90%">
                                         <ComposedChart data={processedData}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                            <XAxis dataKey="dateStr" tick={{fontSize:10}} minTickGap={50} tickFormatter={tick => tick.substring(0,10)}/>
-                                            <YAxis domain={['auto','auto']} tick={{fontSize:10}} width={40} tickFormatter={fmt}/>
-                                            <Tooltip formatter={fmt}/>
-                                            <Legend/>
-                                            {processedData[0].M2_Price !== null && <Line name="M1" dataKey="M1_Price" stroke="#cbd5e1" dot={false}/>}
-                                            {processedData[0].M2_Price !== null && <Line name="M2" dataKey="M2_Price" stroke="#e2e8f0" dot={false}/>}
-                                            <Line name="Price" dataKey="close" stroke="#2563eb" strokeWidth={2} dot={false}/>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="dateStr" tick={{ fontSize: 10 }} minTickGap={50} tickFormatter={tick => tick.substring(0, 10)} />
+                                            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} width={40} tickFormatter={fmt} />
+                                            <Tooltip formatter={fmt} />
+                                            <Legend />
+                                            {processedData[0].M2_Price !== null && <Line name="M1" dataKey="M1_Price" stroke="#cbd5e1" dot={false} />}
+                                            {processedData[0].M2_Price !== null && <Line name="M2" dataKey="M2_Price" stroke="#e2e8f0" dot={false} />}
+                                            <Line name="Price" dataKey="close" stroke="#2563eb" strokeWidth={2} dot={false} />
                                         </ComposedChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -885,16 +885,16 @@ export default function App() {
                                             <AreaChart data={processedData}>
                                                 <defs>
                                                     <linearGradient id="splitColor" x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset={gradientOffset()} stopColor="#10b981" stopOpacity={0.4}/>
-                                                        <stop offset={gradientOffset()} stopColor="#ef4444" stopOpacity={0.4}/>
+                                                        <stop offset={gradientOffset()} stopColor="#10b981" stopOpacity={0.4} />
+                                                        <stop offset={gradientOffset()} stopColor="#ef4444" stopOpacity={0.4} />
                                                     </linearGradient>
                                                 </defs>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                                <XAxis dataKey="dateStr" hide/>
-                                                <YAxis width={40} tick={{fontSize:10}} tickFormatter={fmt}/>
-                                                <Tooltip formatter={fmt}/>
-                                                <ReferenceLine y={0} stroke="#000"/>
-                                                <Area type="monotone" dataKey="spread" stroke="#64748b" fill="url(#splitColor)"/>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                <XAxis dataKey="dateStr" hide />
+                                                <YAxis width={40} tick={{ fontSize: 10 }} tickFormatter={fmt} />
+                                                <Tooltip formatter={fmt} />
+                                                <ReferenceLine y={0} stroke="#000" />
+                                                <Area type="monotone" dataKey="spread" stroke="#64748b" fill="url(#splitColor)" />
                                             </AreaChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -908,25 +908,25 @@ export default function App() {
                     <div className="animate-in fade-in zoom-in-95 duration-500 space-y-6">
                         {/* 1. Params */}
                         <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 relative">
-                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Settings size={18}/> Strategy Parameters</h3>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="font-bold text-slate-800 flex items-center gap-2"><Settings size={18} /> Strategy Parameters</h3>
                                 {optResult && (
                                     <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold border border-green-200 animate-in fade-in slide-in-from-top-2">
-                                        <Check size={12}/> Optimized: CAGR {fmtPct(optResult.cagr)} / MaxDD {fmtPct(optResult.maxDrawdown)}
+                                        <Check size={12} /> Optimized: CAGR {fmtPct(optResult.cagr)} / MaxDD {fmtPct(optResult.maxDrawdown)}
                                     </div>
                                 )}
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 items-end">
-                                <div><label className="text-xs font-bold text-slate-500">ATR Period</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.atrPeriod} onChange={e=>setStratParams({...stratParams, atrPeriod: Number(e.target.value)})}/></div>
-                                <div><label className="text-xs font-bold text-slate-500">SuperTrend Mult</label><input type="number" step="0.1" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.trenderMult} onChange={e=>setStratParams({...stratParams, trenderMult: Number(e.target.value)})}/></div>
-                                <div><label className="text-xs font-bold text-slate-500">MACD Fast</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.macdFast} onChange={e=>setStratParams({...stratParams, macdFast: Number(e.target.value)})}/></div>
-                                <div><label className="text-xs font-bold text-slate-500">MACD Slow</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.macdSlow} onChange={e=>setStratParams({...stratParams, macdSlow: Number(e.target.value)})}/></div>
-                                <div><label className="text-xs font-bold text-slate-500">MACD Signal</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.macdSig} onChange={e=>setStratParams({...stratParams, macdSig: Number(e.target.value)})}/></div>
-                                <div className="bg-blue-50 p-1 rounded"><label className="text-xs font-bold text-blue-600">Risk Target %</label><input type="number" step="0.5" className="w-full p-2 border border-blue-200 rounded text-sm font-mono text-blue-700" value={stratParams.riskTarget} onChange={e=>setStratParams({...stratParams, riskTarget: Number(e.target.value)})}/></div>
-                                <div className="bg-amber-50 p-1 rounded"><label className="text-xs font-bold text-amber-600">Spread Thresh</label><input type="number" className="w-full p-2 border border-amber-200 rounded text-sm font-mono text-amber-700" value={stratParams.spreadThreshold} onChange={e=>setStratParams({...stratParams, spreadThreshold: Number(e.target.value)})}/></div>
+                                <div><label className="text-xs font-bold text-slate-500">ATR Period</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.atrPeriod} onChange={e => setStratParams({ ...stratParams, atrPeriod: Number(e.target.value) })} /></div>
+                                <div><label className="text-xs font-bold text-slate-500">SuperTrend Mult</label><input type="number" step="0.1" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.trenderMult} onChange={e => setStratParams({ ...stratParams, trenderMult: Number(e.target.value) })} /></div>
+                                <div><label className="text-xs font-bold text-slate-500">MACD Fast</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.macdFast} onChange={e => setStratParams({ ...stratParams, macdFast: Number(e.target.value) })} /></div>
+                                <div><label className="text-xs font-bold text-slate-500">MACD Slow</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.macdSlow} onChange={e => setStratParams({ ...stratParams, macdSlow: Number(e.target.value) })} /></div>
+                                <div><label className="text-xs font-bold text-slate-500">MACD Signal</label><input type="number" className="w-full p-2 border rounded text-sm font-mono" value={stratParams.macdSig} onChange={e => setStratParams({ ...stratParams, macdSig: Number(e.target.value) })} /></div>
+                                <div className="bg-blue-50 p-1 rounded"><label className="text-xs font-bold text-blue-600">Risk Target %</label><input type="number" step="0.5" className="w-full p-2 border border-blue-200 rounded text-sm font-mono text-blue-700" value={stratParams.riskTarget} onChange={e => setStratParams({ ...stratParams, riskTarget: Number(e.target.value) })} /></div>
+                                <div className="bg-amber-50 p-1 rounded"><label className="text-xs font-bold text-amber-600">Spread Thresh</label><input type="number" className="w-full p-2 border border-amber-200 rounded text-sm font-mono text-amber-700" value={stratParams.spreadThreshold} onChange={e => setStratParams({ ...stratParams, spreadThreshold: Number(e.target.value) })} /></div>
                                 <div className="col-span-2 md:col-span-1 lg:col-span-1 flex gap-2 mt-auto">
-                                    <button onClick={handleRunBacktest} disabled={isOptimizing} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow-md flex items-center justify-center h-10 disabled:opacity-50"><Play size={16} fill="currentColor"/></button>
-                                    <button onClick={handleOptimize} disabled={isOptimizing} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-bold shadow-md flex items-center justify-center h-10 disabled:opacity-50"><Sparkles size={16}/></button>
+                                    <button onClick={handleRunBacktest} disabled={isOptimizing} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow-md flex items-center justify-center h-10 disabled:opacity-50"><Play size={16} fill="currentColor" /></button>
+                                    <button onClick={handleOptimize} disabled={isOptimizing} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-lg font-bold shadow-md flex items-center justify-center h-10 disabled:opacity-50"><Sparkles size={16} /></button>
                                 </div>
                             </div>
                         </div>
@@ -942,15 +942,15 @@ export default function App() {
 
                                 {/* Main Unified Chart */}
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 flex flex-col gap-4">
-                                    
+
                                     {/* Chart Toolbar */}
                                     <div className="flex justify-between items-center border-b border-slate-100 pb-3">
                                         <div className="flex items-center gap-4">
-                                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Crosshair size={16}/> Price & Signal Analysis</h3>
-                                            
+                                            <h3 className="text-sm font-bold text-slate-700 flex items-center gap-2"><Crosshair size={16} /> Price & Signal Analysis</h3>
+
                                             {/* Timeframe Selector */}
                                             <div className="flex bg-slate-100 rounded-lg p-0.5 items-center">
-                                                <Clock size={14} className="ml-2 mr-1 text-slate-400"/>
+                                                <Clock size={14} className="ml-2 mr-1 text-slate-400" />
                                                 {['4H', '1D', '1W'].map(tf => (
                                                     <button
                                                         key={tf}
@@ -965,17 +965,17 @@ export default function App() {
 
                                         <div className="flex gap-2">
                                             {[
-                                                {id: 'price', label: 'Price', color: 'text-slate-600'},
-                                                {id: 'trender', label: 'Trender', color: 'text-indigo-600'},
-                                                {id: 'td', label: 'TD Signals', color: 'text-emerald-600'},
-                                                {id: 'macd', label: 'MACD', color: 'text-blue-600'},
+                                                { id: 'price', label: 'Price', color: 'text-slate-600' },
+                                                { id: 'trender', label: 'Trender', color: 'text-indigo-600' },
+                                                { id: 'td', label: 'TD Signals', color: 'text-emerald-600' },
+                                                { id: 'macd', label: 'MACD', color: 'text-blue-600' },
                                             ].map(L => (
-                                                <button 
+                                                <button
                                                     key={L.id}
                                                     onClick={() => toggleLayer(L.id)}
                                                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold border transition-all ${layers[L.id] ? 'bg-slate-50 border-slate-300 ' + L.color : 'bg-white border-slate-100 text-slate-300'}`}
                                                 >
-                                                    {layers[L.id] ? <Eye size={14}/> : <EyeOff size={14}/>}
+                                                    {layers[L.id] ? <Eye size={14} /> : <EyeOff size={14} />}
                                                     {L.label}
                                                 </button>
                                             ))}
@@ -985,25 +985,25 @@ export default function App() {
                                     {/* Price Chart (Always Top) */}
                                     <div style={{ height: layers.macd ? '400px' : '500px' }} className="w-full transition-all duration-300">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <ComposedChart data={strategyData.data} margin={{top:10, right:10, bottom:0, left:0}} syncId="unified">
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                                <XAxis dataKey="dateStr" tick={{fontSize:10}} minTickGap={50} hide={layers.macd} tickFormatter={formatXAxis}/>
-                                                <YAxis 
-                                                    domain={['auto', 'auto']} 
-                                                    tick={{fontSize:10}} 
-                                                    width={50} 
-                                                    tickFormatter={(value) => value.toLocaleString()} 
+                                            <ComposedChart data={strategyData.data} margin={{ top: 10, right: 10, bottom: 0, left: 0 }} syncId="unified">
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                <XAxis dataKey="dateStr" tick={{ fontSize: 10 }} minTickGap={50} hide={layers.macd} tickFormatter={formatXAxis} />
+                                                <YAxis
+                                                    domain={['auto', 'auto']}
+                                                    tick={{ fontSize: 10 }}
+                                                    width={50}
+                                                    tickFormatter={(value) => value.toLocaleString()}
                                                     label={{ value: 'Price ($)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 10, fill: '#64748b' } }}
                                                 />
-                                                <Tooltip contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}} formatter={fmt}/>
-                                                <Legend verticalAlign="top" height={36}/>
-                                                
-                                                {layers.price && <Line name="Price" dataKey="close" stroke="#334155" strokeWidth={2} dot={false}/>}
-                                                
-                                                {layers.trender && <Line name="Support (Bull)" dataKey="trenderGreen" stroke="#10b981" strokeWidth={2} dot={false} type="stepAfter"/>}
-                                                {layers.trender && <Line name="Resistance (Bear)" dataKey="trenderRed" stroke="#ef4444" strokeWidth={2} dot={false} type="stepAfter"/>}
-                                                
-                                                <Line dataKey="close" stroke="none" dot={<SignalMarker visible={layers.td}/>} legendType="none" isAnimationActive={false}/>
+                                                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }} formatter={fmt} />
+                                                <Legend verticalAlign="top" height={36} />
+
+                                                {layers.price && <Line name="Price" dataKey="close" stroke="#334155" strokeWidth={2} dot={false} />}
+
+                                                {layers.trender && <Line name="Support (Bull)" dataKey="trenderGreen" stroke="#10b981" strokeWidth={2} dot={false} type="stepAfter" />}
+                                                {layers.trender && <Line name="Resistance (Bear)" dataKey="trenderRed" stroke="#ef4444" strokeWidth={2} dot={false} type="stepAfter" />}
+
+                                                <Line dataKey="close" stroke="none" dot={<SignalMarker visible={layers.td} />} legendType="none" isAnimationActive={false} />
                                             </ComposedChart>
                                         </ResponsiveContainer>
                                     </div>
@@ -1012,12 +1012,12 @@ export default function App() {
                                     {layers.macd && (
                                         <div className="h-40 w-full border-t border-slate-50 pt-2">
                                             <ResponsiveContainer width="100%" height="100%">
-                                                <ComposedChart data={strategyData.data} margin={{top:0, right:10, bottom:0, left:0}} syncId="unified">
-                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                                    <XAxis dataKey="dateStr" tick={{fontSize:10}} minTickGap={50} height={20} tickFormatter={formatXAxis}/>
-                                                    <YAxis tick={{fontSize:10}} width={50}/>
-                                                    <Tooltip formatter={fmt}/>
-                                                    <ReferenceLine y={0} stroke="#000"/>
+                                                <ComposedChart data={strategyData.data} margin={{ top: 0, right: 10, bottom: 0, left: 0 }} syncId="unified">
+                                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                    <XAxis dataKey="dateStr" tick={{ fontSize: 10 }} minTickGap={50} height={20} tickFormatter={formatXAxis} />
+                                                    <YAxis tick={{ fontSize: 10 }} width={50} />
+                                                    <Tooltip formatter={fmt} />
+                                                    <ReferenceLine y={0} stroke="#000" />
                                                     <Bar dataKey="macd.hist" fill="#94a3b8" name="Histogram" opacity={0.3}>
                                                         {strategyData.data.map((entry, index) => (
                                                             <Cell key={`cell-${index}`} fill={entry.macd.hist > 0 ? '#10b981' : '#ef4444'} />
@@ -1033,20 +1033,20 @@ export default function App() {
                                 </div>
 
                                 <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 h-72">
-                                    <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><DollarSign size={16}/> Equity Curve</h3>
+                                    <h3 className="text-sm font-bold text-slate-700 mb-4 flex items-center gap-2"><DollarSign size={16} /> Equity Curve</h3>
                                     <ResponsiveContainer width="100%" height="90%">
                                         <AreaChart data={strategyData.data}>
                                             <defs>
                                                 <linearGradient id="eqColor" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                                                    <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
                                                 </linearGradient>
                                             </defs>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/>
-                                            <XAxis dataKey="dateStr" hide/>
-                                            <YAxis domain={['auto','auto']} tick={{fontSize:10}} width={50} tickFormatter={(val)=>`$${(val/1000).toFixed(0)}k`}/>
-                                            <Tooltip formatter={(val)=>`$${fmt(val)}`}/>
-                                            <Area type="monotone" dataKey="equity" stroke="#8b5cf6" fill="url(#eqColor)" strokeWidth={2}/>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis dataKey="dateStr" hide />
+                                            <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} width={50} tickFormatter={(val) => `$${(val / 1000).toFixed(0)}k`} />
+                                            <Tooltip formatter={(val) => `$${fmt(val)}`} />
+                                            <Area type="monotone" dataKey="equity" stroke="#8b5cf6" fill="url(#eqColor)" strokeWidth={2} />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -1054,8 +1054,8 @@ export default function App() {
                                 <TradeLogTable trades={strategyData.trades} />
                             </>
                         ) : (
-                             <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
-                                <BarChart3 size={32} className="mb-2 opacity-50"/>
+                            <div className="flex flex-col items-center justify-center h-64 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 text-slate-400">
+                                <BarChart3 size={32} className="mb-2 opacity-50" />
                                 <p>Click "Run" to generate strategy analysis ({timeframe})</p>
                             </div>
                         )}

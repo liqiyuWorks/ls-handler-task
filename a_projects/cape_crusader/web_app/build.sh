@@ -1,7 +1,7 @@
 #!/bin/bash
 
 cur_path=$(pwd)
-PROC_NAME="cape-crusader"
+PROC_NAME="cape_crusader"
 cur_time=$(date +"%Y%m%d%H%M")
 VERSION=v.${cur_time}
 
