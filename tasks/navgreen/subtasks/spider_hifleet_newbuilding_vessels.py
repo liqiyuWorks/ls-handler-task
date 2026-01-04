@@ -30,7 +30,7 @@ class SpiderHifleetNewbuildingVessels(BaseModel):
     def __init__(self):
         # 可配置参数
         self.PAGE_START = int(os.getenv('PAGE_START', '1'))
-        self.PAGE_END = int(os.getenv('PAGE_END', '5'))  # 默认最多10页
+        self.PAGE_END = int(os.getenv('PAGE_END', '2'))  # 默认最多10页
         self.HIFLEET_VESSELS_LIMIT = int(os.getenv('HIFLEET_VESSELS_LIMIT', '500'))
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
         

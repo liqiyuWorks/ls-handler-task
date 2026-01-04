@@ -817,11 +817,11 @@ class CalcVesselPerformanceDetailsFromWmy(BaseModel):
         # "客船,散货船,杂货船,液体散货,特种船,集装箱"]
         self.vessel_types = os.getenv('VESSEL_TYPES', "散货船,杂货船")
         self.wmy_url = os.getenv('WMY_URL', "http://192.168.1.128")
-        self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")
-        self.time_sleep = os.getenv('TIME_SLEEP', "0.1")
-        self.time_days = int(os.getenv('TIME_DAYS', "15"))
-        self.calc_days = int(os.getenv('CALC_DAYS', "180"))
-        self.interval_hour = os.getenv('TRACE_INTERVAL_HOUR', "6")
+        self.wmy_url_port = os.getenv('WMY_URL_PORT', "10020")  
+        self.time_sleep = os.getenv('TIME_SLEEP', "0.1")  # 时间睡眠秒数
+        self.time_days = int(os.getenv('TIME_DAYS', "15"))  # 时间天数
+        self.calc_days = int(os.getenv('CALC_DAYS', "180"))  # 计算天数
+        self.interval_hour = os.getenv('TRACE_INTERVAL_HOUR', "6")  # 轨迹间隔小时数
         self.api_key = os.getenv('API_KEY', "266102ea-ca32-4ad8-8292-17c952a81a56")
 
         if self.vessel_types:
