@@ -528,7 +528,7 @@ def load_mongo_config_from_env() -> Dict[str, Any]:
     import os
     
     return {
-        'host': os.getenv('MONGO_HOST', '153.35.96.86'),
+        'host': os.getenv('MONGO_HOST', '153.35.13.226'),
         'port': int(os.getenv('MONGO_PORT', 27017)),
         'database': os.getenv('MONGO_DB', 'aquabridge'),
         'username': os.getenv('MONGO_USER', 'aquabridge'),
