@@ -118,8 +118,40 @@ def main():
         full_df = pd.concat([df_main, df_new], ignore_index=True)
         print(f"Total rows before cleaning: {len(full_df)}")
         
-        # Drop rows with critical missing data
+        # --- Cleaning Steps ---
+        original_count = len(full_df)
+        
+        # 1. Filter out rows with critical missing data
         full_df = full_df.dropna(subset=['DateOnly', 'Price', 'Quantity', 'Product'])
+        print(f"Dropped {original_count - len(full_df)} rows due to missing critical data.")
+        
+        # 2. Filter out explicit Options
+        # Check if columns exist first to be safe
+        if 'OptionType' in full_df.columns:
+            # Keep only rows where OptionType is NaN (meaning it's not a generic option trade)
+            # Some datasets use "Option" string in Contract, but here we have explicit columns.
+            n_options = full_df['OptionType'].notna().sum()
+            full_df = full_df[full_df['OptionType'].isna()]
+            print(f"Dropped {n_options} rows identified as Options via OptionType.")
+            
+        if 'OptionStrikePrice' in full_df.columns:
+            n_strikes = full_df['OptionStrikePrice'].notna().sum()
+            full_df = full_df[full_df['OptionStrikePrice'].isna()]
+            print(f"Dropped {n_strikes} rows identified as Options via OptionStrikePrice.")
+
+        # 3. Filter out specific Low Price Outliers (Unlabeled Options)
+        # Analysis showed ~153 Capesize rows with Price < 5000 that were not marked as options.
+        # Normal C5TC is > 10,000.
+        cape_mask = (full_df['Product'] == 'Baltic Capesize 5TC Avg')
+        low_price_mask = (pd.to_numeric(full_df['Price'], errors='coerce') < 5000)
+        
+        # We want to DROP rows that are (Capesize AND LowPrice)
+        # So we KEEP rows that are NOT (Capesize AND LowPrice)
+        # i.e. (Not Capesize) OR (Price >= 5000)
+        n_outliers = (cape_mask & low_price_mask).sum()
+        full_df = full_df[~(cape_mask & low_price_mask)]
+        print(f"Dropped {n_outliers} rows identified as Low Price Outliers (Capesize < 5000).")
+
         print(f"Total rows after cleaning: {len(full_df)}")
 
         # Sort values for OHLC logic (First/Last) within the day
@@ -173,6 +205,9 @@ def main():
 
         print("Sample Output:")
         print(output_df.head())
+        
+        print(f"Saving to {OUTPUT_FILE}...")
+        output_df.to_csv(OUTPUT_FILE, index=False)
         
         
         # --- 4-Hour Aggregation ---
