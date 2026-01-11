@@ -1,0 +1,1288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI时代的超级个体：从OPC思维到Coze实战指南</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Sans+SC:wght@400;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* 核心基础样式 */
+        :root {
+            --primary-color: #2dd4bf;
+            --primary-gradient: linear-gradient(135deg, #2dd4bf 0%, #0ea5e9 100%);
+            --bg-color: #0f172a;
+            --card-bg: rgba(30, 41, 59, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image:
+                radial-gradient(at 0% 0%, rgba(45, 212, 191, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(14, 165, 233, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.15) 0px, transparent 50%);
+            display: grid;
+            gap: 40px;
+            grid-template-columns: 1fr;
+            margin: 0;
+            padding: 40px 0;
+            font-family: 'Inter', 'Noto Sans SC', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 幻灯片容器 */
+        .slide-container {
+            width: 1280px;
+            height: 720px;
+            margin: 0 auto;
+            /* Center the slide */
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 60px 80px;
+            position: relative;
+            border-radius: 24px;
+            box-shadow:
+                0 0 0 1px var(--glass-border),
+                0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* 装饰性光晕 */
+        .slide-container::before {
+            content: '';
+            position: absolute;
+            top: -200px;
+            right: -200px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(45, 212, 191, 0.15) 0%, transparent 70%);
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .slide-container>* {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 统一标题 */
+        .slide-title {
+            font-size: 48px;
+            font-weight: 800;
+            margin-bottom: 50px;
+            text-align: left;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            line-height: 1.2;
+            color: #ffffff;
+            letter-spacing: -1px;
+        }
+
+        .slide-title::before {
+            content: '';
+            display: block;
+            width: 8px;
+            height: 48px;
+            background: var(--primary-gradient);
+            margin-right: 24px;
+            border-radius: 4px;
+            box-shadow: 0 0 20px rgba(45, 212, 191, 0.5);
+        }
+
+        h3 {
+            font-size: 28px;
+            color: var(--primary-color);
+            margin-bottom: 24px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+        }
+
+        p,
+        li {
+            font-size: 20px;
+            line-height: 1.7;
+            color: var(--text-muted);
+        }
+
+        strong {
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .content-area {
+            display: flex;
+            flex-direction: column;
+            flex-grow: 1;
+            justify-content: center;
+            width: 100%;
+        }
+
+        /* 布局模式定义 */
+        .two-column {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            width: 100%;
+            align-items: center;
+        }
+
+        .two-column.tiled>div,
+        .tile {
+            background: var(--card-bg);
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            padding: 40px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        .two-column.tiled>div:hover,
+        .tile:hover {
+            transform: translateY(-5px);
+            border-color: rgba(45, 212, 191, 0.3);
+            box-shadow:
+                0 10px 30px -5px rgba(0, 0, 0, 0.3),
+                0 0 0 1px rgba(45, 212, 191, 0.1);
+        }
+
+        .image-wrapper {
+            border-radius: 20px;
+            overflow: hidden;
+            height: 400px;
+            border: 1px solid var(--glass-border);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .image-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.5s;
+        }
+
+        .image-wrapper:hover img {
+            transform: scale(1.05);
+        }
+
+        .tiled-content {
+            display: flex;
+            gap: 30px;
+            width: 100%;
+            align-items: stretch;
+        }
+
+        .tile {
+            flex: 1;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tile .icon {
+            font-size: 42px;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 24px;
+            width: fit-content;
+        }
+
+        .bullet-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .bullet-list li {
+            position: relative;
+            padding-left: 40px;
+            margin-bottom: 24px;
+        }
+
+        .bullet-list i {
+            position: absolute;
+            left: 0;
+            top: 6px;
+            color: var(--primary-color);
+            font-size: 20px;
+            filter: drop-shadow(0 0 8px rgba(45, 212, 191, 0.4));
+        }
+
+        /* 代码/Prompt 展示块 */
+        .prompt-box {
+            background: #020617;
+            border: 1px solid #1e293b;
+            border-radius: 16px;
+            padding: 30px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 16px;
+            color: #e2e8f0;
+            line-height: 1.6;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        .prompt-box::before {
+            content: '';
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            width: 10px;
+            height: 10px;
+            background: #ef4444;
+            border-radius: 50%;
+            box-shadow: 20px 0 0 #f59e0b, 40px 0 0 #22c55e;
+        }
+
+        .prompt-box>* {
+            margin-top: 10px;
+            /* Space for window controls */
+        }
+
+        .prompt-label {
+            color: var(--primary-color);
+            font-weight: 700;
+            display: inline-block;
+            margin-right: 8px;
+            margin-bottom: 4px;
+        }
+
+        .bottom-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: var(--primary-gradient);
+            box-shadow: 0 0 20px rgba(45, 212, 191, 0.5);
+        }
+
+        /* 重点数字排版 */
+        .highlight-numbers-layout {
+            display: flex;
+            align-items: center;
+            gap: 60px;
+        }
+
+        .highlight-numbers-layout .number {
+            font-size: 140px;
+            font-weight: 900;
+            line-height: 1;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: 0.8;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .highlight-numbers-layout .number-label {
+            font-size: 28px;
+            color: #fff;
+            margin-bottom: 16px;
+            font-weight: 600;
+        }
+
+        /* Gemini 互动组件样式 */
+        .interactive-tool {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid var(--primary-color);
+            border-radius: 16px;
+            padding: 30px;
+            margin-top: 30px;
+            box-shadow: 0 0 30px rgba(45, 212, 191, 0.1);
+        }
+
+        .input-area {
+            width: 100%;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px;
+            color: #fff;
+            font-size: 18px;
+            margin-bottom: 24px;
+            resize: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-area:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.2);
+        }
+
+        .gemini-btn {
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: 10px;
+            color: #0f172a;
+            padding: 14px 28px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 4px 12px rgba(45, 212, 191, 0.3);
+        }
+
+        .gemini-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(45, 212, 191, 0.4);
+        }
+
+        .gemini-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loader {
+            border: 3px solid rgba(15, 23, 42, 0.2);
+            border-radius: 50%;
+            border-top: 3px solid #0f172a;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 浮动助手按钮 (Enhanced) */
+        #ai-assistant-toggle {
+            position: fixed;
+            bottom: 40px;
+            right: 40px;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            pointer-events: none;
+        }
+
+        .floating-btn {
+            pointer-events: auto;
+            background: var(--primary-gradient);
+            color: #0f172a;
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(45, 212, 191, 0.4);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .floating-btn:hover {
+            transform: scale(1.1) rotate(15deg);
+        }
+
+        .floating-panel {
+            pointer-events: auto;
+            width: 380px;
+            max-height: 500px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            margin-bottom: 20px;
+            padding: 24px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 特殊页面样式补充 */
+        .cover-title {
+            font-size: 80px;
+            line-height: 1.1;
+            margin: 0;
+            background: linear-gradient(to bottom right, #fff 30%, #94a3b8 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 800;
+            letter-spacing: -2px;
+            text-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .cover-subtitle {
+            font-size: 32px;
+            color: var(--primary-color);
+            margin-top: 24px;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .cover-divider {
+            width: 120px;
+            height: 6px;
+            background: var(--primary-gradient);
+            margin: 50px auto;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(45, 212, 191, 0.6);
+        }
+
+        .highlight-box {
+            background: rgba(45, 212, 191, 0.05);
+            border: 2px dashed rgba(45, 212, 191, 0.5);
+            border-radius: 24px;
+            padding: 60px;
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .qa-title {
+            font-size: 140px;
+            font-weight: 900;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            letter-spacing: -5px;
+            line-height: 1;
+            filter: drop-shadow(0 10px 20px rgba(45, 212, 191, 0.3));
+        }
+
+        /* 修复 vendor prefix 警告 */
+        .icon,
+        .number,
+        .cover-title,
+        .qa-title {
+            background-clip: text;
+            -webkit-background-clip: text;
+        }
+
+        /* 对比页面样式 */
+        .comparison-item.bad h3 {
+            color: #f87171;
+        }
+
+        .comparison-item.bad .prompt-box {
+            border-color: #f87171;
+        }
+
+        .comparison-item.good h3 {
+            color: var(--primary-color);
+        }
+
+        .comparison-item.good .prompt-box {
+            border-color: var(--primary-color);
+        }
+
+        /* CapWords Award Card */
+        .award-card {
+            background: #fff;
+            color: #1e293b;
+            padding: 40px;
+            border-radius: 24px;
+            text-align: center;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            position: relative;
+        }
+
+        .award-logo {
+            font-size: 48px;
+            color: #000;
+            margin-bottom: 20px;
+        }
+
+        .award-title-group h4 {
+            font-size: 20px;
+            font-weight: 500;
+            color: #475569;
+            margin: 0;
+            margin-bottom: 10px;
+        }
+
+        .award-winner {
+            font-size: 56px;
+            font-weight: 800;
+            color: #000;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .award-category {
+            font-size: 24px;
+            color: #475569;
+            margin-top: 10px;
+            margin-bottom: 30px;
+        }
+
+        .app-icon-container {
+            width: 120px;
+            height: 120px;
+            border-radius: 28px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            margin: 0 auto 20px;
+        }
+
+        .app-icon-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .app-name {
+            font-size: 22px;
+            font-weight: 600;
+            color: #334155;
+        }
+
+        /* Platform Grid */
+        .platform-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            width: 100%;
+            margin-top: 40px;
+        }
+
+        .platform-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 24px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .platform-card.highlight {
+            border-color: var(--primary-color);
+            background: rgba(45, 212, 191, 0.1);
+            box-shadow: 0 0 30px rgba(45, 212, 191, 0.2);
+        }
+
+        .platform-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .platform-icon {
+            font-size: 24px;
+            color: #fff;
+        }
+
+        .platform-name {
+            font-size: 20px;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .platform-type {
+            font-size: 14px;
+            color: var(--primary-color);
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .platform-desc {
+            font-size: 14px;
+            line-height: 1.5;
+            color: var(--text-muted);
+        }
+
+        /* Task Flow Card */
+        .task-card {
+            background: rgba(30, 41, 59, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            padding: 30px;
+            height: 100%;
+        }
+
+        .task-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 20px;
+        }
+
+        .task-title {
+            font-size: 24px;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+        }
+
+        .flow-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .flow-node {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 15px;
+            flex: 1;
+            min-height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .flow-node.highlight {
+            border-color: var(--primary-color);
+            background: rgba(45, 212, 191, 0.05);
+        }
+
+        .flow-label {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .flow-content {
+            font-size: 16px;
+            color: #fff;
+            line-height: 1.4;
+        }
+
+        .flow-arrow {
+            color: var(--text-muted);
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- Slide 1: 封面 -->
+    <div class="slide-container" id="slide1" style="justify-content: center;">
+        <div class="content-area" style="text-align: center; flex-grow: 0;">
+            <h1 class="cover-title">AI时代的超级个体</h1>
+            <p class="cover-subtitle">从 OPC 思维到 Coze 实战指南</p>
+            <div class="cover-divider"></div>
+            <p style="font-size: 28px; color: var(--text-muted);">零基础打造你的第一个 AI 智能体</p>
+        </div>
+        <div class="bottom-bar"></div>
+    </div>
+
+    <!-- Slide 2: Pieter Levels 故事 -->
+    <div class="slide-container" id="slide2">
+        <h2 class="slide-title">一个人，12个月，12家公司</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <div>
+                    <p>主角：<strong>Pieter Levels</strong></p>
+                    <ul class="bullet-list" style="margin-top: 20px;">
+                        <li><i class="fa-solid fa-bolt"></i> <strong>挑战：</strong>为了克服完美主义，12个月创办12家公司。</li>
+                        <li><i class="fa-solid fa-chart-line"></i> <strong>成果：</strong>Nomad List 年入百万美元。</li>
+                        <li><i class="fa-solid fa-lightbulb"></i> <strong>启示：</strong>执行力 > 完美计划，一个人就是一支队伍。</li>
+                    </ul>
+                </div>
+                <div class="image-wrapper">
+                    <img src="./images/pieter_levels.jpg" alt="Digital Nomad Lifestyle"
+                        style="object-fit: cover; width: 100%; height: 100%; border-radius: 20px;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 2b: CapWords (New) -->
+    <div class="slide-container" id="slide2b">
+        <h2 class="slide-title">CapWords: 源于温度的魔法</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <div style="padding-right: 40px;">
+                    <h3 style="color: #2dd4bf; margin-bottom: 20px; font-size: 32px;">技术不需要冷冰冰</h3>
+                    <p style="font-size: 20px; line-height: 1.6; margin-bottom: 30px;">开发者 <strong>Ace Lee</strong>
+                        为了回答女儿“这个用英语怎么说”的问题，开发了这款荣获 <strong>2025年Apple设计大奖</strong> 的应用。</p>
+
+                    <ul class="bullet-list" style="margin-top: 30px;">
+                        <li style="margin-bottom: 25px;">
+                            <i class="fa-solid fa-robot" style="color: #2dd4bf;"></i>
+                            <div>
+                                <strong style="color: #fff; font-size: 20px;">AI 赋能</strong>
+                                <p style="margin: 5px 0 0 0; font-size: 18px; color: #94a3b8;">利用现成的 AI 能力 (如
+                                    VisionKit)，小团队也能创造世界级产品，无需从头训练大模型。</p>
+                            </div>
+                        </li>
+                        <li>
+                            <i class="fa-solid fa-heart" style="color: #2dd4bf;"></i>
+                            <div>
+                                <strong style="color: #fff; font-size: 20px;">创新机会</strong>
+                                <p style="margin: 5px 0 0 0; font-size: 18px; color: #94a3b8;">藏在日常生活的琐碎中，用温度解决真实痛点。</p>
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="image-wrapper"
+                    style="border: none; box-shadow: none; background: transparent; overflow: visible;">
+                    <img src="./images/capwords_lifestyle.png"
+                        style="border-radius: 20px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); width: 100%; height: auto; display: block;"
+                        alt="CapWords Lifecycle">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 3: OPC 重要性 -->
+    <div class="slide-container" id="slide3">
+        <h2 class="slide-title">为什么 AI 时代 OPC 如此重要？</h2>
+        <div class="content-area">
+            <div class="highlight-numbers-layout">
+                <div class="number">1/3</div>
+                <div>
+                    <p class="number-label">2025年新设企业呈现“单人特征”</p>
+                    <p>过去：需要组建市场、研发、客服部门。</p>
+                    <p><strong>现在：</strong>AI 使得超级个体通过 <strong>构建系统</strong> 获得成功。</p>
+                    <p style="color: #2dd4bf;">你不再是打工者，而是指挥 AI 智能体集群的指挥官。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 4: 在线演示 -->
+    <div class="slide-container" id="slide4">
+        <h2 class="slide-title">现场演示与互动体验</h2>
+        <div class="content-area">
+            <div class="highlight-box">
+                <p style="font-size: 32px; color: #fff; margin-bottom: 30px; font-weight: 700;">欢迎即刻体验：AI 教学助手</p>
+                <a href="http://lesson.lsopc.cn"
+                    style="font-size: 64px; color: #2dd4bf; text-decoration: none; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 20px rgba(45,212,191,0.4);">http://lesson.lsopc.cn</a>
+                <p style="margin-top: 40px; font-size: 24px; color: #94a3b8;">感受 AI 的即时反馈与逻辑理解力。</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 5: 为什么 AI 会胡说八道？ -->
+    <div class="slide-container" id="slide5">
+        <h2 class="slide-title">为什么 AI 会“胡说八道”？</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <div>
+                    <h3>AI 的本质：概率预测</h3>
+                    <p>大模型本质上是一个<strong>“超级文字接龙机”</strong>。它并不真的“理解”事实，而是根据概率预测下一个字。</p>
+                    <ul class="bullet-list">
+                        <li><i class="fa-solid fa-triangle-exclamation"></i> <strong>幻觉
+                                (Hallucination)：</strong>当它找不到确定答案时，为了完成对话，它会编造看似合理的谎言。</li>
+                        <li><i class="fa-solid fa-compress"></i> <strong>压缩损失：</strong>知识在训练中被压缩，细节容易模糊。</li>
+                    </ul>
+                </div>
+                <div class="tile">
+                    <h3 style="color: #fff;">垃圾进，垃圾出</h3>
+                    <p>AI 的表现 80% 取决于你的<strong>指令 (Prompt)</strong>。</p>
+                    <p style="color: #2dd4bf;">“与其埋怨 AI 笨，不如反思指令准不准。”</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 6: 模糊 vs 精准 -->
+    <div class="slide-container" id="slide6">
+        <h2 class="slide-title">“模糊提问” vs “精准指令”</h2>
+        <div class="content-area">
+            <div class="two-column tiled">
+                <div class="comparison-item bad">
+                    <h3><i class="fa-solid fa-circle-xmark"></i> 模糊提问</h3>
+                    <div class="prompt-box">
+                        “帮我推荐一下无锡好吃的。”
+                    </div>
+                    <p style="margin-top: 15px; font-size: 18px;">结果：AI 会列出大众点评前十名，大多是排队严重的网红店，未必适合你。</p>
+                </div>
+                <div class="comparison-item good">
+                    <h3><i class="fa-solid fa-circle-check"></i> 精准指令</h3>
+                    <div class="prompt-box">
+                        “你是一位无锡本地资深吃货，我是预算50元的大学生，请推荐3家南长街附近、本地人爱去且不排长队的小吃店。”
+                    </div>
+                    <p style="margin-top: 15px; font-size: 18px;">结果：AI 会锁定范围、人群、预算，给出极具参考价值的隐藏名单。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 7: 提示词万能公式 -->
+    <div class="slide-container" id="slide7">
+        <h2 class="slide-title">提示词万能公式：RBTC 框架</h2>
+        <div class="content-area">
+            <div class="tiled-content">
+                <div class="tile">
+                    <div class="icon">R</div>
+                    <h3>角色 (Role)</h3>
+                    <p>赋予 AI 专家身份，锁定知识域。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon">B</div>
+                    <h3>背景 (Background)</h3>
+                    <p>告知当前场景、用户痛点、可用资源。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon">T</div>
+                    <h3>任务 (Task)</h3>
+                    <p>明确要做什么，动作要具体。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon">C</div>
+                    <h3>约束 (Constraints)</h3>
+                    <p>规定风格、字数、禁区、格式。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 8: 实战案例：全网比价专家 -->
+    <div class="slide-container" id="slide8">
+        <h2 class="slide-title">RBTC 实战：全网比价专家</h2>
+        <div class="content-area">
+            <div class="prompt-box" style="font-size: 22px;">
+                <div><span class="prompt-label">[角色]</span> 你是一个精打细算、熟知全网电商套路的比价专家。</div>
+                <div style="margin-top: 10px;"><span class="prompt-label">[背景]</span>
+                    我是一个想在无锡过高性价比生活的大学生，预算有限，想买一台高配学习平板。</div>
+                <div style="margin-top: 10px;"><span class="prompt-label">[任务]</span>
+                    对比某东、某宝、某鱼的价格差异，识破各类虚假优惠，推荐出此时此刻的最低价购买方案。</div>
+                <div style="margin-top: 10px;"><span class="prompt-label">[约束]</span> 不许说废话，直接列出清晰的比价表，并在最后附带 3 条避坑指南。
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 9: 互动实验：提示词 ✨ 优化器 (NEW) -->
+    <div class="slide-container" id="slide9">
+        <h2 class="slide-title">互动实验：提示词 ✨ 优化器</h2>
+        <div class="content-area">
+            <p>输入你的模糊提问，Gemini 将现场将其重构为 RBTC 结构化指令。</p>
+            <div class="interactive-tool">
+                <textarea id="prompt-input" class="input-area" placeholder="例如：帮我写个减肥计划" rows="3"></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <button id="optimize-btn" class="gemini-btn">
+                        <span class="loader" id="optimize-loader"></span>
+                        ✨ 现场优化提示词
+                    </button>
+                    <p id="optimize-status" style="font-size: 16px; margin: 0;"></p>
+                </div>
+                <div id="optimized-result" class="prompt-box"
+                    style="margin-top: 20px; min-height: 100px; display: none;">
+                    <!-- Result will appear here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 10: 助手、智能体与编程 -->
+    <div class="slide-container" id="slide10">
+        <h2 class="slide-title">智能体 (Agent) 与 零基础门槛</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <div>
+                    <ul class="bullet-list">
+                        <li><i class="fa-solid fa-headset"></i> <strong>AI 助手：</strong>你问，它答（基于对话）。</li>
+                        <li><i class="fa-solid fa-robot"></i> <strong>智能体：</strong>它能自主思考，调用外部工具解决问题。</li>
+                        <li><i class="fa-solid fa-terminal"></i> <strong>编程经验：</strong><strong>不需要！</strong>
+                            现在的开发语言是“自然语言”。</li>
+                    </ul>
+                    <p style="color: #2dd4bf;">本课程面向：<strong>零基础</strong>但有想法的超级个体。</p>
+                </div>
+                <div class="image-wrapper">
+                    <img src="http://googleusercontent.com/image_collection/image_retrieval/13164331063186453031"
+                        alt="AI Agent Workflow">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 10b: Agent Platforms Comparison (New) -->
+    <div class="slide-container" id="slide10b">
+        <h2 class="slide-title">现有智能体平台概览</h2>
+        <div class="content-area">
+            <div class="platform-grid">
+                <!-- OpenAI -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-robot platform-icon"></i>
+                        <div class="platform-name">OpenAI</div>
+                    </div>
+                    <div class="platform-type">OpenAI GPTs</div>
+                    <div class="platform-desc">依托 ChatGPT 庞大用户基数，生态内闭环，适合轻量级应用。</div>
+                </div>
+
+                <!-- Dify -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-code platform-icon"></i>
+                        <div class="platform-name">Dify</div>
+                    </div>
+                    <div class="platform-type">Dify</div>
+                    <div class="platform-desc">开源、可自部署，支持多种模型，适合开发者深度定制。</div>
+                </div>
+
+                <!-- FastGPT -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-bolt platform-icon"></i>
+                        <div class="platform-name">FastGPT</div>
+                    </div>
+                    <div class="platform-type">FastGPT</div>
+                    <div class="platform-desc">专注于知识库检索增强 (RAG)，适合构建企业级知识问答。</div>
+                </div>
+
+                <!-- n8n -->
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-diagram-project platform-icon"></i>
+                        <div class="platform-name">n8n</div>
+                    </div>
+                    <div class="platform-type">n8n</div>
+                    <div class="platform-desc">强大的工作流自动化平台，深度集成AI能力，灵活性极高。</div>
+                </div>
+
+                <!-- Coze -->
+                <div class="platform-card highlight">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-cubes platform-icon" style="color: #2dd4bf;"></i>
+                        <div class="platform-name" style="color: #2dd4bf;">Coze</div>
+                    </div>
+                    <div class="platform-type">Coze (扣子)</div>
+                    <div class="platform-desc">生态极其丰富，插件与工作流编排强大，零代码友好，多平台发布。</div>
+                </div>
+            </div>
+
+            <p
+                style="text-align: center; margin-top: 40px; font-size: 24px; color: #2dd4bf; background: rgba(45, 212, 191, 0.1); padding: 15px; border-radius: 12px; border: 1px solid rgba(45, 212, 191, 0.3);">
+                <i class="fa-solid fa-check-circle"></i> 结论：综合考虑易用性、功能和生态，<strong>Coze</strong> 是目前最适合大多数场景的智能体平台。
+            </p>
+        </div>
+    </div>
+
+    <!-- Slide 11: 为什么选择 Coze -->
+    <div class="slide-container" id="slide11">
+        <h2 class="slide-title">为什么选择 Coze (扣子)？</h2>
+        <div class="content-area">
+            <div class="tiled-content">
+                <div class="tile">
+                    <div class="icon"><i class="fa-solid fa-cubes"></i></div>
+                    <h3>生态强大</h3>
+                    <p>字节跳动出品，集成海量国内主流插件。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon"><i class="fa-solid fa-share-from-square"></i></div>
+                    <h3>极易分发</h3>
+                    <p>一键发布至微信、飞书、抖音，触达用户快。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    <h3>工作流编排</h3>
+                    <p>像连连看一样设计复杂的业务逻辑。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 11b: Coze Task Preview (New) -->
+    <div class="slide-container" id="slide11b">
+        <h2 class="slide-title">Coze 初体验：你的第一个智能体</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <!-- Task 1 -->
+                <div class="task-card">
+                    <div class="task-header">
+                        <i class="fa-solid fa-comments fa-2x" style="color: #2dd4bf;"></i>
+                        <div>
+                            <h3 class="task-title">任务 1：角色扮演提示词</h3>
+                        </div>
+                    </div>
+
+                    <div class="flow-container">
+                        <div class="flow-node">
+                            <span class="flow-label">Prompt</span>
+                            <div class="flow-content">你现在是一位资深的小红书文案专家，请为我的新咖啡店写一篇探店笔记。</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right flow-arrow"></i>
+                        <div class="flow-node highlight">
+                            <span class="flow-label">AI 回复</span>
+                            <div class="flow-content">
+                                <strong>【标题】</strong> ☕️藏在街角的心动！这家新开的咖啡店太懂我了...<br>
+                                <strong>【正文】</strong> ...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task 2 -->
+                <div class="task-card">
+                    <div class="task-header">
+                        <i class="fa-solid fa-cloud-sun fa-2x" style="color: #f59e0b;"></i>
+                        <div>
+                            <h3 class="task-title">任务 2：查询天气预报</h3>
+                        </div>
+                    </div>
+
+                    <div class="flow-container">
+                        <div class="flow-node">
+                            <span class="flow-label">输入</span>
+                            <div class="flow-content">北京今天天气怎么样？</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right flow-arrow"></i>
+                        <div class="flow-node"
+                            style="min-height: auto; padding: 20px; align-items: center; text-align: center;">
+                            <i class="fa-solid fa-plug fa-2x" style="color: #2dd4bf; margin-bottom: 5px;"></i>
+                            <div style="font-size: 14px; color: #94a3b8;">Coze 天气插件</div>
+                        </div>
+                        <i class="fa-solid fa-arrow-right flow-arrow"></i>
+                        <div class="flow-node highlight">
+                            <span class="flow-label">输出</span>
+                            <div class="flow-content">北京，多云转晴，15°C-25°C，空气质量良。</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 12: Coze 初体验 - 提示词 -->
+    <div class="slide-container" id="slide12">
+        <h2 class="slide-title">Coze 实战 1：初步构建智能体</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <div>
+                    <h3>第一步：人设配置</h3>
+                    <p>在 Coze 的“人设与回复逻辑”中运用我们的 RBTC 公式。</p>
+                    <p><strong>实操练习：</strong>构建一个“职业规划导师”。</p>
+                    <p style="font-size: 18px; margin-top: 10px;">提示：多用“你必须”、“请务必”等强指令增强控制力。</p>
+                </div>
+                <div class="prompt-box">
+                    # 角色：求职面试专家<br>
+                    # 目标：帮用户润色简历<br>
+                    # 步骤：<br>
+                    1. 询问用户目标岗位<br>
+                    2. 分析现有经历<br>
+                    3. 给出 3 条具体优化建议
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 13: Coze 实战 2 - 天气预报 -->
+    <div class="slide-container" id="slide13">
+        <h2 class="slide-title">Coze 实战 2：天气预报 Agent</h2>
+        <div class="content-area">
+            <div class="two-column">
+                <div>
+                    <h3>核心功能：添加插件</h3>
+                    <ul class="bullet-list">
+                        <li>1. 在插件区搜索 <strong>“天气”</strong>。</li>
+                        <li>2. 选择 <strong>ByteArtist Weather</strong> 插件。</li>
+                        <li>3. 测试：输入“无锡明天的天气”。</li>
+                    </ul>
+                    <p style="color: #2dd4bf;">AI 会自动识别地名，调用 API 获取真实数据。</p>
+                </div>
+                <div class="image-wrapper">
+                    <img src="http://googleusercontent.com/image_collection/image_retrieval/18240439385903637210"
+                        alt="Weather App Interface">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 14: 商业延展 -->
+    <div class="slide-container" id="slide14">
+        <h2 class="slide-title">商业延展与 OPC 杠杆思维</h2>
+        <div class="content-area">
+            <div class="tiled-content">
+                <div class="tile">
+                    <div class="icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+                    <h3>技能服务化</h3>
+                    <p>将复杂的 AI 提示词流程封装成工具，售卖使用权或结果。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon"><i class="fa-solid fa-gears"></i></div>
+                    <h3>自动化套利</h3>
+                    <p>利用 Agent 批量处理信息，赚取信息差的收益。</p>
+                </div>
+                <div class="tile">
+                    <div class="icon"><i class="fa-solid fa-rocket"></i></div>
+                    <h3>MVP 验证</h3>
+                    <p>快速用 Coze 做个原型，验证市场需求，再考虑深耕。</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 15: Q&A -->
+    <div class="slide-container" id="slide15">
+        <div class="content-area" style="text-align: center;">
+            <h1 class="qa-title">Q & A</h1>
+            <p style="font-size: 42px; color: #fff; letter-spacing: 2px;">交流 · 探讨 · 共创</p>
+            <div style="margin-top: 80px; color: #94a3b8; font-size: 24px;">
+                <p><strong>行动建议：</strong>今晚就去 Coze 注册，尝试复刻一个“比价专家”。</p>
+                <p style="margin-top: 20px;">感谢聆听，开启你的超级个体之路！</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI 助手浮动面板 -->
+    <div id="ai-assistant-toggle">
+        <div id="assistant-panel" class="floating-panel">
+            <h4 style="margin: 0 0 10px 0; color: #2dd4bf; border-bottom: 1px solid #334155; padding-bottom: 5px;">
+                ✨ AI 讲义助手
+            </h4>
+            <div id="assistant-content" style="font-size: 16px; line-height: 1.5; color: #cbd5e1;">
+                点击下方按钮，为您生成当前页面的演示要点...
+            </div>
+            <button id="generate-notes-btn" class="gemini-btn" style="width: 100%; margin-top: 15px; font-size: 14px;">
+                <span class="loader" id="notes-loader"></span>
+                ✨ 生成演讲要点
+            </button>
+        </div>
+        <div id="assistant-btn" class="floating-btn">
+            <i class="fa-solid fa-wand-magic-sparkles"></i>
+        </div>
+    </div>
+
+    <script>
+        const apiKey = ""; // 运行时环境提供
+
+        // 1. Gemini API 调用核心逻辑 (带指数退避)
+        async function callGemini(prompt, systemPrompt = "") {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }]
+            };
+            if (systemPrompt) {
+                payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+            }
+
+            let delay = 1000;
+            for (let i = 0; i < 5; i++) {
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    if (!response.ok) throw new Error();
+                    const result = await response.json();
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "抱歉，AI 暂时无法回答。";
+                } catch (e) {
+                    if (i === 4) return "连接超时，请稍后重试。";
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        // 2. 提示词优化器逻辑
+        const optimizeBtn = document.getElementById('optimize-btn');
+        const promptInput = document.getElementById('prompt-input');
+        const resultBox = document.getElementById('optimized-result');
+        const loader = document.getElementById('optimize-loader');
+
+        optimizeBtn.addEventListener('click', async () => {
+            const userInput = promptInput.value.trim();
+            if (!userInput) return;
+
+            optimizeBtn.disabled = true;
+            loader.style.display = 'block';
+            resultBox.style.display = 'none';
+
+            const systemPrompt = `你是一个提示词工程专家。你的任务是接收用户的模糊提问，并将其转化为结构化的 RBTC (Role, Background, Task, Constraints) 格式。请用 Markdown 格式输出。确保 Role 是具体的，Background 是补充的，Task 是行动导向的，Constraints 是明确的。`;
+            const response = await callGemini(`请将此模糊提问优化为 RBTC 格式：${userInput}`, systemPrompt);
+
+            resultBox.innerHTML = response.replace(/\n/g, '<br>');
+            resultBox.style.display = 'block';
+            loader.style.display = 'none';
+            optimizeBtn.disabled = false;
+        });
+
+        // 3. AI 讲义助手逻辑
+        const assistantBtn = document.getElementById('assistant-btn');
+        const panel = document.getElementById('assistant-panel');
+        const notesBtn = document.getElementById('generate-notes-btn');
+        const notesContent = document.getElementById('assistant-content');
+        const notesLoader = document.getElementById('notes-loader');
+
+        assistantBtn.addEventListener('click', () => {
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        });
+
+        notesBtn.addEventListener('click', async () => {
+            // 获取当前视窗中的幻灯片内容 (基于简单的滚动检测或焦点)
+            const slides = document.querySelectorAll('.slide-container');
+            let currentSlide = slides[0];
+            const scrollPos = window.scrollY;
+            slides.forEach(s => {
+                if (Math.abs(s.offsetTop - scrollPos) < 400) currentSlide = s;
+            });
+
+            const slideText = currentSlide.innerText;
+            notesBtn.disabled = true;
+            notesLoader.style.display = 'block';
+            notesContent.innerHTML = "正在深度解析幻灯片内容并生成讲义...";
+
+            const systemPrompt = `你是一个专业的演讲教练。我会给你一张幻灯片的文字内容，请根据内容生成 3-4 句核心演讲要点，帮助演讲者引导观众理解 OPC 和 AI 的价值。语气要专业、鼓舞人心。`;
+            const response = await callGemini(`幻灯片内容如下：\n${slideText}`, systemPrompt);
+
+            notesContent.innerHTML = response.replace(/\n/g, '<br>');
+            notesLoader.style.display = 'none';
+            notesBtn.disabled = false;
+        });
+    </script>
+
+</body>
+
+</html>
