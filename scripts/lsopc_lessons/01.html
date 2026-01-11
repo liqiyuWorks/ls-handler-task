@@ -377,65 +377,7 @@
             }
         }
 
-        /* 浮动助手按钮 (Enhanced) */
-        #ai-assistant-toggle {
-            position: fixed;
-            bottom: 40px;
-            right: 40px;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            pointer-events: none;
-        }
 
-        .floating-btn {
-            pointer-events: auto;
-            background: var(--primary-gradient);
-            color: #0f172a;
-            width: 64px;
-            height: 64px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 26px;
-            cursor: pointer;
-            box-shadow: 0 10px 30px rgba(45, 212, 191, 0.4);
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .floating-btn:hover {
-            transform: scale(1.1) rotate(15deg);
-        }
-
-        .floating-panel {
-            pointer-events: auto;
-            width: 380px;
-            max-height: 500px;
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            margin-bottom: 20px;
-            padding: 24px;
-            overflow-y: auto;
-            display: none;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
-            animation: slideIn 0.3s ease-out;
-        }
-
-        @keyframes slideIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
 
         /* 特殊页面样式补充 */
         .cover-title {
@@ -706,6 +648,88 @@
         .flow-arrow {
             color: var(--text-muted);
             font-size: 18px;
+        }
+
+        /* View Mode Toggle Styles */
+        #view-controls {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+            display: flex;
+            gap: 15px;
+            background: rgba(15, 23, 42, 0.8);
+            padding: 10px;
+            border-radius: 50px;
+            border: 1px solid var(--glass-border);
+            backdrop-filter: blur(10px);
+        }
+
+        .view-btn {
+            background: transparent;
+            border: none;
+            color: #94a3b8;
+            font-size: 20px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .view-btn:hover {
+            color: #fff;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .view-btn.active {
+            color: var(--primary-color);
+            background: rgba(45, 212, 191, 0.1);
+            box-shadow: 0 0 10px rgba(45, 212, 191, 0.2);
+        }
+
+        /* PPT Mode Styles (Scoped) */
+        body.ppt-mode {
+            overflow: hidden !important;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-attachment: fixed;
+        }
+
+        body.ppt-mode .slide-container {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform-origin: center center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.4s ease, transform 0.4s ease;
+        }
+
+        body.ppt-mode .slide-container.active {
+            display: flex;
+            opacity: 1;
+            pointer-events: auto;
+            z-index: 10;
+        }
+
+        /* Scroll Mode Specifics (Optional Resets) */
+        body:not(.ppt-mode) .slide-container {
+            transform: none !important;
+            /* Override JS scaling */
+            opacity: 1 !important;
+            display: flex !important;
+            margin-bottom: 40px;
+            /* Space between slides in list mode */
         }
     </style>
 </head>
@@ -1111,27 +1135,7 @@
         </div>
     </div>
 
-    <!-- Slide 10: 助手、智能体与编程 -->
-    <div class="slide-container" id="slide10">
-        <h2 class="slide-title">智能体 (Agent) 与 零基础门槛</h2>
-        <div class="content-area">
-            <div class="two-column">
-                <div>
-                    <ul class="bullet-list">
-                        <li><i class="fa-solid fa-headset"></i> <strong>AI 助手：</strong>你问，它答（基于对话）。</li>
-                        <li><i class="fa-solid fa-robot"></i> <strong>智能体：</strong>它能自主思考，调用外部工具解决问题。</li>
-                        <li><i class="fa-solid fa-terminal"></i> <strong>编程经验：</strong><strong>不需要！</strong>
-                            现在的开发语言是“自然语言”。</li>
-                    </ul>
-                    <p style="color: #2dd4bf;">本课程面向：<strong>零基础</strong>但有想法的超级个体。</p>
-                </div>
-                <div class="image-wrapper">
-                    <img src="http://googleusercontent.com/image_collection/image_retrieval/13164331063186453031"
-                        alt="AI Agent Workflow">
-                </div>
-            </div>
-        </div>
-    </div>
+
 
     <!-- Slide 10b: Agent Platforms Comparison (New) -->
     <div class="slide-container" id="slide10b">
@@ -1362,24 +1366,17 @@
         </div>
     </div>
 
-    <!-- AI 助手浮动面板 -->
-    <div id="ai-assistant-toggle">
-        <div id="assistant-panel" class="floating-panel">
-            <h4 style="margin: 0 0 10px 0; color: #2dd4bf; border-bottom: 1px solid #334155; padding-bottom: 5px;">
-                ✨ AI 讲义助手
-            </h4>
-            <div id="assistant-content" style="font-size: 16px; line-height: 1.5; color: #cbd5e1;">
-                点击下方按钮，为您生成当前页面的演示要点...
-            </div>
-            <button id="generate-notes-btn" class="gemini-btn" style="width: 100%; margin-top: 15px; font-size: 14px;">
-                <span class="loader" id="notes-loader"></span>
-                ✨ 生成演讲要点
-            </button>
-        </div>
-        <div id="assistant-btn" class="floating-btn">
-            <i class="fa-solid fa-wand-magic-sparkles"></i>
-        </div>
+    <!-- View Controls -->
+    <div id="view-controls">
+        <button class="view-btn" id="scroll-mode-btn" title="滚动模式">
+            <i class="fa-solid fa-layer-group"></i>
+        </button>
+        <button class="view-btn active" id="ppt-mode-btn" title="PPT演示模式">
+            <i class="fa-solid fa-tv"></i>
+        </button>
     </div>
+
+
 
     <script>
         const apiKey = ""; // 运行时环境提供
@@ -1436,37 +1433,110 @@
             optimizeBtn.disabled = false;
         });
 
-        // 3. AI 讲义助手逻辑
-        const assistantBtn = document.getElementById('assistant-btn');
-        const panel = document.getElementById('assistant-panel');
-        const notesBtn = document.getElementById('generate-notes-btn');
-        const notesContent = document.getElementById('assistant-content');
-        const notesLoader = document.getElementById('notes-loader');
 
-        assistantBtn.addEventListener('click', () => {
-            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-        });
+        // PPT Navigation Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const body = document.body;
+            const slides = Array.from(document.querySelectorAll('.slide-container'));
+            const scrollBtn = document.getElementById('scroll-mode-btn');
+            const pptBtn = document.getElementById('ppt-mode-btn');
+            let currentSlideIndex = 0;
+            let isPPTMode = true; // Default to PPT mode
 
-        notesBtn.addEventListener('click', async () => {
-            // 获取当前视窗中的幻灯片内容 (基于简单的滚动检测或焦点)
-            const slides = document.querySelectorAll('.slide-container');
-            let currentSlide = slides[0];
-            const scrollPos = window.scrollY;
-            slides.forEach(s => {
-                if (Math.abs(s.offsetTop - scrollPos) < 400) currentSlide = s;
+            // Set initial state
+            body.classList.add('ppt-mode');
+
+            // --- Toggle Modes ---
+            function setMode(mode) {
+                isPPTMode = mode === 'ppt';
+                if (isPPTMode) {
+                    body.classList.add('ppt-mode');
+                    pptBtn.classList.add('active');
+                    scrollBtn.classList.remove('active');
+                    resizeSlides(); // Re-apply scaling
+                    showSlide(currentSlideIndex); // Ensure current is shown
+                    document.getElementById('view-controls').style.bottom = "30px";
+                } else {
+                    body.classList.remove('ppt-mode');
+                    scrollBtn.classList.add('active');
+                    pptBtn.classList.remove('active');
+                    // Reset inline styles
+                    slides.forEach(slide => {
+                        slide.style.transform = '';
+                    });
+                    // Adjust floating UI for scroll mode if needed
+                    document.getElementById('view-controls').style.bottom = "30px";
+                }
+            }
+
+            scrollBtn.addEventListener('click', () => setMode('scroll'));
+            pptBtn.addEventListener('click', () => setMode('ppt'));
+
+            // --- PPT Logic ---
+            function resizeSlides() {
+                if (!isPPTMode) return;
+
+                // Base resolution 1280x720
+                const scaleX = window.innerWidth / 1280;
+                const scaleY = window.innerHeight / 720;
+                // Use a slightly smaller scale to ensure valid margins
+                const scale = Math.min(scaleX, scaleY) * 0.95;
+
+                slides.forEach(slide => {
+                    // Important: Keep the translate(-50%, -50%) for centering
+                    slide.style.transform = `translate(-50%, -50%) scale(${scale})`;
+                });
+            }
+
+            function showSlide(index) {
+                if (!isPPTMode) return;
+
+                if (index < 0) index = 0;
+                if (index >= slides.length) index = slides.length - 1;
+
+                slides.forEach((slide, i) => {
+                    if (i === index) {
+                        slide.classList.add('active');
+                    } else {
+                        slide.classList.remove('active');
+                    }
+                });
+                currentSlideIndex = index;
+            }
+
+            // Initialize
+            resizeSlides();
+            showSlide(0);
+            window.addEventListener('resize', resizeSlides);
+
+            // Keyboard Navigation
+            document.addEventListener('keydown', (e) => {
+                if (!isPPTMode) return; // Disable keyboard nav in scroll mode
+
+                if (['ArrowRight', ' ', 'Enter', 'PageDown'].includes(e.key)) {
+                    showSlide(currentSlideIndex + 1);
+                } else if (['ArrowLeft', 'PageUp'].includes(e.key)) {
+                    showSlide(currentSlideIndex - 1);
+                }
             });
 
-            const slideText = currentSlide.innerText;
-            notesBtn.disabled = true;
-            notesLoader.style.display = 'block';
-            notesContent.innerHTML = "正在深度解析幻灯片内容并生成讲义...";
+            // Allow click on left/right edges to navigate (PPT Mode only)
+            document.addEventListener('click', (e) => {
+                if (!isPPTMode) return;
 
-            const systemPrompt = `你是一个专业的演讲教练。我会给你一张幻灯片的文字内容，请根据内容生成 3-4 句核心演讲要点，帮助演讲者引导观众理解 OPC 和 AI 的价值。语气要专业、鼓舞人心。`;
-            const response = await callGemini(`幻灯片内容如下：\n${slideText}`, systemPrompt);
+                // Ignore if clicked on an interactive element or controls
+                if (e.target.closest('button') || e.target.closest('input') || e.target.closest('a') || e.target.closest('#view-controls')) return;
 
-            notesContent.innerHTML = response.replace(/\n/g, '<br>');
-            notesLoader.style.display = 'none';
-            notesBtn.disabled = false;
+                const width = window.innerWidth;
+                if (e.clientX > width * 0.7) {
+                    showSlide(currentSlideIndex + 1);
+                } else if (e.clientX < width * 0.3) {
+                    showSlide(currentSlideIndex - 1);
+                }
+            });
+
+            // Sync Scroll Position when switching back to Scroll Mode?
+            // Optional: When switching out of PPT, scroll to current slide.
         });
     </script>
 
