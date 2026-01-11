@@ -731,6 +731,145 @@
             margin-bottom: 40px;
             /* Space between slides in list mode */
         }
+
+        /* =========================================
+           Mobile Adaptation (Scroll Mode ONLY)
+           ========================================= */
+        @media (max-width: 768px) {
+
+            /* Logic: In Scroll Mode (default), we Reflow content. 
+                      In PPT Mode, we keep 1280px fixed width and let JS Scale it. */
+
+            body:not(.ppt-mode) {
+                padding: 10px;
+                gap: 20px;
+            }
+
+            body:not(.ppt-mode) .slide-container {
+                width: 100%;
+                height: auto;
+                min-height: auto;
+                padding: 30px 20px;
+                border-radius: 16px;
+                margin-bottom: 20px;
+            }
+
+            /* Typography Scaling */
+            body:not(.ppt-mode) .slide-title {
+                font-size: 26px;
+                margin-bottom: 20px;
+            }
+
+            body:not(.ppt-mode) .slide-title::before {
+                height: 26px;
+                margin-right: 12px;
+                width: 4px;
+            }
+
+            body:not(.ppt-mode) h3 {
+                font-size: 20px;
+                margin-bottom: 15px;
+            }
+
+            body:not(.ppt-mode) p,
+            body:not(.ppt-mode) li {
+                font-size: 16px;
+                line-height: 1.6;
+            }
+
+            /* Layout Reflow */
+            body:not(.ppt-mode) .two-column {
+                grid-template-columns: 1fr;
+                gap: 30px;
+                display: flex;
+                flex-direction: column-reverse;
+                /* Put image on top generally or keep standard? default is nice. 
+                                                   Wait, usually text first on mobile is better. 
+                                                   Let's stick to standard flow or flex-col. */
+                flex-direction: column;
+            }
+
+            /* Specific fix for slides that need image first? 
+               Actually for "Slide 2" it was Two Column. 
+               Let's just use grid-template-columns: 1fr which naturally stacks. 
+            */
+            body:not(.ppt-mode) .two-column {
+                display: grid;
+                grid-template-columns: 1fr;
+            }
+
+            body:not(.ppt-mode) .image-wrapper {
+                height: 240px;
+                /* Reduced height for mobile */
+                width: 100%;
+            }
+
+            body:not(.ppt-mode) .highlight-numbers-layout {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 20px;
+            }
+
+            body:not(.ppt-mode) .highlight-numbers-layout .number {
+                font-size: 80px;
+            }
+
+            body:not(.ppt-mode) .highlight-numbers-layout .number-label {
+                font-size: 20px;
+            }
+
+            body:not(.ppt-mode) .tiled-content {
+                flex-direction: column;
+            }
+
+            body:not(.ppt-mode) .cover-title {
+                font-size: 42px;
+            }
+
+            body:not(.ppt-mode) .cover-subtitle {
+                font-size: 18px;
+                letter-spacing: 1px;
+            }
+
+            body:not(.ppt-mode) .qa-title {
+                font-size: 80px;
+            }
+
+            body:not(.ppt-mode) .platform-grid {
+                grid-template-columns: 1fr;
+                /* Single column for platform list */
+            }
+
+            /* Controls Visibility */
+            #view-controls {
+                bottom: 20px;
+                right: 20px;
+                transform: none;
+                /* Ensure no scale affects it */
+                padding: 8px;
+            }
+
+            .view-btn {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+
+            /* Adjustments for specific complex slides */
+            body:not(.ppt-mode) .flow-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+
+            body:not(.ppt-mode) .flow-arrow {
+                transform: rotate(90deg);
+                /* Rotate arrows to point down */
+            }
+
+            body:not(.ppt-mode) .award-winner {
+                font-size: 40px;
+            }
+        }
     </style>
 </head>
 
@@ -1285,74 +1424,44 @@
         </div>
     </div>
 
-    <!-- Slide 12: Coze 初体验 - 提示词 -->
+    <!-- Slide 12: Coze 实战案例库 -->
     <div class="slide-container" id="slide12">
-        <h2 class="slide-title">Coze 实战 1：初步构建智能体</h2>
-        <div class="content-area">
-            <div class="two-column">
-                <div>
-                    <h3>第一步：人设配置</h3>
-                    <p>在 Coze 的“人设与回复逻辑”中运用我们的 RBTC 公式。</p>
-                    <p><strong>实操练习：</strong>构建一个“职业规划导师”。</p>
-                    <p style="font-size: 18px; margin-top: 10px;">提示：多用“你必须”、“请务必”等强指令增强控制力。</p>
-                </div>
-                <div class="prompt-box">
-                    # 角色：求职面试专家<br>
-                    # 目标：帮用户润色简历<br>
-                    # 步骤：<br>
-                    1. 询问用户目标岗位<br>
-                    2. 分析现有经历<br>
-                    3. 给出 3 条具体优化建议
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Slide 13: Coze 实战 2 - 天气预报 -->
-    <div class="slide-container" id="slide13">
-        <h2 class="slide-title">Coze 实战 2：天气预报 Agent</h2>
-        <div class="content-area">
-            <div class="two-column">
-                <div>
-                    <h3>核心功能：添加插件</h3>
-                    <ul class="bullet-list">
-                        <li>1. 在插件区搜索 <strong>“天气”</strong>。</li>
-                        <li>2. 选择 <strong>ByteArtist Weather</strong> 插件。</li>
-                        <li>3. 测试：输入“无锡明天的天气”。</li>
-                    </ul>
-                    <p style="color: #2dd4bf;">AI 会自动识别地名，调用 API 获取真实数据。</p>
-                </div>
-                <div class="image-wrapper">
-                    <img src="http://googleusercontent.com/image_collection/image_retrieval/18240439385903637210"
-                        alt="Weather App Interface">
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Slide 14: 商业延展 -->
-    <div class="slide-container" id="slide14">
-        <h2 class="slide-title">商业延展与 OPC 杠杆思维</h2>
+        <h2 class="slide-title">Coze 实战案例库：让想法落地</h2>
         <div class="content-area">
             <div class="tiled-content">
+                <!-- Case 1: Mind Map -->
                 <div class="tile">
-                    <div class="icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
-                    <h3>技能服务化</h3>
-                    <p>将复杂的 AI 提示词流程封装成工具，售卖使用权或结果。</p>
+                    <div class="icon" style="color: #a78bfa;"><i class="fa-solid fa-sitemap"></i></div>
+                    <h3>一键生成思维导图</h3>
+                    <p style="color: #cbd5e1;"><strong>痛点：</strong>长文阅读慢，逻辑理不清。</p>
+                    <p><strong>解法：</strong>调用 `MarkMap` 插件，将 PDF/文档直接转化为结构化脑图。</p>
                 </div>
+
+                <!-- Case 2: Article Cover -->
                 <div class="tile">
-                    <div class="icon"><i class="fa-solid fa-gears"></i></div>
-                    <h3>自动化套利</h3>
-                    <p>利用 Agent 批量处理信息，赚取信息差的收益。</p>
+                    <div class="icon" style="color: #facc15;"><i class="fa-solid fa-palette"></i></div>
+                    <h3>公众号封面生成</h3>
+                    <p style="color: #cbd5e1;"><strong>痛点：</strong>找图难，版权风险，风格不统一。</p>
+                    <p><strong>解法：</strong>配置 DALL·E 3 插件，输入标题自动生成高点击率封面。</p>
                 </div>
+
+                <!-- Case 3: Shopping Assistant -->
                 <div class="tile">
-                    <div class="icon"><i class="fa-solid fa-rocket"></i></div>
-                    <h3>MVP 验证</h3>
-                    <p>快速用 Coze 做个原型，验证市场需求，再考虑深耕。</p>
+                    <div class="icon" style="color: #2dd4bf;"><i class="fa-solid fa-search-dollar"></i></div>
+                    <h3>最优购·省钱助手</h3>
+                    <p style="color: #cbd5e1;"><strong>痛点：</strong>比价繁琐，优惠规则复杂。</p>
+                    <p><strong>解法：</strong>联网搜索全网价格，自动计算叠加优惠，找出“真低价”。</p>
                 </div>
             </div>
+
+            <p style="text-align: center; margin-top: 40px; font-size: 20px; color: #94a3b8;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="color: #facc15; margin-right: 10px;"></i>
+                更多可能：法律合同审查、周报生成器、英语口语陪练...
+            </p>
         </div>
     </div>
+
+
 
     <!-- Slide 15: Q&A -->
     <div class="slide-container" id="slide15">
