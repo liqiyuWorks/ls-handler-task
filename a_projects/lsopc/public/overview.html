@@ -870,6 +870,183 @@
                 font-size: 40px;
             }
         }
+
+        /* 表格样式 */
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            border-radius: 16px;
+            box-shadow: none;
+            border: 1px solid var(--glass-border);
+            background: rgba(15, 23, 42, 0.3);
+        }
+
+        .glass-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 16px;
+            text-align: left;
+            overflow: hidden;
+        }
+
+        .glass-table th,
+        .glass-table td {
+            padding: 12px 16px;
+        }
+
+        .glass-table th {
+            background: rgba(15, 23, 42, 0.8);
+            border-bottom: 2px solid var(--primary-color);
+            color: var(--primary-color);
+            font-weight: 800;
+            font-size: 18px;
+            text-shadow: 0 0 10px rgba(45, 212, 191, 0.3);
+            white-space: nowrap;
+        }
+
+        .glass-table tr {
+            background: rgba(30, 41, 59, 0.6);
+            transition: background 0.3s;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .glass-table tr:nth-child(even) {
+            background: rgba(30, 41, 59, 0.4);
+        }
+
+        .glass-table tr:hover {
+            background: rgba(45, 212, 191, 0.1);
+        }
+
+        .glass-table td {
+            color: #e2e8f0;
+            vertical-align: middle;
+        }
+
+        /* Mobile adjustment for table */
+        @media (max-width: 768px) {
+            .glass-table {
+                font-size: 14px;
+            }
+
+            .glass-table th,
+            .glass-table td {
+                padding: 12px 10px;
+            }
+
+            body:not(.ppt-mode) .table-container {
+                overflow-x: auto;
+                margin-bottom: 20px;
+            }
+        }
+
+        /* Video Modal Styles */
+        .video-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+
+        .video-modal.active {
+            display: flex;
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        .video-container {
+            width: 80%;
+            max-width: 1024px;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(45, 212, 191, 0.3);
+            position: relative;
+        }
+
+        .video-container video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .close-video-btn {
+            position: absolute;
+            top: -50px;
+            right: 0;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 32px;
+            cursor: pointer;
+            transition: transform 0.3s;
+        }
+
+        .close-video-btn:hover {
+            transform: scale(1.2);
+            color: var(--primary-color);
+        }
+
+        .back-video-btn {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 24px;
+            border-radius: 50px;
+            color: #fff;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+            backdrop-filter: blur(5px);
+            z-index: 10001;
+            font-weight: 600;
+        }
+
+        .back-video-btn:hover {
+            background: rgba(45, 212, 191, 0.2);
+            border-color: var(--primary-color);
+            color: var(--primary-color);
+            padding-right: 28px;
+        }
+
+        /* Play Button Overlay */
+        .play-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80px;
+            height: 80px;
+            background: rgba(45, 212, 191, 0.8);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 32px;
+            color: #fff;
+            cursor: pointer;
+            box-shadow: 0 0 30px rgba(45, 212, 191, 0.5);
+            transition: all 0.3s;
+            z-index: 10;
+        }
+
+        .image-wrapper:hover .play-overlay {
+            transform: translate(-50%, -50%) scale(1.1);
+            background: rgba(45, 212, 191, 1);
+        }
     </style>
 </head>
 
@@ -899,7 +1076,13 @@
                         <li><i class="fa-solid fa-lightbulb"></i> <strong>启示：</strong>执行力 > 完美计划，一个人就是一支队伍。</li>
                     </ul>
                 </div>
-                <div class="image-wrapper">
+                <div class="image-wrapper"
+                    data-video-url="http://obs.navgreen.cn/api/v1/download-shared-object/aHR0cDovL21pbmlvOjkwMDAvbmF2Z3JlZW4tb3Blbi9QaWV0ZXJMZXZlbHMubXA0P1gtQW16LUFsZ29yaXRobT1BV1M0LUhNQUMtU0hBMjU2JlgtQW16LUNyZWRlbnRpYWw9TkEwMzRUTTEwSEo1OUw4WktPM0IlMkYyMDI2MDExMiUyRnVzLWVhc3QtMSUyRnMzJTJGYXdzNF9yZXF1ZXN0JlgtQW16LURhdGU9MjAyNjAxMTJUMDU0MjM4WiZYLUFtei1FeHBpcmVzPTQzMTk5JlgtQW16LVNlY3VyaXR5LVRva2VuPWV5SmhiR2NpT2lKSVV6VXhNaUlzSW5SNWNDSTZJa3BYVkNKOS5leUpoWTJObGMzTkxaWGtpT2lKT1FUQXpORlJOTVRCSVNqVTVURGhhUzA4elFpSXNJbVY0Y0NJNk1UYzJPREl6T1RRek1Td2ljR0Z5Wlc1MElqb2liV2x1YVc4aWZRLkZuVGo3eG9tQV9zaGlkZU5jNHpIWVh0MkJsRGpTeS1NRk5pVWRxY29XU3gxTlJjWVpGWi0zTjJpdENBcXNIX3RJTF8yTkx4WGtVaWQwSHpvNHFsak93JlgtQW16LVNpZ25lZEhlYWRlcnM9aG9zdCZ2ZXJzaW9uSWQ9bnVsbCZYLUFtei1TaWduYXR1cmU9MTkzNWZjMTg5ZWU0MWIyYmJlNTJiMGUwNzY0ZWVkM2Q3NjczNTA0MjQwNjE0ZjVhNGUzYzE1ZDI1MjA0MmM5Mg"
+                    onclick="openVideoModal(this.getAttribute('data-video-url'))"
+                    style="cursor: pointer; position: relative;">
+                    <div class="play-overlay">
+                        <i class="fa-solid fa-play"></i>
+                    </div>
                     <img src="./images/pieter_levels.jpg" alt="Digital Nomad Lifestyle"
                         style="object-fit: cover; width: 100%; height: 100%; border-radius: 20px;">
                 </div>
@@ -937,7 +1120,12 @@
                 </div>
 
                 <div class="image-wrapper"
-                    style="border: none; box-shadow: none; background: transparent; overflow: visible;">
+                    data-video-url="http://obs.navgreen.cn/api/v1/download-shared-object/aHR0cDovL21pbmlvOjkwMDAvbmF2Z3JlZW4tb3Blbi9jYXB3b3Jkcy5tcDQ_WC1BbXotQWxnb3JpdGhtPUFXUzQtSE1BQy1TSEEyNTYmWC1BbXotQ3JlZGVudGlhbD1OQTAzNFRNMTBISjU5TDhaS08zQiUyRjIwMjYwMTEyJTJGdXMtZWFzdC0xJTJGczMlMkZhd3M0X3JlcXVlc3QmWC1BbXotRGF0ZT0yMDI2MDExMlQwNTU2MDFaJlgtQW16LUV4cGlyZXM9NDMxOTkmWC1BbXotU2VjdXJpdHktVG9rZW49ZXlKaGJHY2lPaUpJVXpVeE1pSXNJblI1Y0NJNklrcFhWQ0o5LmV5SmhZMk5sYzNOTFpYa2lPaUpPUVRBek5GUk5NVEJJU2pVNVREaGFTMDh6UWlJc0ltVjRjQ0k2TVRjMk9ESXpPVFF6TVN3aWNHRnlaVzUwSWpvaWJXbHVhVzhpZlEuRm5Uajd4b21BX3NoaWRlTmM0ekhZWHQyQmxEalN5LU1GTmlVZHFjb1dTeDFOUmNZWkZaLTNOMml0Q0Fxc0hfdElMXzJOTHhYa1VpZDBIem80cWxqT3cmWC1BbXotU2lnbmVkSGVhZGVycz1ob3N0JnZlcnNpb25JZD1udWxsJlgtQW16LVNpZ25hdHVyZT1iNTAzMWYwNmE5MzliYThmMTRiMjk4MDI2OGY3ODMxYzgyODhmN2NiNTNlYmIyN2QxODQ3NjQwN2M4NzZmMmJj"
+                    onclick="openVideoModal(this.getAttribute('data-video-url'))"
+                    style="border: none; box-shadow: none; background: transparent; overflow: visible; cursor: pointer; position: relative;">
+                    <div class="play-overlay">
+                        <i class="fa-solid fa-play"></i>
+                    </div>
                     <img src="./images/capwords_lifestyle.png"
                         style="border-radius: 20px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); width: 100%; height: auto; display: block;"
                         alt="CapWords Lifecycle">
@@ -1013,7 +1201,7 @@
                         辰湛资本董事长、AquaBridge.ai 首席执行官</p>
 
                     <div style="font-size: 20px; color: #cbd5e1; line-height: 1.8; text-align: justify;">
-                        <p style="margin-bottom: 20px;">莫斯科国立大学与麻省理工学院（MIT）联合培养硕士。深耕人工智能与气象交叉领域多年，曾任职于头部互联网企业及国家级科研机构。
+                        <p style="margin-bottom: 20px;">莫斯科国立大学与麻省理工学院（MIT）联合培养硕士。深耕人工智能与气象交叉领域多年，曾任职于头部互联网企业及科研机构。
                         </p>
                         <p style="margin-bottom: 20px;">领衔研发国产远洋气象导航核心算法，成功打破国外长达30年技术垄断，助力产品实现市场占有率第一的跨越式突破。</p>
                         <p>荣获中国气象服务协会科学技术一等奖、数字中国人工智能赛道全国三等奖等省部级奖项，持有20余项发明专利，多项技术入选江苏省重点推广目录，致力于通过AI+OPC驱动产业变革，在航运、金融等领域实现深度融合创新。
@@ -1252,27 +1440,138 @@
         </div>
     </div>
 
-    <!-- Slide 9: 互动实验：提示词 ✨ 优化器 (NEW) -->
-    <div class="slide-container" id="slide9">
-        <h2 class="slide-title">互动实验：提示词 ✨ 优化器</h2>
+
+    <!-- Slide 9a: AI应用平台类型初识 -->
+    <div class="slide-container" id="slide9a">
+        <h2 class="slide-title">AI应用平台类型初识</h2>
         <div class="content-area">
-            <p>输入你的模糊提问，Gemini 将现场将其重构为 RBTC 结构化指令。</p>
-            <div class="interactive-tool">
-                <textarea id="prompt-input" class="input-area" placeholder="例如：帮我写个减肥计划" rows="3"></textarea>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <button id="optimize-btn" class="gemini-btn">
-                        <span class="loader" id="optimize-loader"></span>
-                        ✨ 现场优化提示词
-                    </button>
-                    <p id="optimize-status" style="font-size: 16px; margin: 0;"></p>
-                </div>
-                <div id="optimized-result" class="prompt-box"
-                    style="margin-top: 20px; min-height: 100px; display: none;">
-                    <!-- Result will appear here -->
-                </div>
+            <div class="table-container">
+                <table class="glass-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 25%;">平台类型</th>
+                            <th style="width: 45%;">核心特色</th>
+                            <th style="width: 30%;">典型应用场景</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>通用AI (DeepSeek)</td>
+                            <td>具有超大语料库的大脑，能思考能对话</td>
+                            <td>日常、办公、学术、分析</td>
+                        </tr>
+                        <tr>
+                            <td>Agent平台 (Coze/Dify)</td>
+                            <td>低代码、自动化任务、私有知识库</td>
+                            <td>智能客服、数据分析</td>
+                        </tr>
+                        <tr>
+                            <td>文生图 (Stable Diffusion)</td>
+                            <td>高精度图像生成</td>
+                            <td>艺术设计、广告素材</td>
+                        </tr>
+                        <tr>
+                            <td>文生视频 (即梦)</td>
+                            <td>动态内容生成、社交整合</td>
+                            <td>短视频制作、虚拟直播</td>
+                        </tr>
+                        <tr>
+                            <td>数字人平台 (百度曦灵)</td>
+                            <td>虚拟形象驱动、多模态交互</td>
+                            <td>虚拟主播、AI客服</td>
+                        </tr>
+                        <tr>
+                            <td>声音克隆</td>
+                            <td>个性化语音合成</td>
+                            <td>配音、语音助手</td>
+                        </tr>
+                        <tr>
+                            <td>音乐生成</td>
+                            <td>AI作曲、自动编曲</td>
+                            <td>背景音乐、广告配乐</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+
+    <!-- Slide 9b: AI平台认知 -->
+    <div class="slide-container" id="slide9b">
+        <h2 class="slide-title">AI平台认知</h2>
+        <div class="content-area">
+            <div class="table-container">
+                <table class="glass-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 15%;">平台</th>
+                            <th style="width: 25%;">核心能力</th>
+                            <th style="width: 35%;">特色</th>
+                            <th style="width: 25%;">适用场景</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>文心一言</td>
+                            <td>多模态生成、中文理解</td>
+                            <td>百度知识库支持，文学创作强</td>
+                            <td>文案、问答、逻辑推理</td>
+                        </tr>
+                        <tr>
+                            <td>通义千问</td>
+                            <td>代码生成、多轮交互</td>
+                            <td>阿里云算力，编程能力强</td>
+                            <td>代码开发、翻译、企业AI集成</td>
+                        </tr>
+                        <tr>
+                            <td>天工AI</td>
+                            <td>文本生成、知识问答</td>
+                            <td>高准确性、信息提取</td>
+                            <td>知识管理、阅读理解</td>
+                        </tr>
+                        <tr>
+                            <td>讯飞星火</td>
+                            <td>语音交互、多语言处理</td>
+                            <td>语音识别国内领先</td>
+                            <td>语音助手、教育、客服</td>
+                        </tr>
+                        <tr>
+                            <td>Kimi</td>
+                            <td>超长文本处理、信息归纳</td>
+                            <td>20万字+文本支持</td>
+                            <td>学术研究、市场分析</td>
+                        </tr>
+                        <tr>
+                            <td>豆包</td>
+                            <td>多模态 (文档、语音、代码)</td>
+                            <td>字节跳动生态，办公自动化</td>
+                            <td>企业办公、内容创作</td>
+                        </tr>
+                        <tr>
+                            <td>DeepSeek</td>
+                            <td>超强推理、长文本处理、开源</td>
+                            <td>高性能、低延迟，适合深度研究</td>
+                            <td>学术、编程、企业AI集成</td>
+                        </tr>
+                        <tr>
+                            <td>腾讯元宝</td>
+                            <td>混元+DeepSeek双模、多模态解析</td>
+                            <td>微信生态整合，优化访问体验</td>
+                            <td>办公、客服、内容创作</td>
+                        </tr>
+                        <tr>
+                            <td>腾讯 ima</td>
+                            <td>知识库管理、团队协作</td>
+                            <td>支持百万级共享，结构化数据</td>
+                            <td>企业知识管理、法律/政务</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
 
 
 
@@ -1475,6 +1774,23 @@
         </div>
     </div>
 
+    <!-- Video Modal -->
+    <div class="video-modal" id="videoModal">
+        <button class="back-video-btn" onclick="closeVideoModal()">
+            <i class="fa-solid fa-arrow-left"></i>
+            返回演示
+        </button>
+        <div class="video-container">
+            <button class="close-video-btn" onclick="closeVideoModal()">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+            <video id="mainVideoPlayer" controls>
+                <source src="" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+    </div>
+
     <!-- View Controls -->
     <div id="view-controls">
         <button class="view-btn" id="scroll-mode-btn" title="滚动模式">
@@ -1519,28 +1835,7 @@
             }
         }
 
-        // 2. 提示词优化器逻辑
-        const optimizeBtn = document.getElementById('optimize-btn');
-        const promptInput = document.getElementById('prompt-input');
-        const resultBox = document.getElementById('optimized-result');
-        const loader = document.getElementById('optimize-loader');
 
-        optimizeBtn.addEventListener('click', async () => {
-            const userInput = promptInput.value.trim();
-            if (!userInput) return;
-
-            optimizeBtn.disabled = true;
-            loader.style.display = 'block';
-            resultBox.style.display = 'none';
-
-            const systemPrompt = `你是一个提示词工程专家。你的任务是接收用户的模糊提问，并将其转化为结构化的 RBTC (Role, Background, Task, Constraints) 格式。请用 Markdown 格式输出。确保 Role 是具体的，Background 是补充的，Task 是行动导向的，Constraints 是明确的。`;
-            const response = await callGemini(`请将此模糊提问优化为 RBTC 格式：${userInput}`, systemPrompt);
-
-            resultBox.innerHTML = response.replace(/\n/g, '<br>');
-            resultBox.style.display = 'block';
-            loader.style.display = 'none';
-            optimizeBtn.disabled = false;
-        });
 
 
         // PPT Navigation Logic
@@ -1647,6 +1942,32 @@
             // Sync Scroll Position when switching back to Scroll Mode?
             // Optional: When switching out of PPT, scroll to current slide.
         });
+
+        // Video Modal Logic
+        function openVideoModal(url) {
+            console.log("Opening video modal with URL:", url);
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('mainVideoPlayer');
+            if (url) {
+                video.src = url;
+                modal.classList.add('active');
+                video.play().catch(e => {
+                    console.error("Video play failed:", e);
+                    alert("视频播放失败，请检查网络或链接有效性。\nVideo play failed: " + e.message);
+                });
+            } else {
+                console.error("No URL provided to openVideoModal");
+            }
+        }
+
+        function closeVideoModal() {
+            console.log("Closing video modal");
+            const modal = document.getElementById('videoModal');
+            const video = document.getElementById('mainVideoPlayer');
+            video.pause();
+            video.src = "";
+            modal.classList.remove('active');
+        }
     </script>
 
 </body>
