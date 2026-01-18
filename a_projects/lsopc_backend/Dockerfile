@@ -28,4 +28,4 @@ RUN pip3 install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple/ --tr
 RUN pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/ --trusted-host pypi.tuna.tsinghua.edu.cn
 RUN python3 -m playwright install
 # 启动命令
-CMD ["python3", "car_report_modifier_web.py"]
+CMD ["python3", "test_static_parse.py"]
