@@ -1,0 +1,5 @@
+uvicorn
+lxml
+playwright
+fastapi
+pydantic
