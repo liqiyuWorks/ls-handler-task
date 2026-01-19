@@ -8,9 +8,19 @@ interface Message {
     content: string;
 }
 
-const CozeChat: React.FC = () => {
+interface CozeChatProps {
+    botId?: string;
+    initialMessage?: string;
+    placeholder?: string;
+}
+
+const CozeChat: React.FC<CozeChatProps> = ({
+    botId,
+    initialMessage = '您好！我是您的省钱大王助手。请问想买点什么？我可以帮您比价、找券、推荐好物。',
+    placeholder = '输入您想购买的商品...'
+}) => {
     const [messages, setMessages] = useState<Message[]>([
-        { role: 'assistant', content: '您好！我是您的省钱大王助手。请问想买点什么？我可以帮您比价、找券、推荐好物。' }
+        { role: 'assistant', content: initialMessage }
     ]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -59,7 +69,8 @@ const CozeChat: React.FC = () => {
                     console.error('Chat error:', error);
                     setIsLoading(false);
                     setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，我现在遇到了一些问题，请稍后再试。' }]);
-                }
+                },
+                botId
             );
         } catch (error) {
             console.error('Failed to send message:', error);
@@ -85,8 +96,8 @@ const CozeChat: React.FC = () => {
                     >
                         <div
                             className={`max-w-[85%] rounded-2xl px-5 py-3.5 leading-relaxed shadow-md ${msg.role === 'user'
-                                    ? 'bg-orange-600 text-white rounded-tr-none'
-                                    : 'bg-white/10 text-gray-200 rounded-tl-none border border-white/5'
+                                ? 'bg-orange-600 text-white rounded-tr-none'
+                                : 'bg-white/10 text-gray-200 rounded-tl-none border border-white/5'
                                 }`}
                         >
                             {msg.role === 'assistant' ? (
@@ -130,7 +141,7 @@ const CozeChat: React.FC = () => {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyPress}
-                        placeholder="输入您想购买的商品..."
+                        placeholder={placeholder}
                         rows={1}
                         className="w-full bg-white/5 text-white text-base md:text-sm rounded-xl pl-4 pr-12 py-3.5 focus:outline-none focus:ring-1 focus:ring-orange-500/50 resize-none overflow-hidden placeholder-gray-500 border border-white/5 transition-all focus:bg-white/10"
                         style={{ minHeight: '52px' }}

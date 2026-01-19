@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { APP_CONFIG } from '../constants';
 
 interface HeroProps {
@@ -6,6 +7,7 @@ interface HeroProps {
 }
 
 const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
+  const navigate = useNavigate();
   return (
     <div className="flex flex-col items-center justify-center py-12 md:py-20 relative">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-orange-500/10 blur-[120px] rounded-full pointer-events-none"></div>
@@ -53,6 +55,38 @@ const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
 
             <button
               onClick={onStartChat}
+              className="w-full py-3.5 bg-white text-black font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all duration-300 transform group-hover:translate-y-[-2px] shadow-lg flex items-center justify-center gap-2"
+            >
+              <span>立即体验</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>
+            </button>
+          </div>
+
+          {/* New Card: Daily Financial Analysis */}
+          <div className="group relative bg-[#111] border border-white/5 rounded-3xl p-8 hover:border-orange-500/30 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-70 group-hover:opacity-100 transition-opacity">
+              <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-900/20 border border-green-500/20 text-green-500 text-xs font-bold tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                运行中
+              </span>
+            </div>
+
+            <div className="mb-6 relative">
+              <div className="absolute -inset-4 bg-orange-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              <div className="w-16 h-16 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-4xl shadow-2xl border border-white/10 relative z-10">
+                📊
+              </div>
+            </div>
+
+            <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
+              每日财报分析助手
+            </h3>
+            <p className="text-gray-400 text-sm leading-relaxed mb-8 h-12 opacity-80">
+              专业的财报分析助手，助您轻松解读财务数据，洞察企业经营状况。
+            </p>
+
+            <button
+              onClick={() => navigate('/finance-agent')}
               className="w-full py-3.5 bg-white text-black font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all duration-300 transform group-hover:translate-y-[-2px] shadow-lg flex items-center justify-center gap-2"
             >
               <span>立即体验</span>

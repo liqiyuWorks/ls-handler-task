@@ -16,7 +16,8 @@ export const chatWithCoze = async (
     messages: { role: string; content: string; content_type: string }[],
     onMessage: (chunk: string) => void,
     onCompleted: () => void,
-    onError: (error: any) => void
+    onError: (error: any) => void,
+    botId?: string
 ) => {
     try {
         const response = await fetch('/coze-api/v3/chat', {
@@ -26,7 +27,7 @@ export const chatWithCoze = async (
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                bot_id: APP_CONFIG.COZE_BOT_ID,
+                bot_id: botId || APP_CONFIG.COZE_BOT_ID,
                 user_id: 'user_' + Math.random().toString(36).substring(7),
                 stream: true,
                 auto_save_history: true,

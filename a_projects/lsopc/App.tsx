@@ -26,14 +26,23 @@ const Home: React.FC = () => {
   );
 };
 
-const ChatPage: React.FC = () => {
+import { APP_CONFIG } from './constants';
+
+interface ChatLayoutProps {
+  title: string;
+  botId?: string;
+  initialMessage?: string;
+  placeholder?: string;
+}
+
+const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, placeholder }) => {
   const navigate = useNavigate();
   return (
     <div className="flex-grow flex flex-col gap-4 animate-fadeIn h-[calc(100vh-120px)] md:h-auto">
       <div className="flex justify-between items-center mb-1 md:mb-2 px-2">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-          省钱助手正在待命
+          {title}
         </h2>
         <button
           onClick={() => navigate('/')}
@@ -44,9 +53,32 @@ const ChatPage: React.FC = () => {
       </div>
 
       <div className="flex-grow glass-morphism rounded-xl md:rounded-2xl overflow-hidden min-h-0 relative">
-        <CozeChat />
+        <CozeChat
+          botId={botId}
+          initialMessage={initialMessage}
+          placeholder={placeholder}
+        />
       </div>
     </div>
+  );
+};
+
+const SavingsChatPage: React.FC = () => {
+  return (
+    <ChatLayout
+      title="省钱助手正在待命"
+    />
+  );
+};
+
+const FinanceChatPage: React.FC = () => {
+  return (
+    <ChatLayout
+      title="财报分析助手正在待命"
+      botId={APP_CONFIG.COZE_BOT_ID_FINANCE}
+      initialMessage="您好！我是您的财报分析助手。请上传或粘贴您想分析的财报数据，或者直接询问某家公司的财务状况。"
+      placeholder="输入公司名称或粘贴财报数据..."
+    />
   );
 };
 
@@ -59,7 +91,8 @@ const App: React.FC = () => {
         <main className="flex-grow flex flex-col container mx-auto px-2 md:px-4 py-4 md:py-6">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/savings-agent" element={<ChatPage />} />
+            <Route path="/savings-agent" element={<SavingsChatPage />} />
+            <Route path="/finance-agent" element={<FinanceChatPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
