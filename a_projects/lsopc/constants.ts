@@ -14,4 +14,7 @@ export const APP_CONFIG = {
 
   // 3. Financial Bot ID
   COZE_BOT_ID_FINANCE: "7596899835795161151",
+
+  // 4. Article Cover Bot ID
+  COZE_BOT_ID_ARTICLE_COVER: "7596956756987936820",
 };

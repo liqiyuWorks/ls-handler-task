@@ -1400,50 +1400,7 @@
         </div>
     </div>
 
-    <!-- Slide 7: 提示词万能公式 -->
-    <div class="slide-container" id="slide7">
-        <h2 class="slide-title">提示词万能公式：RBTC 框架</h2>
-        <div class="content-area">
-            <div class="tiled-content">
-                <div class="tile">
-                    <div class="icon">R</div>
-                    <h3>角色 (Role)</h3>
-                    <p>赋予 AI 专家身份，锁定知识域。</p>
-                </div>
-                <div class="tile">
-                    <div class="icon">B</div>
-                    <h3>背景 (Background)</h3>
-                    <p>告知当前场景、用户痛点、可用资源。</p>
-                </div>
-                <div class="tile">
-                    <div class="icon">T</div>
-                    <h3>任务 (Task)</h3>
-                    <p>明确要做什么，动作要具体。</p>
-                </div>
-                <div class="tile">
-                    <div class="icon">C</div>
-                    <h3>约束 (Constraints)</h3>
-                    <p>规定风格、字数、禁区、格式。</p>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Slide 8: 实战案例：全网比价专家 -->
-    <div class="slide-container" id="slide8">
-        <h2 class="slide-title">RBTC 实战：全网比价专家</h2>
-        <div class="content-area">
-            <div class="prompt-box" style="font-size: 22px;">
-                <div><span class="prompt-label">[角色]</span> 你是一个精打细算、熟知全网电商套路的比价专家。</div>
-                <div style="margin-top: 10px;"><span class="prompt-label">[背景]</span>
-                    我是一个想在无锡过高性价比生活的大学生，预算有限，想买一台高配学习平板。</div>
-                <div style="margin-top: 10px;"><span class="prompt-label">[任务]</span>
-                    对比某东、某宝、某鱼的价格差异，识破各类虚假优惠，推荐出此时此刻的最低价购买方案。</div>
-                <div style="margin-top: 10px;"><span class="prompt-label">[约束]</span> 不许说废话，直接列出清晰的比价表，并在最后附带 3 条避坑指南。
-                </div>
-            </div>
-        </div>
-    </div>
 
 
     <!-- Slide 9a: AI应用平台类型初识 -->
@@ -1820,7 +1777,7 @@
                     <span class="flow-label">Step 1: 插件</span>
                     <i class="fa-solid fa-magnifying-glass"
                         style="font-size: 28px; color: #2dd4bf; margin: 10px 0;"></i>
-                    <div class="flow-content" style="font-size: 14px;"><strong>Google News</strong><br>搜索 "AI Agent"
+                    <div class="flow-content" style="font-size: 14px;"><strong>实时新闻</strong><br>搜索 "AI Agent"
                     </div>
                 </div>
 
@@ -1956,14 +1913,361 @@
         </div>
     </div>
 
+    <!-- Slide 14a: Customization -->
+    <div class="slide-container" id="slide14a">
+        <h2 class="slide-title">进阶：如何让大模型更懂你？(定制化篇)</h2>
+        <div class="content-area">
+            <div class="tiled-content">
+                <!-- Prompt -->
+                <div class="tile" style="flex: 1; border-top: 4px solid #facc15;">
+                    <div class="icon" style="color: #facc15; margin-bottom: 20px;"><i
+                            class="fa-solid fa-wand-magic-sparkles"></i></div>
+                    <h3 style="margin-bottom: 10px;">1. 提示词工程 (Prompt)</h3>
+                    <div style="font-size: 16px; color: #94a3b8; margin-bottom: 15px;">难度：⭐️ | 成本：低</div>
+                    <p style="color: #cbd5e1; font-size: 16px; margin-bottom: 20px;">通过“念咒语”的方式，规范输出格式。</p>
+                    <div style="background: rgba(250, 204, 21, 0.1); padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 14px; color: #fef08a; margin-bottom: 5px;"><i
+                                class="fa-solid fa-plus"></i>
+                            优势：即时见效，无需训练。</div>
+                        <div style="font-size: 14px; color: #94a3b8;"><i class="fa-solid fa-minus"></i> 劣势：能力上限受限于模型本身。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RAG -->
+                <div class="tile" style="flex: 1; border-top: 4px solid #2dd4bf;">
+                    <div class="icon" style="color: #2dd4bf; margin-bottom: 20px;"><i class="fa-solid fa-database"></i>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">2. 知识库 (RAG)</h3>
+                    <div style="font-size: 16px; color: #94a3b8; margin-bottom: 15px;">难度：⭐️⭐️ | 成本：中</div>
+                    <p style="color: #cbd5e1; font-size: 16px; margin-bottom: 20px;">外挂“私有数据”，让 AI 懂业务、不胡说。</p>
+                    <div style="background: rgba(45, 212, 191, 0.1); padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 14px; color: #ccfbf1; margin-bottom: 5px;"><i
+                                class="fa-solid fa-plus"></i>
+                            优势：数据实时更新，可溯源。</div>
+                        <div style="font-size: 14px; color: #94a3b8;"><i class="fa-solid fa-minus"></i> 劣势：依赖检索质量，响应稍慢。
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fine-tuning -->
+                <div class="tile" style="flex: 1; border-top: 4px solid #818cf8;">
+                    <div class="icon" style="color: #818cf8; margin-bottom: 20px;"><i class="fa-solid fa-brain"></i>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">3. 微调 (Fine-tuning)</h3>
+                    <div style="font-size: 16px; color: #94a3b8; margin-bottom: 15px;">难度：⭐️⭐️⭐️ | 成本：高</div>
+                    <p style="color: #cbd5e1; font-size: 16px; margin-bottom: 20px;">训练“专属大脑”，内化行业Know-how。</p>
+                    <div style="background: rgba(129, 140, 248, 0.1); padding: 15px; border-radius: 8px;">
+                        <div style="font-size: 14px; color: #e0e7ff; margin-bottom: 5px;"><i
+                                class="fa-solid fa-plus"></i>
+                            优势：彻底改变模型风格/能力。</div>
+                        <div style="font-size: 14px; color: #94a3b8;"><i class="fa-solid fa-minus"></i>
+                            劣势：算力昂贵，数据清洗困难。</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 14b: Local Deployment -->
+    <div class="slide-container" id="slide14b">
+        <h2 class="slide-title">进阶：大模型本地化部署指南 (本地篇)</h2>
+        <div class="content-area">
+            <div class="two-column tiled" style="gap: 15px; align-items: stretch;">
+
+                <!-- Why Local & Tools -->
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="tile" style="flex: 1; padding: 15px;">
+                        <h3 style="color: #2dd4bf; margin-bottom: 8px; font-size: 20px;"><i
+                                class="fa-solid fa-shield-halved"></i>
+                            为什么选择本地部署？
+                        </h3>
+                        <ul class="bullet-list" style="margin-bottom: 0;">
+                            <li style="margin-bottom: 4px;"><strong>隐私安全：</strong> 数据完全不出本地，绝密文档放心传。</li>
+                            <li style="margin-bottom: 4px;"><strong>离线运行：</strong> 断网也能用，适合飞机/高铁办公。</li>
+                            <li><strong>零成本：</strong> 一次性硬件投入，无 Token 计费。</li>
+                        </ul>
+                    </div>
+                    <div class="tile" style="flex: 1; padding: 15px;">
+                        <h3 style="color: #facc15; margin-bottom: 8px; font-size: 20px;"><i
+                                class="fa-solid fa-toolbox"></i> 推荐工具</h3>
+                        <div
+                            style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 8px; margin-bottom: 8px;">
+                            <strong style="color: #fff; font-size: 15px;">Ollama</strong>
+                            <div style="color: #94a3b8; font-size: 13px;">命令行神器，一键运行 DeepSeek/Llama3。</div>
+                        </div>
+                        <div style="background: rgba(255, 255, 255, 0.05); padding: 10px; border-radius: 8px;">
+                            <strong style="color: #fff; font-size: 15px;">LM Studio</strong>
+                            <div style="color: #94a3b8; font-size: 13px;">可视化界面，支持拖拽加载模型，像微信一样聊天。</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hardware & Cost -->
+                <div class="tile" style="border: 1px dashed rgba(255,255,255,0.2); padding: 15px;">
+                    <h3 style="color: #f87171; margin-bottom: 15px; text-align: center; font-size: 20px;">💰 硬件成本估算</h3>
+
+                    <!-- Entry Level -->
+                    <div style="margin-bottom: 15px;">
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span
+                                style="font-size: 16px; font-weight: 700; color: #fff; background: #0ea5e9; padding: 2px 8px; border-radius: 4px;">入门级</span>
+                            <span style="font-size: 16px; color: #0ea5e9;">¥ 0 - 10,000</span>
+                        </div>
+                        <p style="color: #cbd5e1; font-size: 13px; margin-bottom: 4px;"><strong>适用模型：</strong> 7B - 9B
+                            参数 (如 Llama3-8B)</p>
+                        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 4px;"><strong>设备要求：</strong> Mac
+                            M1/M2/M3 (16G内存) 或 RTX 3060/4060 显卡。</p>
+                        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 0;"><strong>场景：</strong>
+                            日常对话、简单翻译、代码补全。</p>
+                    </div>
+
+                    <div style="width: 100%; height: 1px; background: rgba(255,255,255,0.1); margin-bottom: 15px;">
+                    </div>
+
+                    <!-- Pro Level -->
+                    <div>
+                        <div
+                            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <span
+                                style="font-size: 16px; font-weight: 700; color: #fff; background: #f43f5e; padding: 2px 8px; border-radius: 4px;">进阶级</span>
+                            <span style="font-size: 16px; color: #f43f5e;">¥ 15,000 - 30,000</span>
+                        </div>
+                        <p style="color: #cbd5e1; font-size: 13px; margin-bottom: 4px;"><strong>适用模型：</strong> 14B - 32B
+                            参数 (如 Qwen1.5-32B)</p>
+                        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 4px;"><strong>设备要求：</strong> Mac M3
+                            Max (32G+内存) 或 RTX 4090 (24G显存)。</p>
+                        <p style="color: #94a3b8; font-size: 13px; margin-bottom: 0;"><strong>场景：</strong>
+                            复杂逻辑推理、长文档分析、本地知识库。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 14c: Model Comparison -->
+    <div class="slide-container" id="slide14c">
+        <h2 class="slide-title">进阶：市面主流开源大模型选购指南</h2>
+        <div class="content-area">
+            <div class="tiled-content" style="gap: 20px;">
+                <!-- DeepSeek -->
+                <div class="tile" style="flex: 1; border-top: 4px solid #facc15; padding: 25px;">
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                        <div class="icon" style="color: #facc15; margin-bottom: 0;"><i class="fa-solid fa-brain"></i>
+                        </div>
+                        <span
+                            style="background: rgba(250, 204, 21, 0.1); color: #facc15; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: 700;">DeepSeek-R1</span>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">DeepSeek (深度求索)</h3>
+                    <div style="margin-bottom: 15px;">
+                        <span
+                            style="color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; margin-right: 5px;">🧠
+                            逻辑怪才</span>
+                        <span
+                            style="color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">🇨🇳
+                            国产之光</span>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 15px; margin-bottom: 15px; line-height: 1.5;">
+                        擅长<strong>“慢思考”</strong>，做数学题、写代码、搞逻辑推理特别强。会把解题步骤一步步打印出来。
+                    </p>
+                    <div style="background: rgba(250, 204, 21, 0.05); padding: 12px; border-radius: 10px;">
+                        <div style="font-size: 14px; color: #facc15;"><strong>适合谁？</strong></div>
+                        <div style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">理科生、程序员、需要分析复杂逻辑的人。</div>
+                    </div>
+                </div>
+
+                <!-- Qwen -->
+                <div class="tile" style="flex: 1; border-top: 4px solid #2dd4bf; padding: 25px;">
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                        <div class="icon" style="color: #2dd4bf; margin-bottom: 0;"><i
+                                class="fa-solid fa-shield-cat"></i>
+                        </div>
+                        <span
+                            style="background: rgba(45, 212, 191, 0.1); color: #2dd4bf; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: 700;">Qwen
+                            2.5</span>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">Qwen (通义千问)</h3>
+                    <div style="margin-bottom: 15px;">
+                        <span
+                            style="color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; margin-right: 5px;">🦸‍♂️
+                            全能战士</span>
+                        <span
+                            style="color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">📖
+                            最懂中文</span>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 15px; margin-bottom: 15px; line-height: 1.5;">
+                        目前公认的<strong>“六边形战士”</strong>，写文章、懂常识、翻译、写代码样样都行。
+                    </p>
+                    <div style="background: rgba(45, 212, 191, 0.05); padding: 12px; border-radius: 10px;">
+                        <div style="font-size: 14px; color: #2dd4bf;"><strong>适合谁？</strong></div>
+                        <div style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">大多数普通人，既要写公文，又要查资料。</div>
+                    </div>
+                </div>
+
+                <!-- Llama -->
+                <div class="tile" style="flex: 1; border-top: 4px solid #818cf8; padding: 25px;">
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                        <div class="icon" style="color: #818cf8; margin-bottom: 0;"><i class="fa-solid fa-globe"></i>
+                        </div>
+                        <span
+                            style="background: rgba(129, 140, 248, 0.1); color: #818cf8; padding: 4px 10px; border-radius: 20px; font-size: 14px; font-weight: 700;">Llama
+                            3</span>
+                    </div>
+                    <h3 style="margin-bottom: 10px;">Llama (Meta)</h3>
+                    <div style="margin-bottom: 15px;">
+                        <span
+                            style="color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; margin-right: 5px;">🎓
+                            国际标准</span>
+                        <span
+                            style="color: #cbd5e1; font-size: 13px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px;">🌍
+                            英文更强</span>
+                    </div>
+                    <p style="color: #94a3b8; font-size: 15px; margin-bottom: 15px; line-height: 1.5;">
+                        <strong>全球生态最好</strong>，插件最多。但原生中文能力稍弱（需要汉化版）。
+                    </p>
+                    <div style="background: rgba(129, 140, 248, 0.05); padding: 12px; border-radius: 10px;">
+                        <div style="font-size: 14px; color: #818cf8;"><strong>适合谁？</strong></div>
+                        <div style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">英语用户、折腾党、喜欢玩各种开源插件的人。</div>
+                    </div>
+                </div>
+            </div>
+
+            <p style="text-align: center; margin-top: 25px; color: #cbd5e1; font-size: 18px;">
+                <i class="fa-solid fa-lightbulb" style="color: #facc15; margin-right: 8px;"></i> <strong>建议：</strong>
+                不知道选哪个？首选 <strong>Qwen 2.5</strong>；想体验“思考过程”选 <strong>DeepSeek-R1</strong>。
+            </p>
+        </div>
+    </div>
+
+    <!-- Slide 14d: Fine-tuning Deep Dive -->
+    <div class="slide-container" id="slide14d">
+        <h2 class="slide-title">进阶：微调 (Fine-tuning) 实战指北</h2>
+        <div class="content-area">
+            <!-- Top Section: 3-Step Process -->
+            <div
+                style="display: flex; gap: 10px; margin-bottom: 15px; background: rgba(255,255,255,0.03); padding: 10px; border-radius: 12px; align-items: stretch;">
+                <!-- Step 1 -->
+                <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <span
+                            style="background: #facc15; color: #000; width: 18px; height: 18px; border-radius: 50%; text-align: center; line-height: 18px; font-weight: bold; font-size: 12px;">1</span>
+                        <h3 style="margin: 0; color: #facc15; font-size: 15px;">准备“教材” (数据)</h3>
+                    </div>
+                    <div style="font-size: 13px; color: #cbd5e1; line-height: 1.3;">
+                        <ul class="bullet-list" style="margin: 0; padding-left: 12px;">
+                            <li><strong>关键：</strong> 质量 > 数量。</li>
+                            <li><strong>格式：</strong> JSON 问答对。</li>
+                            <li><strong>量级：</strong> 风格百条/知识千条。</li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- Step 2 -->
+                <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 10px;">
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <span
+                            style="background: #2dd4bf; color: #000; width: 18px; height: 18px; border-radius: 50%; text-align: center; line-height: 18px; font-weight: bold; font-size: 12px;">2</span>
+                        <h3 style="margin: 0; color: #2dd4bf; font-size: 15px;">选择“特训工具”</h3>
+                    </div>
+                    <div style="font-size: 13px; color: #cbd5e1; line-height: 1.3;">
+                        <ul class="bullet-list" style="margin: 0; padding-left: 12px;">
+                            <li><strong>LLaMA-Factory：</strong> 图形界面, 小白首选。</li>
+                            <li><strong>Unsloth：</strong> 训练提速几倍。</li>
+                        </ul>
+                    </div>
+                </div>
+                <!-- Step 3 -->
+                <div style="flex: 1; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 10px;">
+                    <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                        <span
+                            style="background: #f43f5e; color: #000; width: 18px; height: 18px; border-radius: 50%; text-align: center; line-height: 18px; font-weight: bold; font-size: 12px;">3</span>
+                        <h3 style="margin: 0; color: #f43f5e; font-size: 15px;">搞定硬件 (算力)</h3>
+                    </div>
+                    <div style="font-size: 13px; color: #cbd5e1; line-height: 1.3;">
+                        <ul class="bullet-list" style="margin: 0; padding-left: 12px;">
+                            <li><strong>显存：</strong> 需 24G+ (极吃配置)。</li>
+                            <li><strong>LoRA：</strong> “贴便利贴”，降门槛。</li>
+                            <li><strong>推荐：</strong> 租 AutoDL (几元/时)。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Section: Comparison -->
+            <div class="two-column" style="gap: 15px;">
+                <div class="tile" style="flex: 1; border: 2px dashed #94a3b8; background: transparent; padding: 10px;">
+                    <h3 style="text-align: center; color: #94a3b8; margin-bottom: 6px; font-size: 16px;">❌ 微调
+                        (Fine-tuning)</h3>
+                    <div style="color: #cbd5e1; font-size: 14px; margin-bottom: 4px; text-align: center;">像 <strong
+                            style="color: #f43f5e;">整容</strong> (内化成肌肉记忆)</div>
+                    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 6px;">
+                        <strong>场景：</strong> 学特定文风/编程语言。<br>
+                        <strong>成本：</strong> <span style="color: #f43f5e;">高</span> (算力+数据清洗)。
+                    </p>
+                    <div
+                        style="background: rgba(244, 63, 94, 0.1); padding: 6px; border-radius: 6px; font-size: 12px; color: #f43f5e;">
+                        <i class="fa-solid fa-circle-exclamation"></i> 仅仅为了让AI记住新文档，<strong>不要微调！</strong>
+                    </div>
+                </div>
+
+                <div class="tile" style="flex: 1; border: 2px solid #2dd4bf; padding: 10px;">
+                    <h3 style="text-align: center; color: #2dd4bf; margin-bottom: 6px; font-size: 16px;">✅ 知识库 (RAG)
+                    </h3>
+                    <div style="color: #cbd5e1; font-size: 14px; margin-bottom: 4px; text-align: center;">像 <strong
+                            style="color: #2dd4bf;">化妆</strong> (开卷考试找答案)</div>
+                    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 6px;">
+                        <strong>场景：</strong> 记文档/答业务题。<br>
+                        <strong>成本：</strong> <span style="color: #2dd4bf;">低</span> (无训练/随时更)。
+                    </p>
+                    <div
+                        style="background: rgba(45, 212, 191, 0.1); padding: 6px; border-radius: 6px; font-size: 12px; color: #2dd4bf;">
+                        <i class="fa-solid fa-thumbs-up"></i> <strong>首选方案：</strong> 先试 RAG，效果不好再考虑微调。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Slide 15: Q&A -->
     <div class="slide-container" id="slide15">
         <div class="content-area" style="text-align: center;">
-            <h1 class="qa-title">Q & A</h1>
-            <p style="font-size: 42px; color: #fff; letter-spacing: 2px;">交流 · 探讨 · 共创</p>
-            <div style="margin-top: 80px; color: #94a3b8; font-size: 24px;">
+            <h1 class="qa-title" style="margin-bottom: 20px;">Q & A</h1>
+            <p style="font-size: 42px; color: #fff; letter-spacing: 2px; margin-bottom: 50px;">交流 · 探讨 · 共创</p>
+
+            <!-- QR Codes -->
+            <!-- QR Codes -->
+            <div style="display: flex; justify-content: center; gap: 80px; margin-bottom: 50px;">
+                <!-- Personal WeChat -->
+                <div style="text-align: center;">
+                    <div
+                        style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); padding: 10px; border-radius: 16px; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);">
+                        <img src="assets/images/shane_wechat_qr.jpg"
+                            style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px;">
+                    </div>
+                    <p style="margin-top: 20px; color: #fff; font-size: 20px; margin-bottom: 6px; font-weight: 600;">
+                        Shane Lee</p>
+                    <p style="color: #94a3b8; font-size: 14px; margin: 0;">扫码交个朋友</p>
+                </div>
+
+                <!-- Group Chat -->
+                <div style="text-align: center;">
+                    <div
+                        style="background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); padding: 10px; border-radius: 16px; width: 220px; height: 220px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);">
+                        <img src="assets/images/ai_opc_group_qr.jpg"
+                            style="width: 100%; height: 100%; object-fit: contain; border-radius: 8px;">
+                    </div>
+                    <p style="margin-top: 20px; color: #fff; font-size: 20px; margin-bottom: 6px; font-weight: 600;">AI
+                        × OPC 进化论</p>
+                    <p style="color: #94a3b8; font-size: 14px; margin: 0;">扫码加入组织</p>
+                </div>
+            </div>
+
+            <div style="color: #94a3b8; font-size: 20px;">
                 <p><strong>行动建议：</strong>今晚就去 Coze 注册，尝试复刻一个“比价专家”。</p>
-                <p style="margin-top: 20px;">感谢聆听，开启你的超级个体之路！</p>
+                <p style="margin-top: 12px;">感谢聆听，开启你的超级个体之路！</p>
             </div>
         </div>
     </div>

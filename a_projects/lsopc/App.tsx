@@ -82,6 +82,17 @@ const FinanceChatPage: React.FC = () => {
   );
 };
 
+const ArticleCoverChatPage: React.FC = () => {
+  return (
+    <ChatLayout
+      title="文章封面助手正在待命"
+      botId={APP_CONFIG.COZE_BOT_ID_ARTICLE_COVER}
+      initialMessage="您好！我是您的文章封面助手。请告诉我您的文章主题或从文章中摘录一段文字，我将为您生成一张精美的封面图。"
+      placeholder="输入文章主题或关键词..."
+    />
+  );
+};
+
 const App: React.FC = () => {
   return (
     <BrowserRouter>
@@ -93,6 +104,7 @@ const App: React.FC = () => {
             <Route path="/" element={<Home />} />
             <Route path="/savings-agent" element={<SavingsChatPage />} />
             <Route path="/finance-agent" element={<FinanceChatPage />} />
+            <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
