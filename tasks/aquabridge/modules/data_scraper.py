@@ -876,39 +876,158 @@ class DataScraper:
     def extract_swap_date_from_page(self, target_frame: FrameLocator) -> Optional[str]:
         """从页面顶部提取掉期日期"""
         try:
-            # 尝试多种选择器来找到掉期日期
-            selectors = [
+            import re
+            
+            # 方法1: 优先查找日期选择器或日期输入框中的日期（与页面显示一致）
+            date_input_selectors = [
+                "input[type='date']",
+                "input[placeholder*='日期']",
+                "input[class*='date']",
+                "[class*='date-picker'] input",
+                "[class*='date-input'] input",
+                "input[class*='date-picker']"
+            ]
+            
+            for selector in date_input_selectors:
+                try:
+                    elements = target_frame.locator(selector).all()
+                    for element in elements:
+                        if element.is_visible(timeout=2000):
+                            # 优先尝试获取value属性（这是日期选择器的实际值）
+                            try:
+                                value = element.get_attribute("value")
+                                if value and re.match(r'^\d{4}-\d{2}-\d{2}$', value):
+                                    print(f"  ✓ 从日期选择器value属性提取到日期: {value}")
+                                    return value
+                            except:
+                                pass
+                            
+                            # 尝试通过evaluate获取value（某些情况下get_attribute可能不工作）
+                            try:
+                                value = element.evaluate("el => el.value")
+                                if value and re.match(r'^\d{4}-\d{2}-\d{2}$', value):
+                                    print(f"  ✓ 从日期选择器evaluate提取到日期: {value}")
+                                    return value
+                            except:
+                                pass
+                            
+                            # 尝试获取文本内容（某些日期选择器可能显示为文本）
+                            try:
+                                text = element.inner_text(timeout=1000)
+                                if text:
+                                    date_match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
+                                    if date_match:
+                                        print(f"  ✓ 从日期输入框文本提取到日期: {date_match.group(1)}")
+                                        return date_match.group(1)
+                            except:
+                                pass
+                except Exception:
+                    continue
+            
+            # 方法2: 查找数据展示区域的"日期："标签后的日期（与页面显示的数据一致）
+            # 优先查找数据卡片或数据展示区域中的日期
+            date_label_selectors = [
+                "text='日期'",
+                "*:has-text('日期')",
+            ]
+            
+            for selector in date_label_selectors:
+                try:
+                    elements = target_frame.locator(selector).all()
+                    for element in elements:
+                        if element.is_visible(timeout=2000):
+                            # 获取元素及其周围的文本
+                            text = element.inner_text(timeout=1000)
+                            # 查找"日期："或"日期 "后的日期
+                            date_match = re.search(r'日期[：:]\s*(\d{4}-\d{2}-\d{2})', text)
+                            if date_match:
+                                # 检查上下文，确保不是预测日期
+                                context = text[:min(100, len(text))]
+                                if "预测" not in context or "当期值" in context or "综合价差比" in context:
+                                    print(f"  ✓ 从数据展示区域日期标签提取到日期: {date_match.group(1)}")
+                                    return date_match.group(1)
+                            
+                            # 尝试获取父元素或兄弟元素的文本
+                            try:
+                                parent_text = element.locator("..").inner_text(timeout=1000)
+                                date_match = re.search(r'日期[：:]\s*(\d{4}-\d{2}-\d{2})', parent_text)
+                                if date_match:
+                                    # 检查上下文，确保不是预测日期
+                                    context = parent_text[:min(100, len(parent_text))]
+                                    if "预测" not in context or "当期值" in context or "综合价差比" in context:
+                                        print(f"  ✓ 从数据展示区域日期标签父元素提取到日期: {date_match.group(1)}")
+                                        return date_match.group(1)
+                            except:
+                                pass
+                except Exception:
+                    continue
+            
+            # 方法3: 查找掉期日期相关的元素
+            swap_date_selectors = [
                 "text='掉期日期'",
                 "*:has-text('掉期日期')",
                 "[class*='date']",
                 "[class*='swap']",
-                "div:has-text('2025-')",
-                "*:has-text('2025-10-15')",
-                "*:has-text('2025-10-14')"
             ]
             
-            for selector in selectors:
+            for selector in swap_date_selectors:
                 try:
                     element = target_frame.locator(selector).first
                     if element.is_visible(timeout=2000):
                         text = element.inner_text(timeout=1000)
-                        # 使用正则表达式提取日期
-                        import re
                         date_match = re.search(r'(\d{4}-\d{2}-\d{2})', text)
                         if date_match:
+                            print(f"  ✓ 从掉期日期元素提取到日期: {date_match.group(1)}")
                             return date_match.group(1)
                 except Exception:
                     continue
             
-            # 如果上述方法都失败，尝试在整个页面中搜索日期
+            # 方法4: 从整个页面文本中搜索，优先选择数据展示区域的日期（与页面显示一致）
             try:
                 page_text = target_frame.locator("body").inner_text(timeout=3000)
-                import re
-                # 查找所有日期格式
+                
+                # 优先查找数据展示区域的"日期："后的日期（通常与日期选择器一致）
+                # 查找所有"日期："后的日期，优先选择在数据卡片中的
+                date_after_label_matches = list(re.finditer(r'日期[：:]\s*(\d{4}-\d{2}-\d{2})', page_text))
+                if date_after_label_matches:
+                    # 优先选择在数据展示区域的日期（通常包含"当期值"、"综合价差比"等关键词）
+                    for match in date_after_label_matches:
+                        date = match.group(1)
+                        # 检查这个日期周围的上下文
+                        start = max(0, match.start() - 50)
+                        end = min(len(page_text), match.end() + 100)
+                        context = page_text[start:end]
+                        # 如果上下文中包含数据展示相关的关键词，优先使用
+                        if any(keyword in context for keyword in ["当期值", "综合价差比", "预测值", "正收益", "做多", "做空"]):
+                            # 排除预测日期
+                            if "预测" not in context or "当期值" in context:
+                                print(f"  ✓ 从页面文本（数据展示区域）提取到日期: {date}")
+                                return date
+                    
+                    # 如果没找到数据展示区域的日期，使用第一个找到的
+                    first_date = date_after_label_matches[0].group(1)
+                    print(f"  ✓ 从页面文本（日期标签后）提取到日期: {first_date}")
+                    return first_date
+                
+                # 如果没找到"日期："后的日期，查找所有日期
                 dates = re.findall(r'(\d{4}-\d{2}-\d{2})', page_text)
                 if dates:
-                    # 返回最后一个找到的日期（通常是最新的）
-                    return dates[-1]
+                    # 排除预测日期，优先选择不是预测日期的日期
+                    for date in dates:
+                        # 检查这个日期前后是否有"预测"字样
+                        date_index = page_text.find(date)
+                        if date_index >= 0:
+                            context_start = max(0, date_index - 30)
+                            context_end = min(len(page_text), date_index + len(date) + 30)
+                            context = page_text[context_start:context_end]
+                            # 如果上下文中没有"预测"字样，优先使用这个日期
+                            if "预测" not in context:
+                                print(f"  ✓ 从页面文本提取到日期（非预测日期）: {date}")
+                                return date
+                    
+                    # 如果都是预测日期，返回第一个（通常是当前日期）
+                    print(f"  ⚠ 从页面文本提取到日期（可能是预测日期）: {dates[0]}")
+                    return dates[0]
             except Exception:
                 pass
                 

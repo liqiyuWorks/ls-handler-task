@@ -138,19 +138,36 @@ class SpotDecisionParser:
         elif "做空" in text and "胜率" in text:
             recommendation["statistics_type"] = "做空胜率统计"
         
-        # 提取盈亏比 - 支持多种格式
-        ratio_patterns = [
-            r'盈亏比[：:]\s*(\d+\.?\d*)[：:]\s*1',  # 盈亏比：2.39：1
-            r'盈亏比[：:]\s*(\d+\.?\d*):1',         # 盈亏比：2.39:1
-            r'(\d+\.?\d*)[：:]\s*1',                # 2.39：1
-            r'(\d+\.?\d*):1',                       # 2.39:1
+        # 提取盈亏比 - 支持多种格式，包括∞（无限大）
+        # 首先检查是否有∞符号（可能是"∞"、"infinity"、"Infinity"等）
+        infinity_patterns = [
+            r'盈亏比[：:]\s*∞',                      # 盈亏比：∞
+            r'盈亏比[：:]\s*infinity',               # 盈亏比：infinity
+            r'盈亏比[：:]\s*Infinity',               # 盈亏比：Infinity
+            r'∞\s*盈亏比',                          # ∞ 盈亏比
+            r'infinity\s*盈亏比',                   # infinity 盈亏比
         ]
         
-        for pattern in ratio_patterns:
-            ratio_match = re.search(pattern, text)
-            if ratio_match:
-                recommendation["profit_loss_ratio"] = float(ratio_match.group(1))
+        for pattern in infinity_patterns:
+            infinity_match = re.search(pattern, text, re.IGNORECASE)
+            if infinity_match:
+                recommendation["profit_loss_ratio"] = "infinity"  # 使用字符串"infinity"表示无限大
                 break
+        
+        # 如果没有找到∞，尝试匹配数字格式
+        if recommendation["profit_loss_ratio"] is None:
+            ratio_patterns = [
+                r'盈亏比[：:]\s*(\d+\.?\d*)[：:]\s*1',  # 盈亏比：2.39：1
+                r'盈亏比[：:]\s*(\d+\.?\d*):1',         # 盈亏比：2.39:1
+                r'(\d+\.?\d*)[：:]\s*1',                # 2.39：1
+                r'(\d+\.?\d*):1',                       # 2.39:1
+            ]
+            
+            for pattern in ratio_patterns:
+                ratio_match = re.search(pattern, text)
+                if ratio_match:
+                    recommendation["profit_loss_ratio"] = float(ratio_match.group(1))
+                    break
         
         # 提取建议交易方向（优先检测做多，因为C3使用做多）
         if "做多" in text:
@@ -257,10 +274,14 @@ class SpotDecisionParser:
                 break
         
         # 提取出现概率
+        # 支持多种格式：在全部交易日期中出现概率、在全部交易日期中出现等
         prob_patterns = [
-            r'在全部交易日期中出现概率[：:]\s*(\d+)%',
-            r'在全部交易日期中出现概率\s*(\d+)%',
-            r'出现概率[：:]\s*(\d+)%',
+            r'在全部交易日期中出现概率[：:]\s*(\d+)%',  # 在全部交易日期中出现概率：7%
+            r'在全部交易日期中出现概率\s*(\d+)%',       # 在全部交易日期中出现概率 7%
+            r'在全部交易日期中出现[：:]\s*(\d+)%',      # 在全部交易日期中出现：7%
+            r'在全部交易日期中出现\s*(\d+)%',           # 在全部交易日期中出现 7%
+            r'出现概率[：:]\s*(\d+)%',                  # 出现概率：7%
+            r'出现概率\s*(\d+)%',                         # 出现概率 7%
         ]
         for pattern in prob_patterns:
             match = re.search(pattern, text)
@@ -282,16 +303,32 @@ class SpotDecisionParser:
         
         # 提取最终正收益占比和平均值
         # 14d版本：最终正收益平均值可能是数值（如1419），42d版本是百分比（如22%）
-        final_percent_match = re.search(r'(\d+)%\s+最终正收益占比', text)
-        if final_percent_match:
-            positive["final_positive_returns_percentage"] = int(final_percent_match.group(1))
+        # 支持两种格式：数值在前或标签在前
+        final_percent_patterns = [
+            r'(\d+)%\s+最终正收益占比',           # 100% 最终正收益占比
+            r'最终正收益占比[：:]\s*(\d+)%',      # 最终正收益占比：100%
+            r'最终正收益占比\s+(\d+)%',          # 最终正收益占比 100%
+        ]
+        for pattern in final_percent_patterns:
+            final_percent_match = re.search(pattern, text)
+            if final_percent_match:
+                positive["final_positive_returns_percentage"] = int(final_percent_match.group(1))
+                break
         
         # 尝试匹配百分比格式（42d版本）
-        final_avg_percent_match = re.search(r'(\d+)%\s+最终正收益平均值', text)
-        if final_avg_percent_match:
-            positive["final_positive_returns_average"] = int(final_avg_percent_match.group(1))
-        else:
-            # 尝试匹配数值格式（14d版本）
+        final_avg_percent_patterns = [
+            r'(\d+)%\s+最终正收益平均值',         # 31% 最终正收益平均值
+            r'最终正收益平均值[：:]\s*(\d+)%',    # 最终正收益平均值：31%
+            r'最终正收益平均值\s+(\d+)%',        # 最终正收益平均值 31%
+        ]
+        for pattern in final_avg_percent_patterns:
+            final_avg_percent_match = re.search(pattern, text)
+            if final_avg_percent_match:
+                positive["final_positive_returns_average"] = int(final_avg_percent_match.group(1))
+                break
+        
+        # 如果百分比格式没有匹配到，尝试匹配数值格式（14d版本）
+        if positive["final_positive_returns_average"] is None:
             final_avg_value_match = re.search(r'最终正收益平均值[：:]\s*(\d+)', text)
             if final_avg_value_match:
                 positive["final_positive_returns_average"] = int(final_avg_value_match.group(1))
