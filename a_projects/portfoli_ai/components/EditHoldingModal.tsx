@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Lock } from 'lucide-react';
+import { X, Save, Lock, Trash2, AlertTriangle } from 'lucide-react';
 import { Holding } from '../types';
 
 interface EditHoldingModalProps {
@@ -7,14 +7,21 @@ interface EditHoldingModalProps {
   holding: Holding | null;
   onClose: () => void;
   onSave: (holding: Holding) => void;
+  onDelete: (holding: Holding) => void;
+  existingHoldings: Holding[];
 }
 
-const EditHoldingModal: React.FC<EditHoldingModalProps> = ({ isOpen, holding, onClose, onSave }) => {
+const EditHoldingModal: React.FC<EditHoldingModalProps> = ({ isOpen, holding, onClose, onSave, onDelete, existingHoldings }) => {
   const [formData, setFormData] = useState<Holding | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (holding) {
       setFormData({ ...holding });
+      setFormData({ ...holding });
+      setShowDeleteConfirm(false);
+      setError(null);
     }
   }, [holding]);
 
@@ -23,6 +30,25 @@ const EditHoldingModal: React.FC<EditHoldingModalProps> = ({ isOpen, holding, on
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (formData) {
+      // 检查是否存在重复代号 (排除自身)
+      // 如果只是修改了账户，但代号没变，这是允许的（相当于依然是同一个持仓，只是属性变了） -- 实际上 App.tsx 的 update 逻辑是基于 old symbol+account 查找的
+      // 但是如果修改了 symbol，必须确保新 symbol 不存在于其他持仓中
+
+      const newSymbol = formData.symbol.toUpperCase();
+      // 查找是否有其他持仓拥有这个 symbol
+      const list = existingHoldings || [];
+      const duplicate = list.find(h =>
+        h.symbol === newSymbol &&
+        h.account === formData.account && // 仅检查目标账户内是否有重复
+        // 排除当前正在编辑的这个持仓 (通过原始 holding 对象对比)
+        !(h.symbol === holding?.symbol && h.account === holding?.account)
+      );
+
+      if (duplicate) {
+        setError(`该股票 (${newSymbol}) 已在 ${duplicate.account} 账户中存在。请勿重复添加，您可以修改现有持仓。`);
+        return;
+      }
+
       onSave(formData);
       onClose();
     }
@@ -43,17 +69,27 @@ const EditHoldingModal: React.FC<EditHoldingModalProps> = ({ isOpen, holding, on
           </button>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4 flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 pt-0">
+          {error && (
+            <div className="flex items-start gap-2 text-sm text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg p-3">
+              <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3 sm:gap-4">
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-1 flex items-center gap-1">
-                账户 (锁定) <Lock className="w-3 h-3" />
+                账户
               </label>
-              <input
-                type="text"
-                disabled
-                className="w-full bg-slate-900/50 border border-slate-700/50 rounded-lg px-4 py-2 text-slate-500 cursor-not-allowed"
+              <select
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 outline-none"
                 value={formData.account}
-              />
+                onChange={e => setFormData({ ...formData, account: e.target.value as any })}
+              >
+                <option value="FirstTrade">FirstTrade (第一证券)</option>
+                <option value="IBKR">IBKR (盈透证券)</option>
+                <option value="uSmart">uSmart (盈立证券)</option>
+                <option value="Other">Other (其他)</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-400 mb-1 flex items-center gap-1">
@@ -126,13 +162,40 @@ const EditHoldingModal: React.FC<EditHoldingModalProps> = ({ isOpen, holding, on
             </select>
           </div>
 
-          <button
-            type="submit"
-            className="w-full bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 mt-6 touch-manipulation"
-          >
-            <Save className="w-5 h-5" />
-            保存修改
-          </button>
+          <div className="flex gap-3 mt-6">
+            {showDeleteConfirm ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (formData) {
+                    onDelete(formData);
+                    onClose();
+                  }
+                }}
+                className="flex-1 bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 touch-manipulation animate-pulse"
+              >
+                <AlertTriangle className="w-5 h-5" />
+                确认删除?
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="bg-slate-700 hover:bg-rose-900/50 hover:text-rose-500 hover:border-rose-500/50 border border-transparent active:scale-[0.99] text-slate-300 font-bold py-3 px-4 rounded-lg transition-all flex items-center justify-center gap-2 touch-manipulation"
+                title="删除持仓"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+
+            <button
+              type="submit"
+              className="flex-[2] bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold py-3 rounded-lg transition-all flex items-center justify-center gap-2 touch-manipulation"
+            >
+              <Save className="w-5 h-5" />
+              保存修改
+            </button>
+          </div>
         </form>
       </div>
     </div>

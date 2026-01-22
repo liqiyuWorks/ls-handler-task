@@ -2,18 +2,19 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { marketDataService } from './services/marketDataService';
 import { INITIAL_HOLDINGS } from './constants';
 import { Holding, Quote } from './types';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  PieChart as PieChartIcon, 
-  Plus, 
-  Pencil, 
+import {
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  PieChart as PieChartIcon,
+  Plus,
+  Pencil,
   Activity,
   Wallet,
   Building2,
   Globe2
 } from 'lucide-react';
+import { getStrategyBucket, STRATEGY_DEFINITIONS } from './utils/strategyUtils';
 import PortfolioChart from './components/PortfolioChart';
 import StrategyCard from './components/StrategyCard';
 import AddHoldingModal from './components/AddHoldingModal';
@@ -24,9 +25,9 @@ const App: React.FC = () => {
     const saved = localStorage.getItem('portfolio_holdings');
     return saved ? JSON.parse(saved) : INITIAL_HOLDINGS;
   });
-  
+
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
-  
+
   // Modal States
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -98,11 +99,20 @@ const App: React.FC = () => {
   };
 
   const updateHolding = (updatedHolding: Holding) => {
-    setHoldings(prev => prev.map(h => 
-      (h.symbol === updatedHolding.symbol && h.account === updatedHolding.account) 
-        ? updatedHolding 
+    if (!editingHolding) return;
+    setHoldings(prev => prev.map(h =>
+      (h.symbol === editingHolding.symbol && h.account === editingHolding.account)
+        ? updatedHolding
         : h
     ));
+    setEditingHolding(null);
+  };
+
+  const deleteHolding = (holdingToDelete: Holding) => {
+    setHoldings(prev => prev.filter(h =>
+      !(h.symbol === holdingToDelete.symbol && h.account === holdingToDelete.account)
+    ));
+    setIsEditModalOpen(false);
   };
 
   const formatCurrency = (val: number) => {
@@ -114,7 +124,7 @@ const App: React.FC = () => {
   };
 
   const getAccountBadgeColor = (account: string) => {
-    switch(account) {
+    switch (account) {
       case 'FirstTrade': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
       case 'IBKR': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
       case 'uSmart': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
@@ -124,7 +134,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-emerald-500/30">
-      
+
       {/* Header - 移动端紧凑 */}
       <header className="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2">
@@ -134,10 +144,10 @@ const App: React.FC = () => {
             </div>
             <h1 className="text-base sm:text-xl font-bold tracking-tight truncate">
               <span className="sm:hidden">Portfoli.AI</span>
-              <span className="hidden sm:inline">Portfoli.AI 投资助手</span>
+              <span className="hidden sm:inline">李昇私人投资助理</span>
             </h1>
           </div>
-          <button 
+          <button
             onClick={() => setIsAddModalOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white px-3 py-2 sm:px-4 rounded-lg text-sm font-medium flex items-center gap-2 transition-all shrink-0"
           >
@@ -148,28 +158,28 @@ const App: React.FC = () => {
       </header>
 
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
-        
+
         {/* Account Filter Tabs - 横向滚动 */}
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-3 px-3 sm:mx-0 sm:px-0 scrollbar-hide">
-          <button 
+          <button
             onClick={() => setSelectedAccount('All')}
             className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors border shrink-0 ${selectedAccount === 'All' ? 'bg-slate-800 border-emerald-500 text-white' : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-white'}`}
           >
             <Wallet className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">全部账户 (All)</span><span className="sm:hidden">All</span>
           </button>
-          <button 
+          <button
             onClick={() => setSelectedAccount('FirstTrade')}
             className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors border shrink-0 ${selectedAccount === 'FirstTrade' ? 'bg-slate-800 border-blue-500 text-white' : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-white'}`}
           >
             <Building2 className="w-4 h-4 shrink-0" /> FirstTrade
           </button>
-          <button 
+          <button
             onClick={() => setSelectedAccount('IBKR')}
             className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors border shrink-0 ${selectedAccount === 'IBKR' ? 'bg-slate-800 border-orange-500 text-white' : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-white'}`}
           >
             <Globe2 className="w-4 h-4 shrink-0" /> IBKR
           </button>
-          <button 
+          <button
             onClick={() => setSelectedAccount('uSmart')}
             className={`px-3 sm:px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 sm:gap-2 whitespace-nowrap transition-colors border shrink-0 ${selectedAccount === 'uSmart' ? 'bg-slate-800 border-purple-500 text-white' : 'bg-slate-900/50 border-transparent text-slate-400 hover:text-white'}`}
           >
@@ -216,9 +226,18 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-3 flex-wrap">
                   <h2 className="text-base sm:text-lg font-bold text-white">持仓明细</h2>
                   {selectedAccount !== 'All' && (
-                    <span className={`px-2 py-0.5 text-xs rounded border ${getAccountBadgeColor(selectedAccount)}`}>
-                      仅显示 {selectedAccount}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 text-xs rounded border ${getAccountBadgeColor(selectedAccount)}`}>
+                        仅显示 {selectedAccount}
+                      </span>
+                      <button
+                        onClick={() => setIsAddModalOpen(true)}
+                        className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded hover:bg-emerald-500/20 transition-colors"
+                      >
+                        <Plus className="w-3 h-3" />
+                        添加至 {selectedAccount}
+                      </button>
+                    </div>
                   )}
                 </div>
                 <span className="text-xs text-slate-500 uppercase tracking-wider">共 {filteredHoldings.length} 个标的</span>
@@ -250,7 +269,18 @@ const App: React.FC = () => {
                         <tr key={key} className="hover:bg-slate-700/30 transition-colors">
                           <td className="px-4 lg:px-6 py-3">
                             <div className="flex flex-col">
-                              <span className="font-bold text-white">{h.symbol}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-white">{h.symbol}</span>
+                                {(() => {
+                                  const strat = getStrategyBucket(h.symbol, h.sector);
+                                  const def = STRATEGY_DEFINITIONS[strat];
+                                  return (
+                                    <span className={`px-1.5 py-0.5 text-[10px] rounded border ${def.color} whitespace-nowrap`}>
+                                      {def.name.split(' ')[0]}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                               <span className="text-xs text-slate-400">{h.name}</span>
                             </div>
                           </td>
@@ -311,6 +341,15 @@ const App: React.FC = () => {
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2 mb-1">
                               <span className="font-bold text-white">{h.symbol}</span>
+                              {(() => {
+                                const strat = getStrategyBucket(h.symbol, h.sector);
+                                const def = STRATEGY_DEFINITIONS[strat];
+                                return (
+                                  <span className={`px-1.5 py-0.5 text-[10px] rounded border ${def.color} whitespace-nowrap`}>
+                                    {def.name.split(' ')[0]}
+                                  </span>
+                                );
+                              })()}
                               {selectedAccount === 'All' && (
                                 <span className={`px-2 py-0.5 text-[10px] rounded border shrink-0 ${getAccountBadgeColor(h.account)}`}>{h.account}</span>
                               )}
@@ -358,10 +397,12 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <AddHoldingModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        onAdd={addHolding} 
+      <AddHoldingModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        onAdd={addHolding}
+        existingHoldings={holdings}
+        defaultAccount={selectedAccount === 'All' ? undefined : selectedAccount}
       />
 
       <EditHoldingModal
@@ -369,6 +410,8 @@ const App: React.FC = () => {
         holding={editingHolding}
         onClose={() => setIsEditModalOpen(false)}
         onSave={updateHolding}
+        onDelete={deleteHolding}
+        existingHoldings={holdings}
       />
     </div>
   );
