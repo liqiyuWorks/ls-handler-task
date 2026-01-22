@@ -27,5 +27,6 @@ EXPOSE 8090
 RUN pip3 install --upgrade pip -i https://pypi.tuna.tsinghua.edu.cn/simple/ --trusted-host pypi.tuna.tsinghua.edu.cn
 RUN pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple/ --trusted-host pypi.tuna.tsinghua.edu.cn
 RUN python3 -m playwright install
-# 启动命令
-CMD ["python3", "test_static_parse.py"]
+
+# 启动命令（使用结构化 app 入口）
+CMD ["python3", "run.py"]
