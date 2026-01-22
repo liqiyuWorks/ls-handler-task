@@ -1,0 +1,5 @@
+{
+  "name": "Portfoli.AI",
+  "description": "个人美股投资仪表盘，具有实时盈亏模拟、投资组合管理以及基于 Gemini 的 AI 投资分析功能。",
+  "requestFramePermissions": []
+}
