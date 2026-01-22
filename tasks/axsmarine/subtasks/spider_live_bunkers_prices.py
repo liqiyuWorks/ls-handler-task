@@ -92,7 +92,7 @@ class SpiderLiveBunkersPrices(BaseModel):
             # 解析响应数据
             data = response.json()
             logging.info(f"Raw response type: {type(data)}")
-            logging.info(f"Raw response content: {data}")
+            # logging.info(f"Raw response content: {data}")
             
             # 处理不同的响应格式
             if isinstance(data, list):
