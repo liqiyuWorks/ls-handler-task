@@ -11,6 +11,6 @@ source ~/.build_env.sh
 #git pull
 
 echo "docker build -t ${PROC_NAME}:${VERSION}" .
-docker buildx build --platform linux/amd64 -f Dockerfile_playwright -t "${PROC_NAME}":"${VERSION}" .
+docker buildx build --platform linux/amd64 -t "${PROC_NAME}":"${VERSION}" .
 
 
