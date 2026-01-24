@@ -3,3 +3,5 @@ lxml
 playwright
 fastapi
 pydantic
+requests
+python-multipart

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { chatWithCoze } from '../src/services/coze';
+import { chatWithCoze } from '../services/coze';
 
 interface Message {
     role: 'user' | 'assistant';

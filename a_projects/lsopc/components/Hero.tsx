@@ -9,148 +9,104 @@ interface HeroProps {
 const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
   const navigate = useNavigate();
   return (
-    <div className="flex flex-col items-center justify-center py-12 md:py-20 relative">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-orange-500/10 blur-[120px] rounded-full pointer-events-none"></div>
+    <div className="flex flex-col items-center justify-center py-20 md:py-32 relative min-h-[80vh]">
+      {/* Background Ambience */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[500px] bg-gradient-to-tr from-orange-500/5 to-purple-500/5 blur-[120px] rounded-full pointer-events-none"></div>
 
-      <div className="text-center mb-16 relative z-10 selection:bg-orange-500/30">
-        <h1 className="text-5xl md:text-7xl font-black mb-6 tracking-tighter">
-          Li Sheng <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-yellow-200">OPC</span>
+      <div className="text-center mb-24 relative z-10">
+        <h1 className="text-5xl md:text-7xl font-black mb-8 tracking-tighter text-white drop-shadow-2xl flex flex-col md:flex-row items-center justify-center gap-2 md:gap-4">
+          <span>LiSheng AI</span>
+          <span className="text-orange-500/80 text-3xl md:text-5xl transform rotate-0">✖️</span>
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200">OPC</span>
         </h1>
-        <div className="flex items-center justify-center gap-4 text-gray-400 font-medium text-sm md:text-base tracking-widest uppercase">
-          <span className="h-[1px] w-8 md:w-12 bg-gradient-to-r from-transparent to-gray-600"></span>
+        <div className="flex items-center justify-center gap-6 text-gray-400 font-light text-sm md:text-base tracking-[0.3em] uppercase opacity-70">
           <span>{APP_CONFIG.SLOGAN}</span>
-          <span className="h-[1px] w-8 md:w-12 bg-gradient-to-l from-transparent to-gray-600"></span>
         </div>
       </div>
 
-      <div className="w-full max-w-5xl z-10 px-4">
-        <div className="flex items-center gap-3 mb-8 justify-center md:justify-start">
-          <div className="w-1.5 h-6 bg-orange-500 rounded-full shadow-[0_0_15px_rgba(249,115,22,0.5)]"></div>
-          <h2 className="text-xl font-bold tracking-wide">已上线 AI 项目</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
+      <div className="w-full max-w-6xl z-10 px-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Active Card */}
-          <div className="group relative bg-[#111] border border-white/5 rounded-3xl p-8 hover:border-orange-500/30 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-70 group-hover:opacity-100 transition-opacity">
-              <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-900/20 border border-green-500/20 text-green-500 text-xs font-bold tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                运行中
-              </span>
+          <div className="group relative bg-white/5 backdrop-blur-sm border border-white/5 rounded-3xl p-8 hover:bg-white/10 hover:border-orange-500/20 transition-all duration-500 hover:-translate-y-1">
+            <div className="absolute top-6 right-6">
+              <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
             </div>
 
-            <div className="mb-6 relative">
-              <div className="absolute -inset-4 bg-orange-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="w-16 h-16 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-4xl shadow-2xl border border-white/10 relative z-10">
+            <div className="mb-8">
+              <div className="w-14 h-14 bg-gradient-to-br from-orange-500/20 to-orange-600/5 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform duration-500">
                 👑
               </div>
+              <h3 className="text-xl font-bold text-white mb-3 tracking-wide">
+                省钱大王
+              </h3>
+              <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
+                全网比价、隐藏券搜索，帮您把价格狠狠打下来！
+              </p>
             </div>
-
-            <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
-              最优购·省钱大王
-            </h3>
-            <p className="text-gray-400 text-sm leading-relaxed mb-8 h-12 opacity-80">
-              您的 AI 私人导购专家。全网比价、隐藏券搜索、口碑筛选，帮您把价格狠狠打下来！
-            </p>
 
             <button
               onClick={onStartChat}
-              className="w-full py-3.5 bg-white text-black font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all duration-300 transform group-hover:translate-y-[-2px] shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl border border-white/10 text-sm font-medium text-gray-300 group-hover:text-white group-hover:border-orange-500/50 group-hover:bg-orange-500/10 transition-all duration-300 flex items-center justify-center gap-2"
             >
-              <span>立即体验</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>
+              <span>开始对话</span>
+              <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
             </button>
           </div>
 
-          {/* New Card: Daily Financial Analysis */}
-          <div className="group relative bg-[#111] border border-white/5 rounded-3xl p-8 hover:border-orange-500/30 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-70 group-hover:opacity-100 transition-opacity">
-              <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-900/20 border border-green-500/20 text-green-500 text-xs font-bold tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                运行中
-              </span>
+          {/* Finance Card */}
+          <div className="group relative bg-white/5 backdrop-blur-sm border border-white/5 rounded-3xl p-8 hover:bg-white/10 hover:border-blue-500/20 transition-all duration-500 hover:-translate-y-1">
+            <div className="absolute top-6 right-6">
+              <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
             </div>
 
-            <div className="mb-6 relative">
-              <div className="absolute -inset-4 bg-orange-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="w-16 h-16 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-4xl shadow-2xl border border-white/10 relative z-10">
+            <div className="mb-8">
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-500/20 to-blue-600/5 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform duration-500">
                 📊
               </div>
+              <h3 className="text-xl font-bold text-white mb-3 tracking-wide">
+                财报分析
+              </h3>
+              <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
+                轻松解读财务数据，洞察企业经营状况与风险。
+              </p>
             </div>
-
-            <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
-              每日财报分析助手
-            </h3>
-            <p className="text-gray-400 text-sm leading-relaxed mb-8 h-12 opacity-80">
-              专业的财报分析助手，助您轻松解读财务数据，洞察企业经营状况。
-            </p>
 
             <button
               onClick={() => navigate('/finance-agent')}
-              className="w-full py-3.5 bg-white text-black font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all duration-300 transform group-hover:translate-y-[-2px] shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl border border-white/10 text-sm font-medium text-gray-300 group-hover:text-white group-hover:border-blue-500/50 group-hover:bg-blue-500/10 transition-all duration-300 flex items-center justify-center gap-2"
             >
-              <span>立即体验</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>
+              <span>开始对话</span>
+              <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
             </button>
           </div>
 
-          {/* New Card: Article Cover Assistant */}
-          <div className="group relative bg-[#111] border border-white/5 rounded-3xl p-8 hover:border-orange-500/30 transition-all duration-500 hover:shadow-[0_0_40px_rgba(0,0,0,0.5)] overflow-hidden">
-            <div className="absolute top-0 right-0 p-4 opacity-70 group-hover:opacity-100 transition-opacity">
-              <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-900/20 border border-green-500/20 text-green-500 text-xs font-bold tracking-wider">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-                运行中
-              </span>
+          {/* Article Cover Card */}
+          <div className="group relative bg-white/5 backdrop-blur-sm border border-white/5 rounded-3xl p-8 hover:bg-white/10 hover:border-purple-500/20 transition-all duration-500 hover:-translate-y-1">
+            <div className="absolute top-6 right-6">
+              <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></span>
             </div>
 
-            <div className="mb-6 relative">
-              <div className="absolute -inset-4 bg-orange-500/20 blur-2xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-              <div className="w-16 h-16 bg-gradient-to-br from-gray-800 to-black rounded-2xl flex items-center justify-center text-4xl shadow-2xl border border-white/10 relative z-10">
+            <div className="mb-8">
+              <div className="w-14 h-14 bg-gradient-to-br from-purple-500/20 to-purple-600/5 rounded-2xl flex items-center justify-center text-3xl mb-6 group-hover:scale-110 transition-transform duration-500">
                 🎨
               </div>
+              <h3 className="text-xl font-bold text-white mb-3 tracking-wide">
+                封面助手
+              </h3>
+              <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
+                一键生成吸睛的公众号与自媒体文章封面。
+              </p>
             </div>
-
-            <h3 className="text-2xl font-bold text-white mb-3 group-hover:text-orange-400 transition-colors">
-              文章封面助手
-            </h3>
-            <p className="text-gray-400 text-sm leading-relaxed mb-8 h-12 opacity-80">
-              专为公众号、自媒体打造的封面生成助手，一键生成吸睛封面，提升点击率。
-            </p>
 
             <button
               onClick={() => navigate('/article-cover-agent')}
-              className="w-full py-3.5 bg-white text-black font-bold rounded-xl hover:bg-orange-500 hover:text-white transition-all duration-300 transform group-hover:translate-y-[-2px] shadow-lg flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl border border-white/10 text-sm font-medium text-gray-300 group-hover:text-white group-hover:border-purple-500/50 group-hover:bg-purple-500/10 transition-all duration-300 flex items-center justify-center gap-2"
             >
-              <span>立即体验</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg>
+              <span>开始对话</span>
+              <svg className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3"></path></svg>
             </button>
           </div>
 
-          {/* Placeholder Card */}
-          <div className="group relative bg-[#0a0a0a] border border-white/5 rounded-3xl p-8 opacity-60 hover:opacity-100 transition-all duration-500">
-            <div className="absolute top-0 right-0 p-4">
-              <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-gray-500 text-xs font-bold tracking-wider">
-                筹备中
-              </span>
-            </div>
-
-            <div className="mb-6 grayscale group-hover:grayscale-0 transition-all duration-500">
-              <div className="w-16 h-16 bg-black/50 rounded-2xl flex items-center justify-center text-3xl border border-white/5">
-                🚀
-              </div>
-            </div>
-
-            <h3 className="text-xl font-bold text-gray-300 mb-3">
-              更多 AI 智能体
-            </h3>
-            <p className="text-gray-500 text-sm leading-relaxed mb-8 opacity-80">
-              Li Sheng OPC 正在孵化更多垂直领域的 AI 创新项目，敬请期待。
-            </p>
-
-            <div className="w-full py-3.5 bg-white/5 text-gray-500 font-bold rounded-xl border border-white/5 flex items-center justify-center text-sm cursor-not-allowed">
-              开发中...
-            </div>
-          </div>
         </div>
       </div>
     </div>

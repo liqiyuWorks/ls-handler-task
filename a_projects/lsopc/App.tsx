@@ -5,23 +5,13 @@ import Footer from './components/Footer';
 import Hero from './components/Hero';
 import CozeChat from './components/CozeChat';
 import WeChatWidget from './components/WeChatWidget';
+import KnowledgeBaseManager from './components/KnowledgeBaseManager';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
   return (
     <div className="flex flex-col">
       <Hero onStartChat={() => navigate('/savings-agent')} />
-      <div className="text-center pb-12">
-        <a
-          href="/overview.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-6 py-3 border border-white/10 rounded-full text-xs text-gray-400 hover:text-white hover:border-orange-500 hover:bg-white/5 transition-all duration-300 tracking-widest uppercase group"
-        >
-          <span className="w-2 h-2 rounded-full bg-orange-500/50 group-hover:bg-orange-500 transition-colors"></span>
-          进入演示模式 (Presentation Mode)
-        </a>
-      </div>
     </div>
   );
 };
@@ -102,6 +92,7 @@ const App: React.FC = () => {
         <main className="flex-grow flex flex-col container mx-auto px-2 md:px-4 py-4 md:py-6">
           <Routes>
             <Route path="/" element={<Home />} />
+            <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
             <Route path="/savings-agent" element={<SavingsChatPage />} />
             <Route path="/finance-agent" element={<FinanceChatPage />} />
             <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />
