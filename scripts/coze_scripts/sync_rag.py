@@ -347,9 +347,200 @@ class CozeKnowledgeAPI:
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"❌ 获取文件详情失败: {str(e)}")
-            if hasattr(e.response, 'text'):
+            if hasattr(e, "response") and e.response is not None:
                 print(f"响应内容: {e.response.text}")
             raise
+
+    def create_document_from_file(
+        self,
+        *,
+        dataset_id: str,
+        file_path: str,
+        space_id: Optional[str] = None,
+        name: Optional[str] = None,
+        process_mode: str = "increment"
+    ) -> Dict[str, Any]:
+        """
+        上传本地文件到知识库
+        
+        根据 Coze API 文档：POST /v2/knowledge/document/create
+        支持格式：.txt, .csv, .pdf, .md, .json, .docx, .xlsx, .pptx, .html，单文件最大 20MB。
+        
+        Args:
+            dataset_id: 知识库 ID
+            file_path: 本地文件路径
+            space_id: 空间 ID（可选，默认使用初始化时的值）
+            name: 文件展示名称（可选，默认使用文件名）
+            process_mode: 处理方式，increment 增量 / full 全量，默认 increment
+            
+        Returns:
+            包含 document_id, state, name 的响应
+        """
+        path = os.path.abspath(os.path.expanduser(file_path))
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"文件不存在: {path}")
+        
+        fname = os.path.basename(path)
+        ext = os.path.splitext(fname)[1].lower()
+        allowed = (".txt", ".csv", ".pdf", ".md", ".json", ".docx", ".xlsx", ".pptx", ".html")
+        if ext not in allowed:
+            raise ValueError(f"不支持的文件格式 {ext}，允许: {', '.join(allowed)}")
+        
+        size_mb = os.path.getsize(path) / (1024 * 1024)
+        if size_mb > 20:
+            raise ValueError(f"单文件不得超过 20MB，当前 {size_mb:.2f}MB")
+        
+        sid = space_id or self.space_id
+        if not sid:
+            raise ValueError("space_id 必需，请在初始化时提供或传入")
+        
+        url = f"{self.BASE_URL}/open_api/knowledge/document/create"
+        headers = {k: v for k, v in self.headers.items() if k.lower() != "content-type"}
+        headers["Agw-Js-Conv"] = "1"
+        if sid and "X-Coze-Space-Id" not in headers:
+            headers["X-Coze-Space-Id"] = str(sid)
+        
+        data = {
+            "space_id": str(sid),
+            "dataset_id": str(dataset_id).strip(),
+            "name": (name or fname).strip(),
+            "document_type": "file",
+            "process_mode": process_mode.strip() or "increment",
+        }
+        
+        with open(path, "rb") as f:
+            files = [("file", (fname, f, "application/octet-stream"))]
+            try:
+                r = requests.post(url, headers=headers, files=files, data=data, timeout=60)
+            except requests.exceptions.RequestException as e:
+                print(f"❌ 上传失败: {e}")
+                raise
+        
+        if r.status_code != 200:
+            msg = r.text
+            if r.text.strip():
+                try:
+                    msg = json.dumps(r.json(), ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+            print(f"❌ 创建失败 HTTP {r.status_code}: {msg[:500]}")
+            r.raise_for_status()
+        
+        out = r.json()
+        if out.get("code") not in (None, 0):
+            raise RuntimeError(f"API 返回错误: {out.get('msg', '未知')} (code={out.get('code')})")
+        return out
+
+    def create_document_from_url(
+        self,
+        *,
+        dataset_id: str,
+        url: Optional[str] = None,
+        urls: Optional[List[str]] = None,
+        name: str,
+        space_id: Optional[str] = None,
+        update_interval: int = 24,
+        chunk_strategy: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        添加在线网页到知识库（支持自动更新配置）
+        
+        使用 JSON API 接口：POST https://api.coze.cn/open_api/knowledge/document/create
+        
+        Args:
+            dataset_id: 知识库 ID
+            url: 单个网页 URL（与 urls 二选一）
+            urls: 多个网页 URL 列表（与 url 二选一）
+            name: 文档展示名称
+            space_id: 空间 ID（可选）
+            update_interval: 自动更新频率（小时），默认 24
+            chunk_strategy: 切片策略配置（可选）
+            
+        Returns:
+            响应数据
+        """
+        if (url is None and not urls) or (url is not None and urls is not None):
+            raise ValueError("请提供 url 或 urls 其中之一")
+        
+        url_list = [url.strip()] if url else [u.strip() for u in urls if u and u.strip()]
+        if not url_list:
+            raise ValueError("url(s) 不能为空")
+        
+        sid = space_id or self.space_id
+        if not sid:
+            raise ValueError("space_id 必需，请在初始化时提供或传入")
+            
+        url_endpoint = f"{self.BASE_URL}/open_api/knowledge/document/create"
+        
+        # 构造 document_bases
+        document_bases = []
+        for u in url_list:
+            doc_base = {
+                "name": name,
+                "source_info": {
+                    "web_url": u,
+                    "document_source": 1  # 1 indicates URL source
+                },
+                "update_rule": {
+                    "update_type": 1,  # 1 indicates auto-update
+                    "update_interval": int(update_interval)
+                }
+            }
+            document_bases.append(doc_base)
+            
+        # 默认切片策略，参考用户提供的最佳实践
+        default_chunk_strategy = {
+            "separator": "\n\n",
+            "max_tokens": 800,
+            "remove_extra_spaces": False,
+            "remove_urls_emails": False,
+            "chunk_type": 1
+        }
+        # 合并自定义策略
+        final_chunk_strategy = {**default_chunk_strategy, **(chunk_strategy or {})}
+        
+        payload = {
+            "dataset_id": str(dataset_id),
+            "document_bases": document_bases,
+            "chunk_strategy": final_chunk_strategy
+        }
+        
+        headers = self._get_headers(sid)
+        # 文档要求 Agw-Js-Conv
+        headers["Agw-Js-Conv"] = "1"
+        
+        try:
+            print(f"📤 正在提交 URL (space_id={sid}, dataset_id={dataset_id})...")
+            response = requests.post(url_endpoint, headers=headers, json=payload, timeout=60)
+            
+            if response.status_code != 200:
+                print(f"❌ 请求失败: HTTP {response.status_code}")
+                try:
+                    print(json.dumps(response.json(), ensure_ascii=False, indent=2))
+                except:
+                    print(response.text)
+                response.raise_for_status()
+                
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 请求异常: {e}")
+            if hasattr(e, "response") and e.response is not None:
+                _print_401_hint(e)
+            raise
+
+
+def _print_create_result(res: Dict[str, Any]) -> None:
+    """打印创建知识库文件的 API 返回结果"""
+    data = res.get("data", res)
+    doc_id = data.get("document_id") or res.get("document_id")
+    state = data.get("state") or res.get("state")
+    name = data.get("name") or res.get("name")
+    print("\n✅ 创建成功")
+    print(f"   document_id: {doc_id or 'N/A'}")
+    print(f"   state: {state or 'N/A'}")
+    print(f"   name: {name or 'N/A'}")
+    if res.get("code") is not None and res.get("code") != 0:
+        print(f"   (code: {res.get('code')}, msg: {res.get('msg', '')})")
 
 
 def format_timestamp(timestamp: Any) -> str:
@@ -582,39 +773,58 @@ def main():
     
     # 解析命令行参数
     # 支持的模式：
-    # 1. python sync_rag.py list - 列出所有知识库
-    # 2. python sync_rag.py files [knowledge_id] - 列出指定知识库的文件
-    # 3. python sync_rag.py <token> [knowledge_id] - 兼容旧版本用法
+    # 1. list - 列出所有知识库
+    # 2. files [knowledge_id] - 列出指定知识库的文件
+    # 3. create file <file_path> [--name xxx] - 上传本地文件
+    # 4. create url <url> [name] - 添加在线网页
+    # 5. 兼容旧版：<token> [knowledge_id]
     
-    mode = "files"  # 默认模式：查看文件列表
+    mode = "files"
+    create_sub = None
+    create_file_path = None
+    create_url = None
+    create_name = None
+    
     if len(sys.argv) > 1:
         first_arg = sys.argv[1].lower()
         if first_arg in ["list", "datasets", "knowledge"]:
             mode = "list"
         elif first_arg in ["files", "file"]:
             mode = "files"
-            if len(sys.argv) > 2:
+            if len(sys.argv) > 2 and not sys.argv[2].startswith("-"):
                 knowledge_id = sys.argv[2].strip()
+        elif first_arg == "create" and len(sys.argv) > 2:
+            mode = "create"
+            create_sub = sys.argv[2].lower()
+            if create_sub == "file" and len(sys.argv) > 3:
+                create_file_path = sys.argv[3].strip()
+                i = 4
+                while i < len(sys.argv):
+                    if sys.argv[i] == "--name" and i + 1 < len(sys.argv):
+                        create_name = sys.argv[i + 1].strip()
+                        i += 2
+                    else:
+                        i += 1
+            elif create_sub == "url" and len(sys.argv) > 3:
+                create_url = sys.argv[3].strip()
+                create_name = sys.argv[4].strip() if len(sys.argv) > 4 and not sys.argv[4].startswith("-") else None
+            else:
+                create_sub = None
         elif first_arg.startswith("sk-") or first_arg.startswith("pat_"):
-            # 兼容旧版本：第一个参数是 token
             token = sys.argv[1].strip()
             if len(sys.argv) > 2:
                 knowledge_id = sys.argv[2].strip()
         else:
-            # 如果第一个参数不是模式，可能是 knowledge_id
             knowledge_id = sys.argv[1].strip()
     
-    # 检查必要的参数
     if not token:
         print("❌ 错误: 未提供 Coze API Token")
         print("\n使用方法:")
-        print("  查看知识库列表:")
-        print("    python sync_rag.py list")
-        print("  查看知识库文件:")
-        print("    python sync_rag.py files [knowledge_id]")
-        print("  或使用环境变量:")
-        print("    export COZE_TOKEN='your_token'")
-        print("    export COZE_KNOWLEDGE_ID='your_knowledge_id'")
+        print("  python sync_rag.py list")
+        print("  python sync_rag.py files [knowledge_id]")
+        print("  python sync_rag.py create file <file_path> [--name 显示名]")
+        print("  python sync_rag.py create url <url> [显示名]")
+        print("  环境变量: COZE_TOKEN, COZE_KNOWLEDGE_ID, COZE_WORKSPACE_ID")
         sys.exit(1)
     
     # 获取 space_id（某些 API 需要）
@@ -646,7 +856,7 @@ def main():
             
             return datasets
             
-        else:
+        elif mode == "files":
             # 查看指定知识库的文件列表
             if not knowledge_id:
                 print("❌ 错误: 未提供知识库 ID")
@@ -674,6 +884,51 @@ def main():
             save_files_to_json(files, output_file)
             
             return files
+        
+        elif mode == "create":
+            if not space_id:
+                print("❌ 错误: 创建文件需设置 COZE_WORKSPACE_ID")
+                sys.exit(1)
+            if not knowledge_id:
+                print("❌ 错误: 创建文件需设置 COZE_KNOWLEDGE_ID 或指定知识库 ID")
+                sys.exit(1)
+            
+            if create_sub == "file" and create_file_path:
+                print("=" * 80)
+                print("📤 上传本地文件到知识库")
+                print("=" * 80)
+                print(f"   知识库 ID: {knowledge_id}")
+                print(f"   空间 ID: {space_id}")
+                print(f"   文件: {create_file_path}")
+                res = api.create_document_from_file(
+                    dataset_id=knowledge_id,
+                    file_path=create_file_path,
+                    space_id=space_id,
+                    name=create_name,
+                )
+                _print_create_result(res)
+                return res
+            
+            elif create_sub == "url" and create_url:
+                print("=" * 80)
+                print("🌐 添加在线网页到知识库")
+                print("=" * 80)
+                print(f"   知识库 ID: {knowledge_id}")
+                print(f"   空间 ID: {space_id}")
+                print(f"   URL: {create_url}")
+                name = create_name or "网页"
+                res = api.create_document_from_url(
+                    dataset_id=knowledge_id,
+                    url=create_url,
+                    name=name,
+                    space_id=space_id,
+                )
+                _print_create_result(res)
+                return res
+            
+            else:
+                print("❌ 用法: create file <file_path> [--name 显示名] 或 create url <url> [显示名]")
+                sys.exit(1)
         
     except Exception as e:
         print(f"❌ 执行失败: {str(e)}")

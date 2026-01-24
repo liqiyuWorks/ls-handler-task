@@ -80,7 +80,7 @@ def main():
         result = api.list_knowledge_files(
             dataset_id=dataset_id,
             space_id=space_id,
-            page=0,
+            page=1,
             size=10
         )
         if result.get("code") == 0:
@@ -92,6 +92,29 @@ def main():
     except Exception as e:
         print(f"❌ 获取单页文件列表失败: {str(e)}")
         print("   提示: 请确保 Token 具有 listDocument 权限")
+
+    # 示例 5: 上传本地文件（需有可用的 .txt/.pdf 等）
+    print("\n5. 创建知识库文件（上传本地文件 / 添加在线网页）...")
+    try:
+        test_txt = os.path.join(os.path.dirname(__file__) or ".", "_test_upload.txt")
+        if os.path.isfile(test_txt):
+            res = api.create_document_from_file(
+                dataset_id=dataset_id,
+                file_path=test_txt,
+                space_id=space_id,
+            )
+            print(f"✅ 上传成功: {res.get('data', res).get('document_id', 'N/A')}")
+        else:
+            res = api.create_document_from_url(
+                dataset_id=dataset_id,
+                url="https://www.coze.cn/",
+                name="扣子官网",
+                space_id=space_id,
+            )
+            print(f"✅ 添加网页成功: {res.get('data', res).get('document_id', 'N/A')}")
+    except Exception as e:
+        print(f"❌ 创建失败: {str(e)}")
+        print("   提示: 需 create 相关权限；确认 space_id、dataset_id 正确")
 
 
 if __name__ == "__main__":
