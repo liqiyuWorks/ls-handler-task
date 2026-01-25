@@ -425,6 +425,7 @@
             font-size: 140px;
             font-weight: 900;
             background: var(--primary-gradient);
+            background-clip: text;
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
@@ -1054,14 +1055,38 @@
 <body>
 
     <!-- Slide 1: 封面 -->
-    <div class="slide-container" id="slide1" style="justify-content: center;">
-        <div class="content-area" style="text-align: center; flex-grow: 0;">
-            <h1 class="cover-title">AI时代的超级个体</h1>
-            <p class="cover-subtitle">从 OPC 思维到 Coze 实战指南</p>
-            <div class="cover-divider"></div>
-            <p style="font-size: 28px; color: var(--text-muted);">零基础打造你的第一个 AI 智能体</p>
+    <div class="slide-container" id="slide1"
+        style="justify-content: center; background: radial-gradient(circle at center, rgba(45, 212, 191, 0.15) 0%, transparent 80%), var(--bg-color);">
+        <div class="content-area" style="text-align: center; flex-grow: 0; position: relative;">
+            <!-- Badge/Volume Tag -->
+            <div
+                style="display: inline-block; padding: 6px 16px; background: rgba(45, 212, 191, 0.1); border: 1px solid var(--primary-color); border-radius: 50px; color: var(--primary-color); font-size: 16px; font-weight: 700; margin-bottom: 30px; letter-spacing: 2px;">
+                实战手册 VOL. 01
+            </div>
+
+            <h1 class="cover-title" style="font-size: 90px; margin-bottom: 10px;">超级个体的自我修养</h1>
+            <p style="font-size: 36px; color: #fff; font-weight: 500; opacity: 0.9; margin-bottom: 20px;">—— AI
+                时代的生存与进化指南 ——</p>
+
+            <div class="cover-divider" style="margin: 40px auto;"></div>
+
+            <div style="margin-top: 40px;">
+                <p style="font-size: 24px; color: var(--text-muted); margin-bottom: 24px;">从 OPC 思维到 AI 生产力全景实战</p>
+                <!-- Speaker Badge -->
+                <div
+                    style="display: inline-flex; align-items: center; gap: 15px; background: rgba(255, 255, 255, 0.05); padding: 12px 30px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1);">
+                    <div
+                        style="width: 40px; height: 40px; border-radius: 50%; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; color: #fff;">
+                        <i class="fa-solid fa-user-tie"></i>
+                    </div>
+                    <div style="text-align: left;">
+                        <div style="font-size: 14px; color: var(--text-muted); margin-bottom: 2px;">主讲人 / Speaker</div>
+                        <div style="font-size: 20px; font-weight: 700; color: #fff;">李 昇 <span
+                                style="font-size: 16px; font-weight: 400; opacity: 0.7;">(Shane Lee)</span></div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="bottom-bar"></div>
     </div>
 
     <!-- Slide 2: Pieter Levels 故事 -->
@@ -1137,16 +1162,53 @@
 
     <!-- Slide 3: OPC 重要性 -->
     <div class="slide-container" id="slide3">
-        <h2 class="slide-title">为什么 AI 时代 OPC 如此重要？</h2>
+        <h2 class="slide-title" style="margin-bottom: 30px;">为什么 AI 时代 OPC 如此重要？</h2>
         <div class="content-area">
-            <div class="highlight-numbers-layout">
-                <div class="number">1/3</div>
-                <div>
-                    <p class="number-label">2025年新设企业呈现“单人特征”</p>
-                    <p>过去：需要组建市场、研发、客服部门。</p>
-                    <p><strong>现在：</strong>AI 使得超级个体通过 <strong>构建系统</strong> 获得成功。</p>
-                    <p style="color: #2dd4bf;">你不再是打工者，而是指挥 AI 智能体集群的指挥官。</p>
+            <div class="two-column" style="gap: 40px; align-items: center;">
+                <!-- Left: The Data -->
+                <div style="text-align: center;">
+                    <div
+                        style="font-size: 150px; font-weight: 900; line-height: 1; background: var(--primary-gradient); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 10px 30px rgba(45,212,191,0.3)); font-family: 'Inter', sans-serif;">
+                        1/3</div>
+                    <div style="margin-top: 20px;">
+                        <p style="font-size: 32px; font-weight: 800; color: #fff; margin-bottom: 8px;">新设企业单人化</p>
+                        <p style="color: var(--text-muted); font-size: 18px; line-height: 1.4;">2025年最新趋势：每 3
+                            家新设企业中<br>就有 1
+                            家呈现明显的“单人军团”特征</p>
+                    </div>
                 </div>
+
+                <!-- Right: The Transformation -->
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div class="tile"
+                        style="border-left: 6px solid #64748b; background: rgba(100, 116, 139, 0.05); padding: 25px;">
+                        <h3
+                            style="color: #94a3b8; font-size: 20px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
+                            <i class="fa-solid fa-users-slash"></i> 过去的竞争力：规模
+                        </h3>
+                        <p style="font-size: 16px; margin: 0;">通过<strong>“组建团队”</strong>填补职能缺陷。<br>你需要管理市场、研发、客服等庞杂部门。
+                        </p>
+                    </div>
+
+                    <div class="tile"
+                        style="border-left: 6px solid var(--primary-color); background: rgba(45, 212, 191, 0.08); padding: 25px;">
+                        <h3
+                            style="color: var(--primary-color); font-size: 20px; margin-bottom: 8px; display: flex; align-items: center; gap: 12px;">
+                            <i class="fa-solid fa-microchip"></i> AI 时代的竞争力：系统
+                        </h3>
+                        <p style="font-size: 16px; margin: 0;">通过<strong>“构建系统”</strong>获得指数增长。<br>AI
+                            接管了协作成本，个体即是一支精锐部队。</p>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                style="margin-top: 30px; padding: 30px; border-radius: 20px; background: linear-gradient(90deg, rgba(45,212,191,0.1) 0%, rgba(14,165,233,0.1) 100%); border: 1px solid rgba(45,212,191,0.2); text-align: center; position: relative;">
+                <p style="font-size: 28px; color: #fff; margin: 0; font-weight: 700; line-height: 1.3;">
+                    <i class="fa-solid fa-chess-knight" style="color: #facc15; margin-right: 15px;"></i>
+                    你不再是机器里的<strong style="color: #facc15;">一颗螺丝钉</strong>，<br>而是这台智能机器的<strong
+                        style="color: var(--primary-color);">设计师与总指挥</strong>。
+                </p>
             </div>
         </div>
     </div>
@@ -1155,29 +1217,36 @@
     <div class="slide-container" id="slide4">
         <h2 class="slide-title">现场演示与互动体验</h2>
         <div class="content-area">
-            <div class="two-column" style="align-items: center;">
+            <div class="two-column" style="align-items: center; gap: 50px;">
                 <div style="text-align: left;">
-                    <p style="font-size: 32px; color: #fff; margin-bottom: 20px; font-weight: 700;">欢迎即刻体验：最优购·省钱大王</p>
-                    <a href="http://lesson.lsopc.cn"
-                        style="font-size: 48px; color: #2dd4bf; text-decoration: none; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 20px rgba(45,212,191,0.4); display: block; margin-bottom: 30px;">http://lesson.lsopc.cn</a>
-                    <p style="font-size: 24px; color: #94a3b8; margin-bottom: 40px;">感受 AI 的即时反馈与逻辑理解力。</p>
+                    <p style="font-size: 36px; color: #fff; margin-bottom: 20px; font-weight: 800;">欢迎入场体验：AI 场景应用集群</p>
+                    <a href="http://www.lsopc.cn"
+                        style="font-size: 52px; color: #facc15; text-decoration: none; font-family: 'JetBrains Mono', monospace; text-shadow: 0 0 20px rgba(250, 204, 21, 0.4); display: block; margin-bottom: 25px; transition: all 0.3s ease;">http://www.lsopc.cn</a>
+                    <p style="font-size: 20px; color: #94a3b8; margin-bottom: 40px; line-height: 1.6;">
+                        感受由 OPC 模式构建的智能应用矩阵。<br>
+                        在多个场景中，深度体验 AI 的即时反馈与逻辑理解力。
+                    </p>
 
                     <div
-                        style="display: flex; align-items: center; gap: 20px; background: rgba(255,255,255,0.05); padding: 20px; border-radius: 20px; width: fit-content; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1);">
-                        <img src="./images/opc_qrcode.jpg" style="width: 100px; height: 100px; border-radius: 12px;"
-                            alt="QR Code">
+                        style="display: flex; align-items: center; gap: 30px; background: rgba(255,255,255,0.03); padding: 25px; border-radius: 20px; width: fit-content; backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1);">
+                        <div
+                            style="padding: 10px; background: #fff; border-radius: 12px; border: 4px solid var(--primary-color);">
+                            <img src="./images/opc_qrcode.jpg" style="width: 140px; height: 140px; display: block;"
+                                alt="QR Code">
+                        </div>
                         <div>
-                            <p style="margin: 0 0 5px 0; color: #fff; font-weight: 700; font-size: 18px;">李昇 OPC</p>
-                            <p style="margin: 0; color: #94a3b8; font-size: 14px;">微信扫描二维码<br>关注我的帐号</p>
+                            <p style="margin: 0 0 8px 0; color: #fff; font-weight: 800; font-size: 22px;">李昇 OPC</p>
+                            <p style="margin: 0; color: #94a3b8; font-size: 16px; line-height: 1.5;">微信/浏览器
+                                扫码<br>开启智能场景互动</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="image-wrapper"
-                    style="background: transparent; border: none; box-shadow: none; text-align: center;">
-                    <img src="./images/opc_mobile_demo.png"
-                        style="max-height: 550px; width: auto; border-radius: 30px; box-shadow: 0 30px 80px rgba(0,0,0,0.6);"
-                        alt="Mobile Demo">
+                    style="background: transparent; border: 1px solid var(--glass-border); box-shadow: 0 40px 100px rgba(0,0,0,0.6); border-radius: 24px; height: auto;">
+                    <img src="./images/ai_portal.png"
+                        style="width: 100%; height: auto; display: block; border-radius: 23px;"
+                        alt="AI Portal Dashboard">
                 </div>
             </div>
         </div>
@@ -1186,36 +1255,53 @@
     <!-- Slide 4b: Self Introduction (New) -->
     <div class="slide-container" id="slide4b">
         <div class="content-area">
-            <div class="two-column" style="align-items: center; gap: 60px;">
+            <div class="two-column" style="align-items: center; gap: 40px;">
                 <div class="image-wrapper"
                     style="border: none; box-shadow: none; background: transparent; overflow: visible; flex: 0.8; text-align: center;">
                     <img src="./images/profile_lisheng_v2.jpg"
-                        style="max-width: 100%; max-height: 550px; width: auto; border-radius: 30px; box-shadow: 0 30px 60px rgba(0,0,0,0.5); object-fit: contain;"
-                        alt="Li Sheng Profile">
+                        style="max-width: 100%; max-height: 480px; width: auto; border-radius: 24px; box-shadow: 0 40px 100px rgba(0,0,0,0.6); object-fit: contain; border: 1px solid var(--glass-border);">
                 </div>
-                <div style="flex: 1.2;">
-                    <h2
-                        style="font-size: 40px; font-weight: 800; color: #fff; margin-bottom: 20px; letter-spacing: -1px; display: flex; align-items: baseline; gap: 15px;">
-                        李 昇 <span
-                            style="font-size: 18px; font-weight: 500; color: #fff; opacity: 0.9;align-items: baseline">莫斯科国立大学与麻省理工学院（MIT）联合培养硕士</span>
-                    </h2>
-                    <p
-                        style="font-size: 20px; font-weight: 600; color: #facc15; margin-bottom: 20px; line-height: 1.4;">
-                        江苏省青联委员，无锡青科协监事、人工智能专委会副主任</p>
-                    <p
-                        style="font-size: 20px; font-weight: 600; color: #facc15; margin-bottom: 10px; line-height: 1.4; opacity: 0.9;">
-                        辰湛资本董事长、AquaBridge.ai 首席执行官</p>
+                <div
+                    style="flex: 1.2; background: rgba(255, 255, 255, 0.03); padding: 35px; border-radius: 24px; border: 1px solid var(--glass-border); backdrop-filter: blur(10px); display: flex; flex-direction: column; justify-content: center;">
+                    <div style="margin-bottom: 20px;">
+                        <h2 style="font-size: 52px; font-weight: 800; color: #fff; margin: 0; letter-spacing: -2px;">李 昇
+                        </h2>
+                        <p
+                            style="font-size: 18px; font-weight: 500; color: var(--primary-color); margin: 8px 0 0 0; opacity: 0.9;">
+                            莫斯科国立大学 & 麻省理工学院 (MIT) 联合培养硕士</p>
+                    </div>
 
-                    <div style="font-size: 12px; color: #cbd5e1; line-height: 1.8; text-align: justify;">
-                        <p style="margin-bottom: 10px;">
-                            深耕人工智能与气象交叉领域多年，曾供职于头部互联网巨头及科研机构。作为核心人物，主导研发了国产远洋气象导航算法，打破了海外长达30年的技术封锁，助力产品实现市场占有率第一的跨越式突破。
+                    <div style="margin-bottom: 25px; display: flex; flex-direction: column; gap: 8px;">
+                        <p style="font-size: 18px; font-weight: 600; color: #facc15; margin: 0; line-height: 1.4;">
+                            江苏省青联委员 / 无锡青科协监事、人工智能专委会副主任
                         </p>
+                        <p style="font-size: 18px; font-weight: 600; color: #fff; opacity: 0.85; margin: 0;">
+                            辰湛资本董事长 / AquaBridge.ai CEO
+                        </p>
+                    </div>
 
-                        <p>先后荣获中国气象服务协会科学技术一等奖、数字中国人工智能赛道全国三等奖等多项省部级殊荣，持有发明专利20余项，多项核心技术被列入江苏省重点推广目录。
-                        </p>
-
-                        <p>致力于AI+OPC驱动产业变革，在航运、金融等领域实现深度融合创新。同时，积极探索AI赋能传统教育与文化传承的新路径，通过发布多篇高水平学术成果，有力推动了跨学科领域的理论研究与实践应用。
-                        </p>
+                    <div
+                        style="font-size: 15px; color: #cbd5e1; line-height: 1.7; text-align: justify; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px; display: flex; flex-direction: column; gap: 12px;">
+                        <div>
+                            <span style="color: var(--primary-color); font-weight: 700; margin-right: 8px;">[ 个人经历
+                                ]</span>
+                            深耕人工智能与气象交叉领域多年，曾供职于头部互联网巨头及科研机构。
+                        </div>
+                        <div>
+                            <span style="color: var(--primary-color); font-weight: 700; margin-right: 8px;">[ 技术突破
+                                ]</span>
+                            主导研发国产远洋气象导航算法，打破海外30年技术封锁，助力产品实现市场份额第一。
+                        </div>
+                        <div>
+                            <span style="color: var(--primary-color); font-weight: 700; margin-right: 8px;">[ 学术荣誉
+                                ]</span>
+                            持有发明专利20余项，荣获中国气象服务协会发明技术一等奖、数字中国人工智能赛道全国三等奖等省部级奖项。
+                        </div>
+                        <div>
+                            <span style="color: var(--primary-color); font-weight: 700; margin-right: 8px;">[ 产业愿景
+                                ]</span>
+                            深耕 AI+OPC 驱动产业变革，探索 AI 赋能传统教育新路径，发表多篇高水平论文，推动跨学科研究与应用。
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1816,6 +1902,315 @@
         </div>
     </div>
 
+    <!-- Slide 13a: AI Web Building Revolution -->
+    <div class="slide-container" id="slide13a">
+        <h2 class="slide-title">零基础：如何用 AI 搭建网页？</h2>
+        <div class="content-area">
+            <div class="two-column tiled" style="gap: 40px;">
+                <div class="comparison-item bad" style="border-top: 4px solid #f87171;">
+                    <h3 style="margin-bottom: 20px;"><i class="fa-solid fa-hourglass-half"></i> 传统方式</h3>
+                    <ul class="bullet-list">
+                        <li>学习 HTML/CSS/JS (3-6月)</li>
+                        <li>手动编写每一行代码</li>
+                        <li>痛苦的 Debug 与环境配置</li>
+                        <li><strong>门槛：</strong> 极高</li>
+                    </ul>
+                </div>
+                <div class="comparison-item good" style="border-top: 4px solid #2dd4bf;">
+                    <h3 style="margin-bottom: 20px;"><i class="fa-solid fa-bolt"></i> AI 驱动方式</h3>
+                    <ul class="bullet-list">
+                        <li>使用自然语言描述需求</li>
+                        <li>AI 即时生成完整网页代码</li>
+                        <li>对话式修改，所见即所得</li>
+                        <li><strong>门槛：</strong> 近乎零</li>
+                    </ul>
+                </div>
+            </div>
+            <p style="text-align: center; margin-top: 40px; font-size: 24px; color: #facc15;">
+                <i class="fa-solid fa-lightbulb"></i> 核心转变：从<strong>“学编程语法”</strong>变成<strong>“练习提需求”</strong>
+            </p>
+        </div>
+    </div>
+
+    <!-- Slide 13b: Toolchain for China -->
+    <div class="slide-container" id="slide13b">
+        <h2 class="slide-title">工具链：中国大陆最佳实践</h2>
+        <div class="content-area">
+            <div class="platform-grid" style="grid-template-columns: repeat(4, 1fr); gap: 25px;">
+                <div class="platform-card highlight">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-brain platform-icon"></i>
+                        <div class="platform-name">DeepSeek</div>
+                    </div>
+                    <div class="platform-type">逻辑大脑</div>
+                    <div class="platform-desc">国产最强推理，理解中文语境，生成逻辑严密的结构代码。</div>
+                </div>
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-pen-nib platform-icon"></i>
+                        <div class="platform-name">v0 / Bolt</div>
+                    </div>
+                    <div class="platform-type">生成工厂</div>
+                    <div class="platform-desc">直接通过对话生成 UI，点击即可预览，支持一键部署预览。</div>
+                </div>
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-code platform-icon"></i>
+                        <div class="platform-name">Cursor</div>
+                    </div>
+                    <div class="platform-type">全能 IDE</div>
+                    <div class="platform-desc">AI 深度集成，自动补全、Bug 修复、全项目重构的神器。</div>
+                </div>
+                <div class="platform-card">
+                    <div class="platform-header">
+                        <i class="fa-solid fa-cloud-arrow-up platform-icon"></i>
+                        <div class="platform-name">Zeabur</div>
+                    </div>
+                    <div class="platform-type">快速上线</div>
+                    <div class="platform-desc">最适合国内用户的部署平台，连接 GitHub 即可自动发布。</div>
+                </div>
+            </div>
+            <div
+                style="margin-top: 40px; padding: 25px; background: rgba(45, 212, 191, 0.05); border-radius: 20px; border: 1px solid rgba(45, 212, 191, 0.2);">
+                <p style="margin: 0; font-size: 20px; color: #fff; text-align: center;">
+                    <strong>黄金组合：</strong> <span style="color: #2dd4bf;">DeepSeek</span> (思考) + <span
+                        style="color: #2dd4bf;">Cursor</span> (执行) + <span style="color: #2dd4bf;">Zeabur</span> (发布)
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 13c: Workflow Checklist -->
+    <div class="slide-container" id="slide13c">
+        <h2 class="slide-title">实战法：从零到一的“四步走”</h2>
+        <div class="content-area">
+            <div class="flow-container" style="gap: 20px;">
+                <div class="flow-node">
+                    <span class="flow-label">Step 1</span>
+                    <i class="fa-solid fa-bullseye" style="font-size: 32px; color: #f87171; margin: 15px 0;"></i>
+                    <h3 style="font-size: 20px; color: #fff;">明确需求</h3>
+                    <p style="font-size: 14px; color: #94a3b8;">“帮我做一个咖啡店的介绍页，要有深色主题和预约功能。”</p>
+                </div>
+                <i class="fa-solid fa-chevron-right flow-arrow"></i>
+                <div class="flow-node">
+                    <span class="flow-label">Step 2</span>
+                    <i class="fa-solid fa-magic-wand-sparkles"
+                        style="font-size: 32px; color: #facc15; margin: 15px 0;"></i>
+                    <h3 style="font-size: 20px; color: #fff;">AI 初步生成</h3>
+                    <p style="font-size: 14px; color: #94a3b8;">在 v0 或 Bolt 中粘贴 Prompt，获得第一个版本。</p>
+                </div>
+                <i class="fa-solid fa-chevron-right flow-arrow"></i>
+                <div class="flow-node highlight">
+                    <span class="flow-label">Step 3</span>
+                    <i class="fa-solid fa-screwdriver-wrench"
+                        style="font-size: 32px; color: #2dd4bf; margin: 15px 0;"></i>
+                    <h3 style="font-size: 20px; color: #fff;">Cursor 精修</h3>
+                    <p style="font-size: 14px; color: #94a3b8;">下载代码，用 Cursor 进行细节调整和功能扩充。</p>
+                </div>
+                <i class="fa-solid fa-chevron-right flow-arrow"></i>
+                <div class="flow-node">
+                    <span class="flow-label">Step 4</span>
+                    <i class="fa-solid fa-globe" style="font-size: 32px; color: #60a5fa; margin: 15px 0;"></i>
+                    <h3 style="font-size: 20px; color: #fff;">一键部署</h3>
+                    <p style="font-size: 14px; color: #94a3b8;">推送至 Zeabur，获得你的专属域名，立即访问。</p>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 40px; color: #facc15; font-size: 20px; font-weight: 600;">
+                <i class="fa-solid fa-circle-check"></i> 无需精通代码，你只需做一个<strong>“有审美的产品经理”</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 13d: Success Case -->
+    <div class="slide-container" id="slide13d">
+        <h2 class="slide-title">案例展示：从 Prompt 到上线仅需 10 分钟</h2>
+        <div class="content-area">
+            <div class="two-column" style="gap: 60px;">
+                <div class="image-wrapper"
+                    style="height: 450px; background: #020617; border: 1px solid var(--glass-border); position: relative; padding: 20px; display: flex; flex-direction: column; gap: 15px;">
+                    <!-- Browser Header Mockup -->
+                    <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                        <div style="width: 10px; height: 10px; border-radius: 50%; background: #ff5f56;"></div>
+                        <div style="width: 10px; height: 10px; border-radius: 50%; background: #ffbd2e;"></div>
+                        <div style="width: 10px; height: 10px; border-radius: 50%; background: #27c93f;"></div>
+                    </div>
+
+                    <!-- Hero Section Mockup -->
+                    <div
+                        style="flex: 1; background: linear-gradient(180deg, rgba(45, 212, 191, 0.1) 0%, transparent 100%); border-radius: 12px; padding: 30px; border: 1px solid rgba(45, 212, 191, 0.2); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 20px;">
+                        <div
+                            style="width: 80px; height: 80px; border-radius: 20px; background: var(--primary-gradient); box-shadow: 0 0 30px rgba(45, 212, 191, 0.4); display: flex; align-items: center; justify-content: center; font-size: 32px; color: #fff;">
+                            <i class="fa-solid fa-cloud-bolt"></i>
+                        </div>
+                        <div style="height: 20px; width: 60%; background: #fff; border-radius: 10px; opacity: 0.9;">
+                        </div>
+                        <div style="height: 12px; width: 40%; background: #94a3b8; border-radius: 6px; opacity: 0.5;">
+                        </div>
+                        <div
+                            style="margin-top: 10px; padding: 10px 24px; background: var(--primary-color); border-radius: 50px; color: #0f172a; font-weight: 800; font-size: 14px;">
+                            Try Now</div>
+                    </div>
+
+                    <!-- Cards Grid Mockup -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div
+                            style="height: 80px; background: rgba(255, 255, 255, 0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 15px; display: flex; flex-direction: column; gap: 8px;">
+                            <div
+                                style="height: 8px; width: 40%; background: var(--primary-color); border-radius: 4px; opacity: 0.7;">
+                            </div>
+                            <div
+                                style="height: 6px; width: 80%; background: #94a3b8; border-radius: 3px; opacity: 0.3;">
+                            </div>
+                            <div
+                                style="height: 6px; width: 60%; background: #94a3b8; border-radius: 3px; opacity: 0.3;">
+                            </div>
+                        </div>
+                        <div
+                            style="height: 80px; background: rgba(255, 255, 255, 0.05); border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); padding: 15px; display: flex; flex-direction: column; gap: 8px;">
+                            <div
+                                style="height: 8px; width: 40%; background: var(--primary-color); border-radius: 4px; opacity: 0.7;">
+                            </div>
+                            <div
+                                style="height: 6px; width: 80%; background: #94a3b8; border-radius: 3px; opacity: 0.3;">
+                            </div>
+                            <div
+                                style="height: 6px; width: 60%; background: #94a3b8; border-radius: 3px; opacity: 0.3;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; flex-direction: column; justify-content: center;">
+                    <h3 style="color: #2dd4bf; font-size: 32px; margin-bottom: 24px;">某初创公司落地页</h3>
+                    <ul class="bullet-list">
+                        <li><i class="fa-solid fa-check"></i> 全响应式设计 (适配手机/电脑)</li>
+                        <li><i class="fa-solid fa-check"></i> 集成邮件订阅与 AI 客服插件</li>
+                        <li><i class="fa-solid fa-check"></i> 性能评分 95+，秒开体验</li>
+                        <li><i class="fa-solid fa-check"></i> <strong>成本：</strong> 仅花费几元钱 Token 费</li>
+                    </ul>
+                    <div
+                        style="margin-top: 30px; padding: 20px; background: rgba(255, 255, 255, 0.05); border-radius: 12px; border-left: 4px solid var(--primary-color);">
+                        <p style="margin: 0; color: #fff; font-size: 16px; font-style: italic;">
+                            “以前需要找外包公司做一周，现在我午休时随手就做好了。”
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 13e: AI Creativity Intro -->
+    <div class="slide-container" id="slide13e" style="justify-content: center;">
+        <div class="content-area" style="text-align: center; flex-grow: 0;">
+            <div class="icon" style="font-size: 80px; color: var(--primary-color); margin-bottom: 30px;">
+                <i class="fa-solid fa-wand-sparkles"></i>
+            </div>
+            <h1 class="cover-title" style="font-size: 64px;">AI × 创造力</h1>
+            <p class="cover-subtitle" style="letter-spacing: 2px;">从“想一想”到“看得到、听得见”</p>
+            <div class="cover-divider" style="margin: 40px auto;"></div>
+            <p style="font-size: 24px; color: #cbd5e1; max-width: 800px; margin: 0 auto; line-height: 1.6;">
+                针对学员提问：如何用 AI 制作游戏、音乐与动画？<br>
+                <strong>答案：</strong>现在的 AI 已经可以胜任 90% 的素材创作与逻辑构建。
+            </p>
+        </div>
+    </div>
+
+    <!-- Slide 13f: AI Games -->
+    <div class="slide-container" id="slide13f">
+        <h2 class="slide-title">零基础：开发你的第一个 H5 小游戏</h2>
+        <div class="content-area">
+            <div class="two-column" style="gap: 50px;">
+                <div>
+                    <h3 style="color: #facc15;"><i class="fa-solid fa-gamepad"></i> 玩法：自然语言即逻辑</h3>
+                    <p style="margin-bottom: 20px;">不需要学 C++ 或 Unity，只需用中文描述规则。</p>
+                    <ul class="bullet-list">
+                        <li><strong>Step 1:</strong> 用 <span style="color: #2dd4bf;">DeepSeek</span> 编写游戏逻辑（如贪吃蛇、消除类）。
+                        </li>
+                        <li><strong>Step 2:</strong> 复制到 <span style="color: #2dd4bf;">Cursor</span>，AI 自动生成
+                            HTML5/Canvas 画布。</li>
+                        <li><strong>Step 3:</strong> 实时对话修改： “让蛇跑快一点”、“加个积分榜”。</li>
+                    </ul>
+                    <div
+                        style="margin-top: 30px; background: rgba(250, 204, 21, 0.1); padding: 15px; border-radius: 12px; border: 1px dashed #facc15;">
+                        <p style="margin: 0; font-size: 16px; color: #fff;">
+                            <strong>提示词示例：</strong> “帮我写一个网页版的 2048 游戏，配色要科技感，适配手机触摸操作。”
+                        </p>
+                    </div>
+                </div>
+                <div class="tile"
+                    style="background: #020617; border: 1px solid #1e293b; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 15px;">
+                    <div
+                        style="width: 100%; height: 250px; border: 2px solid var(--primary-color); border-radius: 15px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+                        <i class="fa-solid fa-puzzle-piece"
+                            style="font-size: 100px; color: rgba(45, 212, 191, 0.2);"></i>
+                        <div style="position: absolute; bottom: 20px; color: var(--primary-color); font-weight: bold;">[
+                            游戏演示载入中 ]</div>
+                    </div>
+                    <p style="font-size: 14px; color: #94a3b8; text-align: center;">AI 可以在 1 分钟内完成传统开发需 1 天的代码量</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 13g: AI Music -->
+    <div class="slide-container" id="slide13g">
+        <h2 class="slide-title">AI 音乐创作：每个人都是词曲家</h2>
+        <div class="content-area">
+            <div class="tiled-content" style="gap: 30px;">
+                <div class="tile" style="flex: 1; border-top: 4px solid #ec4899;">
+                    <div class="icon" style="color: #ec4899;"><i class="fa-solid fa-music"></i></div>
+                    <h3>国内首选工具</h3>
+                    <ul class="bullet-list" style="margin-top: 15px;">
+                        <li><strong>天工 AI (音乐大模型)：</strong> 目前国内最强的音乐生成，支持中文歌词。</li>
+                        <li><strong>网易云音乐 X Studio：</strong> 专业的虚拟歌手合成。</li>
+                        <li><strong>Suno 模式：</strong> 通过国内镜像或集成工具使用最顶尖的音频生成。</li>
+                    </ul>
+                </div>
+                <div class="tile" style="flex: 1; border-top: 4px solid #a78bfa;">
+                    <div class="icon" style="color: #a78bfa;"><i class="fa-solid fa-microphone-lines"></i></div>
+                    <h3>三步成曲法</h3>
+                    <ol style="color: #cbd5e1; font-size: 18px; line-height: 2;">
+                        <li><strong>填歌词：</strong> 让 AI 根据你的心情写词。</li>
+                        <li><strong>挑风格：</strong> 选爵士、民谣、还是赛博朋克？</li>
+                        <li><strong>点生成：</strong> 30 秒获得一支完整的 MP3。</li>
+                    </ol>
+                    <div
+                        style="margin-top: 20px; padding: 10px; background: rgba(167, 139, 250, 0.1); border-radius: 8px; font-size: 14px; text-align: center;">
+                        “把今天学习的心得写成一首轻快的民谣。”
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Slide 13h: AI Animation -->
+    <div class="slide-container" id="slide13h">
+        <h2 class="slide-title">AI 动画生成：从文字到电影感</h2>
+        <div class="content-area">
+            <div class="two-column" style="align-items: center; gap: 60px;">
+                <div class="image-wrapper"
+                    style="height: 400px; border: 4px solid #000; box-shadow: 0 0 50px rgba(0,0,0,0.8); background: #000; position: relative;">
+                    <i class="fa-solid fa-film"
+                        style="position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 120px; color: #1e293b;"></i>
+                    <div style="position: absolute; bottom: 20px; width: 100%; text-align: center; color: #94a3b8;">
+                        <i class="fa-solid fa-circle-play"></i> 预览：Kling (可灵) 演示片段
+                    </div>
+                </div>
+                <div>
+                    <h3 style="color: #34d399;"><i class="fa-solid fa-video"></i> “国产之光”工具链</h3>
+                    <ul class="bullet-list">
+                        <li><strong>可灵 AI (Kling)：</strong> 快手出品，目前单次生成时长和真实度全球领先。</li>
+                        <li><strong>即梦 (Jimeng)：</strong> 抖音出品，打通了从图片生成到视频生成。</li>
+                        <li><strong>海螺 AI (MiniMax)：</strong> 语义理解极强，适合做有叙事感的动画。</li>
+                    </ul>
+                    <div style="margin-top: 30px; border-left: 4px solid #34d399; padding-left: 20px;">
+                        <p style="color: #fff; font-weight: 700;">应用场景：</p>
+                        <p style="color: #94a3b8; font-size: 16px;">自制绘本阅读视频、短剧脚本视觉化、个性化生日祝福动画。</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Slide 12d: Knowledge Base -->
     <div class="slide-container" id="slide12d">
         <h2 class="slide-title">给 AI 装上“外脑”：知识库</h2>
@@ -1856,65 +2251,71 @@
     <div class="slide-container" id="slide12e">
         <h2 class="slide-title">知识库全景：玩转你的私有数据</h2>
         <div class="content-area">
-            <div class="tiled-content" style="gap: 30px;">
+            <div class="tiled-content" style="gap: 25px; align-items: stretch;">
                 <!-- Column 1: Input & Control -->
-                <div class="tile" style="flex: 1; border-top: 4px solid #818cf8;">
+                <div class="tile"
+                    style="flex: 1; border-top: 4px solid #818cf8; display: flex; flex-direction: column;">
                     <div class="icon" style="color: #818cf8; margin-bottom: 20px;"><i
                             class="fa-solid fa-cloud-arrow-up"></i></div>
-                    <h3 style="margin-bottom: 15px;">1. 便捷与掌控</h3>
-                    <p style="color: #cbd5e1; font-size: 16px; margin-bottom: 15px;"><strong>极简录入：</strong>拖拽上传
-                        PDF/Word/Excel，一键同步 Notion/飞书。</p>
+                    <h3 style="margin-bottom: 12px; font-size: 24px;">1. 便捷与掌控</h3>
+                    <p style="color: #cbd5e1; font-size: 16px; margin-bottom: 20px;"><strong>极简录入：</strong>一键同步
+                        Notion/飞书，支持本地 PDF/Word 拖拽上传。</p>
                     <div
-                        style="background: rgba(129, 140, 248, 0.1); padding: 15px; border-radius: 10px; border: 1px dashed rgba(129, 140, 248, 0.3);">
-                        <p style="margin: 0; font-size: 14px; color: #e2e8f0;">
-                            <i class="fa-solid fa-shield-halved" style="color: #818cf8; margin-right: 5px;"></i>
-                            <strong>拒绝死信：</strong><br>支持批量导出 (JSON/CSV)<br>本地化备份，数据完全在手
+                        style="margin-top: auto; background: rgba(129, 140, 248, 0.1); padding: 18px; border-radius: 12px; border: 1px dashed rgba(129, 140, 248, 0.3);">
+                        <p style="margin: 0; font-size: 15px; color: #e2e8f0; line-height: 1.6;">
+                            <i class="fa-solid fa-lock" style="color: #818cf8; margin-right: 8px;"></i>
+                            <strong>拒绝平台锁定：</strong><br>数据支持批量导出备份，掌控权始终在你的手中。
                         </p>
                     </div>
                 </div>
 
                 <!-- Column 2: AI Processing -->
-                <div class="tile" style="flex: 1; border-top: 4px solid #facc15;">
+                <div class="tile"
+                    style="flex: 1; border-top: 4px solid #facc15; display: flex; flex-direction: column;">
                     <div class="icon" style="color: #facc15; margin-bottom: 20px;"><i class="fa-solid fa-robot"></i>
                     </div>
-                    <h3 style="margin-bottom: 15px;">2. AI 智慧整理</h3>
-                    <ul class="bullet-list" style="margin: 0; padding-left: 0;">
-                        <li style="margin-bottom: 15px; padding-left: 0; display: flex; align-items: start;">
+                    <h3 style="margin-bottom: 12px; font-size: 24px;">2. AI 智慧整理</h3>
+                    <ul class="bullet-list" style="margin: 0; padding-left: 0; flex-grow: 1;">
+                        <li style="margin-bottom: 18px; padding-left: 0; display: flex; align-items: start;">
                             <i class="fa-solid fa-tag"
-                                style="position: relative; top: 3px; left: auto; color: #facc15; margin-right: 12px; min-width: 20px;"></i>
-                            <span style="color: #94a3b8; font-size: 16px; line-height: 1.5;"><strong>自动打标：</strong> AI
-                                阅读后自动提取“财务”、“合同”等标签。</span>
+                                style="position: static; color: #facc15; margin-right: 12px; min-width: 20px; font-size: 18px; margin-top: 4px;"></i>
+                            <span style="color: #94a3b8; font-size: 16px; line-height: 1.5;"><strong>自动打标：</strong>
+                                智能提取关键词，实现海量文档的自动化分类。</span>
                         </li>
                         <li style="padding-left: 0; display: flex; align-items: start;">
                             <i class="fa-solid fa-scissors"
-                                style="position: relative; top: 3px; left: auto; color: #facc15; margin-right: 12px; min-width: 20px;"></i>
-                            <span style="color: #94a3b8; font-size: 16px; line-height: 1.5;"><strong>智能切片：</strong>
-                                自动去除页眉页脚乱码，精准分割段落。</span>
+                                style="position: static; color: #facc15; margin-right: 12px; min-width: 20px; font-size: 18px; margin-top: 4px;"></i>
+                            <span style="color: #94a3b8; font-size: 16px; line-height: 1.5;"><strong>精准切片：</strong>
+                                自动清洗杂乱信息，将长文档转化为 AI 易读的高质知识点。</span>
                         </li>
                     </ul>
                 </div>
 
                 <!-- Column 3: Output -->
-                <div class="tile" style="flex: 1; border-top: 4px solid #2dd4bf;">
+                <div class="tile"
+                    style="flex: 1; border-top: 4px solid #2dd4bf; display: flex; flex-direction: column;">
                     <div class="icon" style="color: #2dd4bf; margin-bottom: 20px;"><i
                             class="fa-solid fa-comment-dots"></i></div>
-                    <h3 style="margin-bottom: 15px;">3. 价值输出</h3>
-                    <ul class="bullet-list" style="margin: 0; padding-left: 0;">
+                    <h3 style="margin-bottom: 12px; font-size: 24px;">3. 价值输出</h3>
+                    <ul class="bullet-list" style="margin: 0; padding-left: 0; flex-grow: 1;">
                         <li style="margin-bottom: 15px; padding-left: 0; display: flex; align-items: start;">
                             <i class="fa-solid fa-quote-left"
-                                style="position: relative; top: 3px; left: auto; color: #2dd4bf; margin-right: 12px; min-width: 20px;"></i>
+                                style="position: static; color: #2dd4bf; margin-right: 12px; min-width: 20px; font-size: 18px; margin-top: 4px;"></i>
                             <span style="color: #94a3b8; font-size: 16px; line-height: 1.5;"><strong>有理有据：</strong>
-                                回答附带原文链接/页码，可一键溯源。</span>
+                                回答自带原文溯源，解决 AI 的“幻觉”问题。</span>
                         </li>
                         <li style="padding-left: 0; display: flex; align-items: start;">
-                            <i class="fa-solid fa-thumbs-up"
-                                style="position: relative; top: 3px; left: auto; color: #2dd4bf; margin-right: 12px; min-width: 20px;"></i>
+                            <i class="fa-solid fa-bolt"
+                                style="position: static; color: #2dd4bf; margin-right: 12px; min-width: 20px; font-size: 18px; margin-top: 4px;"></i>
                             <span style="color: #94a3b8; font-size: 16px; line-height: 1.5;"><strong>持续进化：</strong>
-                                通过点赞/点踩反馈，让知识库越来越准。</span>
+                                结合人工反馈，让模型的专业度随使用逐步攀升。</span>
                         </li>
                     </ul>
                 </div>
             </div>
+            <p style="text-align: center; margin-top: 30px; font-size: 18px; color: #94a3b8; font-style: italic;">
+                * 知识库是让通用 AI 变身“行业专家”的核心钥匙
+            </p>
         </div>
     </div>
 
