@@ -79,7 +79,7 @@ class UpdateMmsi(BaseModel):
             if self.request_delay_seconds > 0:
                 time.sleep(self.request_delay_seconds)
             
-            url = f"http://8.153.76.2:10010/api/cosco/vessel/detail?mmsi={mmsi}"
+            url = f"http://47.84.73.224:10010/api/cosco/vessel/detail?mmsi={mmsi}"
             
             response = requests.get(url, timeout=30)
             response.raise_for_status()
@@ -184,7 +184,7 @@ class UpdateMmsi(BaseModel):
                 print(f"IMO格式异常: {imo}")
                 return None
             
-            url = "http://8.153.76.2:10010/api/cosco/vessel/fuzzy"
+            url = "http://47.84.73.224:10010/api/cosco/vessel/fuzzy"
             
             payload = json.dumps({
                 "kw": str(imo),

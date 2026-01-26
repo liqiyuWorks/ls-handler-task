@@ -13,7 +13,7 @@ import json
 
 def request_wmy_detail(mmsi_list):
     """请求船视宝API获取船舶详情"""
-    url = "http://8.153.76.2:10010/api/cosco/vessel/details"
+    url = "http://47.84.73.224:10010/api/cosco/vessel/details"
     payload = json.dumps({
         "mmsi_list": mmsi_list
     })
