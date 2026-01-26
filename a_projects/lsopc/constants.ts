@@ -10,7 +10,7 @@ export const APP_CONFIG = {
   COZE_BOT_ID: "7592970463421218866",
 
   // 2. Token: 已填入您提供的 pat 令牌
-  COZE_TOKEN: "pat_bA5qMTrSGWlTrJkebNhX87eAat5OQLfk9ESWnOnKpucreJYlnhc8fPolynuj2Ei7",
+  COZE_TOKEN: "pat_l51v3R0TLLFTYCQURtVdPVvHfA1umFQdzAjCf8BxkzbHQZErCERPrqr23E5Y19av",
 
   // 3. Financial Bot ID
   COZE_BOT_ID_FINANCE: "7596899835795161151",

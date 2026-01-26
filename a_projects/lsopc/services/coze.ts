@@ -10,7 +10,7 @@ export const chatWithCoze = async (
     onError: (error: any) => void,
     botId?: string
 ) => {
-    const token = APP_CONFIG.COZE_API_TOKEN; // Ensure this is defined in constants or env
+    const token = APP_CONFIG.COZE_TOKEN; // Ensure this is defined in constants or env
     if (!token) {
         onError(new Error('Coze API Token not configured'));
         return;
