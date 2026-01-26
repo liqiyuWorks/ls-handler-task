@@ -143,15 +143,22 @@ const CozeChat: React.FC<CozeChatProps> = ({
                         onKeyDown={handleKeyPress}
                         placeholder={placeholder}
                         rows={1}
-                        className="w-full bg-white/5 text-white text-base md:text-sm rounded-xl pl-4 pr-12 py-3.5 focus:outline-none focus:ring-1 focus:ring-orange-500/50 resize-none overflow-hidden placeholder-gray-500 border border-white/5 transition-all focus:bg-white/10"
+                        className="w-full bg-white/5 text-white text-base md:text-sm rounded-xl pl-4 pr-14 py-3.5 focus:outline-none focus:ring-1 focus:ring-orange-500/50 resize-none overflow-hidden placeholder-gray-500 border border-white/5 transition-all focus:bg-white/10"
                         style={{ minHeight: '52px' }}
                     />
                     <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()} // Prevent focus loss on desktop
                         onClick={handleSend}
+                        onTouchEnd={(e) => {
+                            e.preventDefault(); // Prevent ghost click and focus loss
+                            handleSend();
+                        }}
                         disabled={!input.trim() || isLoading}
-                        className="absolute right-2 bottom-2 p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="absolute right-2 bottom-2 z-20 p-2.5 md:p-2 bg-orange-500 text-white rounded-lg hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg active:scale-95 touch-manipulation cursor-pointer select-none"
+                        aria-label="发送消息"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 md:w-5 md:h-5">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 md:w-5 md:h-5 pointer-events-none">
                             <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" />
                         </svg>
                     </button>

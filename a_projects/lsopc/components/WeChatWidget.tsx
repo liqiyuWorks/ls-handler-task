@@ -4,10 +4,10 @@ const WeChatWidget: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4">
+        <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
             {/* QR Code Card - Transitions in/out */}
             <div
-                className={`bg-white/10 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl transition-all duration-300 origin-bottom-right ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4 pointer-events-none'
+                className={`bg-white/10 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl transition-all duration-300 origin-bottom-right pointer-events-auto ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4 !pointer-events-none'
                     }`}
             >
                 <div className="bg-white p-2 rounded-xl">
@@ -26,7 +26,7 @@ const WeChatWidget: React.FC = () => {
             <button
                 onMouseEnter={() => setIsOpen(true)}
                 onClick={() => setIsOpen(!isOpen)}
-                className="group relative w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-700 rounded-full flex items-center justify-center shadow-lg hover:shadow-green-500/30 transition-all duration-300 hover:scale-110"
+                className="group relative w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-700 rounded-full flex items-center justify-center shadow-lg hover:shadow-green-500/30 transition-all duration-300 hover:scale-110 pointer-events-auto"
             >
                 {/* Pulse Effect */}
                 <div className="absolute inset-0 bg-green-500 rounded-full animate-ping opacity-20 group-hover:opacity-0"></div>

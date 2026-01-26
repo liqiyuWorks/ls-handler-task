@@ -28,7 +28,7 @@ interface ChatLayoutProps {
 const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, placeholder }) => {
   const navigate = useNavigate();
   return (
-    <div className="flex-grow flex flex-col gap-4 animate-fadeIn h-[calc(100vh-120px)] md:h-auto">
+    <div className="flex-grow flex flex-col gap-4 animate-fadeIn h-[calc(100dvh-120px)] md:h-auto pt-20 md:pt-24">
       <div className="flex justify-between items-center mb-1 md:mb-2 px-2">
         <h2 className="text-xl font-semibold flex items-center gap-2">
           <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
