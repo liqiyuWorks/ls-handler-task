@@ -17,6 +17,7 @@ const Home: React.FC = () => {
 };
 
 import { APP_CONFIG } from './constants';
+import { ArrowLeft, Home as HomeIcon, MessageSquare, Bot, User, Send, Zap } from 'lucide-react';
 
 interface ChatLayoutProps {
   title: string;
@@ -28,21 +29,33 @@ interface ChatLayoutProps {
 const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, placeholder }) => {
   const navigate = useNavigate();
   return (
-    <div className="flex-grow flex flex-col gap-4 animate-fadeIn h-[calc(100dvh-120px)] md:h-auto pt-20 md:pt-24">
-      <div className="flex justify-between items-center mb-1 md:mb-2 px-2">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <span className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
-          {title}
-        </h2>
+    <div className="flex-grow flex flex-col gap-3 md:gap-4 animate-fadeIn h-[calc(100dvh-100px)] md:h-[calc(100vh-140px)] pt-16 md:pt-20">
+      <div className="flex justify-between items-center px-2 md:px-0">
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <div className="relative flex items-center justify-center">
+              <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="absolute w-2.5 h-2.5 bg-green-500 rounded-full animate-ping opacity-75"></span>
+            </div>
+            <h2 className="text-lg md:text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
+              {title}
+            </h2>
+          </div>
+          <p className="text-[10px] md:text-xs text-gray-500 font-medium uppercase tracking-widest pl-5">
+            System Online • Protocol Secure
+          </p>
+        </div>
+
         <button
           onClick={() => navigate('/')}
-          className="text-gray-400 hover:text-white transition-colors text-sm underline align-middle"
+          className="flex items-center gap-2 px-3 py-1.5 md:px-4 md:py-2 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-all text-xs md:text-sm text-gray-400 hover:text-white group"
         >
-          返回首页
+          <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+          <span>返回首页</span>
         </button>
       </div>
 
-      <div className="flex-grow glass-morphism rounded-xl md:rounded-2xl overflow-hidden min-h-0 relative">
+      <div className="flex-grow glass-morphism rounded-2xl md:rounded-3xl overflow-hidden min-h-0 relative shadow-2xl border border-white/10 ring-1 ring-white/5">
         <CozeChat
           botId={botId}
           initialMessage={initialMessage}
@@ -57,6 +70,8 @@ const SavingsChatPage: React.FC = () => {
   return (
     <ChatLayout
       title="省钱助手正在待命"
+      initialMessage="您好！我是您的省钱大王助手。请告诉我您想买什么，或者粘贴商品链接，我将为您寻找全网最低价和隐藏优惠券。"
+      placeholder="输入商品名称或粘贴链接..."
     />
   );
 };

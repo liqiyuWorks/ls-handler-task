@@ -17,19 +17,28 @@
 
     .glass-morphism {
       background: rgba(255, 255, 255, 0.03);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
     }
 
     .animate-fadeIn {
-      animation: fadeIn 0.5s ease-out forwards;
+      animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-slideInLeft {
+      animation: slideInLeft 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    .animate-slideInRight {
+      animation: slideInRight 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
     @keyframes fadeIn {
       from {
         opacity: 0;
-        transform: translateY(10px);
+        transform: translateY(12px);
       }
 
       to {
@@ -38,7 +47,49 @@
       }
     }
 
-    /* 修复 Coze SDK 在某些布局下的溢出问题 */
+    @keyframes slideInLeft {
+      from {
+        opacity: 0;
+        transform: translateX(-15px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @keyframes slideInRight {
+      from {
+        opacity: 0;
+        transform: translateX(15px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* Scrollbar Styling */
+    .scrollbar-thin::-webkit-scrollbar {
+      width: 4px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+    }
+
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* 修复 iframe 溢出 */
     #coze-chat-container iframe {
       border: none !important;
       border-radius: 1rem !important;

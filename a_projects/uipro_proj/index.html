@@ -1,454 +1,315 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="scroll-smooth">
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SaaS产品 - 现代化解决方案</title>
-    <meta name="description" content="专业的SaaS产品，为您提供高效、可靠的解决方案">
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Heroicons -->
-    <script src="https://unpkg.com/@heroicons/react@2.0.18/24/outline/index.js" type="module"></script>
-    
-    <style>
-        :root {
-            --color-primary: #0EA5E9;
-            --color-secondary: #38BDF8;
-            --color-cta: #F97316;
-            --color-background: #F0F9FF;
-            --color-text: #0C4A6E;
-        }
-        
-        body {
-            font-family: 'Open Sans', sans-serif;
-            color: var(--color-text);
-        }
-        
-        h1, h2, h3, h4, h5, h6 {
-            font-family: 'Poppins', sans-serif;
-        }
-        
-        @media (prefers-reduced-motion: reduce) {
-            * {
-                animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
-                transition-duration: 0.01ms !important;
-            }
-        }
-        
-        /* Progress indicator */
-        .progress-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 3px;
-            background: linear-gradient(90deg, var(--color-primary), var(--color-cta));
-            z-index: 50;
-            transition: width 0.3s ease;
-        }
-    </style>
-    
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        primary: '#0EA5E9',
-                        secondary: '#38BDF8',
-                        cta: '#F97316',
-                        background: '#F0F9FF',
-                        text: '#0C4A6E',
-                    },
-                    fontFamily: {
-                        sans: ['Open Sans', 'sans-serif'],
-                        heading: ['Poppins', 'sans-serif'],
-                    },
-                },
-            },
-        }
-        
-        // Progress indicator
-        window.addEventListener('scroll', () => {
-            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
-            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-            const scrolled = (winScroll / height) * 100;
-            document.querySelector('.progress-bar').style.width = scrolled + '%';
-        });
-    </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>马年家庭教育 | 预约咨询 · 精品课程</title>
+  <meta name="description" content="马年家庭教育，为家庭提供优质课程与专业咨询。预约咨询，发现适合孩子的成长方案。" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style type="text/tailwindcss">
+    @theme {
+      --font-heading: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-body: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --color-primary: #DC2626;
+      --color-primary-hover: #B91C1C;
+      --color-secondary: #F3F4F6;
+      --color-cta: #DC2626;
+      --color-cta-hover: #B91C1C;
+      --color-bg: #FFFFFF;
+      --color-bg-card: #FFFFFF;
+      --color-text: #111827;
+      --color-muted: #6B7280;
+      --color-border: #E5E7EB;
+    }
+
+    @layer base {
+      html { scroll-behavior: smooth; }
+      @media (prefers-reduced-motion: reduce) {
+        html { scroll-behavior: auto; }
+        *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      }
+    }
+  </style>
+  <style>
+    .font-heading { font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    .font-body { font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; }
+  </style>
 </head>
-<body class="bg-background antialiased">
-    <!-- Progress Bar -->
-    <div class="progress-bar" style="width: 0%"></div>
-    
-    <!-- Navigation -->
-    <nav class="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <a href="#home" class="text-2xl font-heading font-bold text-primary cursor-pointer transition-colors duration-200 hover:text-cta">
-                        SaaS Pro
-                    </a>
-                </div>
-                <div class="hidden md:flex items-center space-x-8">
-                    <a href="#problem" class="text-gray-700 hover:text-primary transition-colors duration-200 cursor-pointer">问题</a>
-                    <a href="#journey" class="text-gray-700 hover:text-primary transition-colors duration-200 cursor-pointer">旅程</a>
-                    <a href="#solution" class="text-gray-700 hover:text-primary transition-colors duration-200 cursor-pointer">解决方案</a>
-                    <a href="#cta" class="text-gray-700 hover:text-primary transition-colors duration-200 cursor-pointer">开始使用</a>
-                </div>
-                <div class="flex items-center space-x-4">
-                    <button class="px-4 py-2 text-sm font-semibold text-primary border-2 border-primary rounded-lg hover:bg-primary hover:text-white transition-all duration-200 cursor-pointer">
-                        登录
-                    </button>
-                    <button class="px-6 py-2 text-sm font-semibold text-white bg-cta rounded-lg hover:opacity-90 hover:-translate-y-0.5 transition-all duration-200 cursor-pointer shadow-md">
-                        免费试用
-                    </button>
-                </div>
-            </div>
-        </div>
+<body class="min-h-screen bg-white text-[#111827] font-body antialiased">
+
+  <!-- Nav -->
+  <header class="relative z-10 pt-6 px-4 md:px-6 lg:px-8">
+    <nav class="max-w-7xl mx-auto flex items-center justify-between border-b border-[#E5E7EB] pb-4">
+      <a href="#hero" class="flex items-center gap-2 text-[#111827] font-semibold text-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded transition-colors duration-200">
+        <svg class="w-7 h-7 text-[#DC2626]" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+        <span class="font-heading">马年家庭教育</span>
+      </a>
+      <div class="hidden md:flex items-center gap-8">
+        <a href="#hero" class="text-[#6B7280] hover:text-[#111827] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded">首页</a>
+        <a href="#courses" class="text-[#6B7280] hover:text-[#111827] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded">课程介绍</a>
+        <a href="#consult" class="text-[#6B7280] hover:text-[#111827] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded">预约咨询</a>
+        <a href="#consult" class="rounded-lg bg-[#DC2626] text-white px-5 py-2 font-medium hover:bg-[#B91C1C] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2">立即咨询</a>
+      </div>
+      <button type="button" id="nav-toggle" class="md:hidden p-2 rounded-lg hover:bg-[#F3F4F6] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2" aria-expanded="false" aria-controls="nav-drawer" aria-label="打开菜单">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>
+      </button>
     </nav>
-    
-    <!-- Hero Section (Intro Hook) -->
-    <section id="home" class="pt-24 pb-16 md:pt-32 md:pb-24 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-7xl mx-auto">
-            <div class="text-center">
-                <h1 class="text-4xl md:text-5xl lg:text-6xl font-heading font-bold text-text mb-6 leading-tight">
-                    让您的业务<br class="hidden md:block">
-                    <span class="text-primary">更智能</span>、<span class="text-cta">更高效</span>
-                </h1>
-                <p class="text-xl md:text-2xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
-                    专业的SaaS解决方案，帮助您简化工作流程，提升团队协作效率，实现业务增长
-                </p>
-                <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                    <button class="px-8 py-4 text-lg font-semibold text-white bg-cta rounded-lg hover:opacity-90 hover:-translate-y-1 transition-all duration-200 cursor-pointer shadow-lg w-full sm:w-auto">
-                        立即开始
-                    </button>
-                    <button class="px-8 py-4 text-lg font-semibold text-primary border-2 border-primary rounded-lg hover:bg-primary hover:text-white transition-all duration-200 cursor-pointer w-full sm:w-auto">
-                        观看演示
-                    </button>
-                </div>
-                <div class="mt-12">
-                    <p class="text-sm text-gray-500 mb-4">已有 10,000+ 企业信任我们</p>
-                    <div class="flex justify-center items-center space-x-8 opacity-60">
-                        <div class="text-2xl font-bold text-gray-400">Company A</div>
-                        <div class="text-2xl font-bold text-gray-400">Company B</div>
-                        <div class="text-2xl font-bold text-gray-400">Company C</div>
-                    </div>
-                </div>
-            </div>
+    <div id="nav-drawer" class="hidden md:hidden absolute top-full left-4 right-4 mt-2 z-20 rounded-lg bg-white shadow-lg border border-[#E5E7EB] py-4 px-4" role="dialog" aria-label="移动端菜单">
+      <a href="#hero" class="nav-drawer-link block py-2 text-[#6B7280] hover:text-[#111827] transition-colors duration-200 cursor-pointer">首页</a>
+      <a href="#courses" class="nav-drawer-link block py-2 text-[#6B7280] hover:text-[#111827] transition-colors duration-200 cursor-pointer">课程介绍</a>
+      <a href="#consult" class="nav-drawer-link block py-2 text-[#6B7280] hover:text-[#111827] transition-colors duration-200 cursor-pointer">预约咨询</a>
+      <a href="#consult" class="nav-drawer-link block mt-2 rounded-lg bg-[#DC2626] text-white px-4 py-2 font-medium hover:bg-[#B91C1C] transition-colors duration-200 cursor-pointer text-center">立即咨询</a>
+    </div>
+  </header>
+
+  <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 md:pt-24 lg:pt-32 pb-24 md:pb-32">
+    <!-- Hero -->
+    <section id="hero" class="mb-24 md:mb-32 scroll-mt-24">
+      <div class="text-center max-w-3xl mx-auto">
+        <p class="inline-block px-3 py-1 rounded-full bg-[#FEF2F2] text-[#DC2626] text-sm font-medium mb-6">马年 · 马到成功</p>
+        <h1 class="font-heading text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-[#111827] mb-6 md:mb-8 leading-tight">
+          马年家庭教育<br /><span class="text-[#DC2626]">陪伴孩子跃马扬鞭</span>
+        </h1>
+        <p class="text-[#6B7280] text-lg md:text-xl max-w-2xl mx-auto mb-10 md:mb-12 leading-relaxed">
+          专业课程与一对一咨询，助力家庭科学育儿。马年伊始，为孩子的成长选对方向。
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <a href="#consult" class="w-full sm:w-auto rounded-lg bg-[#DC2626] text-white px-8 py-3.5 font-medium hover:bg-[#B91C1C] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 text-center">预约免费咨询</a>
+          <a href="#courses" class="w-full sm:w-auto rounded-lg border border-[#E5E7EB] text-[#111827] px-8 py-3.5 font-medium hover:bg-[#F9FAFB] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 text-center">查看精品课程</a>
         </div>
+      </div>
     </section>
-    
-    <!-- Chapter 1: Problem -->
-    <section id="problem" class="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-white">
-        <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-4xl font-heading font-bold text-text mb-4">
-                    您是否面临这些挑战？
-                </h2>
-                <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                    传统的工作方式已经无法满足现代业务的需求
-                </p>
+
+    <!-- 课程介绍 -->
+    <section id="courses" class="mb-24 md:mb-32 scroll-mt-24">
+      <div class="text-center mb-12 md:mb-16">
+        <h2 class="font-heading text-3xl md:text-4xl font-bold text-[#111827] mb-3">精品课程</h2>
+        <p class="text-[#6B7280] text-lg max-w-2xl mx-auto">科学设计、寓教于乐，适合不同年龄段与兴趣方向</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
+        <article class="course-card rounded-xl bg-white border border-[#E5E7EB] p-8 hover:border-[#DC2626]/30 hover:shadow-md transition-all duration-200 cursor-pointer focus-within:ring-2 focus-within:ring-[#DC2626] focus-within:ring-offset-2" data-course="1">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-[#FEF2F2] flex items-center justify-center">
+              <svg class="w-6 h-6 text-[#DC2626]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
             </div>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">效率低下</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        重复性工作占用大量时间，团队协作效率低下，项目进度难以把控
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">数据分散</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        信息散落在不同平台，难以统一管理，决策缺乏数据支持
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">成本高昂</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        传统系统维护成本高，升级困难，无法快速响应业务变化
-                    </p>
-                </div>
+            <div>
+              <h3 class="font-heading font-semibold text-xl text-[#111827] mb-1">阅读与表达</h3>
+              <span class="text-sm text-[#6B7280]">6–12 岁</span>
             </div>
-            <div class="text-center mt-12">
-                <button class="px-6 py-3 text-base font-semibold text-primary border-2 border-primary rounded-lg hover:bg-primary hover:text-white transition-all duration-200 cursor-pointer">
-                    了解解决方案 →
-                </button>
+          </div>
+          <p class="text-[#6B7280] mb-6 leading-relaxed">培养阅读习惯与口头、书面表达能力，建立自信表达。</p>
+          <div class="course-detail hidden space-y-2 text-sm text-[#6B7280] mb-6" data-detail="1">
+            <p>· 分级读物精读与讨论</p>
+            <p>· 看图说话、故事复述、小小演讲</p>
+            <p>· 周期 12 周，每周 2 次</p>
+          </div>
+          <button type="button" class="course-toggle flex items-center gap-1 text-[#DC2626] font-medium hover:text-[#B91C1C] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded" aria-expanded="false" data-toggle="1">
+            <span class="toggle-label">了解详情</span>
+            <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+        </article>
+
+        <article class="course-card rounded-xl bg-white border border-[#E5E7EB] p-8 hover:border-[#DC2626]/30 hover:shadow-md transition-all duration-200 cursor-pointer focus-within:ring-2 focus-within:ring-[#DC2626] focus-within:ring-offset-2" data-course="2">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-[#FEF2F2] flex items-center justify-center">
+              <svg class="w-6 h-6 text-[#DC2626]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
             </div>
-        </div>
+            <div>
+              <h3 class="font-heading font-semibold text-xl text-[#111827] mb-1">思维与逻辑</h3>
+              <span class="text-sm text-[#6B7280]">5–10 岁</span>
+            </div>
+          </div>
+          <p class="text-[#6B7280] mb-6 leading-relaxed">通过趣味游戏与任务，提升逻辑推理与问题解决能力。</p>
+          <div class="course-detail hidden space-y-2 text-sm text-[#6B7280] mb-6" data-detail="2">
+            <p>· 数理思维、图形推理、简单编程思维</p>
+            <p>· 小组协作与项目制学习</p>
+            <p>· 周期 10 周，每周 1–2 次</p>
+          </div>
+          <button type="button" class="course-toggle flex items-center gap-1 text-[#DC2626] font-medium hover:text-[#B91C1C] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded" aria-expanded="false" data-toggle="2">
+            <span class="toggle-label">了解详情</span>
+            <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+        </article>
+
+        <article class="course-card rounded-xl bg-white border border-[#E5E7EB] p-8 hover:border-[#DC2626]/30 hover:shadow-md transition-all duration-200 cursor-pointer md:col-span-2 lg:col-span-1 focus-within:ring-2 focus-within:ring-[#DC2626] focus-within:ring-offset-2" data-course="3">
+          <div class="flex items-start gap-4 mb-5">
+            <div class="flex-shrink-0 w-12 h-12 rounded-lg bg-[#FEF2F2] flex items-center justify-center">
+              <svg class="w-6 h-6 text-[#DC2626]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+            </div>
+            <div>
+              <h3 class="font-heading font-semibold text-xl text-[#111827] mb-1">情绪与情商</h3>
+              <span class="text-sm text-[#6B7280]">4–9 岁</span>
+            </div>
+          </div>
+          <p class="text-[#6B7280] mb-6 leading-relaxed">认识情绪、学习沟通与同理心，支持社会情感发展。</p>
+          <div class="course-detail hidden space-y-2 text-sm text-[#6B7280] mb-6" data-detail="3">
+            <p>· 情绪识别、表达与调节</p>
+            <p>· 人际边界、合作与冲突解决</p>
+            <p>· 周期 8 周，每周 1 次，含家长工作坊</p>
+          </div>
+          <button type="button" class="course-toggle flex items-center gap-1 text-[#DC2626] font-medium hover:text-[#B91C1C] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2 rounded" aria-expanded="false" data-toggle="3">
+            <span class="toggle-label">了解详情</span>
+            <svg class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" /></svg>
+          </button>
+        </article>
+      </div>
     </section>
-    
-    <!-- Chapter 2: Journey -->
-    <section id="journey" class="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-background">
-        <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-4xl font-heading font-bold text-text mb-4">
-                    从挑战到成功的转变
-                </h2>
-                <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                    看看其他企业如何通过我们的平台实现业务转型
-                </p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-                <div>
-                    <div class="space-y-8">
-                        <div class="flex items-start space-x-4">
-                            <div class="flex-shrink-0 w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-heading font-bold">
-                                1
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-heading font-semibold text-text mb-2">快速部署</h3>
-                                <p class="text-gray-600 leading-relaxed">
-                                    几分钟内完成设置，无需复杂配置，立即开始使用
-                                </p>
-                            </div>
-                        </div>
-                        <div class="flex items-start space-x-4">
-                            <div class="flex-shrink-0 w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-heading font-bold">
-                                2
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-heading font-semibold text-text mb-2">无缝集成</h3>
-                                <p class="text-gray-600 leading-relaxed">
-                                    与您现有的工具和系统完美集成，无需改变工作流程
-                                </p>
-                            </div>
-                        </div>
-                        <div class="flex items-start space-x-4">
-                            <div class="flex-shrink-0 w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white font-heading font-bold">
-                                3
-                            </div>
-                            <div>
-                                <h3 class="text-xl font-heading font-semibold text-text mb-2">持续优化</h3>
-                                <p class="text-gray-600 leading-relaxed">
-                                    基于数据分析持续优化，帮助您不断提升业务表现
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl p-8 shadow-lg border border-gray-200">
-                    <div class="space-y-6">
-                        <div class="flex items-center space-x-4">
-                            <div class="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-3xl font-heading font-bold text-text">300%</p>
-                                <p class="text-gray-600">效率提升</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <div class="w-16 h-16 bg-cta/10 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-3xl font-heading font-bold text-text">50,000+</p>
-                                <p class="text-gray-600">活跃用户</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center space-x-4">
-                            <div class="w-16 h-16 bg-secondary/10 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8 text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                </svg>
-                            </div>
-                            <div>
-                                <p class="text-3xl font-heading font-bold text-text">99.9%</p>
-                                <p class="text-gray-600">系统可用性</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="text-center mt-12">
-                <button class="px-6 py-3 text-base font-semibold text-primary border-2 border-primary rounded-lg hover:bg-primary hover:text-white transition-all duration-200 cursor-pointer">
-                    查看案例研究 →
-                </button>
-            </div>
+
+    <!-- 咨询模块 -->
+    <section id="consult" class="scroll-mt-24">
+      <div class="rounded-xl bg-white border border-[#E5E7EB] overflow-hidden max-w-2xl mx-auto">
+        <div class="bg-[#DC2626] text-white px-8 py-10 md:px-12 md:py-12 text-center">
+          <h2 class="font-heading text-2xl md:text-3xl font-bold mb-3">预约免费咨询</h2>
+          <p class="text-white/90 text-lg">填写表单，我们将在 24 小时内与您联系</p>
         </div>
+        <form id="consult-form" class="p-8 md:p-10 space-y-5" novalidate>
+          <div>
+            <label for="name" class="block text-sm font-medium text-[#111827] mb-2">姓名 <span class="text-[#DC2626]">*</span></label>
+            <input type="text" id="name" name="name" required placeholder="您的姓名" autocomplete="name"
+              class="w-full px-4 py-3 rounded-lg border border-[#E5E7EB] bg-white text-[#111827] placeholder-[#9CA3AF] focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/20 focus:outline-none transition-all duration-200" />
+            <p id="name-error" class="mt-1 text-sm text-[#DC2626] hidden" role="alert"></p>
+          </div>
+          <div>
+            <label for="phone" class="block text-sm font-medium text-[#111827] mb-2">手机 <span class="text-[#DC2626]">*</span></label>
+            <input type="tel" id="phone" name="phone" required placeholder="11 位手机号" autocomplete="tel"
+              class="w-full px-4 py-3 rounded-lg border border-[#E5E7EB] bg-white text-[#111827] placeholder-[#9CA3AF] focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/20 focus:outline-none transition-all duration-200" />
+            <p id="phone-error" class="mt-1 text-sm text-[#DC2626] hidden" role="alert"></p>
+          </div>
+          <div>
+            <label for="message" class="block text-sm font-medium text-[#111827] mb-2">咨询内容</label>
+            <textarea id="message" name="message" rows="3" placeholder="想了解的课程或问题（选填）"
+              class="w-full px-4 py-3 rounded-lg border border-[#E5E7EB] bg-white text-[#111827] placeholder-[#9CA3AF] focus:border-[#DC2626] focus:ring-2 focus:ring-[#DC2626]/20 focus:outline-none transition-all duration-200 resize-none"></textarea>
+          </div>
+          <button type="submit" id="submit-btn" class="w-full rounded-lg bg-[#DC2626] text-white py-3.5 font-medium hover:bg-[#B91C1C] transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#DC2626] focus:ring-offset-2">
+            提交预约
+          </button>
+        </form>
+        <div id="form-success" class="hidden p-8 md:p-10 text-center">
+          <div class="w-16 h-16 rounded-full bg-[#DCFCE7] flex items-center justify-center mx-auto mb-5">
+            <svg class="w-8 h-8 text-[#16A34A]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+          </div>
+          <h3 class="font-heading font-semibold text-xl text-[#111827] mb-2">预约已提交</h3>
+          <p class="text-[#6B7280]">我们会尽快与您联系，请保持手机畅通。</p>
+        </div>
+      </div>
     </section>
-    
-    <!-- Chapter 3: Solution -->
-    <section id="solution" class="py-16 md:py-24 px-4 sm:px-6 lg:px-8 bg-white">
-        <div class="max-w-7xl mx-auto">
-            <div class="text-center mb-16">
-                <h2 class="text-3xl md:text-4xl font-heading font-bold text-text mb-4">
-                    强大的功能，简单易用
-                </h2>
-                <p class="text-lg text-gray-600 max-w-2xl mx-auto">
-                    为您提供全方位的解决方案，满足各种业务需求
-                </p>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">实时协作</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        团队成员实时同步，无缝协作，提升工作效率
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">数据分析</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        强大的数据分析工具，帮助您做出明智的业务决策
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">安全可靠</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        企业级安全保障，数据加密存储，确保您的信息安全
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">自定义工作流</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        灵活的工作流配置，适应您的业务模式和团队习惯
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">API集成</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        丰富的API接口，轻松集成第三方服务和工具
-                    </p>
-                </div>
-                <div class="bg-background rounded-xl p-8 hover:shadow-lg transition-all duration-200 cursor-pointer border border-gray-200">
-                    <div class="w-12 h-12 bg-cta/10 rounded-lg flex items-center justify-center mb-4">
-                        <svg class="w-6 h-6 text-cta" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
-                        </svg>
-                    </div>
-                    <h3 class="text-xl font-heading font-semibold text-text mb-3">24/7 支持</h3>
-                    <p class="text-gray-600 leading-relaxed">
-                        全天候技术支持，随时为您解决遇到的问题
-                    </p>
-                </div>
-            </div>
-        </div>
-    </section>
-    
-    <!-- Climax CTA -->
-    <section id="cta" class="py-20 md:py-32 px-4 sm:px-6 lg:px-8 bg-gradient-to-br from-primary to-secondary">
-        <div class="max-w-4xl mx-auto text-center">
-            <h2 class="text-3xl md:text-5xl font-heading font-bold text-white mb-6">
-                准备好开始了吗？
-            </h2>
-            <p class="text-xl md:text-2xl text-white/90 mb-10 leading-relaxed">
-                加入数千家企业，体验现代化的SaaS解决方案<br class="hidden md:block">
-                免费试用14天，无需信用卡
-            </p>
-            <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                <button class="px-10 py-5 text-lg font-semibold text-primary bg-white rounded-lg hover:opacity-90 hover:-translate-y-1 transition-all duration-200 cursor-pointer shadow-xl w-full sm:w-auto">
-                    立即免费试用
-                </button>
-                <button class="px-10 py-5 text-lg font-semibold text-white border-2 border-white rounded-lg hover:bg-white hover:text-primary transition-all duration-200 cursor-pointer w-full sm:w-auto">
-                    联系销售团队
-                </button>
-            </div>
-            <p class="mt-6 text-white/80 text-sm">
-                无需信用卡 · 随时取消 · 14天免费试用
-            </p>
-        </div>
-    </section>
-    
-    <!-- Footer -->
-    <footer class="bg-white border-t border-gray-200 py-12 px-4 sm:px-6 lg:px-8">
-        <div class="max-w-7xl mx-auto">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div>
-                    <h3 class="text-xl font-heading font-bold text-primary mb-4">SaaS Pro</h3>
-                    <p class="text-gray-600 text-sm leading-relaxed">
-                        专业的SaaS解决方案提供商，致力于帮助企业提升效率，实现业务增长。
-                    </p>
-                </div>
-                <div>
-                    <h4 class="font-heading font-semibold text-text mb-4">产品</h4>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">功能</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">定价</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">更新日志</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">路线图</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="font-heading font-semibold text-text mb-4">公司</h4>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">关于我们</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">博客</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">职业</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">联系我们</a></li>
-                    </ul>
-                </div>
-                <div>
-                    <h4 class="font-heading font-semibold text-text mb-4">支持</h4>
-                    <ul class="space-y-2 text-sm">
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">帮助中心</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">文档</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">API文档</a></li>
-                        <li><a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer">状态</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="mt-12 pt-8 border-t border-gray-200 flex flex-col md:flex-row justify-between items-center">
-                <p class="text-gray-600 text-sm">
-                    © 2026 SaaS Pro. 保留所有权利。
-                </p>
-                <div class="flex space-x-6 mt-4 md:mt-0">
-                    <a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer text-sm">隐私政策</a>
-                    <a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer text-sm">服务条款</a>
-                    <a href="#" class="text-gray-600 hover:text-primary transition-colors duration-200 cursor-pointer text-sm">Cookie政策</a>
-                </div>
-            </div>
-        </div>
-    </footer>
+  </main>
+
+  <footer class="relative z-10 border-t border-[#E5E7EB] bg-white mt-24 md:mt-32">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+      <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+        <p class="font-heading font-semibold text-[#111827]">马年家庭教育</p>
+        <p class="text-sm text-[#6B7280]">© 2025 马年家庭教育. 陪伴成长，马到成功。</p>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var navToggle = document.getElementById('nav-toggle');
+      var navDrawer = document.getElementById('nav-drawer');
+
+      if (navToggle && navDrawer) {
+        navToggle.addEventListener('click', function () {
+          var open = navDrawer.classList.toggle('hidden');
+          navToggle.setAttribute('aria-expanded', !open);
+          navToggle.setAttribute('aria-label', open ? '打开菜单' : '关闭菜单');
+        });
+
+        navDrawer.querySelectorAll('.nav-drawer-link').forEach(function (a) {
+          a.addEventListener('click', function () {
+            navDrawer.classList.add('hidden');
+            navToggle.setAttribute('aria-expanded', 'false');
+            navToggle.setAttribute('aria-label', '打开菜单');
+          });
+        });
+      }
+
+      document.querySelectorAll('.course-toggle').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var id = btn.getAttribute('data-toggle');
+          var detail = document.querySelector('.course-detail[data-detail="' + id + '"]');
+          var card = document.querySelector('.course-card[data-course="' + id + '"]');
+          var chevron = btn.querySelector('svg');
+          var label = btn.querySelector('.toggle-label');
+          if (!detail || !card) return;
+          var isOpen = !detail.classList.contains('hidden');
+          detail.classList.toggle('hidden', isOpen);
+          btn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+          if (chevron) chevron.style.transform = isOpen ? '' : 'rotate(180deg)';
+          if (label) label.textContent = isOpen ? '了解详情' : '收起';
+        });
+      });
+
+      document.querySelectorAll('.course-card').forEach(function (card) {
+        card.setAttribute('tabindex', '0');
+        card.addEventListener('click', function (e) {
+          if (e.target.closest('.course-toggle')) return;
+          var id = card.getAttribute('data-course');
+          var toggle = card.querySelector('.course-toggle[data-toggle="' + id + '"]');
+          if (toggle) toggle.click();
+        });
+        card.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          if (e.target.closest('.course-toggle')) return;
+          e.preventDefault();
+          var id = card.getAttribute('data-course');
+          var toggle = card.querySelector('.course-toggle[data-toggle="' + id + '"]');
+          if (toggle) toggle.click();
+        });
+      });
+
+      var form = document.getElementById('consult-form');
+      var formSuccess = document.getElementById('form-success');
+      var submitBtn = document.getElementById('submit-btn');
+
+      function showError(id, msg) {
+        var el = document.getElementById(id + '-error');
+        var input = document.getElementById(id);
+        if (el && input) {
+          el.textContent = msg || '';
+          el.classList.toggle('hidden', !msg);
+          input.setAttribute('aria-invalid', !!msg);
+        }
+      }
+
+      function validate() {
+        var name = (document.getElementById('name')?.value || '').trim();
+        var phone = (document.getElementById('phone')?.value || '').trim();
+        var ok = true;
+        showError('name', '');
+        showError('phone', '');
+        if (!name) {
+          showError('name', '请填写姓名');
+          ok = false;
+        }
+        if (!/^1\d{10}$/.test(phone)) {
+          showError('phone', '请填写正确的 11 位手机号');
+          ok = false;
+        }
+        return ok;
+      }
+
+      if (form && formSuccess && submitBtn) {
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          if (!validate()) return;
+          submitBtn.disabled = true;
+          submitBtn.textContent = '提交中…';
+          setTimeout(function () {
+            form.classList.add('hidden');
+            formSuccess.classList.remove('hidden');
+            submitBtn.disabled = false;
+            submitBtn.textContent = '提交预约';
+          }, 600);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>
