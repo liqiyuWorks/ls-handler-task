@@ -106,3 +106,7 @@ a_projects/terry_projects
 !a_projects/lsopc_backend/requirements.txt
 scripts/coze_scripts/knowledge_files_*.json
 scripts/coze_scripts/knowledge_datasets_*.json
+# Python compiled files
+*.pyc
+**/__pycache__/
+

@@ -3,7 +3,7 @@
 
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 
 from app.schemas.parse import ParseRequest, ParseResponse
 from app.services.xpath_analyzer import XpathAnalyzer
@@ -17,20 +17,17 @@ analyzer = XpathAnalyzer()
     "/parse",
     response_model=ParseResponse,
     summary="按 XPath 解析 URL",
+    description="使用 Playwright 访问目标 URL，等待 JS 执行后按 XPath 提取数据。",
 )
-def parse(request: ParseRequest) -> ParseResponse:
+def parse_url(request: ParseRequest) -> ParseResponse:
     """
-    使用 Playwright 访问目标 URL，等待 JS 执行后按 XPath 提取数据。
+    解析请求入口。
 
-    - **url**: 目标网页 URL（如 https://data.eastmoney.com/report/）
-    - **xpath**: XPath 表达式（如 //table//tr/td[1]）
+    :param request: 包含 url 和 xpath 的请求对象
+    :return: 解析后的结果列表
     """
-    if not request.url or not request.xpath:
-        raise HTTPException(status_code=400, detail="URL 和 XPath 为必填")
+    # 业务逻辑已在 Pydantic 中校验，此处直接调用 Service
+    logger.info("Parsing request for URL: %s with XPath: %s", request.url, request.xpath)
 
-    try:
-        data = analyzer.fetch_and_parse(request.url, request.xpath)
-        return ParseResponse(status="success", count=len(data), results=data)
-    except Exception as e:
-        logger.exception("API error: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+    data = analyzer.fetch_and_parse(request.url, request.xpath)
+    return ParseResponse(status="success", count=len(data), results=data)
