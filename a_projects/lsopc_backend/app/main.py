@@ -9,9 +9,11 @@ from typing import Callable
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+import os
 
 from app.config import settings
-from app.api.routes import parse, coze, auth
+from app.api.routes import parse, coze, auth, image
 from app.services.database import db
 
 # 配置日志
@@ -75,6 +77,11 @@ async def add_process_time_header(request: Request, call_next: Callable):
 app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(parse.router, prefix="/api", tags=["plugin"])
 app.include_router(coze.router, prefix="/api/coze", tags=["coze"])
+app.include_router(image.router, prefix="/api/image", tags=["image"])
+
+# 挂载静态文件目录
+os.makedirs("static/images", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.on_event("startup")

@@ -11,3 +11,4 @@ pyjwt
 bcrypt==4.0.1
 passlib[bcrypt]
 email-validator
+openai

@@ -43,6 +43,11 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
+    # Image Generation Proxy
+    IMAGE_API_KEY: str = "sk-YJwZH23oS4ouiRiD905bE5DaC7084cC080E936884aBfB358"
+    IMAGE_BASE_URL: str = "https://api.apiyi.com/v1"
+    IMAGE_MODEL: str = "gpt-image-1"
+
 
 settings = Settings()
 
