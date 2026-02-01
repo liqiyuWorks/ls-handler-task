@@ -110,3 +110,4 @@ scripts/coze_scripts/knowledge_datasets_*.json
 *.pyc
 **/__pycache__/
 
+a_projects/OpenStock
