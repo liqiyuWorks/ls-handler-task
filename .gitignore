@@ -109,6 +109,3 @@ scripts/coze_scripts/knowledge_datasets_*.json
 # Python compiled files
 *.pyc
 **/__pycache__/
-
-a_projects/OpenStock
-a_projects/OpenStock
