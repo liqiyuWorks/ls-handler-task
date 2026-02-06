@@ -72,6 +72,12 @@ class UpdateMmsi(BaseModel):
             print(f"解析postime异常 ({postime}): {e}")
             return None
 
+    def _parse_info_update(self, info_update):
+        """解析详情接口返回的 info_update 等时间字段，用于比较哪个 MMSI 是当前在用"""
+        if not info_update:
+            return None
+        return self._parse_postime(info_update)
+
     def _get_vessel_detail_by_mmsi(self, mmsi):
         """通过MMSI调用cosco接口获取船舶档案详情"""
         try:
@@ -171,21 +177,24 @@ class UpdateMmsi(BaseModel):
             traceback.print_exc()
             return False
 
-    def _get_latest_mmsi_by_imo(self, imo):
-        """通过IMO调用cosco接口获取最新的MMSI"""
+    def _get_latest_mmsi_by_imo(self, imo, current_mmsi=None):
+        """通过 IMO 调用 cosco 接口获取最新的 MMSI。
+
+        当同一 IMO 对应多个 MMSI（如旧号 441176000 与新号 677089700）时，仅用 fuzzy 的 postime 可能
+        把已停用的旧 MMSI 误判为“最新”。因此对多个候选 MMSI 会再请求船舶详情接口，以详情返回的
+        mmsi 为权威（canonical），并结合详情中的 info_update 与 fuzzy 的 postime 判断哪个是当前在用。
+        """
         try:
             # 请求前延迟
             if self.request_delay_seconds > 0:
                 time.sleep(self.request_delay_seconds)
             
-            # 标准化传入的IMO，确保比较时一致
             imo_normalized = self._normalize_int_field(imo, "imo")
             if imo_normalized is None or imo_normalized <= 0:
                 print(f"IMO格式异常: {imo}")
                 return None
             
             url = "http://47.84.73.224:10010/api/cosco/vessel/fuzzy"
-            
             payload = json.dumps({
                 "kw": str(imo),
                 "search_gb": 1,
@@ -195,61 +204,88 @@ class UpdateMmsi(BaseModel):
                 "ignore_retired": False,
                 "ignore_pinyin": False
             })
-            
-            headers = {
-                'Content-Type': 'application/json'
-            }
-            
+            headers = {'Content-Type': 'application/json'}
             response = requests.post(url, headers=headers, data=payload, timeout=30)
             response.raise_for_status()
             res_json = response.json()
             
-            # 从返回数据中提取mmsi
             data_list = res_json.get("data", [])
-            if data_list and isinstance(data_list, list) and len(data_list) > 0:
-                # 首先过滤掉IMO不匹配的结果
-                matched_items = []
-                for item in data_list:
-                    item_imo = item.get("imo")
-                    if item_imo:
-                        # 标准化返回结果中的IMO
-                        item_imo_normalized = self._normalize_int_field(item_imo, "item_imo")
-                        # 只保留IMO匹配的项
-                        if item_imo_normalized == imo_normalized:
-                            matched_items.append(item)
-                
-                if not matched_items:
-                    print(f"未找到IMO匹配的结果 - 查询IMO: {imo}, 返回结果数: {len(data_list)}")
-                    return None
-                
-                # 如果有多个匹配结果，选择postime最大的（最新的）
-                best_item = None
-                best_postime = None
-                
-                for item in matched_items:
-                    mmsi = item.get("mmsi") or item.get("vesselMmsi")
-                    if not mmsi:
-                        continue
-                    
-                    postime = item.get("postime")
-                    postime_dt = self._parse_postime(postime)
-                    
-                    # 选择时间最大的（最新的）
-                    if postime_dt is not None:
-                        if best_postime is None or postime_dt > best_postime:
-                            best_postime = postime_dt
-                            best_item = item
-                    elif best_postime is None:
-                        # 如果当前项没有有效时间，但还没有找到任何有效时间的项，则使用它作为备选
-                        best_item = item
-                
-                if best_item:
-                    mmsi = best_item.get("mmsi") or best_item.get("vesselMmsi")
-                    if mmsi:
-                        mmsi = self._normalize_int_field(mmsi, "mmsi")
-                        if mmsi and mmsi > 0:
-                            return mmsi
-            return None
+            if not data_list or not isinstance(data_list, list) or len(data_list) == 0:
+                return None
+            
+            matched_items = []
+            for item in data_list:
+                item_imo = item.get("imo")
+                if not item_imo:
+                    continue
+                item_imo_n = self._normalize_int_field(item_imo, "item_imo")
+                if item_imo_n == imo_normalized:
+                    matched_items.append(item)
+            
+            if not matched_items:
+                print(f"未找到IMO匹配的结果 - 查询IMO: {imo}, 返回结果数: {len(data_list)}")
+                return None
+            
+            # 按 MMSI 聚合，每个 MMSI 保留其最大 postime 的项（用于后续排序）
+            mmsi_to_postime = {}
+            for item in matched_items:
+                mmsi_raw = item.get("mmsi") or item.get("vesselMmsi")
+                if not mmsi_raw:
+                    continue
+                mmsi_n = self._normalize_int_field(mmsi_raw, "mmsi")
+                if not mmsi_n or mmsi_n <= 0:
+                    continue
+                pt = self._parse_postime(item.get("postime"))
+                if mmsi_n not in mmsi_to_postime or (pt and (mmsi_to_postime[mmsi_n] is None or pt > mmsi_to_postime[mmsi_n])):
+                    mmsi_to_postime[mmsi_n] = pt
+            
+            distinct_mmsis = list(mmsi_to_postime.keys())
+            if not distinct_mmsis:
+                return None
+            
+            # 只有一个候选 MMSI：直接返回，不额外调详情
+            if len(distinct_mmsis) == 1:
+                return distinct_mmsis[0]
+            
+            # 多个候选 MMSI：用船舶详情接口判断哪个是“当前在用”（以详情返回的 mmsi 为权威）
+            # 例如 IMO 9134969 对应 441176000 与 677089700，详情接口可能对旧号也返回新号，取 canonical 再按时间排序
+            candidates = []  # (canonical_mmsi, detail_update_dt, postime_dt)
+            for mmsi in distinct_mmsis:
+                if self.request_delay_seconds > 0:
+                    time.sleep(self.request_delay_seconds)
+                detail = self._get_vessel_detail_by_mmsi(mmsi)
+                if not detail:
+                    candidates.append((mmsi, None, mmsi_to_postime.get(mmsi)))
+                    continue
+                detail_imo_raw = detail.get("imo")
+                if detail_imo_raw:
+                    detail_imo_n = self._normalize_int_field(detail_imo_raw, "detail_imo")
+                    if detail_imo_n and detail_imo_n != imo_normalized:
+                        continue  # IMO 不一致，排除
+                canonical_raw = detail.get("mmsi") or detail.get("vesselMmsi")
+                canonical = self._normalize_int_field(canonical_raw or mmsi, "canonical_mmsi")
+                if not canonical or canonical <= 0:
+                    canonical = mmsi
+                detail_update = self._parse_info_update(detail.get("info_update"))
+                candidates.append((canonical, detail_update, mmsi_to_postime.get(mmsi)))
+            
+            if not candidates:
+                return None
+            
+            # 排序：优先按详情更新时间倒序（有更新时间的更可信），再按 postime 倒序；时间为 None 的排最后
+            def sort_key(c):
+                canon, d_update, post = c
+                return (
+                    d_update is not None,
+                    d_update or datetime.datetime.min,
+                    post is not None,
+                    post or datetime.datetime.min,
+                )
+            candidates.sort(key=sort_key, reverse=True)
+            best_canonical = candidates[0][0]
+            if len(distinct_mmsis) > 1 and current_mmsi is not None:
+                print(f"  [IMO {imo}] 多 MMSI 候选: {distinct_mmsis}, 当前库: {current_mmsi}, 选用: {best_canonical}")
+            return best_canonical
         except requests.exceptions.RequestException as e:
             print(f"调用cosco接口获取MMSI异常 (imo: {imo}): {e}")
             return None
@@ -278,8 +314,8 @@ class UpdateMmsi(BaseModel):
                     if idx % 100 == 0 or idx == total:
                         print(f"  进度: {idx}/{total} ({idx*100//total}%)")
                     
-                    # 通过imo获取最新mmsi（方法内部已包含延迟）
-                    latest_mmsi = self._get_latest_mmsi_by_imo(imo)
+                    # 通过 imo 获取最新 mmsi（多候选时结合详情接口判断新旧，方法内部已包含延迟）
+                    latest_mmsi = self._get_latest_mmsi_by_imo(imo, current_mmsi=current_mmsi)
                     
                     # 准备更新数据，无论是否更新MMSI，都要更新检查时间
                     update_data = {
