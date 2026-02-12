@@ -70,7 +70,10 @@ class ImageService:
                 }],
                 "generationConfig": {
                     "responseModalities": ["IMAGE"],
-                    "imageConfig": {"aspectRatio": aspect_ratio}
+                    "imageConfig": {
+                        "aspectRatio": aspect_ratio,
+                        "imageSize": resolution
+                    }
                 }
             }
 

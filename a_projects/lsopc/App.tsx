@@ -7,6 +7,8 @@ import CozeChat from './components/CozeChat';
 import WeChatWidget from './components/WeChatWidget';
 import KnowledgeBaseManager from './components/KnowledgeBaseManager';
 
+import ImageGeneration from './components/ImageGeneration';
+
 const Home: React.FC = () => {
   const navigate = useNavigate();
   return (
@@ -108,6 +110,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
+            <Route path="/image-generation" element={<ImageGeneration />} />
             <Route path="/savings-agent" element={<SavingsChatPage />} />
             <Route path="/finance-agent" element={<FinanceChatPage />} />
             <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />
