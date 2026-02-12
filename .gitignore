@@ -109,3 +109,7 @@ scripts/coze_scripts/knowledge_datasets_*.json
 # Python compiled files
 *.pyc
 **/__pycache__/
+
+# 允许 lsopc/public 目录下的静态文件
+!a_projects/lsopc/public/
+!a_projects/lsopc/public/**
