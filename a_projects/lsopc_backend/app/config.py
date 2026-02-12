@@ -43,10 +43,18 @@ class Settings(BaseSettings):
         case_sensitive=True,
     )
 
-    # Image Generation Proxy
-    IMAGE_API_KEY: str = "sk-YJwZH23oS4ouiRiD905bE5DaC7084cC080E936884aBfB358"
-    IMAGE_BASE_URL: str = "https://api.apiyi.com/v1"
-    IMAGE_MODEL: str = "gpt-image-1"
+    # Gemini 图片生成配置 (基于 api.apiyi.com)
+    GEMINI_API_KEY: str = "sk-YJwZH23oS4ouiRiD905bE5DaC7084cC080E936884aBfB358"
+    GEMINI_API_URL: str = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
+    GEMINI_TIMEOUT: int = 120
+
+    # Gemini 图片生成定价 (单位: 美元 USD)
+    # 所有分辨率统一 $0.050/张
+    GEMINI_PRICING: dict = {
+        "1K": 0.050,
+        "2K": 0.050,
+        "4K": 0.050,
+    }
 
 
 settings = Settings()

@@ -35,7 +35,7 @@ class SpiderHifleetNewbuildingVessels(BaseModel):
         self.time_sleep_seconds = float(os.getenv('TIME_SLEEP_SECONDS', '20'))
         
         # 新造船船龄范围（年），默认5年以内
-        self.max_ship_age = int(os.getenv('MAX_SHIP_AGE', '5'))
+        self.max_ship_age = int(os.getenv('MAX_SHIP_AGE', '1'))
         
         # 支持的船舶类型：干散货（散货船）和杂货船
         self.shiptypes = ['散货船', '杂货船']
@@ -132,11 +132,12 @@ class SpiderHifleetNewbuildingVessels(BaseModel):
                 "keyword": "",
                 "mmsi": -1,
                 "imo": -1,
+                "keyword": "",
                 "isFleetShip": 0,
                 "shipagemin": 0,  # 最小船龄为0
                 "shipagemax": self.max_ship_age,  # 最大船龄限制
                 "loamin": -1,
-                "loamax": -1,
+                "loamax": -1,   
                 "dwtmin": -1,
                 "dwtmax": -1,
                 "sortcolumn": "yearofbuild",

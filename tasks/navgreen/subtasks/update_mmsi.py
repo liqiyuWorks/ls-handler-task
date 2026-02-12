@@ -24,6 +24,23 @@ class UpdateMmsi(BaseModel):
         self.vessel_types = [t.strip() for t in vessel_types_env.split(',') if t.strip()]
         if not self.vessel_types:
             self.vessel_types = ['散货船']  # 如果环境变量为空，使用默认值
+        # 可选：指定只更新某几个 IMO，逗号分隔，例如 IMO_LIST=9738521,9123456；不设则按类型+检查时间筛选
+        self.specified_imos = None
+        imo_list_env = os.getenv('IMO_LIST') or os.getenv('UPDATE_IMO_LIST', '').strip()
+        if imo_list_env:
+            specified = []
+            for s in imo_list_env.split(','):
+                s = s.strip()
+                if not s:
+                    continue
+                try:
+                    n = int(s)
+                    if n > 0 and n not in specified:
+                        specified.append(n)
+                except ValueError:
+                    pass
+            if specified:
+                self.specified_imos = specified
         config = {
             'handle_db': 'mgo',
             "cache_rds": True,
@@ -77,6 +94,62 @@ class UpdateMmsi(BaseModel):
         if not info_update:
             return None
         return self._parse_postime(info_update)
+
+    def _get_item_vessel_type(self, item):
+        """从 fuzzy 接口返回的 item 中提取船舶类型（如 散、集、散货船 等）"""
+        if not item or not isinstance(item, dict):
+            return None
+        for key in ('type', 'vesselType', 'shipType', 'typeName', 'typeNameCn'):
+            val = item.get(key)
+            if val is not None and str(val).strip():
+                return str(val).strip()
+        return None
+
+    def _get_item_vessel_type_name_en(self, item):
+        """从 item 中提取英文船型 vesselTypeNameEn（如 Container、Dry Bulk）"""
+        if not item or not isinstance(item, dict):
+            return None
+        val = item.get('vesselTypeNameEn')
+        if val is not None and str(val).strip():
+            return str(val).strip()
+        return None
+
+    def _is_preferred_vessel_type_by_en(self, vessel_type_name_en):
+        """根据 vesselTypeNameEn 判断是否优先：Dry Bulk 优先，Container 不优先。
+        返回 True=优先(Dry Bulk)，False=不优先(Container)，None=未知则交给中文类型逻辑。
+        """
+        if not vessel_type_name_en:
+            return None
+        s = (vessel_type_name_en if isinstance(vessel_type_name_en, str) else str(vessel_type_name_en)).strip()
+        if not s:
+            return None
+        lower = s.lower()
+        if 'container' in lower or lower == 'container':
+            return False
+        if 'dry bulk' in lower or 'bulk carrier' in lower or lower == 'bulk':
+            return True
+        return None
+
+    def _is_preferred_vessel_type(self, type_str):
+        """判断是否为优先选择的船舶类型（散货船/杂货船等，与 self.vessel_types 一致）"""
+        if not type_str:
+            return False
+        s = (type_str if isinstance(type_str, str) else str(type_str)).strip()
+        if not s:
+            return False
+        # 与配置的类型完全匹配
+        if s in self.vessel_types:
+            return True
+        # 界面常用简称：散 -> 散货船
+        if s == '散' and any('散' in vt for vt in self.vessel_types):
+            return True
+        if s == '杂' and any('杂' in vt for vt in self.vessel_types):
+            return True
+        # 类型名包含配置中的关键字（如 "散货船" 包含 "散"）
+        for vt in self.vessel_types:
+            if vt in s or (len(vt) > 0 and vt[0] in s):
+                return True
+        return False
 
     def _get_vessel_detail_by_mmsi(self, mmsi):
         """通过MMSI调用cosco接口获取船舶档案详情"""
@@ -226,8 +299,10 @@ class UpdateMmsi(BaseModel):
                 print(f"未找到IMO匹配的结果 - 查询IMO: {imo}, 返回结果数: {len(data_list)}")
                 return None
             
-            # 按 MMSI 聚合，每个 MMSI 保留其最大 postime 的项（用于后续排序）
+            # 按 MMSI 聚合，每个 MMSI 保留其最大 postime 的项及对应的船舶类型、vesselTypeNameEn（用于后续优先选 Dry Bulk）
             mmsi_to_postime = {}
+            mmsi_to_type = {}
+            mmsi_to_type_name_en = {}
             for item in matched_items:
                 mmsi_raw = item.get("mmsi") or item.get("vesselMmsi")
                 if not mmsi_raw:
@@ -236,8 +311,14 @@ class UpdateMmsi(BaseModel):
                 if not mmsi_n or mmsi_n <= 0:
                     continue
                 pt = self._parse_postime(item.get("postime"))
+                item_type = self._get_item_vessel_type(item)
+                item_type_en = self._get_item_vessel_type_name_en(item)
                 if mmsi_n not in mmsi_to_postime or (pt and (mmsi_to_postime[mmsi_n] is None or pt > mmsi_to_postime[mmsi_n])):
                     mmsi_to_postime[mmsi_n] = pt
+                    if item_type is not None:
+                        mmsi_to_type[mmsi_n] = item_type
+                    if item_type_en is not None:
+                        mmsi_to_type_name_en[mmsi_n] = item_type_en
             
             distinct_mmsis = list(mmsi_to_postime.keys())
             if not distinct_mmsis:
@@ -248,14 +329,31 @@ class UpdateMmsi(BaseModel):
                 return distinct_mmsis[0]
             
             # 多个候选 MMSI：用船舶详情接口判断哪个是“当前在用”（以详情返回的 mmsi 为权威）
-            # 例如 IMO 9134969 对应 441176000 与 677089700，详情接口可能对旧号也返回新号，取 canonical 再按时间排序
-            candidates = []  # (canonical_mmsi, detail_update_dt, postime_dt)
+            # 同时优先选择与配置类型一致的船舶（如散货船），同一 IMO 对应多船时选“散”不选“集”
+            candidates = []  # (canonical_mmsi, detail_update_dt, postime_dt, is_preferred_type)
             for mmsi in distinct_mmsis:
                 if self.request_delay_seconds > 0:
                     time.sleep(self.request_delay_seconds)
                 detail = self._get_vessel_detail_by_mmsi(mmsi)
+                # 优先用 vesselTypeNameEn 判断：Dry Bulk 优先，Container 不优先；否则用中文类型
+                type_name_en = None
+                if detail:
+                    type_name_en = self._get_item_vessel_type_name_en(detail)
+                if type_name_en is None:
+                    type_name_en = mmsi_to_type_name_en.get(mmsi)
+                prefer_by_en = self._is_preferred_vessel_type_by_en(type_name_en)
+                if prefer_by_en is not None:
+                    is_preferred = prefer_by_en
+                else:
+                    fuzzy_type = mmsi_to_type.get(mmsi)
+                    if detail:
+                        detail_type = self._get_item_vessel_type(detail)
+                        type_for_prefer = detail_type or fuzzy_type
+                    else:
+                        type_for_prefer = fuzzy_type
+                    is_preferred = self._is_preferred_vessel_type(type_for_prefer)
                 if not detail:
-                    candidates.append((mmsi, None, mmsi_to_postime.get(mmsi)))
+                    candidates.append((mmsi, None, mmsi_to_postime.get(mmsi), is_preferred))
                     continue
                 detail_imo_raw = detail.get("imo")
                 if detail_imo_raw:
@@ -267,15 +365,16 @@ class UpdateMmsi(BaseModel):
                 if not canonical or canonical <= 0:
                     canonical = mmsi
                 detail_update = self._parse_info_update(detail.get("info_update"))
-                candidates.append((canonical, detail_update, mmsi_to_postime.get(mmsi)))
+                candidates.append((canonical, detail_update, mmsi_to_postime.get(mmsi), is_preferred))
             
             if not candidates:
                 return None
             
-            # 排序：优先按详情更新时间倒序（有更新时间的更可信），再按 postime 倒序；时间为 None 的排最后
+            # 排序：先按是否为目标类型（如散货船）优先，再按详情更新时间、postime 倒序
             def sort_key(c):
-                canon, d_update, post = c
+                canon, d_update, post, is_pref = c
                 return (
+                    is_pref,
                     d_update is not None,
                     d_update or datetime.datetime.min,
                     post is not None,
@@ -283,8 +382,12 @@ class UpdateMmsi(BaseModel):
                 )
             candidates.sort(key=sort_key, reverse=True)
             best_canonical = candidates[0][0]
+            best_is_preferred = candidates[0][3]
             if len(distinct_mmsis) > 1 and current_mmsi is not None:
-                print(f"  [IMO {imo}] 多 MMSI 候选: {distinct_mmsis}, 当前库: {current_mmsi}, 选用: {best_canonical}")
+                msg = f"  [IMO {imo}] 多 MMSI 候选: {distinct_mmsis}, 当前库: {current_mmsi}, 选用: {best_canonical}"
+                if best_is_preferred:
+                    msg += " (优先目标类型如散货船)"
+                print(msg)
             return best_canonical
         except requests.exceptions.RequestException as e:
             print(f"调用cosco接口获取MMSI异常 (imo: {imo}): {e}")
@@ -420,19 +523,24 @@ class UpdateMmsi(BaseModel):
             print(f"检查时间阈值: {threshold_time_str} (超过{days_threshold}天未检查的记录)")
             print(f"船舶类型配置: {', '.join(self.vessel_types)}")
             
-            # 查询指定类型的记录
-            # 条件：要么没有 mmsi_check_timestamp 字段，要么检查时间戳超过30天
-            query = {
-                "type": {"$in": self.vessel_types},
-                "imo": {"$exists": True, "$ne": None, "$gt": 0},  # imo 必须存在且大于0
-                "mmsi": {"$exists": True, "$ne": None},  # 确保有mmsi字段
-                "$or": [
-                    # 从未检查过（timestamp字段不存在）
-                    {"mmsi_check_timestamp": {"$exists": False}},
-                    # 检查时间戳超过30天
-                    {"mmsi_check_timestamp": {"$lt": threshold_time}}
-                ]
-            }
+            if self.specified_imos:
+                # 指定 IMO 模式：只更新环境变量 IMO_LIST 中的 IMO，不限制类型和检查时间
+                query = {
+                    "imo": {"$in": self.specified_imos},
+                    "mmsi": {"$exists": True, "$ne": None}
+                }
+                print(f"指定 IMO 模式: 仅更新 IMO_LIST={self.specified_imos}")
+            else:
+                # 默认：按船舶类型 + 检查时间筛选
+                query = {
+                    "type": {"$in": self.vessel_types},
+                    "imo": {"$exists": True, "$ne": None, "$gt": 0},
+                    "mmsi": {"$exists": True, "$ne": None},
+                    "$or": [
+                        {"mmsi_check_timestamp": {"$exists": False}},
+                        {"mmsi_check_timestamp": {"$lt": threshold_time}}
+                    ]
+                }
             
             # 获取需要检查的记录
             need_check_list = list(self.mgo_db["global_vessels"].find(
