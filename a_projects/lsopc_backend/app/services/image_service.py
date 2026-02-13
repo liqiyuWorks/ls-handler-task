@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Gemini 图片生成服务"""
+"""Gemini 图片生成服务：成本价(api_price)与平台定价(lsopc_price)分离，价格从 models_price_map 动态读取"""
 import logging
 import base64
 import uuid
@@ -7,11 +7,31 @@ import os
 import httpx
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Tuple
+from decimal import Decimal
+from typing import Optional
+from pymongo import ReturnDocument
+
 from app.config import settings
 from app.services.database import db
 
 logger = logging.getLogger(__name__)
+
+# 集合名：模型价格映射（成本价、平台价、汇率）
+MODELS_PRICE_MAP_COLLECTION = "models_price_map"
+
+
+@dataclass
+class ModelPriceMap:
+    """models_price_map 表一行：第三方成本价 vs 平台定价，及汇率"""
+    model: str
+    api_price: float   # 成本价 USD/张
+    lsopc_price: float # 平台定价 USD/张，向用户收取
+    exchange_rate: float  # 美元对人民币汇率
+    remarks: str = ""
+
+    def cost_cny_per_image(self) -> float:
+        """每张图片扣款金额（元），保留两位小数"""
+        return round(float(Decimal(str(self.lsopc_price)) * Decimal(str(self.exchange_rate))), 2)
 
 
 @dataclass
@@ -20,6 +40,37 @@ class ImageGenerateResult:
     image_url: Optional[str] = None
     cost: float = 0.0
     cost_detail: str = ""
+
+
+async def get_model_price_map(model_name: str) -> Optional[ModelPriceMap]:
+    """
+    从 MongoDB models_price_map 按 model 查询价格配置。
+    表字段：model, api_price, lsopc_price（或 lsopc_proce 兼容拼写）, exchange_rate, remarks
+    """
+    doc = await db.db[MODELS_PRICE_MAP_COLLECTION].find_one({"model": model_name})
+    if not doc:
+        return None
+    api_price = _parse_decimal(doc.get("api_price"), 0.05)
+    # 兼容字段拼写 lsopc_proce
+    lsopc_price = _parse_decimal(doc.get("lsopc_price") or doc.get("lsopc_proce"), api_price)
+    exchange_rate = _parse_decimal(doc.get("exchange_rate"), settings.USD_TO_CNY)
+    return ModelPriceMap(
+        model=doc.get("model", model_name),
+        api_price=api_price,
+        lsopc_price=lsopc_price,
+        exchange_rate=exchange_rate,
+        remarks=doc.get("remarks", ""),
+    )
+
+
+def _parse_decimal(value, default: float) -> float:
+    """将字符串或数字转为 float，失败返回 default"""
+    if value is None:
+        return default
+    try:
+        return float(Decimal(str(value).strip()))
+    except Exception:
+        return default
 
 
 class ImageService:
@@ -33,11 +84,38 @@ class ImageService:
         }
         self.timeout = settings.GEMINI_TIMEOUT
 
-    def _calculate_cost(self, resolution: str, aspect_ratio: str) -> Tuple[float, str]:
-        """计算图片生成成本"""
-        cost = settings.GEMINI_PRICING.get(resolution, settings.GEMINI_PRICING["1K"])
-        detail = f"Gemini 图片生成 (分辨率: {resolution}, 宽高比: {aspect_ratio}) - ${cost:.3f}/张"
-        return cost, detail
+    async def _get_price_map_for_generate(self) -> ModelPriceMap:
+        """获取当前图片模型的价格配置，无表记录时使用 config 兜底"""
+        price_map = await get_model_price_map(settings.GEMINI_IMAGE_MODEL)
+        if price_map:
+            return price_map
+        default_usd = float(settings.GEMINI_PRICING.get("2K", 0.05))
+        return ModelPriceMap(
+            model=settings.GEMINI_IMAGE_MODEL,
+            api_price=default_usd,
+            lsopc_price=default_usd,
+            exchange_rate=settings.USD_TO_CNY,
+            remarks="(config 兜底)",
+        )
+
+    async def _deduct_and_record_spent(self, username: str, cost_cny: float) -> None:
+        """
+        原子扣款并更新累计消费：balance 减少、total_spent 增加，保证一致性。
+        cost_cny：本次扣款金额（元）。若余额不足则抛出异常。
+        """
+        if cost_cny <= 0:
+            return
+        updated = await db.db.users.find_one_and_update(
+            {"username": username, "balance": {"$gte": cost_cny}},
+            {"$inc": {"balance": -cost_cny, "total_spent": cost_cny}},
+            return_document=ReturnDocument.AFTER,
+        )
+        if not updated:
+            raise ValueError("余额不足，请充值后重试")
+        logger.info(
+            "[DB] 扣款成功 user=%s cost_cny=%.2f balance_after=%.2f total_spent=%.2f",
+            username, cost_cny, updated.get("balance", 0), updated.get("total_spent", 0),
+        )
 
     async def generate_image(
         self,
@@ -47,22 +125,20 @@ class ImageService:
         resolution: str = "2K"
     ) -> ImageGenerateResult:
         """
-        使用 Gemini API 生成图片
-        
-        Args:
-            prompt: 图片描述提示词
-            username: 用户名
-            aspect_ratio: 宽高比 (21:9, 16:9, 4:3, 3:2, 1:1, 9:16, 3:4, 2:3, 5:4, 4:5)
-            resolution: 分辨率 (1K, 2K, 4K)
-        
-        Returns:
-            ImageGenerateResult 包含图片URL和成本信息
+        使用 Gemini API 生成图片。
+        价格从 models_price_map 动态读取：平台按 lsopc_price(USD) 向用户收费，按 exchange_rate 折算为元扣款。
         """
-        # 计算成本
-        cost, cost_detail = self._calculate_cost(resolution, aspect_ratio)
+        # 动态价格配置（表优先，无则 config 兜底）
+        price_map = await self._get_price_map_for_generate()
+        cost_usd = price_map.lsopc_price
+        cost_cny = price_map.cost_cny_per_image()
+        cost_detail = f"平台定价 ${cost_usd:.3f}/张 (约 {cost_cny:.2f} 元)"
 
         try:
-            logger.info(f"[Gemini] 开始生成图片, prompt: {prompt}, resolution: {resolution}, aspect_ratio: {aspect_ratio}")
+            logger.info(
+                "[Gemini] 开始生成图片, prompt=%s, resolution=%s, aspect_ratio=%s, 扣款=%.2f 元",
+                prompt, resolution, aspect_ratio, cost_cny,
+            )
 
             payload = {
                 "contents": [{
@@ -115,22 +191,25 @@ class ImageService:
                 f.write(decoded_data)
 
             image_url = f"/static/images/{filename}"
-            logger.info(f"[Gemini] 图片已保存: {image_url}, 消费: ${cost:.3f}")
+            logger.info("[Gemini] 图片已保存: %s, 扣款: %.2f 元 (平台价 $%.3f)", image_url, cost_cny, cost_usd)
 
-            # 保存到数据库
+            # 原子扣款并更新累计消费（与用户表一致）
+            await self._deduct_and_record_spent(username, cost_cny)
+
+            # 保存生成记录到历史（记录平台定价 USD）
             await self._save_history(
                 username=username,
                 prompt=prompt,
                 image_url=image_url,
                 aspect_ratio=aspect_ratio,
                 resolution=resolution,
-                cost=cost
+                cost=cost_usd,
             )
 
             return ImageGenerateResult(
                 image_url=image_url,
-                cost=cost,
-                cost_detail=cost_detail
+                cost=cost_usd,
+                cost_detail=cost_detail,
             )
 
         except Exception as e:

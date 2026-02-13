@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # JWT Security
     SECRET_KEY: str = "your-secret-key-keep-it-secret"  # 在生产环境应该从环境变量读取
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 7 * 24 * 60  # 7 天，到期需重新登录
 
     @property
     def MONGO_URL(self) -> str:
@@ -47,14 +47,12 @@ class Settings(BaseSettings):
     GEMINI_API_KEY: str = "sk-YJwZH23oS4ouiRiD905bE5DaC7084cC080E936884aBfB358"
     GEMINI_API_URL: str = "https://api.apiyi.com/v1beta/models/gemini-3-pro-image-preview:generateContent"
     GEMINI_TIMEOUT: int = 120
+    # 用于从 models_price_map 查询价格的模型名，需与表内 model 字段一致
+    GEMINI_IMAGE_MODEL: str = "gemini-3-pro-image-preview"
 
-    # Gemini 图片生成定价 (单位: 美元 USD)
-    # 所有分辨率统一 $0.050/张
-    GEMINI_PRICING: dict = {
-        "1K": 0.050,
-        "2K": 0.050,
-        "4K": 0.050,
-    }
+    # 以下为兜底：当 models_price_map 无对应记录时使用
+    GEMINI_PRICING: dict = {"1K": 0.05, "2K": 0.05, "4K": 0.05}
+    USD_TO_CNY: float = 7.2
 
 
 settings = Settings()

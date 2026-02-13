@@ -8,8 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import jwt
 
+from pymongo import ReturnDocument
+
 from app.config import settings
-from app.schemas.auth import UserCreate, UserLogin, Token, TokenData, UserBase
+from app.schemas.auth import UserCreate, UserLogin, Token, TokenData, UserBase, RechargeRequest, RechargeResponse
 from app.services.auth_utils import get_password_hash, verify_password, create_access_token
 from app.services.database import db
 
@@ -24,7 +26,12 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     """获取当前登录用户的依赖项"""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
+        detail="请登录",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    expired_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="请登录",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
@@ -33,9 +40,11 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         if username is None:
             raise credentials_exception
         token_data = TokenData(username=username)
+    except jwt.ExpiredSignatureError:
+        raise expired_exception
     except jwt.PyJWTError:
         raise credentials_exception
-    
+
     user = await db.db.users.find_one({"username": token_data.username})
     if user is None:
         raise credentials_exception
@@ -61,7 +70,9 @@ async def register(user_in: UserCreate):
     # 准备写入数据
     user_dict = user_in.dict()
     user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
-    
+    user_dict["balance"] = 0.0  # 新用户默认余额 0 元
+    user_dict["total_spent"] = 0.0  # 新用户累计消费 0 元
+
     # 写入数据库
     await db.db.users.insert_one(user_dict)
     logger.info("New user registered: %s", user_in.username)
@@ -89,7 +100,40 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.get("/me", response_model=UserBase, summary="获取当前用户信息")
+@router.get("/me", response_model=UserBase, summary="获取当前用户个人信息与账户余额")
 async def read_users_me(current_user: UserBase = Depends(get_current_user)):
-    """获取当前已验证用户的信息"""
+    """获取当前登录用户的个人信息和账户余额，新注册用户默认余额为 0 元"""
     return current_user
+
+
+@router.post("/recharge", response_model=RechargeResponse, summary="账户充值")
+async def recharge(
+    body: RechargeRequest,
+    current_user: UserBase = Depends(get_current_user),
+):
+    """
+    为当前登录用户充值。金额与用户绑定，使用数据库原子操作保证总金额一致。
+    金额单位：元，保留两位小数；单笔充值范围 0.01～100000 元。
+    """
+    amount = body.amount  # 已在 RechargeRequest 中校验并保留两位小数
+
+    # 原子更新：仅对当前用户 $inc balance，并返回更新后的文档，保证总金额一致
+    updated = await db.db.users.find_one_and_update(
+        {"username": current_user.username},
+        {"$inc": {"balance": amount}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+
+    new_balance = round(float(updated.get("balance", 0)), 2)
+    # 防止并发或历史数据导致余额为负，做一次兜底校正
+    if new_balance < 0:
+        await db.db.users.update_one(
+            {"username": current_user.username},
+            {"$set": {"balance": 0.0}},
+        )
+        new_balance = 0.0
+
+    logger.info("Recharge: user=%s, added=%.2f, balance_after=%.2f", current_user.username, amount, new_balance)
+    return RechargeResponse(balance=new_balance, added=amount)
