@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 # 集合名：模型价格映射（成本价、平台价、汇率）
 MODELS_PRICE_MAP_COLLECTION = "models_price_map"
+# 调用记录集合（个人中心「调用记录」展示）
+USAGE_RECORDS_COLLECTION = "usage_records"
 
 
 @dataclass
@@ -116,6 +118,18 @@ class ImageService:
             "[DB] 扣款成功 user=%s cost_cny=%.2f balance_after=%.2f total_spent=%.2f",
             username, cost_cny, updated.get("balance", 0), updated.get("total_spent", 0),
         )
+        # 写入调用记录，供个人中心「调用记录」展示
+        try:
+            await db.db[USAGE_RECORDS_COLLECTION].insert_one({
+                "username": username,
+                "record_type": "image",
+                "type_label": "图片生成",
+                "amount": cost_cny,
+                "count": 1,
+                "created_at": datetime.utcnow(),
+            })
+        except Exception as e:
+            logger.warning("[DB] 写入 usage_records 失败: %s", e)
 
     async def generate_image(
         self,

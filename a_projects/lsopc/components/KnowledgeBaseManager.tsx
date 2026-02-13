@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Database, FileText, Upload, Link, Check, AlertCircle, RefreshCw, Trash2, FolderOpen, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '@/config';
 
 // Utility components for UI consistency
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
@@ -42,8 +43,7 @@ const Input: React.FC<React.InputHTMLAttributes<HTMLInputElement>> = (props) => 
 );
 
 // --- API Service Client ---
-// const API_BASE = "http://localhost:8000/api/coze"; // Adjust if necessary
-const API_BASE = "http://api.lsopc.cn/api/coze"; // Adjust if necessary
+const API_BASE = `${API_BASE_URL}/coze`;
 
 interface Dataset {
     dataset_id: string;

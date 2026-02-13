@@ -1,6 +1,5 @@
 import { getAuthToken } from './auth';
-
-const API_BASE_URL = 'http://api.lsopc.cn/api';
+import { API_BASE_URL } from '@/config';
 
 export interface ImageOptions {
   resolutions: {

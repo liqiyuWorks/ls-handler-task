@@ -6,7 +6,7 @@ import Hero from './components/Hero';
 import CozeChat from './components/CozeChat';
 import WeChatWidget from './components/WeChatWidget';
 import KnowledgeBaseManager from './components/KnowledgeBaseManager';
-
+import PersonalCenter from './components/PersonalCenter';
 import ImageGeneration from './components/ImageGeneration';
 
 const Home: React.FC = () => {
@@ -114,6 +114,7 @@ const App: React.FC = () => {
             <Route path="/savings-agent" element={<SavingsChatPage />} />
             <Route path="/finance-agent" element={<FinanceChatPage />} />
             <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />
+            <Route path="/profile" element={<PersonalCenter />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

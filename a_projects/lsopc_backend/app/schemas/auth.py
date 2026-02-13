@@ -9,8 +9,15 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
     email: Optional[EmailStr] = None
+    nickname: Optional[str] = Field(default=None, max_length=50, description="昵称")
     balance: float = Field(default=0.0, ge=0, description="账户余额（元）")
     total_spent: float = Field(default=0.0, ge=0, description="累计消费（元）")
+
+
+class ProfileUpdate(BaseModel):
+    """更新个人信息（仅允许修改邮箱、昵称）"""
+    email: Optional[EmailStr] = None
+    nickname: Optional[str] = Field(default=None, max_length=50)
 
 
 class UserCreate(UserBase):
@@ -57,3 +64,13 @@ class RechargeResponse(BaseModel):
     """充值成功响应：返回当前用户最新余额"""
     balance: float = Field(..., ge=0, description="充值后账户余额（元）")
     added: float = Field(..., ge=0, description="本次充值金额（元）")
+
+
+class UsageRecordResponse(BaseModel):
+    """单条调用记录（用于个人中心调用记录列表）"""
+    id: str = Field(..., description="记录 ID")
+    record_type: str = Field(..., description="类型: image | chat | knowledge")
+    type_label: str = Field(..., description="展示名称")
+    amount: float = Field(..., ge=0, description="消耗金额（元）")
+    count: int = Field(default=1, ge=0)
+    created_at: str = Field(..., description="创建时间 ISO 字符串")

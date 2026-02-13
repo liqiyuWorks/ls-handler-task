@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { APP_CONFIG } from '../constants';
-import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon } from 'lucide-react';
+import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon, Settings } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { getCurrentUser, clearAuth, isAuthenticated } from '../services/auth';
 
@@ -129,10 +129,14 @@ const Header: React.FC = () => {
               
               {/* User Dropdown Menu */}
               {showUserMenu && (
-                <div className="absolute right-0 top-full mt-2 w-40 bg-gray-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-fadeIn">
-                  <div className="p-2 border-b border-white/5 text-xs text-gray-500 text-center">
-                    账号管理
-                  </div>
+                <div className="absolute right-0 top-full mt-2 w-44 bg-gray-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-fadeIn">
+                  <button
+                    onClick={() => { navigate('/profile'); setShowUserMenu(false); }}
+                    className="w-full flex items-center gap-2 px-4 py-3 text-sm text-white hover:bg-white/5 transition-all text-left"
+                  >
+                    <Settings size={16} className="text-orange-400" />
+                    个人中心
+                  </button>
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-2 px-4 py-3 text-sm text-red-400 hover:bg-white/5 transition-all"
@@ -224,6 +228,13 @@ const Header: React.FC = () => {
                     <div className="font-medium">{currentUser}</div>
                   </div>
                 </div>
+                <button
+                  onClick={() => { navigate('/profile'); setIsMenuOpen(false); }}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-medium text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-all"
+                >
+                  <Settings size={20} />
+                  个人中心
+                </button>
                 <button
                   onClick={() => { handleLogout(); setIsMenuOpen(false); }}
                   className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 transition-all"

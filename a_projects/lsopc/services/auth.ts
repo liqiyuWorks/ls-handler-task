@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://api.lsopc.cn/api';
+import { API_BASE_URL } from '@/config';
 
 export interface RegisterData {
   username: string;
@@ -14,6 +14,7 @@ export interface LoginData {
 export interface User {
   username: string;
   email?: string;
+  nickname?: string;
 }
 
 export interface AuthResponse {
