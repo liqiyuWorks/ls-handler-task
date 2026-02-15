@@ -7,33 +7,13 @@ import os
 import httpx
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
 from typing import Optional
-from pymongo import ReturnDocument
 
 from app.config import settings
 from app.services.database import db
+from app.services.billing_utils import get_model_price_map, deduct_and_record, ModelPriceMap
 
 logger = logging.getLogger(__name__)
-
-# 集合名：模型价格映射（成本价、平台价、汇率）
-MODELS_PRICE_MAP_COLLECTION = "models_price_map"
-# 调用记录集合（个人中心「调用记录」展示）
-USAGE_RECORDS_COLLECTION = "usage_records"
-
-
-@dataclass
-class ModelPriceMap:
-    """models_price_map 表一行：第三方成本价 vs 平台定价，及汇率"""
-    model: str
-    api_price: float   # 成本价 USD/张
-    lsopc_price: float # 平台定价 USD/张，向用户收取
-    exchange_rate: float  # 美元对人民币汇率
-    remarks: str = ""
-
-    def cost_cny_per_image(self) -> float:
-        """每张图片扣款金额（元），保留两位小数"""
-        return round(float(Decimal(str(self.lsopc_price)) * Decimal(str(self.exchange_rate))), 2)
 
 
 @dataclass
@@ -42,37 +22,6 @@ class ImageGenerateResult:
     image_url: Optional[str] = None
     cost: float = 0.0
     cost_detail: str = ""
-
-
-async def get_model_price_map(model_name: str) -> Optional[ModelPriceMap]:
-    """
-    从 MongoDB models_price_map 按 model 查询价格配置。
-    表字段：model, api_price, lsopc_price（或 lsopc_proce 兼容拼写）, exchange_rate, remarks
-    """
-    doc = await db.db[MODELS_PRICE_MAP_COLLECTION].find_one({"model": model_name})
-    if not doc:
-        return None
-    api_price = _parse_decimal(doc.get("api_price"), 0.05)
-    # 兼容字段拼写 lsopc_proce
-    lsopc_price = _parse_decimal(doc.get("lsopc_price") or doc.get("lsopc_proce"), api_price)
-    exchange_rate = _parse_decimal(doc.get("exchange_rate"), settings.USD_TO_CNY)
-    return ModelPriceMap(
-        model=doc.get("model", model_name),
-        api_price=api_price,
-        lsopc_price=lsopc_price,
-        exchange_rate=exchange_rate,
-        remarks=doc.get("remarks", ""),
-    )
-
-
-def _parse_decimal(value, default: float) -> float:
-    """将字符串或数字转为 float，失败返回 default"""
-    if value is None:
-        return default
-    try:
-        return float(Decimal(str(value).strip()))
-    except Exception:
-        return default
 
 
 class ImageService:
@@ -101,35 +50,8 @@ class ImageService:
         )
 
     async def _deduct_and_record_spent(self, username: str, cost_cny: float) -> None:
-        """
-        原子扣款并更新累计消费：balance 减少、total_spent 增加，保证一致性。
-        cost_cny：本次扣款金额（元）。若余额不足则抛出异常。
-        """
-        if cost_cny <= 0:
-            return
-        updated = await db.db.users.find_one_and_update(
-            {"username": username, "balance": {"$gte": cost_cny}},
-            {"$inc": {"balance": -cost_cny, "total_spent": cost_cny}},
-            return_document=ReturnDocument.AFTER,
-        )
-        if not updated:
-            raise ValueError("余额不足，请充值后重试")
-        logger.info(
-            "[DB] 扣款成功 user=%s cost_cny=%.2f balance_after=%.2f total_spent=%.2f",
-            username, cost_cny, updated.get("balance", 0), updated.get("total_spent", 0),
-        )
-        # 写入调用记录，供个人中心「调用记录」展示
-        try:
-            await db.db[USAGE_RECORDS_COLLECTION].insert_one({
-                "username": username,
-                "record_type": "image",
-                "type_label": "图片生成",
-                "amount": cost_cny,
-                "count": 1,
-                "created_at": datetime.utcnow(),
-            })
-        except Exception as e:
-            logger.warning("[DB] 写入 usage_records 失败: %s", e)
+        """原子扣款并写入图片生成调用记录"""
+        await deduct_and_record(username, cost_cny, record_type="image", type_label="图片生成")
 
     async def generate_image(
         self,
@@ -145,7 +67,7 @@ class ImageService:
         # 动态价格配置（表优先，无则 config 兜底）
         price_map = await self._get_price_map_for_generate()
         cost_usd = price_map.lsopc_price
-        cost_cny = price_map.cost_cny_per_image()
+        cost_cny = price_map.cost_cny()
         cost_detail = f"平台定价 ${cost_usd:.3f}/张 (约 {cost_cny:.2f} 元)"
 
         try:

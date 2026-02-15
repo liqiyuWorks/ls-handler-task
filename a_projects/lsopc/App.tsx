@@ -8,6 +8,7 @@ import WeChatWidget from './components/WeChatWidget';
 import KnowledgeBaseManager from './components/KnowledgeBaseManager';
 import PersonalCenter from './components/PersonalCenter';
 import ImageGeneration from './components/ImageGeneration';
+import VideoGeneration from './components/VideoGeneration';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -111,6 +112,7 @@ const App: React.FC = () => {
             <Route path="/" element={<Home />} />
             <Route path="/knowledge-base" element={<KnowledgeBaseManager />} />
             <Route path="/image-generation" element={<ImageGeneration />} />
+            <Route path="/video-generation" element={<VideoGeneration />} />
             <Route path="/savings-agent" element={<SavingsChatPage />} />
             <Route path="/finance-agent" element={<FinanceChatPage />} />
             <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />

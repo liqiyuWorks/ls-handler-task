@@ -24,6 +24,7 @@ from app.schemas.auth import (
 )
 from app.services.auth_utils import get_password_hash, verify_password, create_access_token
 from app.services.database import db
+from app.utils.time_utils import utc_iso_for_api
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -174,11 +175,7 @@ async def get_usage_records(
     )
     items = []
     async for doc in cursor:
-        created_at = doc.get("created_at")
-        if hasattr(created_at, "isoformat"):
-            created_at = created_at.isoformat()
-        else:
-            created_at = str(created_at) if created_at else ""
+        created_at = utc_iso_for_api(doc.get("created_at"))
         items.append(
             UsageRecordResponse(
                 id=str(doc.get("_id", "")),

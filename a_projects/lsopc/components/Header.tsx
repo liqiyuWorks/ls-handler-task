@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { APP_CONFIG } from '../constants';
-import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon, Settings } from 'lucide-react';
+import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon, Video, Settings } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { getCurrentUser, clearAuth, isAuthenticated } from '../services/auth';
 
@@ -104,6 +104,17 @@ const Header: React.FC = () => {
             图片生成
           </button>
 
+          <button
+            onClick={() => navigate('/video-generation')}
+            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/video-generation')
+              ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+          >
+            <Video size={16} className={isActive('/video-generation') ? 'text-teal-400' : ''} />
+            视频生成
+          </button>
+
           <a
             href="/overview.html"
             target="_blank"
@@ -203,6 +214,17 @@ const Header: React.FC = () => {
           >
             <ImageIcon size={20} className={isActive('/image-generation') ? 'text-pink-400' : ''} />
             图片生成
+          </button>
+
+          <button
+            onClick={() => { navigate('/video-generation'); setIsMenuOpen(false); }}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/video-generation')
+                ? 'bg-white/10 text-white'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+          >
+            <Video size={20} className={isActive('/video-generation') ? 'text-teal-400' : ''} />
+            视频生成
           </button>
 
           <a

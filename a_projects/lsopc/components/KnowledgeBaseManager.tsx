@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, Database, FileText, Upload, Link, Check, AlertCircle, RefreshCw, Trash2, FolderOpen, ArrowLeft, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '@/config';
+import { formatBeijingDate } from '@/utils/date';
 
 // Utility components for UI consistency
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
@@ -472,7 +473,7 @@ const KnowledgeBaseManager: React.FC = () => {
                                                                 </span>
                                                             </td>
                                                             <td className="py-3 hidden md:table-cell">
-                                                                {new Date(f.update_time * 1000).toLocaleDateString()}
+                                                                {formatBeijingDate(f.update_time * 1000)}
                                                             </td>
                                                         </tr>
                                                     ))

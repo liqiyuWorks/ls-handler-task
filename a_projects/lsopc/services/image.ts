@@ -1,5 +1,13 @@
 import { getAuthToken } from './auth';
-import { API_BASE_URL } from '@/config';
+import { API_BASE_URL, STATIC_BASE_URL } from '@/config';
+
+/** 若为相对路径则拼成完整 URL，便于图片预览（与视频一致） */
+export function ensureAbsoluteImageUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  const base = STATIC_BASE_URL.replace(/\/$/, '');
+  return url.startsWith('/') ? `${base}${url}` : `${base}/${url}`;
+}
 
 export interface ImageOptions {
   resolutions: {
@@ -21,7 +29,15 @@ export interface ImageGenerationRequest {
 
 export interface ImageGenerationResponse {
   image_url: string;
-  // 其他可能返回的字段
+}
+
+export interface ImageHistoryItem {
+  id: string;
+  prompt_summary?: string;
+  created_at: string;
+  image_url?: string;
+  resolution: string;
+  aspect_ratio: string;
 }
 
 export async function getImageOptions(): Promise<ImageOptions> {
@@ -65,4 +81,22 @@ export async function generateImage(data: ImageGenerationRequest): Promise<Image
   }
 
   return response.json();
+}
+
+/** 获取最近 N 条图片生成记录（默认 5 条） */
+export async function getImageHistory(limit: number = 5): Promise<ImageHistoryItem[]> {
+  const token = getAuthToken();
+  if (!token) throw new Error('请先登录');
+  const res = await fetch(`${API_BASE_URL}/image/history?limit=${limit}`, {
+    method: 'GET',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: '获取失败' }));
+    throw new Error(err.detail || '获取历史记录失败');
+  }
+  return res.json();
 }

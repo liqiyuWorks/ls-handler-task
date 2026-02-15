@@ -44,3 +44,17 @@ class ImageGenerateResponse(BaseModel):
     message: Optional[str] = None
     cost: Optional[float] = Field(None, description="本次生成消耗金额 (美元 USD)")
     cost_detail: Optional[str] = Field(None, description="费用详情说明")
+
+
+# 历史记录提示词概要最大长度
+PROMPT_SUMMARY_MAX = 24
+
+
+class ImageHistoryItem(BaseModel):
+    """历史图片记录（最近 N 条）"""
+    id: str = Field(..., description="记录 ID")
+    prompt_summary: Optional[str] = Field(default=None, description="提示词概要")
+    created_at: str = Field(..., description="创建时间 ISO 字符串")
+    image_url: Optional[str] = Field(default=None, description="图片可访问完整 URL")
+    resolution: str = Field(default="2K", description="分辨率")
+    aspect_ratio: str = Field(default="1:1", description="宽高比")

@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { getImageOptions, generateImage, ImageOptions } from '../services/image';
+import {
+  getImageOptions,
+  generateImage,
+  getImageHistory,
+  ensureAbsoluteImageUrl,
+  ImageOptions,
+  type ImageHistoryItem,
+} from '../services/image';
 import { isAuthenticated } from '../services/auth';
-import { Loader2, Image as ImageIcon, Download, Sparkles, LogIn, CheckCircle2, Wand2, Maximize2, Ratio } from 'lucide-react';
+import { formatBeijingTime } from '@/utils/date';
+import { Loader2, Image as ImageIcon, Download, Sparkles, LogIn, CheckCircle2, Wand2, Maximize2, Ratio, History, Eye } from 'lucide-react';
 
 // 选项描述映射
 const resolutionDescriptions: Record<string, string> = {
@@ -38,7 +46,8 @@ const ImageGeneration: React.FC = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
+  const [history, setHistory] = useState<ImageHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
 
   useEffect(() => {
@@ -71,6 +80,15 @@ const ImageGeneration: React.FC = () => {
     fetchOptions();
   }, []);
 
+  useEffect(() => {
+    if (!isAuthenticated()) return;
+    setHistoryLoading(true);
+    getImageHistory(5)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }, [isLoggedIn]);
+
   const handleGenerate = async () => {
     if (!prompt) return;
     
@@ -85,6 +103,7 @@ const ImageGeneration: React.FC = () => {
         aspect_ratio: aspectRatio
       });
       setGeneratedImage(result.image_url);
+      getImageHistory(5).then(setHistory);
     } catch (err) {
       setError(err instanceof Error ? err.message : '生成图片失败');
     } finally {
@@ -148,15 +167,10 @@ const ImageGeneration: React.FC = () => {
             
             {/* 分辨率 */}
             <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                  <Maximize2 size={14} className="text-blue-400" />
-                  分辨率
-                </label>
-                <span className="text-[10px] text-orange-400 px-2 py-0.5 bg-orange-500/10 rounded-full border border-orange-500/20">
-                  {options?.resolutions.pricing}
-                </span>
-              </div>
+              <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                <Maximize2 size={14} className="text-blue-400" />
+                分辨率
+              </label>
               <div className="grid grid-cols-3 gap-2">
                 {options?.resolutions.options.map((res) => (
                   <button
@@ -325,6 +339,51 @@ const ImageGeneration: React.FC = () => {
               </div>
             )}
           </div>
+          {isLoggedIn && (
+            <div className="border-t border-white/5 px-4 py-3 bg-black/10">
+              <div className="flex items-center gap-2 text-sm text-gray-400 mb-2">
+                <History size={14} />
+                最近生成（最多 5 条）
+              </div>
+              {historyLoading ? (
+                <div className="text-xs text-gray-500">加载中…</div>
+              ) : history.length === 0 ? (
+                <div className="text-xs text-gray-500">暂无历史记录</div>
+              ) : (
+                <ul className="space-y-2">
+                  {history.map((item) => (
+                    <li
+                      key={item.id}
+                      className="flex items-start justify-between gap-2 text-xs group border-b border-white/5 pb-2 last:border-0 last:pb-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        {item.prompt_summary && (
+                          <p className="text-gray-300 truncate" title={item.prompt_summary}>
+                            {item.prompt_summary}
+                          </p>
+                        )}
+                        <p className="text-gray-500 mt-0.5">
+                          {formatBeijingTime(item.created_at)} · {item.resolution} {item.aspect_ratio}
+                        </p>
+                      </div>
+                      {item.image_url ? (
+                        <button
+                          type="button"
+                          onClick={() => setGeneratedImage(ensureAbsoluteImageUrl(item.image_url) ?? null)}
+                          className="shrink-0 flex items-center gap-1 text-purple-400 hover:text-purple-300 mt-0.5"
+                        >
+                          <Eye size={12} />
+                          查看
+                        </button>
+                      ) : (
+                        <span className="shrink-0 text-gray-500 mt-0.5">—</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

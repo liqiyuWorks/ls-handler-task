@@ -5,6 +5,7 @@ fastapi
 pydantic
 pydantic-settings
 requests
+httpx
 python-multipart
 motor
 pyjwt

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 import os
 
 from app.config import settings
-from app.api.routes import parse, coze, auth, image
+from app.api.routes import parse, coze, auth, image, video
 from app.services.database import db
 
 # 配置日志
@@ -78,9 +78,11 @@ app.include_router(auth.router, prefix="/api/auth", tags=["authentication"])
 app.include_router(parse.router, prefix="/api", tags=["plugin"])
 app.include_router(coze.router, prefix="/api/coze", tags=["coze"])
 app.include_router(image.router, prefix="/api/image", tags=["image"])
+app.include_router(video.router, prefix="/api/video", tags=["video"])
 
 # 挂载静态文件目录
 os.makedirs("static/images", exist_ok=True)
+os.makedirs("static/videos", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 

@@ -54,6 +54,17 @@ class Settings(BaseSettings):
     GEMINI_PRICING: dict = {"1K": 0.05, "2K": 0.05, "4K": 0.05}
     USD_TO_CNY: float = 7.2
 
+    # VEO 视频生成配置 (api.apiyi.com)，与图片生成共用 GEMINI_API_KEY
+    VEO_API_KEY: str = ""  # 可选，未配置时使用 GEMINI_API_KEY
+    VEO_BASE_URL: str = "https://api.apiyi.com"
+    VEO_MODEL_TEXT: str = "veo-3.1"
+    VEO_MODEL_IMAGE: str = "veo-3.1-landscape-fl"
+    VEO_TIMEOUT: int = 120
+
+    # 视频/静态资源对外访问根 URL，用于返回可预览的完整视频链接
+    # 本地测试: http://localhost:8000 ；Docker 部署: http://api.lsopc.cn
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
+
 
 settings = Settings()
 

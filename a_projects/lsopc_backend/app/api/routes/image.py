@@ -1,14 +1,37 @@
 # -*- coding: utf-8 -*-
 """Gemini 图片生成接口"""
+import logging
 from fastapi import APIRouter, HTTPException, Depends, Request, status
-from app.schemas.image import ImageGenerateRequest, ImageGenerateResponse, SUPPORTED_ASPECT_RATIOS, SUPPORTED_RESOLUTIONS
+
+from app.config import settings
 from app.schemas.auth import UserBase
+from app.schemas.image import (
+    ImageGenerateRequest,
+    ImageGenerateResponse,
+    ImageHistoryItem,
+    PROMPT_SUMMARY_MAX,
+    SUPPORTED_ASPECT_RATIOS,
+    SUPPORTED_RESOLUTIONS,
+)
 from app.api.routes.auth import get_current_user
 from app.services.image_service import image_service
-import logging
+from app.services.database import db
+from app.utils.time_utils import utc_iso_for_api
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+IMAGE_HISTORY_COLLECTION = "image_history"
+
+
+def _absolute_image_url(url: str | None) -> str | None:
+    """将相对路径转为可预览的完整 URL（与视频一致：测试 localhost，部署 api.lsopc.cn）"""
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    base = (settings.PUBLIC_BASE_URL or "http://localhost:8000").rstrip("/")
+    return f"{base}{url}" if url.startswith("/") else f"{base}/{url}"
 
 
 @router.post("/generate", response_model=ImageGenerateResponse)
@@ -75,6 +98,42 @@ async def generate_image(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/history", response_model=list[ImageHistoryItem])
+async def get_image_history(
+    limit: int = 5,
+    current_user: UserBase = Depends(get_current_user),
+):
+    """获取当前用户最近 N 条图片生成记录（默认 5 条）"""
+    limit = min(max(1, limit), 20)
+    cursor = (
+        db.db[IMAGE_HISTORY_COLLECTION]
+        .find({"username": current_user.username})
+        .sort("created_at", -1)
+        .limit(limit)
+    )
+    items = []
+    async for doc in cursor:
+        created_at = utc_iso_for_api(doc.get("created_at"))
+        prompt = (doc.get("prompt") or "").strip()
+        if not prompt:
+            prompt_summary = None
+        elif len(prompt) > PROMPT_SUMMARY_MAX:
+            prompt_summary = prompt[:PROMPT_SUMMARY_MAX].rstrip() + "…"
+        else:
+            prompt_summary = prompt
+        items.append(
+            ImageHistoryItem(
+                id=str(doc.get("_id", "")),
+                prompt_summary=prompt_summary,
+                created_at=created_at,
+                image_url=_absolute_image_url(doc.get("image_url")),
+                resolution=doc.get("resolution", "2K"),
+                aspect_ratio=doc.get("aspect_ratio", "1:1"),
+            )
+        )
+    return items
+
+
 @router.get("/options")
 async def get_image_options():
     """
@@ -86,7 +145,7 @@ async def get_image_options():
     price_map = await get_model_price_map(settings.GEMINI_IMAGE_MODEL)
     if price_map:
         pricing_usd = f"${price_map.lsopc_price:.3f}/张"
-        pricing_cny = f"约 {price_map.cost_cny_per_image():.2f} 元/张"
+        pricing_cny = f"约 {price_map.cost_cny():.2f} 元/张"
         exchange_rate = price_map.exchange_rate
     else:
         pricing_usd = "$0.050/张"

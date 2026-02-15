@@ -14,3 +14,6 @@ function getApiBaseUrl(): string {
 }
 
 export const API_BASE_URL = getApiBaseUrl();
+
+/** 静态资源（如视频）的根 URL，与 API 同源：本地 http://localhost:8000，生产 http://api.lsopc.cn */
+export const STATIC_BASE_URL = getApiBaseUrl().replace(/\/api\/?$/, '');
