@@ -64,13 +64,21 @@ async def generate_image(
         )
 
     try:
-        logger.info(f"[API] 收到图片生成请求, user: {current_user.username}, resolution: {request_data.resolution}, aspect_ratio: {request_data.aspect_ratio}")
-
+        use_edit = bool(request_data.image_base64)
+        logger.info(
+            "[API] 收到图片%s请求, user: %s, resolution: %s, aspect_ratio: %s",
+            "编辑/PS" if use_edit else "生成",
+            current_user.username,
+            request_data.resolution,
+            request_data.aspect_ratio,
+        )
         result = await image_service.generate_image(
             prompt=request_data.prompt,
             username=current_user.username,
-            aspect_ratio=request_data.aspect_ratio,
-            resolution=request_data.resolution
+            aspect_ratio=request_data.aspect_ratio or "1:1",
+            resolution=request_data.resolution,
+            image_base64=request_data.image_base64,
+            image_mime_type=request_data.image_mime_type,
         )
         
         # 构建完整 URL

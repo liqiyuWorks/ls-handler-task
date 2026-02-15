@@ -9,7 +9,7 @@ import {
 } from '../services/image';
 import { isAuthenticated } from '../services/auth';
 import { formatBeijingTime } from '@/utils/date';
-import { Loader2, Image as ImageIcon, Download, Sparkles, LogIn, CheckCircle2, Wand2, Maximize2, Ratio, History, Eye } from 'lucide-react';
+import { Loader2, Image as ImageIcon, Download, Sparkles, LogIn, CheckCircle2, Wand2, Maximize2, Ratio, History, Eye, Upload, X } from 'lucide-react';
 
 // 选项描述映射
 const resolutionDescriptions: Record<string, string> = {
@@ -42,7 +42,11 @@ const ImageGeneration: React.FC = () => {
   const [prompt, setPrompt] = useState('');
   const [resolution, setResolution] = useState('');
   const [aspectRatio, setAspectRatio] = useState('');
-  
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referencePreview, setReferencePreview] = useState<string | null>(null);
+  /** 文生图 | 图片编辑，用于清晰区分两种使用方式 */
+  const [imageMode, setImageMode] = useState<'text' | 'edit'>('text');
+
   const [generating, setGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +93,52 @@ const ImageGeneration: React.FC = () => {
       .finally(() => setHistoryLoading(false));
   }, [isLoggedIn]);
 
+  const handleReferenceImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (referencePreview) URL.revokeObjectURL(referencePreview);
+    if (!file) {
+      setReferenceImage(null);
+      setReferencePreview(null);
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      setError('请选择图片文件（JPG/PNG/WebP）');
+      return;
+    }
+    setReferenceImage(file);
+    setReferencePreview(URL.createObjectURL(file));
+    setImageMode('edit');
+    setError(null);
+  };
+
+  const clearReferenceImage = () => {
+    if (referencePreview) URL.revokeObjectURL(referencePreview);
+    setReferenceImage(null);
+    setReferencePreview(null);
+  };
+
+  const switchToTextMode = () => {
+    setImageMode('text');
+    clearReferenceImage();
+  };
+
+  const switchToEditMode = () => {
+    setImageMode('edit');
+  };
+
+  const fileToBase64 = (file: File): Promise<{ base64: string; mime: string }> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const [header, base64] = dataUrl.split(',');
+        const mime = header?.match(/data:(.+);base64/)?.[1] || 'image/png';
+        resolve({ base64: base64 || '', mime });
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleGenerate = async () => {
     if (!prompt) return;
     
@@ -97,11 +147,23 @@ const ImageGeneration: React.FC = () => {
     setGeneratedImage(null);
 
     try {
-      const result = await generateImage({
+      const payload: {
+        prompt: string;
+        resolution: string;
+        aspect_ratio: string;
+        image_base64?: string;
+        image_mime_type?: string;
+      } = {
         prompt,
         resolution,
-        aspect_ratio: aspectRatio
-      });
+        aspect_ratio: aspectRatio,
+      };
+      if (referenceImage) {
+        const { base64, mime } = await fileToBase64(referenceImage);
+        payload.image_base64 = base64;
+        payload.image_mime_type = mime;
+      }
+      const result = await generateImage(payload);
       setGeneratedImage(result.image_url);
       getImageHistory(5).then(setHistory);
     } catch (err) {
@@ -137,141 +199,203 @@ const ImageGeneration: React.FC = () => {
 
       <div className="flex flex-col lg:flex-row gap-6 h-auto lg:h-[calc(100vh-220px)] min-h-[600px]">
         
-        {/* 左侧：控制面板 */}
-        <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col gap-4">
-          
-          {/* Prompt 输入卡片 */}
-          <div className="bg-[#0A0A0A]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex-shrink-0 shadow-xl">
-            <div className="flex justify-between items-center mb-3">
-              <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                <Sparkles size={14} className="text-purple-400" />
-                画面描述
-              </label>
-              <span className="text-xs text-gray-500">越详细越精彩</span>
+        {/* 左侧：模式切换 + 可滚动内容 + 底部固定操作区 */}
+        <div className="w-full lg:w-[420px] flex-shrink-0 flex flex-col lg:max-h-[calc(100vh-180px)] min-h-[500px]">
+          {/* 模式切换：文生图 | 图片编辑 */}
+          <div className="flex rounded-xl bg-white/5 border border-white/10 p-1 mb-4 flex-shrink-0">
+            <button
+              type="button"
+              onClick={switchToTextMode}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                imageMode === 'text'
+                  ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.1)]'
+                  : 'text-gray-400 hover:text-white border border-transparent'
+              }`}
+            >
+              文生图
+            </button>
+            <button
+              type="button"
+              onClick={switchToEditMode}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                imageMode === 'edit'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_15px_rgba(34,211,238,0.1)]'
+                  : 'text-gray-400 hover:text-white border border-transparent'
+              }`}
+            >
+              图片编辑
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-3 flex-shrink-0">
+            {imageMode === 'text' ? '用文字描述画面，AI 直接生成图片' : '上传参考图后，用文字描述要做的修改，AI 按描述编辑图片'}
+          </p>
+
+          {/* 可滚动区域：参考图(编辑模式) + 描述 + 分辨率 + 画幅 */}
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+            {imageMode === 'edit' && (
+              <div className="bg-[#0A0A0A]/80 backdrop-blur-xl border border-cyan-500/20 rounded-2xl p-5 flex-shrink-0 shadow-xl">
+                <div className="flex items-center justify-between mb-3">
+                  <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                    <Upload size={14} className="text-cyan-400" />
+                    参考图
+                  </label>
+                  <span className="text-xs text-cyan-400 bg-cyan-500/10 px-2 py-1 rounded-full border border-cyan-500/20">PS 模式</span>
+                </div>
+                {referencePreview ? (
+                  <div className="relative rounded-xl overflow-hidden border border-white/10 bg-white/5">
+                    <img src={referencePreview} alt="参考图" className="w-full h-32 object-contain" />
+                    <button
+                      type="button"
+                      onClick={clearReferenceImage}
+                      className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 hover:bg-red-500/80 text-white transition-colors"
+                      title="移除参考图"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center justify-center h-24 rounded-xl border border-dashed border-cyan-500/30 bg-cyan-500/5 hover:bg-cyan-500/10 cursor-pointer transition-colors">
+                    <Upload size={20} className="text-cyan-400/80 mb-1" />
+                    <span className="text-xs text-gray-300">上传要编辑的图片</span>
+                    <span className="text-[10px] text-gray-500 mt-0.5">JPG、PNG、WebP</span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={handleReferenceImageChange}
+                    />
+                  </label>
+                )}
+              </div>
+            )}
+
+            <div className="bg-[#0A0A0A]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex-shrink-0 shadow-xl">
+              <div className="flex justify-between items-center mb-3">
+                <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                  <Sparkles size={14} className="text-purple-400" />
+                  {imageMode === 'edit' ? '编辑描述' : '画面描述'}
+                </label>
+                <span className="text-xs text-gray-500">{imageMode === 'edit' ? '描述你想对图片做的修改' : '越详细越精彩'}</span>
+              </div>
+              <div className="relative group">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder={imageMode === 'edit' ? '例如：增加一只帅气的猫咪在狗狗的旁边' : '描述您想生成的画面... 例如：赛博朋克风格的未来城市，霓虹灯光，雨夜，超高清细节'}
+                  className="w-full h-32 px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:bg-white/10 focus:border-purple-500/30 focus:ring-1 focus:ring-purple-500/30 resize-none transition-all text-sm leading-relaxed"
+                />
+                <div className="absolute bottom-3 right-3 pointer-events-none">
+                  <Wand2 size={16} className={`text-purple-500 transition-opacity duration-300 ${prompt ? 'opacity-100' : 'opacity-0'}`} />
+                </div>
+              </div>
             </div>
-            <div className="relative group">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="描述您想生成的画面... 例如：赛博朋克风格的未来城市，霓虹灯光，雨夜，超高清细节"
-                className="w-full h-32 px-4 py-3 bg-white/5 border border-white/5 rounded-xl text-white placeholder-gray-600 focus:outline-none focus:bg-white/10 focus:border-purple-500/30 focus:ring-1 focus:ring-purple-500/30 resize-none transition-all text-sm leading-relaxed"
-              />
-              <div className="absolute bottom-3 right-3 pointer-events-none">
-                <Wand2 size={16} className={`text-purple-500 transition-opacity duration-300 ${prompt ? 'opacity-100' : 'opacity-0'}`} />
+
+            <div className="bg-[#0A0A0A]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex-shrink-0 shadow-xl space-y-6">
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                  <Maximize2 size={14} className="text-blue-400" />
+                  分辨率
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {options?.resolutions.options.map((res) => (
+                    <button
+                      key={res}
+                      type="button"
+                      onClick={() => setResolution(res)}
+                      className={`relative py-3 rounded-xl border transition-all duration-200 group ${
+                        resolution === res
+                          ? 'bg-purple-500/10 border-purple-500/50 text-white shadow-[0_0_20px_rgba(168,85,247,0.15)]'
+                          : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10 hover:text-gray-200'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-1">
+                        <span className="text-sm font-bold">{res}</span>
+                        <span className={`text-[10px] ${resolution === res ? 'text-purple-300' : 'text-gray-600 group-hover:text-gray-500'}`}>
+                          {resolutionDescriptions[res]}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-3">
+                <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
+                  <Ratio size={14} className="text-green-400" />
+                  画幅比例
+                </label>
+                <div className="grid grid-cols-5 gap-2">
+                  {options?.aspect_ratios.options.map((ratio) => (
+                    <button
+                      key={ratio}
+                      type="button"
+                      onClick={() => setAspectRatio(ratio)}
+                      className={`py-2 rounded-lg border transition-all duration-200 ${
+                        aspectRatio === ratio
+                          ? 'bg-purple-500/10 border-purple-500/50 text-white shadow-[0_0_15px_rgba(168,85,247,0.1)]'
+                          : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10 hover:text-gray-200'
+                      }`}
+                    >
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className="text-xs font-bold">{ratio}</span>
+                        <span className={`text-[9px] transform scale-90 ${aspectRatio === ratio ? 'text-purple-300' : 'text-gray-600'}`}>
+                          {aspectRatioDescriptions[ratio]}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
 
-          {/* 参数设置卡片 */}
-          <div className="bg-[#0A0A0A]/80 backdrop-blur-xl border border-white/10 rounded-2xl p-5 flex-1 flex flex-col gap-6 shadow-xl overflow-y-auto custom-scrollbar">
-            
-            {/* 分辨率 */}
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                <Maximize2 size={14} className="text-blue-400" />
-                分辨率
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {options?.resolutions.options.map((res) => (
-                  <button
-                    key={res}
-                    onClick={() => setResolution(res)}
-                    className={`relative py-3 rounded-xl border transition-all duration-200 group ${
-                      resolution === res
-                        ? 'bg-purple-500/10 border-purple-500/50 text-white shadow-[0_0_20px_rgba(168,85,247,0.15)]'
-                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10 hover:text-gray-200'
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-1">
-                      <span className="text-sm font-bold">{res}</span>
-                      <span className={`text-[10px] ${resolution === res ? 'text-purple-300' : 'text-gray-600 group-hover:text-gray-500'}`}>
-                        {resolutionDescriptions[res]}
-                      </span>
-                    </div>
-                  </button>
-                ))}
+          {/* 底部固定操作区：不被滚动遮盖 */}
+          <div className="flex-shrink-0 pt-4 mt-auto border-t border-white/10 space-y-3">
+            {error && (
+              <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center justify-center gap-2 animate-fadeIn">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                {error}
               </div>
-            </div>
-
-            {/* 宽高比 */}
-            <div className="space-y-3">
-              <label className="text-sm font-semibold text-gray-200 flex items-center gap-2">
-                <Ratio size={14} className="text-green-400" />
-                画幅比例
-              </label>
-              <div className="grid grid-cols-5 gap-2">
-                {options?.aspect_ratios.options.map((ratio) => (
-                  <button
-                    key={ratio}
-                    onClick={() => setAspectRatio(ratio)}
-                    className={`py-2 rounded-lg border transition-all duration-200 ${
-                      aspectRatio === ratio
-                        ? 'bg-purple-500/10 border-purple-500/50 text-white shadow-[0_0_15px_rgba(168,85,247,0.1)]'
-                        : 'bg-white/5 border-transparent text-gray-400 hover:bg-white/10 hover:border-white/10 hover:text-gray-200'
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-xs font-bold">{ratio}</span>
-                      <span className={`text-[9px] transform scale-90 ${aspectRatio === ratio ? 'text-purple-300' : 'text-gray-600'}`}>
-                        {aspectRatioDescriptions[ratio]}
-                      </span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-auto pt-4 space-y-3">
-              {/* 错误提示 */}
-              {error && (
-                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-xs flex items-center justify-center gap-2 animate-fadeIn">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500"></span>
-                  {error}
+            )}
+            {!isLoggedIn ? (
+              <button
+                onClick={handleLoginRequired}
+                className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 group"
+              >
+                <LogIn size={18} className="text-gray-400 group-hover:text-white transition-colors" />
+                登录后开始创作
+              </button>
+            ) : (
+              <button
+                onClick={handleGenerate}
+                disabled={generating || !prompt || (imageMode === 'edit' && !referenceImage)}
+                className="w-full py-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+                <div className="relative flex items-center gap-2">
+                  {generating ? (
+                    <>
+                      <Loader2 className="animate-spin" size={18} />
+                      <span className="tracking-wide">{imageMode === 'edit' ? 'AI 正在编辑...' : 'AI 正在绘图...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
+                      <span className="tracking-wide">{imageMode === 'edit' ? '立即编辑' : '立即生成'}</span>
+                    </>
+                  )}
                 </div>
-              )}
-
-              {/* 生成按钮 */}
-              {!isLoggedIn ? (
-                <button
-                  onClick={handleLoginRequired}
-                  className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 group"
-                >
-                  <LogIn size={18} className="text-gray-400 group-hover:text-white transition-colors" />
-                  登录后开始创作
-                </button>
-              ) : (
-                <button
-                  onClick={handleGenerate}
-                  disabled={generating || !prompt}
-                  className="w-full py-4 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white font-bold rounded-xl shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group relative overflow-hidden"
-                >
-                  <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
-                  <div className="relative flex items-center gap-2">
-                    {generating ? (
-                      <>
-                        <Loader2 className="animate-spin" size={18} />
-                        <span className="tracking-wide">AI 正在绘图...</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
-                        <span className="tracking-wide">立即生成</span>
-                      </>
-                    )}
-                  </div>
-                </button>
-              )}
-            </div>
+              </button>
+            )}
           </div>
         </div>
 
         {/* 右侧：预览画布 */}
-        <div className="flex-1 min-w-0 bg-[#0A0A0A]/50 backdrop-blur-sm border border-white/5 rounded-2xl relative overflow-hidden flex flex-col h-full">
+        <div className="flex-1 min-w-0 min-h-0 bg-[#0A0A0A]/50 backdrop-blur-sm border border-white/5 rounded-2xl relative overflow-hidden flex flex-col h-full">
           {/* 背景光效 */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-purple-500/5 blur-[120px] rounded-full pointer-events-none"></div>
 
           {/* 顶部工具栏 */}
-          <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black/20">
+          <div className="h-14 flex-shrink-0 border-b border-white/5 flex items-center justify-between px-6 bg-black/20">
             <div className="flex items-center gap-2 text-sm text-gray-400">
               <ImageIcon size={16} />
               <span>预览画布</span>
@@ -286,8 +410,8 @@ const ImageGeneration: React.FC = () => {
             )}
           </div>
 
-          {/* 画布区域 */}
-          <div className="flex-1 relative flex items-center justify-center p-8 overflow-hidden">
+          {/* 画布区域：占满剩余空间，图片尽量放大且完整显示 */}
+          <div className="flex-1 min-h-0 relative flex items-center justify-center p-4 sm:p-6 overflow-hidden">
             {generating ? (
               <div className="text-center space-y-8 relative z-10">
                 <div className="relative">
@@ -304,15 +428,15 @@ const ImageGeneration: React.FC = () => {
                 </div>
               </div>
             ) : generatedImage ? (
-              <div className="relative w-full h-full flex items-center justify-center animate-fadeIn group">
+              <div className="absolute inset-4 sm:inset-6 flex items-center justify-center animate-fadeIn group">
                 <img 
                   src={generatedImage} 
                   alt="Generated Result" 
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-2xl ring-1 ring-white/10"
+                  className="max-w-full max-h-full w-auto h-auto object-contain rounded-xl shadow-2xl ring-1 ring-white/10"
                 />
                 
                 {/* 悬浮下载按钮 */}
-                <div className="absolute bottom-8 left-1/2 -translate-x-1/2 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20">
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-20">
                   <a
                     href={generatedImage}
                     download={`generated-${Date.now()}.png`}

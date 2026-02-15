@@ -16,10 +16,12 @@ Resolution = Literal["1K", "2K", "4K"]
 
 
 class ImageGenerateRequest(BaseModel):
-    """图片生成请求 (Gemini)"""
-    prompt: str = Field(..., description="图片生成提示词")
+    """图片生成/编辑请求 (Gemini)。带参考图时走图片编辑/PS 模式 (generateContent 图+文)"""
+    prompt: str = Field(..., description="图片生成或编辑提示词")
     aspect_ratio: Optional[str] = Field("1:1", description="宽高比: 21:9, 16:9, 4:3, 3:2, 1:1, 9:16, 3:4, 2:3, 5:4, 4:5")
     resolution: Resolution = Field("2K", description="分辨率: 1K, 2K, 4K")
+    image_base64: Optional[str] = Field(None, description="参考图 base64，上传则使用图片编辑/PS 模式")
+    image_mime_type: Optional[str] = Field("image/png", description="参考图 MIME，如 image/png, image/jpeg")
 
     @field_validator('aspect_ratio')
     @classmethod

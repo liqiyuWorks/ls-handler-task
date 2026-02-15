@@ -58,11 +58,14 @@ class ImageService:
         prompt: str,
         username: str,
         aspect_ratio: str = "1:1",
-        resolution: str = "2K"
+        resolution: str = "2K",
+        image_base64: Optional[str] = None,
+        image_mime_type: Optional[str] = "image/png",
     ) -> ImageGenerateResult:
         """
-        使用 Gemini API 生成图片。
-        价格从 models_price_map 动态读取：平台按 lsopc_price(USD) 向用户收费，按 exchange_rate 折算为元扣款。
+        使用 Gemini API 生成或编辑图片。
+        无参考图：文生图；有参考图：图片编辑/PS 模式 (generateContent 图+文)。
+        价格从 models_price_map 动态读取。
         """
         # 动态价格配置（表优先，无则 config 兜底）
         price_map = await self._get_price_map_for_generate()
@@ -71,15 +74,21 @@ class ImageService:
         cost_detail = f"平台定价 ${cost_usd:.3f}/张 (约 {cost_cny:.2f} 元)"
 
         try:
+            mode = "图片编辑/PS" if image_base64 else "文生图"
             logger.info(
-                "[Gemini] 开始生成图片, prompt=%s, resolution=%s, aspect_ratio=%s, 扣款=%.2f 元",
-                prompt, resolution, aspect_ratio, cost_cny,
+                "[Gemini] 开始 %s, prompt=%s, resolution=%s, aspect_ratio=%s, 扣款=%.2f 元",
+                mode, prompt, resolution, aspect_ratio, cost_cny,
             )
 
+            parts = [{"text": prompt}]
+            if image_base64:
+                mime = (image_mime_type or "image/png").strip()
+                if mime not in ("image/png", "image/jpeg", "image/jpg", "image/webp"):
+                    mime = "image/png"
+                parts.append({"inline_data": {"mime_type": mime, "data": image_base64}})
+
             payload = {
-                "contents": [{
-                    "parts": [{"text": prompt}]
-                }],
+                "contents": [{"parts": parts}],
                 "generationConfig": {
                     "responseModalities": ["IMAGE"],
                     "imageConfig": {

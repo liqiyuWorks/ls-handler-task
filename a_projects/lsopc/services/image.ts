@@ -25,6 +25,9 @@ export interface ImageGenerationRequest {
   prompt: string;
   resolution: string;
   aspect_ratio: string;
+  /** 参考图 base64，上传则使用图片编辑/PS 模式 */
+  image_base64?: string;
+  image_mime_type?: string;
 }
 
 export interface ImageGenerationResponse {
