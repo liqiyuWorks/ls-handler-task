@@ -209,16 +209,16 @@ void OnTick() {
        }
 
        // Buy Condition
-       // Added m3_trend_up check
-       if (CountOrders(0) == 0 && is_uptrend && m3_trend_up && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
-          PlaceStopOrder(0, buy_trigger, atr);
+       // Market Sniper: Entry if price is >= buy_trigger
+       if (CountOrders(0) == 0 && Ask >= buy_trigger && is_uptrend && m3_trend_up && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
+          OpenTrade(0, atr);
           Order_Placed_In_Current_Bar = true; // Lock immediately
        }
        
        // Sell Condition
-       // Added m3_trend_dn check
-       else if (CountOrders(1) == 0 && is_dntrend && m3_trend_dn && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
-          PlaceStopOrder(1, sell_trigger, atr);
+       // Market Sniper: Entry if price is <= sell_trigger
+       else if (CountOrders(1) == 0 && Bid <= sell_trigger && is_dntrend && m3_trend_dn && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
+          OpenTrade(1, atr);
           Order_Placed_In_Current_Bar = true; // Lock immediately
        }
    }
@@ -229,9 +229,9 @@ void OnTick() {
 }
 
 //+------------------------------------------------------------------+
-//| Helper: Place Pending Orders                                     |
+//| Helper: Open Market Trade                                        |
 //+------------------------------------------------------------------+
-void PlaceStopOrder(int type, double price, double atr) {
+void OpenTrade(int type, double atr) {
    double sl = ATR_Stop_Mult * atr;
    double lots = Fixed_Lot;
    
@@ -244,24 +244,19 @@ void PlaceStopOrder(int type, double price, double atr) {
    color clr;
    
    if (type == 0) {
-      cmd = OP_BUYSTOP;
-      sl_price = price - sl;
+      cmd = OP_BUY;
+      sl_price = Ask - sl;
       clr = clrDeepSkyBlue;
-      if (price < Ask) return; // Price passed, cannot place STOP order
    } else {
-      cmd = OP_SELLSTOP;
-      sl_price = price + sl;
+      cmd = OP_SELL;
+      sl_price = Bid + sl;
       clr = clrOrangeRed;
-      if (price > Bid) return;
    }
    
-   // Expiry: Auto-managed by DeletePendingOrders() at next M3 bar
-   // MT4 expiry time can be unreliable on some brokers, so we manage manually
+   int ticket = OrderSend(Symbol(), cmd, lots, (type==0?Ask:Bid), 3, NormalizeDouble(sl_price, Digits), 0, sComm, Magic, 0, clr);
    
-   int ticket = OrderSend(Symbol(), cmd, lots, NormalizeDouble(price, Digits), 0, NormalizeDouble(sl_price, Digits), 0, sComm, Magic, 0, clr);
-   
-   if(ticket < 0) Print("PlaceStopOrder failed: ", GetLastError());
-   else Print("Sniper Order Placed #", ticket, " @ ", price);
+   if(ticket < 0) Print("Market Order failed: ", GetLastError());
+   else Print("Market Sniper Trade Entered #", ticket, " @ ", (type==0?Ask:Bid));
 }
 
 void DeletePendingOrders() {
@@ -441,29 +436,6 @@ double GetSyntheticVolMA(int period_min, int ma_period, int shift) {
 
 //+------------------------------------------------------------------+
 
-void OpenTrade(int type, double atr) {
-
-   double sl = ATR_Stop_Mult * atr;
-
-   double lots = Fixed_Lot;
-
-   
-
-   double sl_price = (type==0) ? Ask - sl : Bid + sl;
-
-   
-
-   int ticket = -1;
-
-   if (type == 0) ticket = OrderSend(Symbol(), OP_BUY, lots, Ask, 30, NormalizeDouble(sl_price, Digits), 0, sComm, Magic, 0, clrBlue);
-
-   else           ticket = OrderSend(Symbol(), OP_SELL, lots, Bid, 30, NormalizeDouble(sl_price, Digits), 0, sComm, Magic, 0, clrRed);
-
-   
-
-   if(ticket < 0) Print("OrderSend failed with error #", GetLastError());
-
-}
 
 
 
@@ -621,33 +593,25 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    
 
    // 4. RSI Resonance
-
    bool m3_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min);
-
    bool m12_ok = (bull ? rsi_m12 > 50 : rsi_m12 < 50);
-
    bool rsi_all_ok = m3_ok && m12_ok;
-
    
-
    string r_txt = "[4] RSI Sync: " + (rsi_all_ok ? "Synced" : "Wait");
-
    DrawLabel("LQ_RSI", 40, 160, r_txt, 10, rsi_all_ok ? clrLime : clrRed);
-
    string r_d1 = "    M3=" + DoubleToString(rsi_m3, 1) + " / M12=" + DoubleToString(rsi_m12, 1);
-
    DrawLabel("LQ_RSI1", 40, 180, r_d1, 8, clrSilver);
-
    
-
-   // 5. Breakout Points
-
+   // 5. Breakout Zones (Market Sniper)
+   double dist = 0;
    if (bull) {
-       DrawLabel("LQ_Trig", 40, 210, "BUY Trigger: " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
-       DrawLabel("LQ_Dist", 40, 230, "Distance: " + DoubleToString((b_trig - Ask)/Point, 0) + " pts", 9, clrGray);
+       dist = (b_trig - Ask)/Point;
+       DrawLabel("LQ_Trig", 40, 210, "BUY Zone: > " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
+       DrawLabel("LQ_Dist", 40, 230, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 9, dist <= 0 ? clrLime : clrGray);
    } else {
-       DrawLabel("LQ_Trig", 40, 210, "SELL Trigger: " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
-       DrawLabel("LQ_Dist", 40, 230, "Distance: " + DoubleToString((Bid - s_trig)/Point, 0) + " pts", 9, clrGray);
+       dist = (Bid - s_trig)/Point;
+       DrawLabel("LQ_Trig", 40, 210, "SELL Zone: < " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
+       DrawLabel("LQ_Dist", 40, 230, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 9, dist <= 0 ? clrLime : clrGray);
    }
 
 
@@ -660,10 +624,25 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    
 
    bool ready = sqz && rsi_all_ok && adx_pass && m30_ok;
+   string st = "STATUS: Monitoring...";
+   color st_clr = clrGray;
+   
+   if (ready) {
+       if (dist <= 0) {
+           st = "STATUS: TARGET IN ZONE! Executing...";
+           st_clr = clrYellow;
+       } else {
+           st = "STATUS: ALL GREEN! Hunting...";
+           st_clr = clrDeepSkyBlue;
+       }
+   }
+   
+   if (Order_Placed_In_Current_Bar) {
+       st = "STATUS: Trade Locked (1/Bar)";
+       st_clr = clrGold;
+   }
 
-   string st = ready ? "STATUS: ALL GREEN! Waiting..." : "STATUS: Monitoring...";
-
-   DrawLabel("LQ_ST", 40, 300, st, 11, ready ? clrYellow : clrGray);
+   DrawLabel("LQ_ST", 40, 300, st, 11, st_clr);
 
 }
 
