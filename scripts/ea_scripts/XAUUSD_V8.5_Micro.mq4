@@ -20,6 +20,8 @@ extern double Max_Drawdown   = 20.0;  // Max Account Drawdown (%)
 
 extern double Target_Profit  = 100.0; // Stage Profit Target ($)
 
+extern int    Max_Spread_Point = 50;  // Max Spread Allowed (Points) for Safety
+
 
 
 // --- Strategy Parameters (V8.5 Micro) ---
@@ -34,9 +36,12 @@ extern int    Vol_MA_Period   = 20;   // M3 Volume MA Period
 
 extern double ATR_Stop_Mult   = 3.0;  // Initial SL Multiplier (3.0)
 
-extern double Trail_Start     = 1.2;  // Trailing Start (1.2 ATR)
+extern double Trail_Start     = 0.8;  // Trailing Start (0.8 ATR) - Locked Early!
 
-extern double Trail_Step      = 0.3;  // Trailing Step (0.3 ATR)
+extern double Trail_Step      = 0.2;  // Trailing Step (0.2 ATR) - Tight!
+
+extern double BE_Start        = 0.5;  // Break Even Trigger (0.5 ATR) - Risk Free EARLY!
+extern int    BE_Offset       = 20;   // Break Even Offset (Points) - Cover swaps
 
 
 
@@ -70,6 +75,7 @@ extern int    M30_Buffer_Points = 20; // M30 Tolerance (Points)
 int    Magic  = 2026805; // V8.5 Magic
 string sComm  = "LQ_V8.5_Micro";
 datetime Last_M3_Time = 0;
+bool   Order_Placed_In_Current_Bar = false; // Prevent multiple orders in same bar due to latency
 
 // --- Synthetic Bar Structure (Renamed to avoid conflict) ---
 struct SyntheticBar {
@@ -138,6 +144,9 @@ void OnTick() {
       
       // 2. Cleanup Old Orders (Expire Current)
       DeletePendingOrders();
+      
+      // Reset Order Flag for new bar
+      Order_Placed_In_Current_Bar = false;
    }
    
    // 3. Recalculate Logic Every Tick (To update Dashboard Dynamically)
@@ -169,27 +178,48 @@ void OnTick() {
    bool is_dntrend = (M12_0.b_close < ema_m12);
    bool is_sqz = (M3_1.b_volume < vol_ma_m3 * Vol_Squeeze_F); 
    
+   // New M3 Trend Filter (Added for safety with M1 Trigger)
+   // Strategy: M12 (Macro) + M3 (Micro) + M1 (Trigger)
+   bool m3_trend_up = (M3_1.b_close > GetSyntheticEMA(3, 34, 1));
+   bool m3_trend_dn = (M3_1.b_close < GetSyntheticEMA(3, 34, 1));
+
    bool rsi_resonance_buy = (rsi_m3 < RSI_Buy_Max && rsi_m12 > 50); 
    bool rsi_resonance_sell = (rsi_m3 > RSI_Sell_Min && rsi_m12 < 50); 
    
    bool momentum_up = !Use_Momentum || (M12_0.b_close > M12_1.b_close);
    bool momentum_dn = !Use_Momentum || (M12_0.b_close < M12_1.b_close);
 
-   // 6. Breakout Trigger Calc
+   // 6. Breakout Trigger Calc (Optimized to M1 for Speed)
+   // Old: M3_1.b_high/low (Too slow)
+   // New: High[1]/Low[1] (Fast M1 Trigger)
    double buffer = Breakout_Buffer * Point;
-   double buy_trigger = M3_1.b_high + buffer; 
-   double sell_trigger = M3_1.b_low - buffer;  
+   double buy_trigger = High[1] + buffer; 
+   double sell_trigger = Low[1] - buffer;  
    
    // 7. Place Pending Orders (Only on New Bar start to avoid spam/repaint)
-   if (current_m3_start == Last_M3_Time && TimeCurrent() < (Last_M3_Time + 10)) { // Only try in first 10 seconds
+   int spread = (int)MarketInfo(Symbol(), MODE_SPREAD);
+   
+   // Removed 10s limit: Allow anytime entry if conditions align but NO order placed yet
+   if (current_m3_start == Last_M3_Time && !Order_Placed_In_Current_Bar) { 
+       
+       // Safety Check: High Spread (News/Rollover)
+       if (spread > Max_Spread_Point) {
+           Print("Safety: Spread too high: ", spread, " > ", Max_Spread_Point, ". No trade.");
+           return;
+       }
+
        // Buy Condition
-       if (CountOrders(0) == 0 && is_uptrend && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
+       // Added m3_trend_up check
+       if (CountOrders(0) == 0 && is_uptrend && m3_trend_up && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
           PlaceStopOrder(0, buy_trigger, atr);
+          Order_Placed_In_Current_Bar = true; // Lock immediately
        }
        
        // Sell Condition
-       if (CountOrders(1) == 0 && is_dntrend && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
+       // Added m3_trend_dn check
+       else if (CountOrders(1) == 0 && is_dntrend && m3_trend_dn && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
           PlaceStopOrder(1, sell_trigger, atr);
+          Order_Placed_In_Current_Bar = true; // Lock immediately
        }
    }
    
@@ -204,6 +234,11 @@ void OnTick() {
 void PlaceStopOrder(int type, double price, double atr) {
    double sl = ATR_Stop_Mult * atr;
    double lots = Fixed_Lot;
+   
+   // Safety Check: Margin & Lots
+   if (lots <= 0) { Print("Error: Invalid Lots ", lots); return; }
+   if (AccountFreeMargin() < 10) { Print("Error: Low Free Margin < $10. No Trade."); return; }
+
    double sl_price;
    int cmd;
    color clr;
@@ -445,9 +480,26 @@ void ManagePositions(double atr) {
          
 
          double start_trail = Trail_Start * atr / Point; 
-
+         double start_be    = BE_Start * atr / Point;
          
+         // 1. Break Even Logic (Risk Free ASAP)
+         if (profit_pips > start_be && OrderStopLoss() == 0) { // Only if SL not moved yet (or initial SL)
+             double be_sl;
+             if (OrderType() == OP_BUY) {
+                 be_sl = OrderOpenPrice() + BE_Offset * Point;
+                 if (be_sl > OrderStopLoss()) 
+                    if(OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(be_sl, Digits), 0, 0, clrGreen))
+                        Print("BreakEven Triggered @ ", be_sl);
+             }
+             else {
+                 be_sl = OrderOpenPrice() - BE_Offset * Point;
+                 if (OrderStopLoss() == 0 || be_sl < OrderStopLoss())
+                    if(OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(be_sl, Digits), 0, 0, clrGreen))
+                        Print("BreakEven Triggered @ ", be_sl);
+             }
+         }
 
+         // 2. Trailing Stop Logic (Lock Profit)
          if (profit_pips > start_trail) {
 
              double new_sl;
