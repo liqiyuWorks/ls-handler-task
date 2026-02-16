@@ -46,7 +46,7 @@ extern int    RSI_Buy_Max     = 70;   // 多单 RSI 上限 (回归正常70)
 
 extern int    RSI_Sell_Min    = 30;   // 空单 RSI 下限 (回归正常30)
 
-extern int    Breakout_Buffer = 30;   // 突破缓冲点数 (回归30，3个点)
+extern int    Breakout_Buffer = 15;   // 突破缓冲点数 (30 -> 15，更灵敏，贴近战)
 
 extern bool   Use_Momentum    = true; // 启用 M12 动能确认 (必须开启)
 
@@ -59,6 +59,8 @@ extern int    ADX_Period      = 14;   // ADX 周期 (默认14)
 extern int    ADX_Min_Level   = 18;   // ADX 最小强度 (20 -> 18, 适当放宽)
 
 extern bool   Use_M30_Filter  = true; // M30 多空势能确认 (大周期共振)
+
+extern int    M30_Buffer_Points = 20; // M30 均线缓冲 (点数)，允许轻微逆势入场
 
 
 
@@ -157,8 +159,9 @@ void OnTick() {
 
    double ema_m30 = iMA(NULL, PERIOD_M30, 34, 0, MODE_EMA, PRICE_CLOSE, 0);
    double close_m30 = iClose(NULL, PERIOD_M30, 0);
-   bool m30_bull = (!Use_M30_Filter || close_m30 > ema_m30);
-   bool m30_bear = (!Use_M30_Filter || close_m30 < ema_m30);
+   double m30_buf = M30_Buffer_Points * Point;
+   bool m30_bull = (!Use_M30_Filter || close_m30 > (ema_m30 - m30_buf)); // 允许回踩均线下方 20pts
+   bool m30_bear = (!Use_M30_Filter || close_m30 < (ema_m30 + m30_buf)); // 允许反弹均线上方 20pts
 
    // 5. 趋势与动能
    bool is_uptrend = (M12_0.b_close > ema_m12);
