@@ -501,7 +501,7 @@ int CountOrders(int type) {
 
 //+------------------------------------------------------------------+
 
-//| 界面显示 (V8.3 全要素稳健仪表盘)                                 |
+//| 界面显示 (V8.4 狙击手挂单仪表盘)                                   |
 
 //+------------------------------------------------------------------+
 
@@ -517,7 +517,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
 
    // 标题
 
-   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.3 Stable (ADX+共振)", 11, clrGold);
+   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.4 Sniper (Pending Orders)", 11, clrGold);
 
    
 
@@ -616,58 +616,31 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
 // --- Dashboard 绘图辅助函数 ---
 
 void DrawLabel(string name, int x, int y, string text, int size, color clr) {
-
    if(ObjectFind(0, name) < 0) {
-
       ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
-
       ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-
-      ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-
-      ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-
-      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
-
+      ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x);
+      ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
+      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, 0);
    }
-
    ObjectSetString(0, name, OBJPROP_TEXT, text);
-
-   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, size);
-
-   ObjectSetInteger(0, name, OBJPROP_COLOR, clr);
-
+   ObjectSetInteger(0, name, OBJPROP_FONTSIZE, (long)size);
+   ObjectSetInteger(0, name, OBJPROP_COLOR, (long)clr);
 }
 
-
-
 void DrawRect(string name, int x, int y, int w, int h, color bg_color) {
-
    if(ObjectFind(0, name) < 0) {
-
       ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-
       ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-
-      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, false);
-
+      ObjectSetInteger(0, name, OBJPROP_SELECTABLE, 0);
       ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
-
    }
-
    // 属性强制更新 (确保修改生效)
-
-   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x);
-
-   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
-
-   ObjectSetInteger(0, name, OBJPROP_XSIZE, w);
-
-   ObjectSetInteger(0, name, OBJPROP_YSIZE, h);
-
-   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bg_color);
-
-   ObjectSetInteger(0, name, OBJPROP_BACK, false); // 置于顶层 (遮挡网格)
-
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
+   ObjectSetInteger(0, name, OBJPROP_XSIZE, (long)w);
+   ObjectSetInteger(0, name, OBJPROP_YSIZE, (long)h);
+   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, (long)bg_color);
+   ObjectSetInteger(0, name, OBJPROP_BACK, 0); // 置于顶层 (遮挡网格)
 }
 
