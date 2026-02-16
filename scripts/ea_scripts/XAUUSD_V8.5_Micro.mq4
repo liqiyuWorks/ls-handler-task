@@ -6,83 +6,83 @@
 #property version   "8.40"
 #property strict
 
-// --- 账户保护与目标 ($200 翻倍计划) ---
+// --- Account Protection & Target ($200 Doubling Plan) ---
 
-// --- 账户保护与目标 ($200 翻倍计划) ---
+// --- Account Protection & Target ($200 Doubling Plan) ---
 
-extern string _S_ = "=== 账户保护 ($200 Start) ===";
+extern string _S_ = "=== Protection ($200 Start) ===";
 
-extern double Risk_Percent   = 2.0;   // 单笔止损风险(%) Default: 2%
+extern double Risk_Percent   = 2.0;   // Risk per trade (%) Default: 2%
 
-extern double Fixed_Lot      = 0.01;  // 固定手数 (若 > 0 则优先使用)
+extern double Fixed_Lot      = 0.01;  // Fixed Lot Size (Priority if > 0)
 
-extern double Max_Drawdown   = 20.0;  // 账户总强平线(%)
+extern double Max_Drawdown   = 20.0;  // Max Account Drawdown (%)
 
-extern double Target_Profit  = 100.0; // 阶段性止盈目标($)
-
-
-
-// --- 策略参数 (V8.3 稳健版 - 严控开单) ---
-
-extern string _P_ = "=== M3/M12 策略参数 (V8.5 小资金微调) ===";
-
-extern int    Trend_MA_Period = 34;   // M12 趋势均线周期
-
-extern double Vol_Squeeze_F   = 0.75; // 缩量因子 (0.60 -> 0.75, 增加机会)
-
-extern int    Vol_MA_Period   = 20;   // M3 成交量均线周期
-
-extern double ATR_Stop_Mult   = 3.0;  // 初始止损 (3.5 -> 3.0, 降低单笔亏损)
-
-extern double Trail_Start     = 1.2;  // 启动移损 (1.5 -> 1.2, 提早锁定利润)
-
-extern double Trail_Step      = 0.3;  // 移损步长 (0.5 -> 0.3, 紧跟防回撤)
+extern double Target_Profit  = 100.0; // Stage Profit Target ($)
 
 
 
-extern string _F_ = "=== 过滤条件微调 ===";
+// --- Strategy Parameters (V8.5 Micro) ---
 
-extern int    RSI_Buy_Max     = 70;   // 多单 RSI 上限 (回归正常70)
+extern string _P_ = "=== Strategy V8.5 (Micro) ===";
 
-extern int    RSI_Sell_Min    = 30;   // 空单 RSI 下限 (回归正常30)
+extern int    Trend_MA_Period = 34;   // M12 EMA Period
 
-extern int    Breakout_Buffer = 15;   // 突破缓冲点数 (30 -> 15，更灵敏，贴近战)
+extern double Vol_Squeeze_F   = 0.75; // Volume Squeeze Factor (0.75)
 
-extern bool   Use_Momentum    = true; // 启用 M12 动能确认 (必须开启)
+extern int    Vol_MA_Period   = 20;   // M3 Volume MA Period
 
+extern double ATR_Stop_Mult   = 3.0;  // Initial SL Multiplier (3.0)
 
+extern double Trail_Start     = 1.2;  // Trailing Start (1.2 ATR)
 
-extern string _A_ = "=== 高级趋势过滤 (新增) ===";
-
-extern int    ADX_Period      = 14;   // ADX 周期 (默认14)
-
-extern int    ADX_Min_Level   = 18;   // ADX 最小强度 (20 -> 18, 适当放宽)
-
-extern bool   Use_M30_Filter  = true; // M30 多空势能确认 (大周期共振)
-
-extern int    M30_Buffer_Points = 20; // M30 均线缓冲 (点数)，允许轻微逆势入场
+extern double Trail_Step      = 0.3;  // Trailing Step (0.3 ATR)
 
 
 
-// --- 全局变量 ---
+extern string _F_ = "=== Filters ===";
 
-// --- 全局变量 ---
+extern int    RSI_Buy_Max     = 70;   // RSI Max for Buy
+
+extern int    RSI_Sell_Min    = 30;   // RSI Min for Sell
+
+extern int    Breakout_Buffer = 15;   // Breakout Buffer (Points)
+
+extern bool   Use_Momentum    = true; // Momentum Check
+
+
+
+extern string _A_ = "=== Advanced Filters ===";
+
+extern int    ADX_Period      = 14;   // ADX Period
+
+extern int    ADX_Min_Level   = 18;   // Min Trend Strength
+
+extern bool   Use_M30_Filter  = true; // M30 Trend Filter
+
+extern int    M30_Buffer_Points = 20; // M30 Tolerance (Points)
+
+
+
+// --- Global Variables ---
+
+// --- Global Variables ---
 int    Magic  = 2026805; // V8.5 Magic
 string sComm  = "LQ_V8.5_Micro";
 datetime Last_M3_Time = 0;
 
-// --- 合成K线结构 (防止与 Close[] 冲突，改名) ---
+// --- Synthetic Bar Structure (Renamed to avoid conflict) ---
 struct SyntheticBar {
    double b_open;
    double b_high;
    double b_low;
    double b_close;
-   double b_volume; // 使用 tick volume
+   double b_volume; // Use tick volume
    datetime b_time;
 };
 
 //+------------------------------------------------------------------+
-//| 初始化                                                           |
+//| Initialization                                                   |
 //+------------------------------------------------------------------+
 int OnInit() {
    EventSetTimer(1); 
@@ -91,79 +91,80 @@ int OnInit() {
 }
 void OnDeinit(const int r) { ObjectsDeleteAll(0, "LQ_"); }
 
-// 交易时间参数 (只做欧盘美盘黄金时间)
+// Trading Hours (Europe/US Session Only)
 extern int StartHour = 9;   
 extern int EndHour   = 22;
 
 //+------------------------------------------------------------------+
-//| 主逻辑 (M1 驱动)                                                 |
+//| Main Logic (Driven by M1 Ticks)                                  |
 //+------------------------------------------------------------------+
 void OnTick() {
    if(CheckRisk()) return; 
 
-   // 始终运行：持仓管理 (移动止盈)
+   // === HIGH ACCURACY MODE ACTIVE ===
+   // Calculations are performed on every tick for UI precision.
+   // Trade signals are locked to bar close for stability.
+
+   // Always Run: Position Management (Trailing Stop)
    double atr = iATR(NULL, PERIOD_M15, 14, 0); 
    ManagePositions(atr);
    
-   // 时间过滤器
+   // Time Filter
    int hour = TimeHour(TimeCurrent());
    if (hour < StartHour || hour >= EndHour) {
       if(hour % 4 == 0 && Minute() == 0 && Seconds() < 5) 
          Print("Outside Trading Hours (", StartHour, "-", EndHour, "). Current: ", hour);
-      string w_txt = "非交易时间 (" + IntegerToString(StartHour) + ":00 - " + IntegerToString(EndHour) + ":00)";
+      string w_txt = "Non-Trading Hours (" + IntegerToString(StartHour) + ":00 - " + IntegerToString(EndHour) + ":00)";
       if(ObjectFind(0, "LQ_Wait") < 0) DrawLabel("LQ_Wait", 40, 320, w_txt, 10, clrGray);
       else ObjectSetString(0, "LQ_Wait", OBJPROP_TEXT, w_txt);
       
-      // 非交易时间，清理所有挂单
+      // Outside hours, delete all pending orders
       DeletePendingOrders();
       return; 
    }
    if(ObjectFind(0, "LQ_Wait") >= 0) ObjectDelete(0, "LQ_Wait");
 
-   // --- 核心升级：M3 新K线驱动模式 (Sniper Mode) ---
-   // 1. 检测 M3 新K线
-   // 计算当前时间的 M3 归整时间
+   // --- Core Upgrade: M3 Candle Driver (Sniper Mode) ---
+   // 1. Detect New M3 Bar
+   // Calculate current M3 start time
    datetime current_time = TimeCurrent();
    int period_seconds = 3 * 60;
    int seconds_In = TimeSeconds(current_time) + TimeMinute(current_time) * 60 + TimeHour(current_time) * 3600;
    datetime current_m3_start = (datetime)(current_time - (seconds_In % period_seconds));
    
-   if (current_m3_start == Last_M3_Time) {
-      // 还没换线，直接返回（除了前面的 ManagePositions）
-      return; 
+   if (current_m3_start != Last_M3_Time) {
+      // === New M3 Candle Started ===
+      Last_M3_Time = current_m3_start;
+      
+      // 2. Cleanup Old Orders (Expire Current)
+      DeletePendingOrders();
    }
    
-   // === 新的 M3 K线开始了 ===
-   Last_M3_Time = current_m3_start;
+   // 3. Recalculate Logic Every Tick (To update Dashboard Dynamically)
+   // 1. Get Synthetic Data
+   SyntheticBar M12_0 = GetSyntheticBar(12, 0); // Current M12
+   SyntheticBar M12_1 = GetSyntheticBar(12, 1); // Previous M12
+   SyntheticBar M3_1 = GetSyntheticBar(3, 1);   // Previous M3 (Completed)
    
-   // 2. 清理旧挂单 (过期不侯)
-   DeletePendingOrders();
-   
-   // 3. 重新计算入场条件
-   // 1. 获取合成数据
-   SyntheticBar M12_0 = GetSyntheticBar(12, 0); // 当前 M12
-   SyntheticBar M12_1 = GetSyntheticBar(12, 1); // 上一根 M12
-   SyntheticBar M3_1 = GetSyntheticBar(3, 1);   // 上一根 M3 (完整)
-   
-   // 2. 计算基础指标
+   // 2. Calculate Indicators
    double ema_m12 = GetSyntheticEMA(12, Trend_MA_Period, 0); 
    double vol_ma_m3 = GetSyntheticVolMA(3, Vol_MA_Period, 1); 
    
-   // 3. RSI 合成与共振
+   // 3. RSI Synthesis
    double rsi_m3 = GetSyntheticRSI(3, 14);   
    double rsi_m12 = GetSyntheticRSI(12, 14); 
 
-   // 4. 高级趋势过滤 (V8.3/4)
+   // 4. Advanced Trend Filter (V8.3/4)
    double adx_m30 = iADX(NULL, PERIOD_M30, ADX_Period, PRICE_CLOSE, MODE_MAIN, 0);
    bool adx_ok = (adx_m30 > ADX_Min_Level);
 
    double ema_m30 = iMA(NULL, PERIOD_M30, 34, 0, MODE_EMA, PRICE_CLOSE, 0);
    double close_m30 = iClose(NULL, PERIOD_M30, 0);
    double m30_buf = M30_Buffer_Points * Point;
-   bool m30_bull = (!Use_M30_Filter || close_m30 > (ema_m30 - m30_buf)); // 允许回踩均线下方 20pts
-   bool m30_bear = (!Use_M30_Filter || close_m30 < (ema_m30 + m30_buf)); // 允许反弹均线上方 20pts
+   bool m30_bull = (!Use_M30_Filter || close_m30 > (ema_m30 - m30_buf)); // Allow 20pts buffer below EMA
+   bool m30_bear = (!Use_M30_Filter || close_m30 < (ema_m30 + m30_buf)); // Allow 20pts buffer above EMA
 
-   // 5. 趋势与动能
+   // 5. Trend & Momentum
    bool is_uptrend = (M12_0.b_close > ema_m12);
    bool is_dntrend = (M12_0.b_close < ema_m12);
    bool is_sqz = (M3_1.b_volume < vol_ma_m3 * Vol_Squeeze_F); 
@@ -174,28 +175,31 @@ void OnTick() {
    bool momentum_up = !Use_Momentum || (M12_0.b_close > M12_1.b_close);
    bool momentum_dn = !Use_Momentum || (M12_0.b_close < M12_1.b_close);
 
-   // 6. 挂单触发价计算
+   // 6. Breakout Trigger Calc
    double buffer = Breakout_Buffer * Point;
    double buy_trigger = M3_1.b_high + buffer; 
    double sell_trigger = M3_1.b_low - buffer;  
    
-   // 7. 放置挂单 (Pending Orders)
-   // 做多条件
-   if (CountOrders(0) == 0 && is_uptrend && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
-      PlaceStopOrder(0, buy_trigger, atr);
+   // 7. Place Pending Orders (Only on New Bar start to avoid spam/repaint)
+   if (current_m3_start == Last_M3_Time && TimeCurrent() < (Last_M3_Time + 10)) { // Only try in first 10 seconds
+       // Buy Condition
+       if (CountOrders(0) == 0 && is_uptrend && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
+          PlaceStopOrder(0, buy_trigger, atr);
+       }
+       
+       // Sell Condition
+       if (CountOrders(1) == 0 && is_dntrend && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
+          PlaceStopOrder(1, sell_trigger, atr);
+       }
    }
    
-   // 做空条件
-   if (CountOrders(1) == 0 && is_dntrend && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
-      PlaceStopOrder(1, sell_trigger, atr);
-   }
-   
-   // 更新详细面板 (传递更多参数)
-   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, m30_bull, buy_trigger, sell_trigger);
+   // Update Dashboard
+   bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
+   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, ui_m30_sync, buy_trigger, sell_trigger);
 }
 
 //+------------------------------------------------------------------+
-//| V8.4 挂单辅助函数                                                |
+//| Helper: Place Pending Orders                                     |
 //+------------------------------------------------------------------+
 void PlaceStopOrder(int type, double price, double atr) {
    double sl = ATR_Stop_Mult * atr;
@@ -208,7 +212,7 @@ void PlaceStopOrder(int type, double price, double atr) {
       cmd = OP_BUYSTOP;
       sl_price = price - sl;
       clr = clrDeepSkyBlue;
-      if (price < Ask) return; // 价格已过，无法挂 Stop 单
+      if (price < Ask) return; // Price passed, cannot place STOP order
    } else {
       cmd = OP_SELLSTOP;
       sl_price = price + sl;
@@ -216,9 +220,8 @@ void PlaceStopOrder(int type, double price, double atr) {
       if (price > Bid) return;
    }
    
-   // 有效期：本 M3 K线结束时自动过期 (3分钟)
-   // datetime expiration = TimeCurrent() + 3 * 60; 
-   // MT4 挂单有效期有些平台不支持短时，我们主要靠 DeletePendingOrders() 手动管理
+   // Expiry: Auto-managed by DeletePendingOrders() at next M3 bar
+   // MT4 expiry time can be unreliable on some brokers, so we manage manually
    
    int ticket = OrderSend(Symbol(), cmd, lots, NormalizeDouble(price, Digits), 0, NormalizeDouble(sl_price, Digits), 0, sComm, Magic, 0, clr);
    
@@ -255,7 +258,7 @@ void DeletePendingOrders() {
 SyntheticBar GetSyntheticBar(int period_min, int shift) {
 
    SyntheticBar bar;
-
+   // Initialize with extreme values to ensure correct Min/Max logic
    bar.b_open = 0; bar.b_high = 0; bar.b_low = 999999; bar.b_close = 0; bar.b_volume = 0;
 
    
@@ -288,9 +291,13 @@ SyntheticBar GetSyntheticBar(int period_min, int shift) {
 
    // 遍历 M1 柱子构建合成柱
 
-   int start_idx = iBarShift(NULL, PERIOD_M1, target_start_time);
+   // Find start index (Method: Nearest, Exact=False)
+   int start_idx = iBarShift(NULL, PERIOD_M1, target_start_time, false);
 
-   if (start_idx == -1) return bar; // Error
+   if (start_idx == -1) {
+       Print("Error: M1 Data missing for synthetic calculation!");
+       return bar; 
+   }
 
    
 
@@ -328,7 +335,7 @@ SyntheticBar GetSyntheticBar(int period_min, int shift) {
 
 
 
-// 新增：合成 RSI 计算 (Cutler's RSI, 无需历史平滑，适合合成计算)
+// New: Synthetic RSI (Cutler's RSI, no smoothing, ideal for synthetic)
 
 double GetSyntheticRSI(int period_min, int rsi_period) {
 
@@ -347,6 +354,9 @@ double GetSyntheticRSI(int period_min, int rsi_period) {
       
 
       double diff = b_curr.b_close - b_prev.b_close;
+      
+      // Precision Check: Ensure consistent data
+      if (b_curr.b_close == 0 || b_prev.b_close == 0) continue; 
 
       if (diff > 0) gain_sum += diff;
 
@@ -392,7 +402,7 @@ double GetSyntheticVolMA(int period_min, int ma_period, int shift) {
 
 //+------------------------------------------------------------------+
 
-//| 交易管理                                                         |
+//| Trade Management                                                 |
 
 //+------------------------------------------------------------------+
 
@@ -504,13 +514,13 @@ int CountOrders(int type) {
 
 //+------------------------------------------------------------------+
 
-//| 界面显示 (V8.5 Micro 小资金特供版)                                 |
+//| Dashboard Display (V8.5 Micro)                                     |
 
 //+------------------------------------------------------------------+
 
 void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool m30_ok, double b_trig, double s_trig) {
 
-   Comment("");   // 1. 背景板
+   Comment("");   // 1. Background
 
    color bg_color = clrBlack; 
 
@@ -518,49 +528,47 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
 
    
 
-   // 标题
+   // Title
 
-   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.5 Micro ($200 专属)", 11, clrGold);
+   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.5 Micro ($200 Exclusive)", 11, clrGold);
 
    
 
-   // 1. 趋势过滤 (M12 + M30)
+   // 1. Trend Filter (M12 + M30)
 
    bool bull = (price > ema);
-
-   string t_txt = bull ? "[1] M12 趋势: 看涨 (之上)" : "[1] M12 趋势: 看跌 (之下)";
-
+   string t_txt = bull ? "[1] M12 Trend: BULL (Above)" : "[1] M12 Trend: BEAR (Below)";
    DrawLabel("LQ_Trend", 40, 70, t_txt, 10, bull ? clrLime : clrRed);
 
    
 
-   string m30_txt = "    M30 共振: " + (m30_ok ? "一致 (Confirmed)" : "背离 (Conflict)");
+   string m30_txt = "    M30 Trend: " + (m30_ok ? "Confirmed" : "Conflict");
 
    DrawLabel("LQ_M30", 40, 85, m30_txt, 8, m30_ok ? clrSilver : clrRed);
 
    
 
-   // 2. ADX 趋势强度 (新增)
+   // 2. ADX Strength (New)
 
    bool adx_pass = (adx > ADX_Min_Level);
 
-   string adx_txt = "[2] ADX 强度: " + DoubleToString(adx, 1) + (adx_pass ? " (OK)" : " (太弱-观察)");
+   string adx_txt = "[2] ADX Strength: " + DoubleToString(adx, 1) + (adx_pass ? " (OK)" : " (Weak)");
 
    DrawLabel("LQ_ADX", 40, 110, adx_txt, 10, adx_pass ? clrLime : clrGray);
 
    
 
-   // 3. 缩量状态
+   // 3. Volume Squeeze
 
    bool sqz = (vol < vol_ma * Vol_Squeeze_F);
 
-   string v_txt = "[3] M3 缩量: " + (sqz ? "满足 (Squeeze)" : "不满足 (High Vol)");
+   string v_txt = "[3] M3 Vol: " + (sqz ? "Squeeze (Ready)" : "High Vol (Wait)");
 
    DrawLabel("LQ_Vol", 40, 135, v_txt, 10, sqz ? clrLime : clrGray);
 
    
 
-   // 4. RSI 共振
+   // 4. RSI Resonance
 
    bool m3_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min);
 
@@ -570,7 +578,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
 
    
 
-   string r_txt = "[4] RSI 共振: " + (rsi_all_ok ? "完美 (Synced)" : "等待 (Wait)");
+   string r_txt = "[4] RSI Sync: " + (rsi_all_ok ? "Synced" : "Wait");
 
    DrawLabel("LQ_RSI", 40, 160, r_txt, 10, rsi_all_ok ? clrLime : clrRed);
 
@@ -580,35 +588,28 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
 
    
 
-   // 5. 突破点位
+   // 5. Breakout Points
 
    if (bull) {
-
-       DrawLabel("LQ_Trig", 40, 210, "BUY 触发价: " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
-
-       DrawLabel("LQ_Dist", 40, 230, "距离触发: " + DoubleToString((b_trig - Ask)/Point, 0) + " pts", 9, clrGray);
-
+       DrawLabel("LQ_Trig", 40, 210, "BUY Trigger: " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
+       DrawLabel("LQ_Dist", 40, 230, "Distance: " + DoubleToString((b_trig - Ask)/Point, 0) + " pts", 9, clrGray);
    } else {
-
-       DrawLabel("LQ_Trig", 40, 210, "SELL 触发价: " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
-
-       DrawLabel("LQ_Dist", 40, 230, "距离触发: " + DoubleToString((Bid - s_trig)/Point, 0) + " pts", 9, clrGray);
-
+       DrawLabel("LQ_Trig", 40, 210, "SELL Trigger: " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
+       DrawLabel("LQ_Dist", 40, 230, "Distance: " + DoubleToString((Bid - s_trig)/Point, 0) + " pts", 9, clrGray);
    }
 
 
 
-   // 6. 账户与综合
+   // 6. Account & Status
 
-   string acc = "净值: $" + DoubleToString(AccountEquity(), 2);
-
+   string acc = "Equity: $" + DoubleToString(AccountEquity(), 2);
    DrawLabel("LQ_Acc", 40, 270, acc, 10, clrWhite);
 
    
 
    bool ready = sqz && rsi_all_ok && adx_pass && m30_ok;
 
-   string st = ready ? "综合判定: 全绿灯! 等待突破!" : "综合判定: 等待条件满足...";
+   string st = ready ? "STATUS: ALL GREEN! Waiting..." : "STATUS: Monitoring...";
 
    DrawLabel("LQ_ST", 40, 300, st, 11, ready ? clrYellow : clrGray);
 
@@ -616,7 +617,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
 
 
 
-// --- Dashboard 绘图辅助函数 ---
+// --- Dashboard Helper Functions ---
 
 void DrawLabel(string name, int x, int y, string text, int size, color clr) {
    if(ObjectFind(0, name) < 0) {
@@ -638,12 +639,12 @@ void DrawRect(string name, int x, int y, int w, int h, color bg_color) {
       ObjectSetInteger(0, name, OBJPROP_SELECTABLE, 0);
       ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT);
    }
-   // 属性强制更新 (确保修改生效)
+   // Force property update
    ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x);
    ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
    ObjectSetInteger(0, name, OBJPROP_XSIZE, (long)w);
    ObjectSetInteger(0, name, OBJPROP_YSIZE, (long)h);
    ObjectSetInteger(0, name, OBJPROP_BGCOLOR, (long)bg_color);
-   ObjectSetInteger(0, name, OBJPROP_BACK, 0); // 置于顶层 (遮挡网格)
+   ObjectSetInteger(0, name, OBJPROP_BACK, 0); // Background false
 }
 
