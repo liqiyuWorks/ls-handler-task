@@ -1,9 +1,9 @@
 ﻿//+------------------------------------------------------------------+
-//|                                   LiQiyu_Strategy_V8.4_Sniper.mq4|
+//|                                   LiQiyu_Strategy_V8.6_Professional.mq4|
 //|                    M3/M12 Trend + Volume Squeeze + Pending Orders|
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
-#property version   "8.40"
+#property version   "8.60"
 #property strict
 
 // --- Account Protection & Target ($200 Doubling Plan) ---
@@ -26,7 +26,7 @@ extern int    Max_Spread_Point = 50;  // Max Spread Allowed (Points) for Safety
 
 // --- Strategy Parameters (V8.5 Micro) ---
 
-extern string _P_ = "=== Strategy V8.5 (Micro) ===";
+extern string _P_ = "=== Strategy V8.6 (Professional) ===";
 
 extern int    Trend_MA_Period = 34;   // M12 EMA Period
 
@@ -34,16 +34,19 @@ extern double Vol_Squeeze_F   = 0.75; // Volume Squeeze Factor (0.75)
 
 extern int    Vol_MA_Period   = 20;   // M3 Volume MA Period
 
-extern double ATR_Stop_Mult   = 1.5;  // Initial SL Multiplier (3.0)
+extern double ATR_Stop_Mult   = 2.0;  // Initial SL Multiplier (Wider for Gold noise)
 
-extern double Trail_Start     = 0.8;  // Trailing Start (0.8 ATR) - Locked Early!
+extern double Trail_Start     = 1.2;  // Start Trailing at 1.2 ATR (Wait for profit)
 
-extern double Trail_Step      = 0.2;  // Trailing Step (0.2 ATR) - Tight!
+extern double Trail_Step      = 0.5;  // Trail distance 0.5 ATR (Forgiving space)
 
-extern double BE_Start        = 0.5;  // Break Even Trigger (0.5 ATR) - Risk Free EARLY!
+extern double BE_Start        = 0.5;  // Break Even Trigger (0.5 ATR) - Safe Trigger
 extern int    BE_Offset       = 20;   // Break Even Offset (Points) - Cover swaps
 
-extern double Max_Loss_USD    = 5.0;  // Hard Safety: Max Loss in USD for 0.01 lot
+extern double BE_Lock_Level   = 1.0;  // Tier 2: Secure Profit Trigger (1.0 ATR)
+extern double BE_Lock_Amt     = 0.3;  // Tier 2: Profit Amount to Lock (0.3 ATR)
+
+extern double Max_Loss_USD    = 10.0; // Hard Safety: Max Loss in USD for 0.01 lot (Safe for $100)
 
 
 
@@ -56,6 +59,8 @@ extern int    RSI_Sell_Min    = 30;   // RSI Min for Sell
 extern int    Breakout_Buffer = 15;   // Breakout Buffer (Points)
 
 extern bool   Use_Momentum    = true; // Momentum Check
+extern bool   Use_MACD_Filter = true; // V8.6 MACD Trend Confirmation
+extern bool   Use_Vol_Ignition= true; // V8.6 Volume Spike Check
 
 
 
@@ -199,6 +204,33 @@ void OnTick() {
    double buy_trigger = High[1] + buffer; 
    double sell_trigger = Low[1] - buffer;  
    
+   // --- V8.6 Precision Filters ---
+   
+   // A. MACD Trend Confirmation (M12 & M3)
+   double m12_macd_main = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_MAIN);
+   double m12_macd_sig  = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_SIGNAL);
+   bool m12_macd_bull = (m12_macd_main > m12_macd_sig);
+   bool m12_macd_bear = (m12_macd_main < m12_macd_sig);
+   
+   double m3_macd_main = GetSyntheticMACD(3, 12, 26, 9, 1, MODE_MAIN); // Previous M3
+   double m3_macd_sig  = GetSyntheticMACD(3, 12, 26, 9, 1, MODE_SIGNAL);
+   bool m3_macd_bull = (m3_macd_main > m3_macd_sig);
+   bool m3_macd_bear = (m3_macd_main < m3_macd_sig);
+   
+   bool macd_buy_ok  = !Use_MACD_Filter || (m12_macd_bull && m3_macd_bull);
+   bool macd_sell_ok = !Use_MACD_Filter || (m12_macd_bear && m3_macd_bear);
+
+   // B. Volume Ignition (Spike Check)
+   // M1 Tick Volume must be > Moving Average at moment of breakout attempt
+   double vol_sum_m1 = 0;
+   for(int k=1; k<=20; k++) vol_sum_m1 += iVolume(NULL, PERIOD_M1, k);
+   double vol_m1_avg = vol_sum_m1 / 20.0; // Simple Vol MA
+   bool vol_ignite = !Use_Vol_Ignition || (Volume[0] > vol_m1_avg * 1.0); // Current M1 Volume vs Avg (Starting Ignition)
+   
+   // Strict Alignment Check
+   bool strict_buy  = is_uptrend && m3_trend_up && m30_bull && macd_buy_ok && vol_ignite;
+   bool strict_sell = is_dntrend && m3_trend_dn && m30_bear && macd_sell_ok && vol_ignite;  
+   
    // 7. Place Pending Orders (Only on New Bar start to avoid spam/repaint)
    int spread = (int)MarketInfo(Symbol(), MODE_SPREAD);
    
@@ -212,30 +244,30 @@ void OnTick() {
        }
 
        // Buy Condition
-       // Market Sniper: Entry if price is >= buy_trigger
-       if (CountOrders(0) == 0 && Ask >= buy_trigger && is_uptrend && m3_trend_up && m30_bull && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
-          OpenTrade(0, atr);
+       // Market Sniper: Entry if price is >= buy_trigger AND Strict Alignment
+       if (CountOrders(0) == 0 && Ask >= buy_trigger && strict_buy && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
+          OpenTrade(0, atr, M3_1.b_low);
           Order_Placed_In_Current_Bar = true; // Lock immediately
        }
        
        // Sell Condition
-       // Market Sniper: Entry if price is <= sell_trigger
-       else if (CountOrders(1) == 0 && Bid <= sell_trigger && is_dntrend && m3_trend_dn && m30_bear && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
-          OpenTrade(1, atr);
+       // Market Sniper: Entry if price is <= sell_trigger AND Strict Alignment
+       else if (CountOrders(1) == 0 && Bid <= sell_trigger && strict_sell && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
+          OpenTrade(1, atr, M3_1.b_high);
           Order_Placed_In_Current_Bar = true; // Lock immediately
        }
    }
    
    // Update Dashboard
    bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
-   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, ui_m30_sync, buy_trigger, sell_trigger);
+   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, ui_m30_sync, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite);
 }
 
 //+------------------------------------------------------------------+
 //| Helper: Open Market Trade                                        |
 //+------------------------------------------------------------------+
-void OpenTrade(int type, double atr) {
-   double sl = ATR_Stop_Mult * atr;
+void OpenTrade(int type, double atr, double structure_price) {
+   double sl_dist_atr = ATR_Stop_Mult * atr;
    double lots = Fixed_Lot;
    
    // Safety Check: Margin & Lots
@@ -248,15 +280,16 @@ void OpenTrade(int type, double atr) {
    
    if (type == 0) {
       cmd = OP_BUY;
-      sl_price = Ask - sl;
-      // Hard Safety Cap
+      // Precision SL: Choose tighter of Structure or ATR, but respect Max_Loss
+      sl_price = MathMax(structure_price, Ask - sl_dist_atr);
       if (Ask - sl_price > Max_Loss_USD) sl_price = Ask - Max_Loss_USD;
+      if (Ask - sl_price < 15 * Point) sl_price = Ask - 15 * Point; // Min buffer
       clr = clrDeepSkyBlue;
    } else {
       cmd = OP_SELL;
-      sl_price = Bid + sl;
-      // Hard Safety Cap
+      sl_price = MathMin(structure_price, Bid + sl_dist_atr);
       if (sl_price - Bid > Max_Loss_USD) sl_price = Bid + Max_Loss_USD;
+      if (sl_price - Bid < 15 * Point) sl_price = Bid + 15 * Point; // Min buffer
       clr = clrOrangeRed;
    }
    
@@ -420,19 +453,34 @@ double GetSyntheticEMA(int period_min, int ma_period, int shift) {
 
 
 double GetSyntheticVolMA(int period_min, int ma_period, int shift) {
-
    double sum = 0;
-
    for(int i=0; i<ma_period; i++) {
-
       SyntheticBar b = GetSyntheticBar(period_min, shift + i);
-
       sum += b.b_volume;
-
    }
-
    return sum / ma_period;
+}
 
+// New: Synthetic MACD Calculation
+double GetSyntheticMACD(int period_min, int fast_ema, int slow_ema, int signal_ema, int shift, int mode) {
+   // Approximate MACD using Synthetic EMAs
+   double fast = GetSyntheticEMA(period_min, fast_ema, shift);
+   double slow = GetSyntheticEMA(period_min, slow_ema, shift);
+   double main_line = fast - slow;
+   
+   if (mode == MODE_MAIN) return main_line;
+   
+   // Signal Line (SMA of Main Line) - Approximation for efficiency (Last 9 samples)
+   if (mode == MODE_SIGNAL) {
+       double signal_sum = 0;
+       for(int i=0; i<signal_ema; i++) {
+           double f_i = GetSyntheticEMA(period_min, fast_ema, shift + i);
+           double s_i = GetSyntheticEMA(period_min, slow_ema, shift + i);
+           signal_sum += (f_i - s_i);
+       }
+       return signal_sum / signal_ema;
+   }
+   return 0;
 }
 
 
@@ -461,20 +509,41 @@ void ManagePositions(double atr) {
          double start_trail = Trail_Start * atr / Point; 
          double start_be    = BE_Start * atr / Point;
          
-         // 1. Break Even Logic (Risk Free ASAP)
-         if (profit_pips > start_be && OrderStopLoss() == 0) { // Only if SL not moved yet (or initial SL)
+         // 1. Tier 1: Break Even (Risk Free)
+         if (profit_pips > start_be && profit_pips <= (BE_Lock_Level * atr / Point)) { 
              double be_sl;
              if (OrderType() == OP_BUY) {
                  be_sl = OrderOpenPrice() + BE_Offset * Point;
-                 if (be_sl > OrderStopLoss()) 
+                 if (be_sl > OrderStopLoss() && OrderStopLoss() < OrderOpenPrice()) // Only move if better and not already at BE
                     if(OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(be_sl, Digits), 0, 0, clrGreen))
-                        Print("BreakEven Triggered @ ", be_sl);
+                        Print("Tier 1 BreakEven @ ", be_sl);
              }
              else {
                  be_sl = OrderOpenPrice() - BE_Offset * Point;
-                 if (OrderStopLoss() == 0 || be_sl < OrderStopLoss())
+                 if ((OrderStopLoss() == 0 || be_sl < OrderStopLoss()) && (OrderStopLoss() == 0 || OrderStopLoss() > OrderOpenPrice()))
                     if(OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(be_sl, Digits), 0, 0, clrGreen))
-                        Print("BreakEven Triggered @ ", be_sl);
+                        Print("Tier 1 BreakEven @ ", be_sl);
+             }
+         }
+         
+         // 2. Tier 2: Secure Profit (Bank Some Gains)
+         double lock_trig = BE_Lock_Level * atr / Point;
+         double lock_amt  = BE_Lock_Amt * atr / Point;
+         
+         if (profit_pips > lock_trig) {
+             double lock_sl;
+             if (OrderType() == OP_BUY) {
+                 lock_sl = OrderOpenPrice() + lock_amt * Point;
+                 // Only move if new SL is higher than current SL AND we haven't started trailing yet (trail logic handles > trail_start)
+                 if (lock_sl > OrderStopLoss() && profit_pips < (Trail_Start * atr / Point))
+                    if(OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(lock_sl, Digits), 0, 0, clrBlue))
+                        Print("Tier 2 Profit Lock @ ", lock_sl);
+             }
+             else {
+                 lock_sl = OrderOpenPrice() - lock_amt * Point;
+                 if ((OrderStopLoss() == 0 || lock_sl < OrderStopLoss()) && profit_pips < (Trail_Start * atr / Point))
+                    if(OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(lock_sl, Digits), 0, 0, clrBlue))
+                        Print("Tier 2 Profit Lock @ ", lock_sl);
              }
          }
 
@@ -487,9 +556,8 @@ void ManagePositions(double atr) {
 
              if (OrderType() == OP_BUY) {
 
-                 new_sl = Bid - (start_trail * 0.5) * Point; 
-
-                 if (new_sl > OrderStopLoss() && new_sl > OrderOpenPrice()) 
+                 new_sl = Bid - (Trail_Step * atr); 
+                 if (new_sl > OrderStopLoss() + 5 * Point && new_sl > OrderOpenPrice()) 
 
                      res = OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(new_sl, Digits), 0, 0, clrGreen);
 
@@ -497,9 +565,8 @@ void ManagePositions(double atr) {
 
              else {
 
-                 new_sl = Ask + (start_trail * 0.5) * Point;
-
-                 if ((OrderStopLoss() == 0 || new_sl < OrderStopLoss()) && new_sl < OrderOpenPrice())
+                 new_sl = Ask + (Trail_Step * atr);
+                 if ((OrderStopLoss() == 0 || new_sl < OrderStopLoss() - 5 * Point) && (new_sl < OrderOpenPrice() || OrderStopLoss() > OrderOpenPrice()))
 
                      res = OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(new_sl, Digits), 0, 0, clrGreen);
 
@@ -545,90 +612,69 @@ int CountOrders(int type) {
 
 //+------------------------------------------------------------------+
 
-//| Dashboard Display (V8.5 Micro)                                     |
+//| Dashboard Display (V8.6 Professional)                            |
 
 //+------------------------------------------------------------------+
 
-void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool m30_ok, double b_trig, double s_trig) {
+void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool m30_ok, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite) {
 
-   Comment("");   // 1. Background
-
+   Comment("");   // No Comment Text
    color bg_color = clrBlack; 
+   DrawRect("LQ_BG", 20, 20, 360, 420, bg_color); // Increased Height
 
-   DrawRect("LQ_BG", 20, 20, 360, 350, bg_color); // Height 330 -> 350
+   // --- Header ---
+   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.6 PRO (MACD Precision)", 11, clrGold);
 
-   
-
-   // Title
-
-   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.5 Micro ($200 Exclusive)", 11, clrGold);
-
-   
-
-   // 1. Trend Filter (M12 + M30)
-
+   // --- Section 1: Trend & Structure ---
    bool bull = (price > ema);
    string t_txt = bull ? "[1] M12 Trend: BULL (Above)" : "[1] M12 Trend: BEAR (Below)";
    DrawLabel("LQ_Trend", 40, 70, t_txt, 10, bull ? clrLime : clrRed);
-
    
-
    string m30_txt = "    M30 Trend: " + (m30_ok ? "Confirmed" : "Conflict");
+   DrawLabel("LQ_M30", 40, 90, m30_txt, 9, m30_ok ? clrSilver : clrRed); // Spaced 90
 
-   DrawLabel("LQ_M30", 40, 85, m30_txt, 8, m30_ok ? clrSilver : clrRed);
-
-   
-
-   // 2. ADX Strength (New)
-
+   // --- Section 2: Momentum Strength ---
    bool adx_pass = (adx > ADX_Min_Level);
-
    string adx_txt = "[2] ADX Strength: " + DoubleToString(adx, 1) + (adx_pass ? " (OK)" : " (Weak)");
+   DrawLabel("LQ_ADX", 40, 120, adx_txt, 10, adx_pass ? clrLime : clrGray); // Spaced 120
 
-   DrawLabel("LQ_ADX", 40, 110, adx_txt, 10, adx_pass ? clrLime : clrGray);
-
-   
-
-   // 3. Volume Squeeze
-
+   // --- Section 3: Volume Dynamics ---
    bool sqz = (vol < vol_ma * Vol_Squeeze_F);
-
    string v_txt = "[3] M3 Vol: " + (sqz ? "Squeeze (Ready)" : "High Vol (Wait)");
-
-   DrawLabel("LQ_Vol", 40, 135, v_txt, 10, sqz ? clrLime : clrGray);
-
+   DrawLabel("LQ_Vol", 40, 150, v_txt, 10, sqz ? clrLime : clrGray); // Spaced 150
    
+   string vi_txt = "    Vol Ignition: " + (vol_ignite ? "IGNITED (GO)" : "Low Energy");
+   DrawLabel("LQ_VolIgnite", 40, 170, vi_txt, 9, vol_ignite ? clrLime : clrRed); // Spaced 170
 
-   // 4. RSI Resonance
+   // --- Section 4: Momentum Sync (RSI + MACD) ---
    bool m3_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min);
    bool m12_ok = (bull ? rsi_m12 > 50 : rsi_m12 < 50);
    bool rsi_all_ok = m3_ok && m12_ok;
    
    string r_txt = "[4] RSI Sync: " + (rsi_all_ok ? "Synced" : "Wait");
-   DrawLabel("LQ_RSI", 40, 160, r_txt, 10, rsi_all_ok ? clrLime : clrRed);
-   string r_d1 = "    M3=" + DoubleToString(rsi_m3, 1) + " / M12=" + DoubleToString(rsi_m12, 1);
-   DrawLabel("LQ_RSI1", 40, 180, r_d1, 8, clrSilver);
+   DrawLabel("LQ_RSI", 40, 200, r_txt, 10, rsi_all_ok ? clrLime : clrRed); // Spaced 200
    
-   // 5. Breakout Zones (Market Sniper)
+   string r_d1 = "    M3=" + DoubleToString(rsi_m3, 1) + " / M12=" + DoubleToString(rsi_m12, 1);
+   DrawLabel("LQ_RSI1", 40, 220, r_d1, 8, clrSilver); // Spaced 220
+   
+   string macd_txt = "    MACD Align: " + ((macd_buy_ok || macd_sell_ok) ? "ALIGNED" : "CONFLICT");
+   DrawLabel("LQ_MACD", 40, 240, macd_txt, 9, (macd_buy_ok || macd_sell_ok) ? clrLime : clrRed); // Spaced 240
+
+   // --- Section 5: Breakout Zones (Sniper) ---
    double dist = 0;
    if (bull) {
        dist = (b_trig - Ask)/Point;
-       DrawLabel("LQ_Trig", 40, 210, "BUY Zone: > " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
-       DrawLabel("LQ_Dist", 40, 230, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 9, dist <= 0 ? clrLime : clrGray);
+       DrawLabel("LQ_Trig", 40, 270, "BUY Zone: > " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
+       DrawLabel("LQ_Dist", 40, 290, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 10, dist <= 0 ? clrLime : clrGray);
    } else {
        dist = (Bid - s_trig)/Point;
-       DrawLabel("LQ_Trig", 40, 210, "SELL Zone: < " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
-       DrawLabel("LQ_Dist", 40, 230, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 9, dist <= 0 ? clrLime : clrGray);
+       DrawLabel("LQ_Trig", 40, 270, "SELL Zone: < " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
+       DrawLabel("LQ_Dist", 40, 290, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 10, dist <= 0 ? clrLime : clrGray);
    }
 
-
-
-   // 6. Account & Status
-
+   // --- Section 6: Account & Status ---
    string acc = "Equity: $" + DoubleToString(AccountEquity(), 2);
-   DrawLabel("LQ_Acc", 40, 270, acc, 10, clrWhite);
-
-   
+   DrawLabel("LQ_Acc", 40, 330, acc, 11, clrWhite);
 
    bool ready = sqz && rsi_all_ok && adx_pass && m30_ok;
    string st = "STATUS: Monitoring...";
@@ -649,7 +695,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
        st_clr = clrGold;
    }
 
-   DrawLabel("LQ_ST", 40, 300, st, 11, st_clr);
+   DrawLabel("LQ_ST", 40, 360, st, 11, st_clr);
 
 }
 
@@ -685,4 +731,3 @@ void DrawRect(string name, int x, int y, int w, int h, color bg_color) {
    ObjectSetInteger(0, name, OBJPROP_BGCOLOR, (long)bg_color);
    ObjectSetInteger(0, name, OBJPROP_BACK, 0); // Background false
 }
-
