@@ -34,7 +34,7 @@ extern double Vol_Squeeze_F   = 0.75; // Volume Squeeze Factor (0.75)
 
 extern int    Vol_MA_Period   = 20;   // M3 Volume MA Period
 
-extern double ATR_Stop_Mult   = 3.0;  // Initial SL Multiplier (3.0)
+extern double ATR_Stop_Mult   = 1.5;  // Initial SL Multiplier (3.0)
 
 extern double Trail_Start     = 0.8;  // Trailing Start (0.8 ATR) - Locked Early!
 
@@ -42,6 +42,8 @@ extern double Trail_Step      = 0.2;  // Trailing Step (0.2 ATR) - Tight!
 
 extern double BE_Start        = 0.5;  // Break Even Trigger (0.5 ATR) - Risk Free EARLY!
 extern int    BE_Offset       = 20;   // Break Even Offset (Points) - Cover swaps
+
+extern double Max_Loss_USD    = 5.0;  // Hard Safety: Max Loss in USD for 0.01 lot
 
 
 
@@ -98,6 +100,7 @@ int OnInit() {
 void OnDeinit(const int r) { ObjectsDeleteAll(0, "LQ_"); }
 
 // Trading Hours (Europe/US Session Only)
+extern bool Use_Time_Filter = false; // Set to true to restrict hours
 extern int StartHour = 9;   
 extern int EndHour   = 22;
 
@@ -117,7 +120,7 @@ void OnTick() {
    
    // Time Filter
    int hour = TimeHour(TimeCurrent());
-   if (hour < StartHour || hour >= EndHour) {
+   if (Use_Time_Filter && (hour < StartHour || hour >= EndHour)) {
       if(hour % 4 == 0 && Minute() == 0 && Seconds() < 5) 
          Print("Outside Trading Hours (", StartHour, "-", EndHour, "). Current: ", hour);
       string w_txt = "Non-Trading Hours (" + IntegerToString(StartHour) + ":00 - " + IntegerToString(EndHour) + ":00)";
@@ -246,10 +249,14 @@ void OpenTrade(int type, double atr) {
    if (type == 0) {
       cmd = OP_BUY;
       sl_price = Ask - sl;
+      // Hard Safety Cap
+      if (Ask - sl_price > Max_Loss_USD) sl_price = Ask - Max_Loss_USD;
       clr = clrDeepSkyBlue;
    } else {
       cmd = OP_SELL;
       sl_price = Bid + sl;
+      // Hard Safety Cap
+      if (sl_price - Bid > Max_Loss_USD) sl_price = Bid + Max_Loss_USD;
       clr = clrOrangeRed;
    }
    
