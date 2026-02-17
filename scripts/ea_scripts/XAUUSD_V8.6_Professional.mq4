@@ -1,12 +1,10 @@
 ﻿//+------------------------------------------------------------------+
-//|                                   LiQiyu_Strategy_V8.6_Professional.mq4|
+//|                                   LiQiyu_Strategy_V8.6.1_Professional.mq4|
 //|                    M3/M12 Trend + Volume Squeeze + Pending Orders|
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
-#property version   "8.60"
+#property version   "8.62"
 #property strict
-
-// --- Account Protection & Target ($200 Doubling Plan) ---
 
 // --- Account Protection & Target ($200 Doubling Plan) ---
 
@@ -30,7 +28,7 @@ extern string _P_ = "=== Strategy V8.6 (Professional) ===";
 
 extern int    Trend_MA_Period = 34;   // M12 EMA Period
 
-extern double Vol_Squeeze_F   = 0.75; // Volume Squeeze Factor (0.75)
+extern double Vol_Squeeze_F   = 1.0;  // Standard Volume (Was 0.75 - Tight Squeeze)
 
 extern int    Vol_MA_Period   = 20;   // M3 Volume MA Period
 
@@ -52,11 +50,11 @@ extern double Max_Loss_USD    = 10.0; // Hard Safety: Max Loss in USD for 0.01 l
 
 extern string _F_ = "=== Filters ===";
 
-extern int    RSI_Buy_Max     = 70;   // RSI Max for Buy
+extern int    RSI_Buy_Max     = 75;   // Extended Range (Was 70)
 
-extern int    RSI_Sell_Min    = 30;   // RSI Min for Sell
+extern int    RSI_Sell_Min    = 25;   // Extended Range (Was 30)
 
-extern int    Breakout_Buffer = 15;   // Breakout Buffer (Points)
+extern int    Breakout_Buffer = 10;   // Faster Entry (Was 15)
 
 extern bool   Use_Momentum    = true; // Momentum Check
 extern bool   Use_MACD_Filter = true; // V8.6 MACD Trend Confirmation
@@ -68,15 +66,13 @@ extern string _A_ = "=== Advanced Filters ===";
 
 extern int    ADX_Period      = 14;   // ADX Period
 
-extern int    ADX_Min_Level   = 18;   // Min Trend Strength
+extern int    ADX_Min_Level   = 15;   // Catch Trends Earlier (Was 18)
 
 extern bool   Use_M30_Filter  = true; // M30 Trend Filter
 
 extern int    M30_Buffer_Points = 20; // M30 Tolerance (Points)
 
 
-
-// --- Global Variables ---
 
 // --- Global Variables ---
 int    Magic  = 2026805; // V8.5 Magic
@@ -170,7 +166,7 @@ void OnTick() {
    // 3. RSI Synthesis
    double rsi_m3 = GetSyntheticRSI(3, 14);   
    double rsi_m12 = GetSyntheticRSI(12, 14); 
-
+   
    // 4. Advanced Trend Filter (V8.3/4)
    double adx_m30 = iADX(NULL, PERIOD_M30, ADX_Period, PRICE_CLOSE, MODE_MAIN, 0);
    bool adx_ok = (adx_m30 > ADX_Min_Level);
@@ -217,8 +213,9 @@ void OnTick() {
    bool m3_macd_bull = (m3_macd_main > m3_macd_sig);
    bool m3_macd_bear = (m3_macd_main < m3_macd_sig);
    
-   bool macd_buy_ok  = !Use_MACD_Filter || (m12_macd_bull && m3_macd_bull);
-   bool macd_sell_ok = !Use_MACD_Filter || (m12_macd_bear && m3_macd_bear);
+   // V8.6.1 Optimization: Relaxed MACD (Only require M12 Trend Confirmation, ignore M3 noise)
+   bool macd_buy_ok  = !Use_MACD_Filter || m12_macd_bull; 
+   bool macd_sell_ok = !Use_MACD_Filter || m12_macd_bear;
 
    // B. Volume Ignition (Spike Check)
    // M1 Tick Volume must be > Moving Average at moment of breakout attempt
@@ -226,6 +223,9 @@ void OnTick() {
    for(int k=1; k<=20; k++) vol_sum_m1 += iVolume(NULL, PERIOD_M1, k);
    double vol_m1_avg = vol_sum_m1 / 20.0; // Simple Vol MA
    bool vol_ignite = !Use_Vol_Ignition || (Volume[0] > vol_m1_avg * 1.0); // Current M1 Volume vs Avg (Starting Ignition)
+   // Optimization: If Volume Squeeze is disabled or very loose (>= 0.8), relax Ignition too
+   if (Vol_Squeeze_F >= 0.8) vol_ignite = (Volume[0] > vol_m1_avg * 0.8); // Lower threshold if aggressive
+
    
    // Strict Alignment Check
    bool strict_buy  = is_uptrend && m3_trend_up && m30_bull && macd_buy_ok && vol_ignite;
@@ -260,7 +260,10 @@ void OnTick() {
    
    // Update Dashboard
    bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
-   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, ui_m30_sync, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite);
+   bool ui_m3_sync = (is_uptrend && m3_trend_up) || (is_dntrend && m3_trend_dn);
+   bool ui_mom_ok = (is_uptrend && momentum_up) || (is_dntrend && momentum_dn);
+   
+   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, ui_m30_sync, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite, ui_m3_sync, ui_mom_ok);
 }
 
 //+------------------------------------------------------------------+
@@ -309,58 +312,29 @@ void DeletePendingOrders() {
    }
 }
 
-
-
 //+------------------------------------------------------------------+
-
 //| 合成 K 线核心引擎                                                |
-
 //+------------------------------------------------------------------+
-
-//+------------------------------------------------------------------+
-
-//| 合成 K 线核心引擎                                                |
-
-//+------------------------------------------------------------------+
-
 // period_min: 3 or 12, shift: 0 (current), 1 (previous)
-
 SyntheticBar GetSyntheticBar(int period_min, int shift) {
-
    SyntheticBar bar;
    // Initialize with extreme values to ensure correct Min/Max logic
    bar.b_open = 0; bar.b_high = 0; bar.b_low = 999999; bar.b_close = 0; bar.b_volume = 0;
-
    
-
    // 计算当前时间的 M1 索引偏移
-
    datetime current_time = Time[0];
-
    
-
    int seconds_In = TimeSeconds(current_time) + TimeMinute(current_time) * 60 + TimeHour(current_time) * 3600;
-
    int period_seconds = period_min * 60;
-
    
-
    // 当前周期开始的时间戳
-
    datetime start_time_0 = (datetime)(current_time - (seconds_In % period_seconds)); 
-
    
-
    // 目标 shift 的开始时间
-
    datetime target_start_time = (datetime)(start_time_0 - (shift * period_seconds));
-
    datetime target_end_time   = (datetime)(target_start_time + period_seconds);
-
    
-
    // 遍历 M1 柱子构建合成柱
-
    // Find start index (Method: Nearest, Exact=False)
    int start_idx = iBarShift(NULL, PERIOD_M1, target_start_time, false);
 
@@ -368,89 +342,49 @@ SyntheticBar GetSyntheticBar(int period_min, int shift) {
        Print("Error: M1 Data missing for synthetic calculation!");
        return bar; 
    }
-
    
-
    bar.b_open = iOpen(NULL, PERIOD_M1, start_idx);
-
    bar.b_time = iTime(NULL, PERIOD_M1, start_idx);
-
    
-
    for (int i = start_idx; i >= 0; i--) {
-
       datetime t = iTime(NULL, PERIOD_M1, i);
 
       if (t >= target_end_time) break; 
-
       if (t < target_start_time) continue; 
-
       
-
       if (iHigh(NULL, PERIOD_M1, i) > bar.b_high) bar.b_high = iHigh(NULL, PERIOD_M1, i);
-
       if (iLow(NULL, PERIOD_M1, i) < bar.b_low)   bar.b_low  = iLow(NULL, PERIOD_M1, i);
-
       bar.b_close = iClose(NULL, PERIOD_M1, i); 
-
       bar.b_volume += iVolume(NULL, PERIOD_M1, i);
-
    }
-
-   
-
    return bar;
-
 }
 
-
-
 // New: Synthetic RSI (Cutler's RSI, no smoothing, ideal for synthetic)
-
 double GetSyntheticRSI(int period_min, int rsi_period) {
-
    double gain_sum = 0;
-
    double loss_sum = 0;
-
    
-
    for (int i = 1; i <= rsi_period; i++) {
-
       SyntheticBar b_curr = GetSyntheticBar(period_min, i);
-
       SyntheticBar b_prev = GetSyntheticBar(period_min, i + 1);
-
       
-
       double diff = b_curr.b_close - b_prev.b_close;
       
       // Precision Check: Ensure consistent data
       if (b_curr.b_close == 0 || b_prev.b_close == 0) continue; 
 
       if (diff > 0) gain_sum += diff;
-
       else          loss_sum += -diff;
-
    }
-
    
-
    if (gain_sum + loss_sum == 0) return 50.0;
-
    return 100.0 * gain_sum / (gain_sum + loss_sum);
-
 }
-
-
 
 double GetSyntheticEMA(int period_min, int ma_period, int shift) {
-
    return iMA(NULL, PERIOD_M1, period_min * ma_period, 0, MODE_EMA, PRICE_CLOSE, shift * period_min);
-
 }
-
-
 
 double GetSyntheticVolMA(int period_min, int ma_period, int shift) {
    double sum = 0;
@@ -483,29 +417,15 @@ double GetSyntheticMACD(int period_min, int fast_ema, int slow_ema, int signal_e
    return 0;
 }
 
-
-
 //+------------------------------------------------------------------+
-
 //| Trade Management                                                 |
-
 //+------------------------------------------------------------------+
-
-
-
-
 void ManagePositions(double atr) {
-
    for(int i=0; i<OrdersTotal(); i++) {
-
       if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
-
          double profit_pips = (OrderType()==0) ? (Bid - OrderOpenPrice()) : (OrderOpenPrice() - Ask);
-
          profit_pips = profit_pips / Point;
-
          
-
          double start_trail = Trail_Start * atr / Point; 
          double start_be    = BE_Start * atr / Point;
          
@@ -549,81 +469,48 @@ void ManagePositions(double atr) {
 
          // 2. Trailing Stop Logic (Lock Profit)
          if (profit_pips > start_trail) {
-
              double new_sl;
-
              bool res = false;
-
              if (OrderType() == OP_BUY) {
-
                  new_sl = Bid - (Trail_Step * atr); 
                  if (new_sl > OrderStopLoss() + 5 * Point && new_sl > OrderOpenPrice()) 
-
                      res = OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(new_sl, Digits), 0, 0, clrGreen);
-
              }
-
              else {
-
                  new_sl = Ask + (Trail_Step * atr);
                  if ((OrderStopLoss() == 0 || new_sl < OrderStopLoss() - 5 * Point) && (new_sl < OrderOpenPrice() || OrderStopLoss() > OrderOpenPrice()))
-
                      res = OrderModify(OrderTicket(), OrderOpenPrice(), NormalizeDouble(new_sl, Digits), 0, 0, clrGreen);
-
              }
-
              if(!res && GetLastError() != ERR_NO_ERROR) Print("OrderModify failed: ", GetLastError());
-
          }
-
       }
-
    }
-
 }
-
-
 
 bool CheckRisk() {
-
    if (AccountEquity() <= 0) return true;
-
    if ((AccountBalance() - AccountEquity()) / AccountBalance() * 100 > Max_Drawdown) return true;
-
    return false;
-
 }
-
-
 
 int CountOrders(int type) {
-
    int cnt = 0;
-
    for(int i=0; i<OrdersTotal(); i++) 
-
       if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic && OrderType() == type) cnt++;
-
    return cnt;
-
 }
 
-
-
 //+------------------------------------------------------------------+
-
 //| Dashboard Display (V8.6 Professional)                            |
-
 //+------------------------------------------------------------------+
-
-void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool m30_ok, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite) {
+void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool m30_ok, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok) {
 
    Comment("");   // No Comment Text
    color bg_color = clrBlack; 
-   DrawRect("LQ_BG", 20, 20, 360, 420, bg_color); // Increased Height
+   DrawRect("LQ_BG", 20, 20, 360, 460, bg_color); // Increased Height to 460
 
    // --- Header ---
-   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.6 PRO (MACD Precision)", 11, clrGold);
+   DrawLabel("LQ_Title", 40, 40, "LiQiyu V8.6.2 PRO (Agile Frequency)", 11, clrGold);
 
    // --- Section 1: Trend & Structure ---
    bool bull = (price > ema);
@@ -633,18 +520,24 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    string m30_txt = "    M30 Trend: " + (m30_ok ? "Confirmed" : "Conflict");
    DrawLabel("LQ_M30", 40, 90, m30_txt, 9, m30_ok ? clrSilver : clrRed); // Spaced 90
 
+   string m3_t_txt = "    M3 Trend: " + (m3_ok_trend ? "Synced" : "Conflict");
+   DrawLabel("LQ_M3T", 40, 110, m3_t_txt, 9, m3_ok_trend ? clrSilver : clrRed); // New M3 Trend - Spaced 110
+
    // --- Section 2: Momentum Strength ---
    bool adx_pass = (adx > ADX_Min_Level);
    string adx_txt = "[2] ADX Strength: " + DoubleToString(adx, 1) + (adx_pass ? " (OK)" : " (Weak)");
-   DrawLabel("LQ_ADX", 40, 120, adx_txt, 10, adx_pass ? clrLime : clrGray); // Spaced 120
+   DrawLabel("LQ_ADX", 40, 140, adx_txt, 10, adx_pass ? clrLime : clrGray); // Spaced 140
+   
+   string mom_txt = "    M12 Momentum: " + (mom_ok ? "UP (Push)" : "WAIT (Pullback)");
+   DrawLabel("LQ_Mom", 40, 160, mom_txt, 9, mom_ok ? clrSilver : clrRed); // New Momentum - Spaced 160
 
    // --- Section 3: Volume Dynamics ---
    bool sqz = (vol < vol_ma * Vol_Squeeze_F);
    string v_txt = "[3] M3 Vol: " + (sqz ? "Squeeze (Ready)" : "High Vol (Wait)");
-   DrawLabel("LQ_Vol", 40, 150, v_txt, 10, sqz ? clrLime : clrGray); // Spaced 150
+   DrawLabel("LQ_Vol", 40, 190, v_txt, 10, sqz ? clrLime : clrGray); // Spaced 190
    
-   string vi_txt = "    Vol Ignition: " + (vol_ignite ? "IGNITED (GO)" : "Low Energy");
-   DrawLabel("LQ_VolIgnite", 40, 170, vi_txt, 9, vol_ignite ? clrLime : clrRed); // Spaced 170
+   string vi_txt = "    M1 Ignition: " + (vol_ignite ? "IGNITED (GO)" : "Low Energy");
+   DrawLabel("LQ_VolIgnite", 40, 210, vi_txt, 9, vol_ignite ? clrLime : clrRed); // Spaced 210
 
    // --- Section 4: Momentum Sync (RSI + MACD) ---
    bool m3_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min);
@@ -652,35 +545,40 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    bool rsi_all_ok = m3_ok && m12_ok;
    
    string r_txt = "[4] RSI Sync: " + (rsi_all_ok ? "Synced" : "Wait");
-   DrawLabel("LQ_RSI", 40, 200, r_txt, 10, rsi_all_ok ? clrLime : clrRed); // Spaced 200
+   DrawLabel("LQ_RSI", 40, 240, r_txt, 10, rsi_all_ok ? clrLime : clrRed); // Spaced 240
    
    string r_d1 = "    M3=" + DoubleToString(rsi_m3, 1) + " / M12=" + DoubleToString(rsi_m12, 1);
-   DrawLabel("LQ_RSI1", 40, 220, r_d1, 8, clrSilver); // Spaced 220
+   DrawLabel("LQ_RSI1", 40, 260, r_d1, 8, clrSilver); // Spaced 260
    
-   string macd_txt = "    MACD Align: " + ((macd_buy_ok || macd_sell_ok) ? "ALIGNED" : "CONFLICT");
-   DrawLabel("LQ_MACD", 40, 240, macd_txt, 9, (macd_buy_ok || macd_sell_ok) ? clrLime : clrRed); // Spaced 240
+   string macd_txt = "    MACD Trend: " + ((macd_buy_ok || macd_sell_ok) ? "M12 CONFIRMED" : "CONFLICT");
+   DrawLabel("LQ_MACD", 40, 280, macd_txt, 9, (macd_buy_ok || macd_sell_ok) ? clrLime : clrRed); // Spaced 280
 
    // --- Section 5: Breakout Zones (Sniper) ---
    double dist = 0;
    if (bull) {
        dist = (b_trig - Ask)/Point;
-       DrawLabel("LQ_Trig", 40, 270, "BUY Zone: > " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
-       DrawLabel("LQ_Dist", 40, 290, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 10, dist <= 0 ? clrLime : clrGray);
+       DrawLabel("LQ_Trig", 40, 310, "M1 Breakout > " + DoubleToString(b_trig, Digits), 11, clrDeepSkyBlue);
+       DrawLabel("LQ_Dist", 40, 330, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 10, dist <= 0 ? clrLime : clrGray);
    } else {
        dist = (Bid - s_trig)/Point;
-       DrawLabel("LQ_Trig", 40, 270, "SELL Zone: < " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
-       DrawLabel("LQ_Dist", 40, 290, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 10, dist <= 0 ? clrLime : clrGray);
+       DrawLabel("LQ_Trig", 40, 310, "M1 Breakout < " + DoubleToString(s_trig, Digits), 11, clrOrangeRed);
+       DrawLabel("LQ_Dist", 40, 330, "Relative: " + DoubleToString(dist, 0) + (dist <= 0 ? " (IN ZONE)" : " pts"), 10, dist <= 0 ? clrLime : clrGray);
    }
 
    // --- Section 6: Account & Status ---
    string acc = "Equity: $" + DoubleToString(AccountEquity(), 2);
-   DrawLabel("LQ_Acc", 40, 330, acc, 11, clrWhite);
+   DrawLabel("LQ_Acc", 40, 370, acc, 11, clrWhite);
 
-   bool ready = sqz && rsi_all_ok && adx_pass && m30_ok;
+   bool ready = sqz && rsi_all_ok && adx_pass && m30_ok && (macd_buy_ok || macd_sell_ok) && m3_ok_trend && mom_ok;
+   
    string st = "STATUS: Monitoring...";
    color st_clr = clrGray;
    
-   if (ready) {
+   if (!vol_ignite && ready) {
+       st = "STATUS: Waiting for VOL SPIKE...";
+       st_clr = clrOrange;
+   }
+   else if (ready && vol_ignite) {
        if (dist <= 0) {
            st = "STATUS: TARGET IN ZONE! Executing...";
            st_clr = clrYellow;
@@ -695,14 +593,11 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
        st_clr = clrGold;
    }
 
-   DrawLabel("LQ_ST", 40, 360, st, 11, st_clr);
+   DrawLabel("LQ_ST", 40, 400, st, 11, st_clr);
 
 }
 
-
-
 // --- Dashboard Helper Functions ---
-
 void DrawLabel(string name, int x, int y, string text, int size, color clr) {
    if(ObjectFind(0, name) < 0) {
       ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
