@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
-//|                                  LiQiyu_Strategy_V9.4_Smart.mq4 |
-//|                    Precision Entry + Adaptive Trend Trailing      |
+//|                                  LiQiyu_Strategy_V9.2_Rolling.mq4|
+//|                    Precision Entry + Rolling Profit (Basket Trail) |
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
-#property version   "9.50"
+#property version   "9.30"
 #property strict
 
 extern string _S_ = "=== Protection (Hybrid) ===";
@@ -20,47 +20,45 @@ extern int    Fix_Dist          = 300;
 
 extern double Lot_Multi         = 1.3;   // Balanced Multiplier (1.3x)
 
-// --- V9.4 Accelerated Trail (Adaptive) ---
-extern string _R_ = "=== Adaptive Rolling Profit ===";
-extern bool   Use_Basket_Trail   = true;  
-extern double Basket_Trail_Start = 3.0;   // Trigger Stage 1 (Wait for $3)
-extern double Basket_Trail_Step  = 2.0;   // Stage 1 Retrace (Lock $1)
-extern double Basket_Trend_Start = 8.0;   // Trigger Stage 2 (Trend Mode)
-extern double Basket_Trend_Step  = 5.0;   // Stage 2 Retrace (Give room for big fish)
+// --- V9.2 Rolling Profit Settings ---
+extern string _R_ = "=== Rolling Profit (Trail) ===";
+extern bool   Use_Basket_Trail   = true;  // Enable Rolling Profit
+extern double Basket_Trail_Start = 5.0;   // Trigger (Was 8, $5 is faster/safer)
+extern double Basket_Trail_Step  = 2.0;   // Retrace (Allow $2 retrace -> Lock $3)
 extern double Basket_Target_USD  = 50.0;  // Hard Cap (Grand Slam)
 
 extern string _E_ = "=== Smart Exit V9.3 ===";
 extern bool   Use_MACD_Exit      = true;  // Enable "Shrinking Momentum" Exit
 extern double MACD_Exit_Min_Profit = 2.0; // Only exit if profit > $2
 
+
 extern int    Max_Spread_Point = 50;  
 
 // --- Strategy Parameters (V8.7 Precision Entry) ---
 extern string _P_ = "=== Entry V8.7 (Precision) ===";
 extern int    Trend_MA_Period = 34;   
-extern double Vol_Squeeze_F   = 1.0; 
+extern double Vol_Squeeze_F   = 1.0; // Standard 
 extern int    Vol_MA_Period   = 20;   
 extern int    RSI_Buy_Max     = 75;   
 extern int    RSI_Sell_Min    = 25;   
-extern int    Breakout_Buffer = 2;    // Tighter entry (Was 10, now 2 points)
-extern bool   Use_Momentum    = false; // Flash Mode: Enter on first tick cross
+extern int    Breakout_Buffer = 10;   
+extern bool   Use_Momentum    = true; 
 extern bool   Use_MACD_Filter = true; 
 extern bool   Use_Vol_Ignition= true; 
 extern bool   Use_M1_Structure= true; 
 extern int    ADX_Period      = 14;   
-extern int    ADX_Min_Level   = 20;   // Higher ADX = More Accurate Trend
-
-extern bool   Use_M30_Filter  = true; 
+extern int    ADX_Min_Level   = 15;   
+extern bool   Use_M30_Filter  = true; // M30 Filter (Safety)
 extern int    M30_Buffer_Points = 20; 
 
 // --- Global Variables ---
-int    Magic  = 2026930; 
-string sComm  = "LQ_V9.4_Smart";
+int    Magic  = 2026930; // V9.3 Magic
+string sComm  = "LQ_V9.3_Smart";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
 
-// Memory for Trailing
-double Basket_High_Water_Mark = -99999.0; 
+// V9.2 Rolling Profit Memory
+double Basket_High_Water_Mark = -99999.0; // Track highest profit
 
 struct SyntheticBar {
    double b_open; double b_high; double b_low; double b_close; double b_volume; datetime b_time;
@@ -123,24 +121,21 @@ void OnTick() {
    bool momentum_up = !Use_Momentum || (M12_0.b_close > M12_1.b_close);
    bool momentum_dn = !Use_Momentum || (M12_0.b_close < M12_1.b_close);
 
+   double buffer = Breakout_Buffer * Point;
+   double buy_trigger = High[1] + buffer; 
+   double sell_trigger = Low[1] - buffer;  
+   
+   double m12_macd_main = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_MAIN);
+   double m12_macd_sig  = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_SIGNAL);
+   bool macd_buy_ok  = !Use_MACD_Filter || (m12_macd_main > m12_macd_sig); 
+   bool macd_sell_ok = !Use_MACD_Filter || (m12_macd_main < m12_macd_sig);
+
    double vol_sum_m1 = 0;
    for(int k=1; k<=20; k++) vol_sum_m1 += (double)iVolume(NULL, PERIOD_M1, k);
    double vol_m1_avg = vol_sum_m1 / 20.0; 
    bool vol_ignite = !Use_Vol_Ignition || (Volume[0] > vol_m1_avg * 1.0); 
    if (Vol_Squeeze_F >= 0.8) vol_ignite = (Volume[0] > vol_m1_avg * 0.8); 
    bool m1_pre_sqz = !Use_M1_Structure || (iVolume(NULL, PERIOD_M1, 1) < vol_m1_avg * 1.3); 
-
-   double buffer = Breakout_Buffer * Point;
-   // V9.5 Flash Logic: If volume is massive (>1.5x avg), entry is instant (0 buffer)
-   double eff_buf = (vol_ignite && Volume[0] > vol_m1_avg * 1.5) ? 0 : buffer;
-   
-   double buy_trigger = High[1] + eff_buf; 
-   double sell_trigger = Low[1] - eff_buf;  
-   
-   double m12_macd_main = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_MAIN);
-   double m12_macd_sig  = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_SIGNAL);
-   bool macd_buy_ok  = !Use_MACD_Filter || (m12_macd_main > m12_macd_sig); 
-   bool macd_sell_ok = !Use_MACD_Filter || (m12_macd_main < m12_macd_sig);
 
    // --- Update UI ALWAYS ---
    bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
@@ -165,13 +160,17 @@ void OnTick() {
        }
        
        if (cnt > 0 && profit > MACD_Exit_Min_Profit) {
+           // If Buy basket AND MACD turns weak (Main < Sig)
            if (type == OP_BUY && m12_macd_main < m12_macd_sig) {
-               Print("V9.4 Smart MACD Exit (Buy Weak). Profit: $", profit);
-               CloseAllOrders(); return;
+               Print("V9.3 Smart MACD Exit (Buy Weakness). Profit: $", profit);
+               CloseAllOrders();
+               return;
            }
+           // If Sell basket AND MACD turns weak (Main > Sig)
            if (type == OP_SELL && m12_macd_main > m12_macd_sig) {
-               Print("V9.4 Smart MACD Exit (Sell Weak). Profit: $", profit);
-               CloseAllOrders(); return;
+               Print("V9.3 Smart MACD Exit (Sell Weakness). Profit: $", profit);
+               CloseAllOrders();
+               return;
            }
        }
    }
@@ -179,7 +178,7 @@ void OnTick() {
    // --- Entry Logic (Only if Empty) ---
    if (CountOrders(0) > 0 || CountOrders(1) > 0) return; 
 
-    // Reset Memory when empty
+    // Reset High Water Mark when basket is empty
    Basket_High_Water_Mark = -99999.0;
 
    // Time Filter
@@ -203,40 +202,50 @@ void OnTick() {
 }
 
 //+------------------------------------------------------------------+
-//| V9.4 Adaptive Trailing Logic                                     |
+//| V9.2 Rolling Profit Logic (Basket Trailing)                      |
 //+------------------------------------------------------------------+
 void ManageGridExit() {
     double total_profit = 0;
     int cnt = 0;
+    
     for(int i=0; i<OrdersTotal(); i++) {
         if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
             total_profit += OrderProfit() + OrderSwap() + OrderCommission();
             cnt++;
         }
     }
+    
     if (cnt == 0) return;
 
-    // 1. Hard Target
+    // 1. Hard Target (Grand Slam)
     if (total_profit >= Basket_Target_USD) {
-        Print("V9.4 Grand Slam! $", total_profit);
-        CloseAllOrders(); return;
+        Print("V9.2 Rolling: HIT HARD TARGET $", total_profit);
+        CloseAllOrders();
+        return;
     }
 
-    // 2. Adaptive Rolling Profit
+    // 2. Rolling Profit Logic
     if (Use_Basket_Trail) {
+        // Init HWM if new
         if (Basket_High_Water_Mark == -99999.0) Basket_High_Water_Mark = 0;
+
+        // Activation
         if (total_profit >= Basket_Trail_Start) {
-            if (total_profit > Basket_High_Water_Mark) Basket_High_Water_Mark = total_profit;
+            // Update High Water Mark
+            if (total_profit > Basket_High_Water_Mark) {
+                Basket_High_Water_Mark = total_profit;
+            }
             
-            // Choose Step
-            double c_step = Basket_Trail_Step;
-            if (total_profit >= Basket_Trend_Start) c_step = Basket_Trend_Step;
-            
-            if (total_profit < (Basket_High_Water_Mark - c_step)) {
-                Print("V9.4 Adaptive Exit! Profit: $", total_profit, " Mode: ", (total_profit >= Basket_Trend_Start ? "Trend":"Safety"));
+            // Check Trailing Exit (Profit retraced too much from High)
+            // ex: High=$15, Step=$2. Exit if Profit < $13.
+            if (total_profit < (Basket_High_Water_Mark - Basket_Trail_Step)) {
+                Print("V9.2 Rolling: TRAILING EXIT! Profit: $", total_profit, " (High: $", Basket_High_Water_Mark, ")");
                 CloseAllOrders();
             }
         }
+    } else {
+        // Legacy Exit (Fallback)
+        if (total_profit >= 10.0) CloseAllOrders();
     }
 }
 
@@ -252,18 +261,20 @@ void ManageGridRecovery() {
     if (cnt >= Max_Grid_Layers || cnt == 0) return; 
 
     double grid_dist = GetGridDistance();
+    double dist = 0;
+    
     if (type == OP_BUY) {
-        if ((last_price - Ask) / Point >= grid_dist / Point) {
+        dist = (last_price - Ask) / Point; 
+        if (dist >= grid_dist / Point) {
             double new_lot = NormalizeDouble(last_lot * Lot_Multi, 2); 
-            int res = OrderSend(Symbol(), OP_BUY, new_lot, Ask, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
-            if(res < 0) Print("Grid Buy Error: ", GetLastError());
+            int t = OrderSend(Symbol(), OP_BUY, new_lot, Ask, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
         }
     }
     else if (type == OP_SELL) {
-        if ((Bid - last_price) / Point >= grid_dist / Point) {
+        dist = (Bid - last_price) / Point; 
+        if (dist >= grid_dist / Point) {
             double new_lot = NormalizeDouble(last_lot * Lot_Multi, 2); 
-            int res = OrderSend(Symbol(), OP_SELL, new_lot, Bid, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
-            if(res < 0) Print("Grid Sell Error: ", GetLastError());
+            int t = OrderSend(Symbol(), OP_SELL, new_lot, Bid, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
         }
     }
 }
@@ -272,10 +283,10 @@ double GetGridDistance() {
    if(Use_ATR_Grid) {
       double atr = iATR(NULL, 0, ATR_Period, 0); 
       double dist = atr * ATR_Multi;
-      if(dist < Fix_Dist * Point) return (double)Fix_Dist * Point;
+      if(dist < Fix_Dist * Point) return Fix_Dist * Point;
       return dist;
    }
-   return (double)Fix_Dist * Point;
+   return Fix_Dist * Point;
 }
 
 void CloseAllOrders() {
@@ -284,22 +295,23 @@ void CloseAllOrders() {
             bool res = false;
             if(OrderType()==OP_BUY) res = OrderClose(OrderTicket(), OrderLots(), Bid, 3, clrGray);
             else res = OrderClose(OrderTicket(), OrderLots(), Ask, 3, clrGray);
-            if(!res) Print("Close Error: ", GetLastError());
+            if(!res) Print("OrderClose Error: ", GetLastError());
         }
     }
 }
 
 void OpenInitialTrade(int type) {
+    double lots = Fixed_Lot;
     if (AccountFreeMargin() < 10) return;
     int cmd = (type == 0) ? OP_BUY : OP_SELL;
     double price = (type == 0) ? Ask : Bid;
     color clr = (type == 0) ? clrBlue : clrRed;
-    int res = OrderSend(Symbol(), cmd, Fixed_Lot, price, 3, 0, 0, sComm+"_L1", Magic, 0, clr);
-    if(res < 0) Print("Initial Trade Error: ", GetLastError());
+    int t = OrderSend(Symbol(), cmd, lots, price, 3, 0, 0, sComm+"_L1", Magic, 0, clr);
+    if(t > 0) Print("V9.2 Initial Trade. Grid+Roll Ready.");
 }
 
 //+------------------------------------------------------------------+
-//| Synthetic Engine                                                 |
+//| Synthetic Engine (Standard)                                      |
 //+------------------------------------------------------------------+
 SyntheticBar GetSyntheticBar(int period_min, int shift) {
    SyntheticBar bar; bar.b_open=0; bar.b_high=0; bar.b_low=999999; bar.b_close=0; bar.b_volume=0;
@@ -366,49 +378,82 @@ int CountOrders(int type) {
 }
 
 //+------------------------------------------------------------------+
-//| UI (V9.4 Compact)                                                |
+//| Dashboard Display (V9.2 Rolling)                                 |
 //+------------------------------------------------------------------+
 void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok) {
+
    Comment("");   
-   DrawRect("LQ_BG", 5, 5, 300, 340, clrBlack); 
-   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.4 SMART (Two-Stage Trail)", 10, clrGold);
+   color bg_color = clrBlack; 
+   DrawRect("LQ_BG", 5, 5, 300, 360, bg_color); 
+
+   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.3 SMART (Rolling + MACD)", 10, clrGold);
 
    int orders = CountOrders(OP_BUY) + CountOrders(OP_SELL);
    double open_prof = 0;
-   for(int i=0; i<OrdersTotal(); i++) if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) open_prof += OrderProfit() + OrderSwap() + OrderCommission();
+   for(int i=0; i<OrdersTotal(); i++) if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) open_prof += OrderProfit();
    
-   DrawLabel("LQ_Grid", 15, 40, "Grid: " + (orders > 0 ? ("ACTIVE (" + IntegerToString(orders) + "L)") : "WAITING"), 9, orders > 0 ? clrOrange : clrLime); 
+   string g_txt = "Grid: " + (orders > 0 ? ("ACTIVE (" + IntegerToString(orders) + "L)") : "WAITING");
+   DrawLabel("LQ_Grid", 15, 40, g_txt, 9, orders > 0 ? clrOrange : clrLime); 
    
+   // --- V9.2 Rolling Status ---
    string p_txt = "Profit: $" + DoubleToString(open_prof, 2);
    color p_clr = open_prof > 0 ? clrLime : (open_prof < -10 ? clrRed : clrSilver);
    
-   if (open_prof >= Basket_Trail_Start && Basket_High_Water_Mark > 0) {
-       double c_step = (open_prof >= Basket_Trend_Start) ? Basket_Trend_Step : Basket_Trail_Step;
-       string m_str = (open_prof >= Basket_Trend_Start) ? "TRENDING" : "LOCKING";
-       p_txt += " (" + m_str + " | Lock: $" + DoubleToString(Basket_High_Water_Mark - c_step, 2) + ")";
-       p_clr = clrGold;
+   if (open_prof > Basket_Trail_Start && Basket_High_Water_Mark > 0) {
+       // Trailing Active
+       p_txt = p_txt + " (High: $" + DoubleToString(Basket_High_Water_Mark, 2) + " | Lock: $" + DoubleToString(Basket_High_Water_Mark - Basket_Trail_Step, 2) + ")";
+       p_clr = clrGold; // Gold for activated trail
    } else {
-       p_txt += " (Start: $" + DoubleToString(Basket_Trail_Start, 2) + ")";
+       // Waiting for Trail
+       p_txt = p_txt + " (Trail Start: $" + DoubleToString(Basket_Trail_Start, 2) + ")";
    }
-   DrawLabel("LQ_Prof", 15, 60, p_txt, 9, p_clr); 
-
-   bool bull = (price > ema);
-   DrawLabel("LQ_Trend", 15, 95, "[1] M12 Trend: " + (bull ? "BULL" : "BEAR") + " | M30: " + (m30_ok ? "OK" : "Diff"), 8, m30_ok ? (bull ? clrLime : clrRed) : clrGray);
-   DrawLabel("LQ_M3T", 15, 110, "    M3 Trend: " + (m3_ok_trend ? "Synced" : "Conflict"), 8, m3_ok_trend ? clrLime : clrRed);
-   DrawLabel("LQ_Mom", 15, 130, "[2] ADX: " + DoubleToString(adx, 1) + " | Mom: " + (mom_ok?"Push":"Wait"), 8, (adx > ADX_Min_Level && mom_ok) ? clrLime : clrGray);
-   DrawLabel("LQ_Vol", 15, 150, "[3] M3 Vol: " + (vol < vol_ma ? "Squeeze" : "High") + " | M1 Pre: " + (m1_struct_ok ? "OK" : "Noisy"), 8, m1_struct_ok ? clrLime : clrGray);
-   DrawLabel("LQ_Ign", 15, 165, "    M1 Ignition: " + (vol_ignite ? "IGNITED (GO)" : "Wait"), 8, vol_ignite ? clrLime : clrRed);
    
-   bool rsi_all_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min) && (bull ? rsi_m12 > 50 : rsi_m12 < 50);
-   DrawLabel("LQ_RSI", 15, 185, "[4] RSI: " + DoubleToString(rsi_m3,1) + "/" + DoubleToString(rsi_m12,1) + (rsi_all_ok?" (OK)":" (Wait)"), 8, rsi_all_ok ? clrLime : clrRed); 
-   DrawLabel("LQ_MACD", 15, 200, "    MACD: " + ((macd_buy_ok||macd_sell_ok) ? "Confirmed" : "Conflict"), 8, (macd_buy_ok||macd_sell_ok) ? clrLime : clrRed);
+   DrawLabel("LQ_Prof", 15, 60, p_txt, 9, p_clr); 
+   
+   // --- ENTRY FILTERS ---
+   bool bull = (price > ema);
+   string t_txt = "[1] M12 Trend: " + (bull ? "BULL" : "BEAR") + " | M30: " + (m30_ok ? "OK" : "Diff");
+   DrawLabel("LQ_Trend", 15, 95, t_txt, 8, m30_ok ? (bull ? clrLime : clrRed) : clrGray);
+   
+   string m3t_txt = "    M3 Trend: " + (m3_ok_trend ? "Synced" : "Conflict");
+   DrawLabel("LQ_M3T", 15, 110, m3t_txt, 8, m3_ok_trend ? clrLime : clrRed);
 
-   double dist = (bull) ? (b_trig - Ask)/Point : (Bid - s_trig)/Point;
-   string trig_txt = (bull ? "BUY ZONE: > " : "SELL ZONE: < ") + DoubleToString(bull?b_trig:s_trig, Digits) + " (Dist: " + DoubleToString(dist,0) + ")";
-   DrawLabel("LQ_Trig", 15, 230, trig_txt, 9, dist <= 0 ? clrLime : (bull?clrDeepSkyBlue:clrOrangeRed));
+   bool adx_pass = (adx > ADX_Min_Level);
+   string mom_txt = "[2] ADX: " + DoubleToString(adx, 1) + (adx_pass?"(OK)":"(Weak)") + " | Mom: " + (mom_ok?"Push":"Wait");
+   DrawLabel("LQ_Mom", 15, 130, mom_txt, 8, (adx_pass && mom_ok) ? clrLime : clrGray);
 
-   DrawLabel("LQ_Acc", 15, 290, "Equity: $" + DoubleToString(AccountEquity(), 2), 9, clrWhite);
-   DrawLabel("LQ_ST", 15, 310, "STATUS: " + (orders > 0 ? "MANAGING..." : (dist<=0 ? "ZONE REACHED!" : "HUNTING...")), 9, orders > 0 ? clrYellow : clrDeepSkyBlue);
+   string v_txt = "[3] M3 Vol: " + (vol < vol_ma ? "Squeeze" : "High") + " | M1 Pre: " + (m1_struct_ok ? "OK" : "Noisy");
+   DrawLabel("LQ_Vol", 15, 150, v_txt, 8, m1_struct_ok ? clrLime : clrGray);
+
+   string vi_txt = "    M1 Ignition: " + (vol_ignite ? "IGNITED (GO)" : "Low Energy");
+   DrawLabel("LQ_Ign", 15, 165, vi_txt, 8, vol_ignite ? clrLime : clrRed);
+
+   bool m3_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min);
+   bool m12_ok = (bull ? rsi_m12 > 50 : rsi_m12 < 50);
+   bool rsi_all_ok = m3_ok && m12_ok;
+   
+   string r_txt = "[4] RSI: " + DoubleToString(rsi_m3,1) + "/" + DoubleToString(rsi_m12,1) + (rsi_all_ok?" (Sync)":" (Wait)");
+   DrawLabel("LQ_RSI", 15, 185, r_txt, 8, rsi_all_ok ? clrLime : clrRed); 
+
+   string macd_txt = "    MACD: " + ((macd_buy_ok||macd_sell_ok) ? "Confirmed" : "Conflict");
+   DrawLabel("LQ_MACD", 15, 200, macd_txt, 8, (macd_buy_ok||macd_sell_ok) ? clrLime : clrRed);
+
+   double dist = 0;
+   if (bull) {
+       dist = (b_trig - Ask)/Point;
+       string trig_txt = "BUY ZONE: > " + DoubleToString(b_trig, Digits) + " (Dist: " + DoubleToString(dist,0) + ")";
+       DrawLabel("LQ_Trig", 15, 230, trig_txt, 9, dist <= 0 ? clrLime : clrDeepSkyBlue);
+   } else {
+       dist = (Bid - s_trig)/Point;
+       string trig_txt = "SELL ZONE: < " + DoubleToString(s_trig, Digits) + " (Dist: " + DoubleToString(dist,0) + ")";
+       DrawLabel("LQ_Trig", 15, 230, trig_txt, 9, dist <= 0 ? clrLime : clrOrangeRed);
+   }
+
+   string acc = "Equity: $" + DoubleToString(AccountEquity(), 2);
+   DrawLabel("LQ_Acc", 15, 310, acc, 9, clrWhite);
+ 
+   string st = "STATUS: " + (orders > 0 ? "MANAGING..." : (dist<=0 ? "ZONE REACHED!" : "HUNTING..."));
+   DrawLabel("LQ_ST", 15, 330, st, 9, orders > 0 ? clrYellow : clrDeepSkyBlue);
 }
 
 void DrawLabel(string name, int x, int y, string text, int size, color clr) {
