@@ -25,7 +25,13 @@ extern string _R_ = "=== Rolling Profit (Trail) ===";
 extern bool   Use_Basket_Trail   = true;  // Enable Rolling Profit
 extern double Basket_Trail_Start = 5.0;   // Trigger (Was 8, $5 is faster/safer)
 extern double Basket_Trail_Step  = 2.0;   // Retrace (Allow $2 retrace -> Lock $3)
+extern double Basket_Trail_Step  = 2.0;   // Retrace (Allow $2 retrace -> Lock $3)
 extern double Basket_Target_USD  = 50.0;  // Hard Cap (Grand Slam)
+
+extern string _E_ = "=== Smart Exit V9.3 ===";
+extern bool   Use_MACD_Exit      = true;  // Enable "Shrinking Momentum" Exit
+extern double MACD_Exit_Min_Profit = 2.0; // Only exit if profit > $2
+
 
 extern int    Max_Spread_Point = 50;  
 
@@ -47,8 +53,8 @@ extern bool   Use_M30_Filter  = true; // M30 Filter (Safety)
 extern int    M30_Buffer_Points = 20; 
 
 // --- Global Variables ---
-int    Magic  = 2026920; // V9.2 Magic
-string sComm  = "LQ_V9.2_Roll";
+int    Magic  = 2026930; // V9.3 Magic
+string sComm  = "LQ_V9.3_Smart";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
 
@@ -77,19 +83,7 @@ extern int EndHour   = 22;
 //| Main Logic                                                       |
 //+------------------------------------------------------------------+
 void OnTick() {
-   if(CheckRisk()) return;      
-   ManageGridExit();            // Rolling Profit Logic Here
-   ManageGridRecovery();        
-
-   if (CountOrders(0) > 0 || CountOrders(1) > 0) return; 
-
-   // Reset High Water Mark when basket is empty
-   Basket_High_Water_Mark = -99999.0;
-
-   // --- V8.7 Entry Logic ---
-   int hour = TimeHour(TimeCurrent());
-   if (Use_Time_Filter && (hour < StartHour || hour >= EndHour)) return; 
-
+   // --- ALWAYS Update Indicators First ---
    datetime current_time = TimeCurrent();
    int period_seconds = 3 * 60;
    int seconds_In = TimeSeconds(current_time) + TimeMinute(current_time) * 60 + TimeHour(current_time) * 3600;
@@ -144,6 +138,54 @@ void OnTick() {
    if (Vol_Squeeze_F >= 0.8) vol_ignite = (Volume[0] > vol_m1_avg * 0.8); 
    bool m1_pre_sqz = !Use_M1_Structure || (iVolume(NULL, PERIOD_M1, 1) < vol_m1_avg * 1.3); 
 
+   // --- Update UI ALWAYS ---
+   bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
+   bool ui_m3_sync = (is_uptrend && m3_trend_up) || (is_dntrend && m3_trend_dn);
+   bool ui_mom_ok = (is_uptrend && momentum_up) || (is_dntrend && momentum_dn);
+   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite, ui_m3_sync, ui_mom_ok, m1_pre_sqz, ui_m30_sync);
+
+   // --- Manage Grid ---
+   if(CheckRisk()) return;      
+   ManageGridExit();           
+   ManageGridRecovery();        
+
+   // --- V9.3 Smart MACD Exit ---
+   if (Use_MACD_Exit) {
+       double profit = 0;
+       int type = -1;
+       int cnt = 0;
+       for(int i=0; i<OrdersTotal(); i++) if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
+           profit += OrderProfit() + OrderSwap() + OrderCommission();
+           type = OrderType();
+           cnt++;
+       }
+       
+       if (cnt > 0 && profit > MACD_Exit_Min_Profit) {
+           // If Buy basket AND MACD turns weak (Main < Sig)
+           if (type == OP_BUY && m12_macd_main < m12_macd_sig) {
+               Print("V9.3 Smart MACD Exit (Buy Weakness). Profit: $", profit);
+               CloseAllOrders();
+               return;
+           }
+           // If Sell basket AND MACD turns weak (Main > Sig)
+           if (type == OP_SELL && m12_macd_main > m12_macd_sig) {
+               Print("V9.3 Smart MACD Exit (Sell Weakness). Profit: $", profit);
+               CloseAllOrders();
+               return;
+           }
+       }
+   }
+
+   // --- Entry Logic (Only if Empty) ---
+   if (CountOrders(0) > 0 || CountOrders(1) > 0) return; 
+
+    // Reset High Water Mark when basket is empty
+   Basket_High_Water_Mark = -99999.0;
+
+   // Time Filter
+   int hour = TimeHour(TimeCurrent());
+   if (Use_Time_Filter && (hour < StartHour || hour >= EndHour)) return; 
+   
    bool strict_buy  = is_uptrend && m3_trend_up && m30_bull && macd_buy_ok && vol_ignite && m1_pre_sqz;
    bool strict_sell = is_dntrend && m3_trend_dn && m30_bear && macd_sell_ok && vol_ignite && m1_pre_sqz;  
    
@@ -158,11 +200,6 @@ void OnTick() {
           OpenInitialTrade(1); Order_Placed_In_Current_Bar = true; 
        }
    }
-   
-   bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
-   bool ui_m3_sync = (is_uptrend && m3_trend_up) || (is_dntrend && m3_trend_dn);
-   bool ui_mom_ok = (is_uptrend && momentum_up) || (is_dntrend && momentum_dn);
-   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite, ui_m3_sync, ui_mom_ok, m1_pre_sqz, ui_m30_sync);
 }
 
 //+------------------------------------------------------------------+
