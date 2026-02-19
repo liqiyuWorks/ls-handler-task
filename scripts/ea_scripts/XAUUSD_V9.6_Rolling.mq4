@@ -3,7 +3,7 @@
 //|                    Precision Entry + Adaptive Trend Trailing      |
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
-#property version   "9.50"
+#property version   "9.90"
 #property strict
 
 extern string _S_ = "=== Protection (Hybrid) ===";
@@ -24,7 +24,7 @@ extern double Lot_Multi         = 1.3;   // Balanced Multiplier (1.3x)
 extern string _R_ = "=== Adaptive Rolling Profit ===";
 extern bool   Use_Basket_Trail   = true;  
 extern double Basket_Trail_Start = 3.0;   // Trigger Stage 1 (Wait for $3)
-extern double Basket_Trail_Step  = 2.0;   // Stage 1 Retrace (Lock $1)
+extern double Basket_Trail_Step  = 1.0;   // Stage 1 Retrace (Lock $2)
 extern double Basket_Trend_Start = 8.0;   // Trigger Stage 2 (Trend Mode)
 extern double Basket_Trend_Step  = 5.0;   // Stage 2 Retrace (Give room for big fish)
 extern double Basket_Target_USD  = 50.0;  // Hard Cap (Grand Slam)
@@ -40,22 +40,24 @@ extern string _P_ = "=== Entry V8.7 (Precision) ===";
 extern int    Trend_MA_Period = 34;   
 extern double Vol_Squeeze_F   = 1.0; 
 extern int    Vol_MA_Period   = 20;   
-extern int    RSI_Buy_Max     = 75;   
-extern int    RSI_Sell_Min    = 25;   
-extern int    Breakout_Buffer = 2;    // Tighter entry (Was 10, now 2 points)
-extern bool   Use_Momentum    = false; // Flash Mode: Enter on first tick cross
+extern int    RSI_Buy_Max     = 70;   // Titan: Tighter M3 Entry (Was 70)
+extern int    RSI_Sell_Min    = 30;   // Titan: Tighter M3 Entry (Was 30)
+extern int    RSI_M12_Limit   = 75;   // Titan: M12 Hard Limit (User Request: 75 to avoid Vertex)
+extern int    Max_Dev_From_MA = 350;  // Gravity: Don't buy if >$3.5 from MA (Mid-Band)
+extern int    Breakout_Buffer = 2;    
+extern bool   Use_Momentum    = false; 
 extern bool   Use_MACD_Filter = true; 
 extern bool   Use_Vol_Ignition= true; 
 extern bool   Use_M1_Structure= true; 
 extern int    ADX_Period      = 14;   
-extern int    ADX_Min_Level   = 20;   // Higher ADX = More Accurate Trend
+extern int    ADX_Min_Level   = 20;   
 
 extern bool   Use_M30_Filter  = true; 
 extern int    M30_Buffer_Points = 20; 
 
 // --- Global Variables ---
 int    Magic  = 2026930; 
-string sComm  = "LQ_V9.4_Smart";
+string sComm  = "LQ_V9.9_Titan";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
 
@@ -67,19 +69,19 @@ struct SyntheticBar {
 };
 
 //+------------------------------------------------------------------+
-//| Initialization                                                   |
+//| Initialization + Timer                                           |
 //+------------------------------------------------------------------+
 int OnInit() {
    EventSetTimer(1); 
    ObjectsDeleteAll(0, "LQ_"); 
    return(INIT_SUCCEEDED); 
 }
-void OnDeinit(const int r) { ObjectsDeleteAll(0, "LQ_"); }
+void OnDeinit(const int r) { ObjectsDeleteAll(0, "LQ_"); EventKillTimer(); }
+void OnTimer() { ChartRedraw(0); } // Force redraw every second
 
 extern bool Use_Time_Filter = false; 
 extern int StartHour = 9;   
 extern int EndHour   = 22;
-
 //+------------------------------------------------------------------+
 //| Main Logic                                                       |
 //+------------------------------------------------------------------+
@@ -118,8 +120,8 @@ void OnTick() {
    
    bool m3_trend_up = (M3_1.b_close > GetSyntheticEMA(3, 34, 1));
    bool m3_trend_dn = (M3_1.b_close < GetSyntheticEMA(3, 34, 1));
-   bool rsi_resonance_buy = (rsi_m3 < RSI_Buy_Max && rsi_m12 > 50); 
-   bool rsi_resonance_sell = (rsi_m3 > RSI_Sell_Min && rsi_m12 < 50); 
+   bool rsi_resonance_buy = (rsi_m3 < RSI_Buy_Max && rsi_m12 > 50 && rsi_m12 < RSI_M12_Limit); 
+   bool rsi_resonance_sell = (rsi_m3 > RSI_Sell_Min && rsi_m12 < 50 && rsi_m12 > (100 - RSI_M12_Limit)); 
    bool momentum_up = !Use_Momentum || (M12_0.b_close > M12_1.b_close);
    bool momentum_dn = !Use_Momentum || (M12_0.b_close < M12_1.b_close);
 
@@ -193,10 +195,14 @@ void OnTick() {
    
    if (current_m3_start == Last_M3_Time && !Order_Placed_In_Current_Bar) { 
        if (spread > Max_Spread_Point) return;
-       if (Ask >= buy_trigger && strict_buy && adx_ok && momentum_up && is_sqz && rsi_resonance_buy) {
+       // V9.7 Gravity Filter: Don't chase the vertex! Only buy near mid-band (MA)
+       bool near_ma_buy = (buy_trigger - ema_m12) < Max_Dev_From_MA * Point;
+       bool near_ma_sell = (ema_m12 - sell_trigger) < Max_Dev_From_MA * Point;
+       
+       if (Ask >= buy_trigger && strict_buy && adx_ok && momentum_up && is_sqz && rsi_resonance_buy && near_ma_buy) {
           OpenInitialTrade(0); Order_Placed_In_Current_Bar = true; 
        }
-       else if (Bid <= sell_trigger && strict_sell && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell) {
+       else if (Bid <= sell_trigger && strict_sell && adx_ok && momentum_dn && is_sqz && rsi_resonance_sell && near_ma_sell) {
           OpenInitialTrade(1); Order_Placed_In_Current_Bar = true; 
        }
    }
@@ -282,8 +288,8 @@ void CloseAllOrders() {
     for(int i=OrdersTotal()-1; i>=0; i--) {
         if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
             bool res = false;
-            if(OrderType()==OP_BUY) res = OrderClose(OrderTicket(), OrderLots(), Bid, 3, clrGray);
-            else res = OrderClose(OrderTicket(), OrderLots(), Ask, 3, clrGray);
+            if(OrderType()==OP_BUY) res = OrderClose(OrderTicket(), OrderLots(), Bid, 10, clrGray);
+            else res = OrderClose(OrderTicket(), OrderLots(), Ask, 10, clrGray);
             if(!res) Print("Close Error: ", GetLastError());
         }
     }
@@ -370,8 +376,9 @@ int CountOrders(int type) {
 //+------------------------------------------------------------------+
 void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok) {
    Comment("");   
-   DrawRect("LQ_BG", 5, 5, 300, 340, clrBlack); 
-   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.4 SMART (Two-Stage Trail)", 10, clrGold);
+   color bg_color = clrDarkSlateGray; // Safe dark gray color for BG
+   DrawRect("LQ_BG", 5, 5, 300, 360, bg_color); 
+   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.9 TITAN (RSI 75 Hard Limit)", 10, clrGold);
 
    int orders = CountOrders(OP_BUY) + CountOrders(OP_SELL);
    double open_prof = 0;
@@ -399,7 +406,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    DrawLabel("LQ_Vol", 15, 150, "[3] M3 Vol: " + (vol < vol_ma ? "Squeeze" : "High") + " | M1 Pre: " + (m1_struct_ok ? "OK" : "Noisy"), 8, m1_struct_ok ? clrLime : clrGray);
    DrawLabel("LQ_Ign", 15, 165, "    M1 Ignition: " + (vol_ignite ? "IGNITED (GO)" : "Wait"), 8, vol_ignite ? clrLime : clrRed);
    
-   bool rsi_all_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min) && (bull ? rsi_m12 > 50 : rsi_m12 < 50);
+   bool rsi_all_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min) && (bull ? rsi_m12 > 50 && rsi_m12 < RSI_M12_Limit : rsi_m12 < 50 && rsi_m12 > (100 - RSI_M12_Limit));
    DrawLabel("LQ_RSI", 15, 185, "[4] RSI: " + DoubleToString(rsi_m3,1) + "/" + DoubleToString(rsi_m12,1) + (rsi_all_ok?" (OK)":" (Wait)"), 8, rsi_all_ok ? clrLime : clrRed); 
    DrawLabel("LQ_MACD", 15, 200, "    MACD: " + ((macd_buy_ok||macd_sell_ok) ? "Confirmed" : "Conflict"), 8, (macd_buy_ok||macd_sell_ok) ? clrLime : clrRed);
 
@@ -408,17 +415,23 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    DrawLabel("LQ_Trig", 15, 230, trig_txt, 9, dist <= 0 ? clrLime : (bull?clrDeepSkyBlue:clrOrangeRed));
 
    DrawLabel("LQ_Acc", 15, 290, "Equity: $" + DoubleToString(AccountEquity(), 2), 9, clrWhite);
+   DrawLabel("LQ_Acc", 15, 290, "Equity: $" + DoubleToString(AccountEquity(), 2), 9, clrWhite);
    DrawLabel("LQ_ST", 15, 310, "STATUS: " + (orders > 0 ? "MANAGING..." : (dist<=0 ? "ZONE REACHED!" : "HUNTING...")), 9, orders > 0 ? clrYellow : clrDeepSkyBlue);
+   
+   ChartRedraw(0); // Force UI Update
 }
 
 void DrawLabel(string name, int x, int y, string text, int size, color clr) {
    if(ObjectFind(0, name) < 0) {
       ObjectCreate(0, name, OBJ_LABEL, 0, 0, 0);
       ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x);
-      ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
       ObjectSetInteger(0, name, OBJPROP_SELECTABLE, 0);
+      ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
+      ObjectSetInteger(0, name, OBJPROP_BACK, false); // Keep on top
    }
+   // Always Update Properties
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x);
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
    ObjectSetString(0, name, OBJPROP_TEXT, text);
    ObjectSetInteger(0, name, OBJPROP_FONTSIZE, (long)size);
    ObjectSetInteger(0, name, OBJPROP_COLOR, (long)clr);
@@ -427,8 +440,14 @@ void DrawRect(string name, int x, int y, int w, int h, color bg_color) {
    if(ObjectFind(0, name) < 0) {
       ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
       ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+      ObjectSetInteger(0, name, OBJPROP_HIDDEN, false);
+      ObjectSetInteger(0, name, OBJPROP_BACK, false); // Keep on top but behind labels
    }
-   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x); ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
-   ObjectSetInteger(0, name, OBJPROP_XSIZE, (long)w); ObjectSetInteger(0, name, OBJPROP_YSIZE, (long)h);
-   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, (long)bg_color); ObjectSetInteger(0, name, OBJPROP_BACK, 0); 
+   // Always Update Properties
+   ObjectSetInteger(0, name, OBJPROP_XDISTANCE, (long)x); 
+   ObjectSetInteger(0, name, OBJPROP_YDISTANCE, (long)y);
+   ObjectSetInteger(0, name, OBJPROP_XSIZE, (long)w); 
+   ObjectSetInteger(0, name, OBJPROP_YSIZE, (long)h);
+   ObjectSetInteger(0, name, OBJPROP_BGCOLOR, (long)bg_color); 
+   ObjectSetInteger(0, name, OBJPROP_BORDER_TYPE, BORDER_FLAT); 
 }
