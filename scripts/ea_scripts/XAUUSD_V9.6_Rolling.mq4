@@ -3,7 +3,7 @@
 //|                    Precision Entry + Adaptive Trend Trailing      |
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
-#property version   "9.90"
+#property version   "9.110"
 #property strict
 
 extern string _S_ = "=== Protection (Hybrid) ===";
@@ -40,10 +40,11 @@ extern string _P_ = "=== Entry V8.7 (Precision) ===";
 extern int    Trend_MA_Period = 34;   
 extern double Vol_Squeeze_F   = 1.0; 
 extern int    Vol_MA_Period   = 20;   
-extern int    RSI_Buy_Max     = 70;   // Titan: Tighter M3 Entry (Was 70)
-extern int    RSI_Sell_Min    = 30;   // Titan: Tighter M3 Entry (Was 30)
-extern int    RSI_M12_Limit   = 75;   // Titan: M12 Hard Limit (User Request: 75 to avoid Vertex)
-extern int    Max_Dev_From_MA = 350;  // Gravity: Don't buy if >$3.5 from MA (Mid-Band)
+extern int    RSI_Buy_Max     = 70;   // Balanced: Return to Classic 70 (Was 68)
+extern int    RSI_Sell_Min    = 30;   // Balanced: Return to Classic 30 (Was 32)
+extern int    RSI_M12_Limit   = 80;   // Balanced: M12 Limit 80 (Was 75, give more room)
+extern int    Max_Dev_From_MA = 350;  // Gravity Macro: Don't buy if >$3.5 from M12 MA
+extern int    Max_Dev_From_M3 = 250;  // Gravity Micro: Relaxed to $2.5 (Was $1.5)
 extern int    Breakout_Buffer = 2;    
 extern bool   Use_Momentum    = false; 
 extern bool   Use_MACD_Filter = true; 
@@ -57,7 +58,7 @@ extern int    M30_Buffer_Points = 20;
 
 // --- Global Variables ---
 int    Magic  = 2026930; 
-string sComm  = "LQ_V9.9_Titan";
+string sComm  = "LQ_V9.11_Balanced";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
 
@@ -102,6 +103,7 @@ void OnTick() {
    SyntheticBar M3_1 = GetSyntheticBar(3, 1);   
    
    double ema_m12 = GetSyntheticEMA(12, Trend_MA_Period, 0); 
+   double ema_m3  = GetSyntheticEMA(3, Trend_MA_Period, 0); // V9.10: Micro Gravity Baseline
    double vol_ma_m3 = GetSyntheticVolMA(3, Vol_MA_Period, 1); 
    double rsi_m3 = GetSyntheticRSI(3, 14);   
    double rsi_m12 = GetSyntheticRSI(12, 14); 
@@ -145,10 +147,13 @@ void OnTick() {
    bool macd_sell_ok = !Use_MACD_Filter || (m12_macd_main < m12_macd_sig);
 
    // --- Update UI ALWAYS ---
+   double cur_dev_m12 = MathAbs(M12_0.b_close - ema_m12) / Point;
+   double cur_dev_m3  = MathAbs(M12_0.b_close - ema_m3) / Point; // Use M12 approx close
+   
    bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
    bool ui_m3_sync = (is_uptrend && m3_trend_up) || (is_dntrend && m3_trend_dn);
    bool ui_mom_ok = (is_uptrend && momentum_up) || (is_dntrend && momentum_dn);
-   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite, ui_m3_sync, ui_mom_ok, m1_pre_sqz, ui_m30_sync);
+   UpdateUI(M12_0.b_close, ema_m12, M3_1.b_volume, vol_ma_m3, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, macd_buy_ok, macd_sell_ok, vol_ignite, ui_m3_sync, ui_mom_ok, m1_pre_sqz, ui_m30_sync, cur_dev_m12, cur_dev_m3);
 
    // --- Manage Grid ---
    if(CheckRisk()) return;      
@@ -195,9 +200,9 @@ void OnTick() {
    
    if (current_m3_start == Last_M3_Time && !Order_Placed_In_Current_Bar) { 
        if (spread > Max_Spread_Point) return;
-       // V9.7 Gravity Filter: Don't chase the vertex! Only buy near mid-band (MA)
-       bool near_ma_buy = (buy_trigger - ema_m12) < Max_Dev_From_MA * Point;
-       bool near_ma_sell = (ema_m12 - sell_trigger) < Max_Dev_From_MA * Point;
+       // V9.10 Gravity Pro: Dual Layer Deviation (Macro + Micro)
+       bool near_ma_buy = (buy_trigger - ema_m12) < Max_Dev_From_MA * Point && (buy_trigger - ema_m3) < Max_Dev_From_M3 * Point;
+       bool near_ma_sell = (ema_m12 - sell_trigger) < Max_Dev_From_MA * Point && (ema_m3 - sell_trigger) < Max_Dev_From_M3 * Point;
        
        if (Ask >= buy_trigger && strict_buy && adx_ok && momentum_up && is_sqz && rsi_resonance_buy && near_ma_buy) {
           OpenInitialTrade(0); Order_Placed_In_Current_Bar = true; 
@@ -372,13 +377,13 @@ int CountOrders(int type) {
 }
 
 //+------------------------------------------------------------------+
-//| UI (V9.4 Compact)                                                |
+//| UI (V9.11 Detailed)                                              |
 //+------------------------------------------------------------------+
-void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok) {
+void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok, double cur_dev_m12, double cur_dev_m3) {
    Comment("");   
    color bg_color = clrDarkSlateGray; // Safe dark gray color for BG
    DrawRect("LQ_BG", 5, 5, 300, 360, bg_color); 
-   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.9 TITAN (RSI 75 Hard Limit)", 10, clrGold);
+   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.11 BALANCED (Relaxed Gravity)", 10, clrGold);
 
    int orders = CountOrders(OP_BUY) + CountOrders(OP_SELL);
    double open_prof = 0;
@@ -409,12 +414,13 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    bool rsi_all_ok = (bull ? rsi_m3 < RSI_Buy_Max : rsi_m3 > RSI_Sell_Min) && (bull ? rsi_m12 > 50 && rsi_m12 < RSI_M12_Limit : rsi_m12 < 50 && rsi_m12 > (100 - RSI_M12_Limit));
    DrawLabel("LQ_RSI", 15, 185, "[4] RSI: " + DoubleToString(rsi_m3,1) + "/" + DoubleToString(rsi_m12,1) + (rsi_all_ok?" (OK)":" (Wait)"), 8, rsi_all_ok ? clrLime : clrRed); 
    DrawLabel("LQ_MACD", 15, 200, "    MACD: " + ((macd_buy_ok||macd_sell_ok) ? "Confirmed" : "Conflict"), 8, (macd_buy_ok||macd_sell_ok) ? clrLime : clrRed);
+   bool grav_ok = (cur_dev_m12 < Max_Dev_From_MA && cur_dev_m3 < Max_Dev_From_M3);
+   DrawLabel("LQ_Grav", 15, 215, "    Gravity: M12=" + DoubleToString(cur_dev_m12,0) + "/" + IntegerToString(Max_Dev_From_MA) + " | M3=" + DoubleToString(cur_dev_m3,0) + "/" + IntegerToString(Max_Dev_From_M3), 8, grav_ok ? clrLime : clrRed);
 
    double dist = (bull) ? (b_trig - Ask)/Point : (Bid - s_trig)/Point;
    string trig_txt = (bull ? "BUY ZONE: > " : "SELL ZONE: < ") + DoubleToString(bull?b_trig:s_trig, Digits) + " (Dist: " + DoubleToString(dist,0) + ")";
    DrawLabel("LQ_Trig", 15, 230, trig_txt, 9, dist <= 0 ? clrLime : (bull?clrDeepSkyBlue:clrOrangeRed));
 
-   DrawLabel("LQ_Acc", 15, 290, "Equity: $" + DoubleToString(AccountEquity(), 2), 9, clrWhite);
    DrawLabel("LQ_Acc", 15, 290, "Equity: $" + DoubleToString(AccountEquity(), 2), 9, clrWhite);
    DrawLabel("LQ_ST", 15, 310, "STATUS: " + (orders > 0 ? "MANAGING..." : (dist<=0 ? "ZONE REACHED!" : "HUNTING...")), 9, orders > 0 ? clrYellow : clrDeepSkyBlue);
    
