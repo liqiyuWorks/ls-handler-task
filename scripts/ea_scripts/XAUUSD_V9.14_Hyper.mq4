@@ -87,7 +87,7 @@ SyntheticBar GetSyntheticBar(int period_min, int shift);
 double GetSyntheticRSI(int period_min, int rsi_period);
 double GetSyntheticEMA(int period_min, int ma_period, int shift);
 double GetSyntheticVolMA(int period_min, int ma_period, int shift);
-double GetSyntheticMACD(int period_min, int fast_ema, int slow_ema, int signal_ema, int shift, int mode);
+double GetSyntheticMACD(int period_min, int f, int s, int sig, int shift, int mode);
 
 //+------------------------------------------------------------------+
 //| Initialization + Timer                                           |
@@ -127,11 +127,11 @@ void OnTick() {
    double vol_ma_m3 = GetSyntheticVolMA(3, Vol_MA_Period, 1); 
    double rsi_m3 = GetSyntheticRSI(3, 14);   
    double rsi_m12 = GetSyntheticRSI(12, 14); 
-   double adx_m30 = iADX(NULL, PERIOD_M30, ADX_Period, PRICE_CLOSE, MODE_MAIN, 0);
+   double adx_m30 = iADX(NULL, PERIOD_M1, 30 * ADX_Period, PRICE_CLOSE, MODE_MAIN, 0);
    bool adx_ok = (adx_m30 > ADX_Min_Level);
 
-   double ema_m30 = iMA(NULL, PERIOD_M30, 34, 0, MODE_EMA, PRICE_CLOSE, 0);
-   double close_m30 = iClose(NULL, PERIOD_M30, 0);
+   double ema_m30 = GetSyntheticEMA(30, 34, 0);
+   double close_m30 = iClose(NULL, PERIOD_M1, 0);
    double m30_buf = M30_Buffer_Points * Point;
    bool m30_bull = (!Use_M30_Filter || close_m30 > (ema_m30 - m30_buf)); 
    bool m30_bear = (!Use_M30_Filter || close_m30 < (ema_m30 + m30_buf)); 
@@ -309,20 +309,49 @@ SyntheticBar GetSyntheticBar(int period_min, int shift) {
    return bar;
 }
 
-double GetSyntheticEMA(int period_min, int ma_period, int shift) { return iMA(NULL, PERIOD_M1, period_min * ma_period, 0, MODE_EMA, PRICE_CLOSE, shift * period_min); }
-double GetSyntheticRSI(int period_min, int rsi_period) {
-   double g=0, l=0; for (int i=1; i<=rsi_period; i++) {
-      double d = GetSyntheticBar(period_min, i).b_close - GetSyntheticBar(period_min, i+1).b_close;
-      if (d>0) g+=d; else l+=-d;
+double GetSyntheticEMA(int period_min, int ma_period, int shift) { 
+   double alpha = 2.0 / (ma_period + 1.0);
+   double ema = GetSyntheticBar(period_min, shift + ma_period * 2).b_close; // Seed with older price
+   for(int i = ma_period * 2 - 1; i >= 0; i--) {
+      ema = (GetSyntheticBar(period_min, shift + i).b_close - ema) * alpha + ema;
    }
-   return (g+l==0)?50.0:100.0*g/(g+l);
+   return ema;
+}
+double GetSyntheticRSI(int period_min, int rsi_period) {
+   double alpha = 1.0 / rsi_period;
+   double g_ema = 0, l_ema = 0;
+   // Seed with simple average
+   for(int i = rsi_period; i >= 1; i--) {
+      double d = GetSyntheticBar(period_min, i + rsi_period).b_close - GetSyntheticBar(period_min, i + rsi_period + 1).b_close;
+      if (d > 0) g_ema += d; else l_ema += -d;
+   }
+   g_ema /= rsi_period; l_ema /= rsi_period;
+   // Evolve Wilder's Smoothing
+   for(int i = rsi_period; i >= 1; i--) {
+      double d = GetSyntheticBar(period_min, i).b_close - GetSyntheticBar(period_min, i+1).b_close;
+      double g = (d > 0) ? d : 0;
+      double l = (d < 0) ? -d : 0;
+      g_ema = (g - g_ema) * alpha + g_ema;
+      l_ema = (l - l_ema) * alpha + l_ema;
+   }
+   return (g_ema + l_ema == 0) ? 50.0 : 100.0 * (g_ema / (g_ema + l_ema));
 }
 double GetSyntheticVolMA(int period_min, int ma_period, int shift) {
    double s=0; for(int i=0; i<ma_period; i++) s+=GetSyntheticBar(period_min, shift+i).b_volume; return s/ma_period;
 }
 double GetSyntheticMACD(int period_min, int f, int s, int sig, int shift, int mode) {
-   if (mode==MODE_MAIN) return GetSyntheticEMA(period_min, f, shift) - GetSyntheticEMA(period_min, s, shift);
-   double sum=0; for(int i=0; i<sig; i++) sum+=(GetSyntheticEMA(period_min, f, shift+i)-GetSyntheticEMA(period_min, s, shift+i)); return sum/sig;
+   double main = GetSyntheticEMA(period_min, f, shift) - GetSyntheticEMA(period_min, s, shift);
+   if (mode == MODE_MAIN) return main;
+   
+   // Signal: 9-period EMA of (Fast - Slow)
+   double alpha = 2.0 / (sig + 1.0);
+   int oldest = sig * 2;
+   double signal = GetSyntheticEMA(period_min, f, shift + oldest) - GetSyntheticEMA(period_min, s, shift + oldest);
+   for(int i = oldest - 1; i >= 0; i--) {
+      double m_val = GetSyntheticEMA(period_min, f, shift + i) - GetSyntheticEMA(period_min, s, shift + i);
+      signal = (m_val - signal) * alpha + signal;
+   }
+   return signal;
 }
 
 bool CheckRisk() { 
