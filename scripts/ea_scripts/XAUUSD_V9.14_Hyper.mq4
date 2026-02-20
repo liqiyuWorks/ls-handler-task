@@ -157,11 +157,11 @@ void OnTick() {
    double eff_buf = (vol_ignite && Volume[0] > vol_m1_avg * 1.5) ? 0 : buffer;
    
    double buy_trigger, sell_trigger;
-   if (Use_Shadow_Entry && Close[1] > Open[1]) buy_trigger = Close[1] + eff_buf; 
-   else buy_trigger = High[1] + eff_buf;
+   if (Use_Shadow_Entry && iClose(NULL, PERIOD_M1, 1) > iOpen(NULL, PERIOD_M1, 1)) buy_trigger = iClose(NULL, PERIOD_M1, 1) + eff_buf; 
+   else buy_trigger = iHigh(NULL, PERIOD_M1, 1) + eff_buf;
    
-   if (Use_Shadow_Entry && Close[1] < Open[1]) sell_trigger = Close[1] - eff_buf;
-   else sell_trigger = Low[1] - eff_buf;
+   if (Use_Shadow_Entry && iClose(NULL, PERIOD_M1, 1) < iOpen(NULL, PERIOD_M1, 1)) sell_trigger = iClose(NULL, PERIOD_M1, 1) - eff_buf;
+   else sell_trigger = iLow(NULL, PERIOD_M1, 1) - eff_buf;
    
    double m12_macd_main = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_MAIN);
    double m12_macd_sig  = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_SIGNAL);
