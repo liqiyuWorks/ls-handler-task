@@ -1,6 +1,6 @@
 //+------------------------------------------------------------------+
-//|                                  LiQiyu_Strategy_V9.4_Smart.mq4 |
-//|                    Precision Entry + Adaptive Trend Trailing      |
+//|                                  LiQiyu_Strategy_V9.12_Pro.mq4  |
+//|                    High-Volatility Gravity + Adaptive Trailing    |
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
 #property version   "9.120"
@@ -20,7 +20,7 @@ extern int    Fix_Dist          = 300;
 
 extern double Lot_Multi         = 1.3;   // Balanced Multiplier (1.3x)
 
-// --- V9.4 Accelerated Trail (Adaptive) ---
+// --- V9.8 QuickLock (Safe Entry+Fast Exit) ---
 extern string _R_ = "=== Adaptive Rolling Profit ===";
 extern bool   Use_Basket_Trail   = true;  
 extern double Basket_Trail_Start = 3.0;   // Trigger Stage 1 (Wait for $3)
@@ -35,16 +35,16 @@ extern double MACD_Exit_Min_Profit = 2.0; // Only exit if profit > $2
 
 extern int    Max_Spread_Point = 50;  
 
-// --- Strategy Parameters (V8.7 Precision Entry) ---
-extern string _P_ = "=== Entry V8.7 (Precision) ===";
+// --- Strategy Parameters (V9.12 Pro Dynamic Gravity) ---
+extern string _P_ = "=== Entry V9.12 (Pro) ===";
 extern int    Trend_MA_Period = 34;   
 extern double Vol_Squeeze_F   = 1.0; 
 extern int    Vol_MA_Period   = 20;   
-extern int    RSI_Buy_Max     = 70;   // Balanced: Return to Classic 70 (Was 68)
-extern int    RSI_Sell_Min    = 30;   // Balanced: Return to Classic 30 (Was 32)
-extern int    RSI_M12_Limit   = 80;   // Balanced: M12 Limit 80 (Was 75, give more room)
-extern int    Max_Dev_From_MA = 550;  // Gravity Pro: $5.5 (Allow High Volatility)
-extern int    Max_Dev_From_M3 = 400;  // Gravity Pro: $4.0 (Allow High Volatility)
+extern int    RSI_Buy_Max     = 70;   // Balanced: Return to Classic 70
+extern int    RSI_Sell_Min    = 30;   // Balanced: Return to Classic 30
+extern int    RSI_M12_Limit   = 80;   // Balanced: M12 Limit 80 (Allowing strong trends)
+extern int    Max_Dev_From_MA = 550;  // Gravity Macro: $5.5 (Allow High Volatility)
+extern int    Max_Dev_From_M3 = 400;  // Gravity Micro: $4.0 (Allow High Volatility)
 extern int    Breakout_Buffer = 2;    
 extern bool   Use_Momentum    = false; 
 extern bool   Use_MACD_Filter = true; 
@@ -58,7 +58,7 @@ extern int    M30_Buffer_Points = 20;
 
 // --- Global Variables ---
 int    Magic  = 2026930; 
-string sComm  = "LQ_V9.12_Dynamic_Gravity";
+string sComm  = "LQ_V9.12_Pro";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
 
@@ -200,7 +200,7 @@ void OnTick() {
    
    if (current_m3_start == Last_M3_Time && !Order_Placed_In_Current_Bar) { 
        if (spread > Max_Spread_Point) return;
-       // V9.10 Gravity Pro: Dual Layer Deviation (Macro + Micro)
+       // V9.12 Dynamic Gravity Pro: High Volatility Deviation
        bool near_ma_buy = (buy_trigger - ema_m12) < Max_Dev_From_MA * Point && (buy_trigger - ema_m3) < Max_Dev_From_M3 * Point;
        bool near_ma_sell = (ema_m12 - sell_trigger) < Max_Dev_From_MA * Point && (ema_m3 - sell_trigger) < Max_Dev_From_M3 * Point;
        
@@ -266,14 +266,14 @@ void ManageGridRecovery() {
     if (type == OP_BUY) {
         if ((last_price - Ask) / Point >= grid_dist / Point) {
             double new_lot = NormalizeDouble(last_lot * Lot_Multi, 2); 
-            int res = OrderSend(Symbol(), OP_BUY, new_lot, Ask, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
+            int res = OrderSend(Symbol(), OP_BUY, new_lot, Ask, 10, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
             if(res < 0) Print("Grid Buy Error: ", GetLastError());
         }
     }
     else if (type == OP_SELL) {
         if ((Bid - last_price) / Point >= grid_dist / Point) {
             double new_lot = NormalizeDouble(last_lot * Lot_Multi, 2); 
-            int res = OrderSend(Symbol(), OP_SELL, new_lot, Bid, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
+            int res = OrderSend(Symbol(), OP_SELL, new_lot, Bid, 10, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
             if(res < 0) Print("Grid Sell Error: ", GetLastError());
         }
     }
@@ -293,6 +293,7 @@ void CloseAllOrders() {
     for(int i=OrdersTotal()-1; i>=0; i--) {
         if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
             bool res = false;
+            // V9.8 Optimized Slippage: 10 points
             if(OrderType()==OP_BUY) res = OrderClose(OrderTicket(), OrderLots(), Bid, 10, clrGray);
             else res = OrderClose(OrderTicket(), OrderLots(), Ask, 10, clrGray);
             if(!res) Print("Close Error: ", GetLastError());
@@ -377,7 +378,7 @@ int CountOrders(int type) {
 }
 
 //+------------------------------------------------------------------+
-//| UI (V9.11 Detailed)                                              |
+//| UI (V9.12 Detailed)                                              |
 //+------------------------------------------------------------------+
 void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok, double cur_dev_m12, double cur_dev_m3) {
    Comment("");   

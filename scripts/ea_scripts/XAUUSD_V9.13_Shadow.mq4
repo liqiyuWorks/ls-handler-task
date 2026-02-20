@@ -1,9 +1,9 @@
 //+------------------------------------------------------------------+
-//|                                  LiQiyu_Strategy_V9.4_Smart.mq4 |
-//|                    Precision Entry + Adaptive Trend Trailing      |
+//|                                  LiQiyu_Strategy_V9.13_Shadow.mq4|
+//|                    Shadow Strike (Early Entry) + Gravity Pro      |
 //+------------------------------------------------------------------+
 #property copyright "Li Qiyu Quant Labs"
-#property version   "9.120"
+#property version   "9.130"
 #property strict
 
 extern string _S_ = "=== Protection (Hybrid) ===";
@@ -20,7 +20,7 @@ extern int    Fix_Dist          = 300;
 
 extern double Lot_Multi         = 1.3;   // Balanced Multiplier (1.3x)
 
-// --- V9.4 Accelerated Trail (Adaptive) ---
+// --- V9.8 QuickLock (Safe Entry+Fast Exit) ---
 extern string _R_ = "=== Adaptive Rolling Profit ===";
 extern bool   Use_Basket_Trail   = true;  
 extern double Basket_Trail_Start = 3.0;   // Trigger Stage 1 (Wait for $3)
@@ -35,16 +35,17 @@ extern double MACD_Exit_Min_Profit = 2.0; // Only exit if profit > $2
 
 extern int    Max_Spread_Point = 50;  
 
-// --- Strategy Parameters (V8.7 Precision Entry) ---
-extern string _P_ = "=== Entry V8.7 (Precision) ===";
+// --- Strategy Parameters (V9.13 Shadow Strike) ---
+extern string _P_ = "=== Entry V9.13 (Shadow) ===";
+extern bool   Use_Shadow_Entry = true;    // [NEW] Use Close[1] instead of High[1]
 extern int    Trend_MA_Period = 34;   
 extern double Vol_Squeeze_F   = 1.0; 
 extern int    Vol_MA_Period   = 20;   
-extern int    RSI_Buy_Max     = 70;   // Balanced: Return to Classic 70 (Was 68)
-extern int    RSI_Sell_Min    = 30;   // Balanced: Return to Classic 30 (Was 32)
-extern int    RSI_M12_Limit   = 80;   // Balanced: M12 Limit 80 (Was 75, give more room)
-extern int    Max_Dev_From_MA = 550;  // Gravity Pro: $5.5 (Allow High Volatility)
-extern int    Max_Dev_From_M3 = 400;  // Gravity Pro: $4.0 (Allow High Volatility)
+extern int    RSI_Buy_Max     = 70;   // Balanced
+extern int    RSI_Sell_Min    = 30;   // Balanced
+extern int    RSI_M12_Limit   = 80;   // Balanced
+extern int    Max_Dev_From_MA = 550;  // Gravity Pro: $5.5
+extern int    Max_Dev_From_M3 = 400;  // Gravity Pro: $4.0
 extern int    Breakout_Buffer = 2;    
 extern bool   Use_Momentum    = false; 
 extern bool   Use_MACD_Filter = true; 
@@ -58,9 +59,14 @@ extern int    M30_Buffer_Points = 20;
 
 // --- Global Variables ---
 int    Magic  = 2026930; 
-string sComm  = "LQ_V9.12_Dynamic_Gravity";
+string sComm  = "LQ_V9.13_Shadow";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
+
+// Forward Declarations
+void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok, double cur_dev_m12, double cur_dev_m3);
+void DrawLabel(string name, int x, int y, string text, int size, color clr);
+void DrawRect(string name, int x, int y, int w, int h, color bg_color);
 
 // Memory for Trailing
 double Basket_High_Water_Mark = -99999.0; 
@@ -138,8 +144,26 @@ void OnTick() {
    // V9.5 Flash Logic: If volume is massive (>1.5x avg), entry is instant (0 buffer)
    double eff_buf = (vol_ignite && Volume[0] > vol_m1_avg * 1.5) ? 0 : buffer;
    
-   double buy_trigger = High[1] + eff_buf; 
-   double sell_trigger = Low[1] - eff_buf;  
+   // --- V9.13 Shadow Strike Logic ---
+   double buy_trigger, sell_trigger;
+   
+   // Bullish Case
+   if (Use_Shadow_Entry && Close[1] > Open[1]) {
+       // If prev candle was BULLISH, trust the BODY close.
+       buy_trigger = Close[1] + eff_buf; 
+   } else {
+       // If prev candle was Bearish/Doji, wait for High break (Safety).
+       buy_trigger = High[1] + eff_buf;
+   }
+   
+   // Bearish Case
+   if (Use_Shadow_Entry && Close[1] < Open[1]) {
+       // If prev candle was BEARISH, trust the BODY close.
+       sell_trigger = Close[1] - eff_buf;
+   } else {
+       // If prev candle was Bullish/Doji, wait for Low break (Safety).
+       sell_trigger = Low[1] - eff_buf;
+   }
    
    double m12_macd_main = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_MAIN);
    double m12_macd_sig  = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_SIGNAL);
@@ -200,7 +224,7 @@ void OnTick() {
    
    if (current_m3_start == Last_M3_Time && !Order_Placed_In_Current_Bar) { 
        if (spread > Max_Spread_Point) return;
-       // V9.10 Gravity Pro: Dual Layer Deviation (Macro + Micro)
+       // V9.12 Dynamic Gravity Pro: High Volatility Deviation
        bool near_ma_buy = (buy_trigger - ema_m12) < Max_Dev_From_MA * Point && (buy_trigger - ema_m3) < Max_Dev_From_M3 * Point;
        bool near_ma_sell = (ema_m12 - sell_trigger) < Max_Dev_From_MA * Point && (ema_m3 - sell_trigger) < Max_Dev_From_M3 * Point;
        
@@ -266,14 +290,14 @@ void ManageGridRecovery() {
     if (type == OP_BUY) {
         if ((last_price - Ask) / Point >= grid_dist / Point) {
             double new_lot = NormalizeDouble(last_lot * Lot_Multi, 2); 
-            int res = OrderSend(Symbol(), OP_BUY, new_lot, Ask, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
+            int res = OrderSend(Symbol(), OP_BUY, new_lot, Ask, 10, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
             if(res < 0) Print("Grid Buy Error: ", GetLastError());
         }
     }
     else if (type == OP_SELL) {
         if ((Bid - last_price) / Point >= grid_dist / Point) {
             double new_lot = NormalizeDouble(last_lot * Lot_Multi, 2); 
-            int res = OrderSend(Symbol(), OP_SELL, new_lot, Bid, 3, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
+            int res = OrderSend(Symbol(), OP_SELL, new_lot, Bid, 10, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
             if(res < 0) Print("Grid Sell Error: ", GetLastError());
         }
     }
@@ -293,6 +317,7 @@ void CloseAllOrders() {
     for(int i=OrdersTotal()-1; i>=0; i--) {
         if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
             bool res = false;
+            // V9.8 Optimized Slippage: 10 points
             if(OrderType()==OP_BUY) res = OrderClose(OrderTicket(), OrderLots(), Bid, 10, clrGray);
             else res = OrderClose(OrderTicket(), OrderLots(), Ask, 10, clrGray);
             if(!res) Print("Close Error: ", GetLastError());
@@ -377,13 +402,13 @@ int CountOrders(int type) {
 }
 
 //+------------------------------------------------------------------+
-//| UI (V9.11 Detailed)                                              |
+//| UI (V9.13 Detailed)                                              |
 //+------------------------------------------------------------------+
 void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3, double rsi_m12, double adx, bool is_uptrend, double b_trig, double s_trig, bool macd_buy_ok, bool macd_sell_ok, bool vol_ignite, bool m3_ok_trend, bool mom_ok, bool m1_struct_ok, bool m30_ok, double cur_dev_m12, double cur_dev_m3) {
    Comment("");   
    color bg_color = clrDarkSlateGray; // Safe dark gray color for BG
    DrawRect("LQ_BG", 5, 5, 300, 360, bg_color); 
-   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.12 PRO (High-Vol Gravity)", 10, clrGold);
+   DrawLabel("LQ_Title", 15, 15, "LiQiyu V9.13 SHADOW (Close Trigger)", 10, clrGold);
 
    int orders = CountOrders(OP_BUY) + CountOrders(OP_SELL);
    double open_prof = 0;
@@ -418,7 +443,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    DrawLabel("LQ_Grav", 15, 215, "    Gravity: M12=" + DoubleToString(cur_dev_m12,0) + "/" + IntegerToString(Max_Dev_From_MA) + " | M3=" + DoubleToString(cur_dev_m3,0) + "/" + IntegerToString(Max_Dev_From_M3), 8, grav_ok ? clrLime : clrRed);
 
    double dist = (bull) ? (b_trig - Ask)/Point : (Bid - s_trig)/Point;
-   string trig_txt = (bull ? "BUY ZONE: > " : "SELL ZONE: < ") + DoubleToString(bull?b_trig:s_trig, Digits) + " (Dist: " + DoubleToString(dist,0) + ")";
+   string trig_txt = (bull ? "SHADOW BUY: > " : "SHADOW SELL: < ") + DoubleToString(bull?b_trig:s_trig, Digits) + " (Dist: " + DoubleToString(dist,0) + ")";
    DrawLabel("LQ_Trig", 15, 230, trig_txt, 9, dist <= 0 ? clrLime : (bull?clrDeepSkyBlue:clrOrangeRed));
 
    DrawLabel("LQ_Acc", 15, 290, "Equity: $" + DoubleToString(AccountEquity(), 2), 9, clrWhite);
@@ -426,6 +451,7 @@ void UpdateUI(double price, double ema, double vol, double vol_ma, double rsi_m3
    
    ChartRedraw(0); // Force UI Update
 }
+
 
 void DrawLabel(string name, int x, int y, string text, int size, color clr) {
    if(ObjectFind(0, name) < 0) {
@@ -442,6 +468,7 @@ void DrawLabel(string name, int x, int y, string text, int size, color clr) {
    ObjectSetInteger(0, name, OBJPROP_FONTSIZE, (long)size);
    ObjectSetInteger(0, name, OBJPROP_COLOR, (long)clr);
 }
+
 void DrawRect(string name, int x, int y, int w, int h, color bg_color) {
    if(ObjectFind(0, name) < 0) {
       ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0);
