@@ -66,6 +66,7 @@ int    Magic  = 2026930;
 string sComm  = "LQ_V9.14_Hyper";
 datetime Last_M3_Time = 0;
 bool   Order_Placed_In_Current_Bar = false; 
+bool   Is_Force_Closing = false;
 
 // --- CPU Telemetry Cache ---
 struct SyntheticBar {
@@ -121,6 +122,14 @@ extern int EndHour   = 22;
 //+------------------------------------------------------------------+
 void OnTick() {
    current_tick_id++;
+   
+   // --- Ultimate Basket Clearance Lock ---
+   if (Is_Force_Closing) {
+       CloseAllOrders();
+       if (CountOrders(OP_BUY) == 0 && CountOrders(OP_SELL) == 0) { Is_Force_Closing = false; Basket_High_Water_Mark = -99999.0; }
+       return;
+   }
+   
    datetime current_time = TimeCurrent();
    int period_seconds = 3 * 60;
    int seconds_In = TimeSeconds(current_time) + TimeMinute(current_time) * 60 + TimeHour(current_time) * 3600;
@@ -216,8 +225,8 @@ void OnTick() {
            type = OrderType(); cnt++;
        }
        if (cnt > 0 && profit > MACD_Exit_Min_Profit) {
-           if (type == OP_BUY && m12_macd_main < m12_macd_sig) { CloseAllOrders(); return; }
-           if (type == OP_SELL && m12_macd_main > m12_macd_sig) { CloseAllOrders(); return; }
+           if (type == OP_BUY && m12_macd_main < m12_macd_sig) { Is_Force_Closing = true; CloseAllOrders(); return; }
+           if (type == OP_SELL && m12_macd_main > m12_macd_sig) { Is_Force_Closing = true; CloseAllOrders(); return; }
        }
    }
 
@@ -253,13 +262,13 @@ void ManageGridExit() {
         total_profit += OrderProfit() + OrderSwap() + OrderCommission(); cnt++;
     }
     if (cnt == 0) return;
-    if (total_profit >= Basket_Target_USD) { CloseAllOrders(); return; }
+    if (total_profit >= Basket_Target_USD) { Is_Force_Closing = true; CloseAllOrders(); return; }
     if (Use_Basket_Trail) {
         if (Basket_High_Water_Mark == -99999.0) Basket_High_Water_Mark = 0;
         if (total_profit >= Basket_Trail_Start) {
             if (total_profit > Basket_High_Water_Mark) Basket_High_Water_Mark = total_profit;
             double c_step = (total_profit >= Basket_Trend_Start) ? Basket_Trend_Step : Basket_Trail_Step;
-            if (total_profit < (Basket_High_Water_Mark - c_step)) CloseAllOrders();
+            if (total_profit < (Basket_High_Water_Mark - c_step)) { Is_Force_Closing = true; CloseAllOrders(); return; }
         }
     }
 }
@@ -462,6 +471,7 @@ double GetSyntheticADX(int period_min, int adx_period, int shift) {
    double alpha = 1.0 / adx_period;
    double tr_ema = 0, dm_p_ema = 0, dm_m_ema = 0;
    int lookback = 100; 
+   double dx_arr[105]; ArrayInitialize(dx_arr, 0.0);
    
    // --- Professional 100-Bar Convergence Pass ---
    for(int i = lookback; i >= 0; i--) {
@@ -474,24 +484,17 @@ double GetSyntheticADX(int period_min, int adx_period, int shift) {
       tr_ema = (i == lookback) ? tr : (tr - tr_ema) * alpha + tr_ema;
       dm_p_ema = (i == lookback) ? dp : (dp - dm_p_ema) * alpha + dm_p_ema;
       dm_m_ema = (i == lookback) ? dm : (dm - dm_m_ema) * alpha + dm_m_ema;
+      
+      if (tr_ema == 0) { dx_arr[i] = 0; continue; }
+      double di_p = 100.0 * dm_p_ema / tr_ema;
+      double di_m = 100.0 * dm_m_ema / tr_ema;
+      dx_arr[i] = (di_p + di_m == 0) ? 0 : 100.0 * MathAbs(di_p - di_m) / (di_p + di_m);
    }
    
    // --- Second-Order Smoothing for ADX itself ---
    double adx = 0;
    for(int i = lookback; i >= 0; i--) {
-      SyntheticBar b = GetSyntheticBar(period_min, shift + i);
-      SyntheticBar bp = GetSyntheticBar(period_min, shift + i + 1);
-      double tr = MathMax(b.b_high - b.b_low, MathMax(MathAbs(b.b_high - bp.b_close), MathAbs(b.b_low - bp.b_close)));
-      double dp = (b.b_high - bp.b_high > bp.b_low - b.b_low) ? MathMax(b.b_high - bp.b_high, 0) : 0;
-      double dm = (bp.b_low - b.b_low > b.b_high - bp.b_high) ? MathMax(bp.b_low - b.b_low, 0) : 0;
-      
-      // We need a separate tr_ema/dm_ema for this pass to be 100% precise, 
-      // but for V9.14 Hyper we use a optimized recursive bridge:
-      if (tr_ema == 0) continue;
-      double di_p = 100.0 * dm_p_ema / tr_ema;
-      double di_m = 100.0 * dm_m_ema / tr_ema;
-      double dx = (di_p + di_m == 0) ? 0 : 100.0 * MathAbs(di_p - di_m) / (di_p + di_m);
-      adx = (i == lookback) ? dx : (dx - adx) * alpha + adx;
+      adx = (i == lookback) ? dx_arr[i] : (dx_arr[i] - adx) * alpha + adx;
    }
    return adx;
 }
@@ -516,7 +519,7 @@ double GetSyntheticMACD(int period_min, int f, int s, int sig, int shift, int mo
 bool CheckRisk() { 
    double bal = AccountBalance();
    if (AccountEquity() <= 0 || bal <= 0) return true;
-   if ((bal - AccountEquity()) / bal * 100.0 > Max_Drawdown) { CloseAllOrders(); return true; }
+   if ((bal - AccountEquity()) / bal * 100.0 > Max_Drawdown) { Is_Force_Closing = true; CloseAllOrders(); return true; }
    return false;
 }
 
