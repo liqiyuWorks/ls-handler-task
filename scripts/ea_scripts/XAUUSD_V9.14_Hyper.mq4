@@ -102,16 +102,25 @@ double GetSyntheticVolMA(int period_min, int ma_period, int shift);
 double GetSyntheticMACD(int period_min, int f, int s, int sig, int shift, int mode);
 double GetSyntheticADX(int period_min, int adx_period, int shift);
 
+void DrawDashboardOffline();
+
 //+------------------------------------------------------------------+
 //| Initialization + Timer                                           |
 //+------------------------------------------------------------------+
 int OnInit() {
    EventSetTimer(1); 
    ObjectsDeleteAll(0, "LQ_"); 
+   DrawDashboardOffline();
    return(INIT_SUCCEEDED); 
 }
 void OnDeinit(const int r) { ObjectsDeleteAll(0, "LQ_"); EventKillTimer(); }
-void OnTimer() { ChartRedraw(0); } 
+void OnTimer() { 
+   ChartRedraw(0); 
+   // --- Render Dashboard when Market is Closed (Weekend/Offline) ---
+   if (TimeDayOfWeek(TimeCurrent()) == 0 || TimeDayOfWeek(TimeCurrent()) == 6 || TimeCurrent() - Time[0] >= 60) {
+      DrawDashboardOffline(); 
+   }
+} 
 
 extern bool Use_Time_Filter = false; 
 extern int StartHour = 9;   
@@ -602,4 +611,76 @@ void DrawRect(string name, int x, int y, int w, int h, color bg) {
    if(ObjectFind(0, name) < 0) { ObjectCreate(0, name, OBJ_RECTANGLE_LABEL, 0, 0, 0); ObjectSetInteger(0, name, OBJPROP_CORNER, CORNER_LEFT_UPPER); }
    ObjectSetInteger(0, name, OBJPROP_XDISTANCE, x); ObjectSetInteger(0, name, OBJPROP_YDISTANCE, y);
    ObjectSetInteger(0, name, OBJPROP_XSIZE, w); ObjectSetInteger(0, name, OBJPROP_YSIZE, h); ObjectSetInteger(0, name, OBJPROP_BGCOLOR, bg);
+}
+
+//+------------------------------------------------------------------+
+//| Offline Dashboard Render (For Weekend Visualization)             |
+//+------------------------------------------------------------------+
+void DrawDashboardOffline() {
+   current_tick_id++;
+   SyntheticBar M12_0 = GetSyntheticBar(12, 0); 
+   SyntheticBar M12_1 = GetSyntheticBar(12, 1); 
+   SyntheticBar M3_1 = GetSyntheticBar(3, 1);   
+   
+   double ema_m12 = GetSyntheticEMA(12, Trend_MA_Period, 0); 
+   double ema_m3  = GetSyntheticEMA(3, Trend_MA_Period, 0); 
+   double vol_ma_m3 = GetSyntheticVolMA(3, Vol_MA_Period, 1); 
+   double rsi_m3 = GetSyntheticRSI(3, 14, 0);   
+   double rsi_m12 = GetSyntheticRSI(12, 14, 0); 
+   double adx_m30 = GetSyntheticADX(30, ADX_Period, 0);
+   bool adx_ok = (adx_m30 > ADX_Min_Level);
+
+   double ema_m30 = GetSyntheticEMA(30, 34, 0);
+   double close_m30 = iClose(NULL, PERIOD_M1, 0);
+   double m30_buf = M30_Buffer_Points * Point;
+   bool m30_bull = (!Use_M30_Filter || close_m30 > (ema_m30 - m30_buf)); 
+   bool m30_bear = (!Use_M30_Filter || close_m30 < (ema_m30 + m30_buf)); 
+
+   bool is_uptrend = (M12_0.b_close > ema_m12);
+   bool is_dntrend = (M12_0.b_close < ema_m12);
+   
+   bool m3_trend_up = (M3_1.b_close > GetSyntheticEMA(3, 34, 1));
+   bool m3_trend_dn = (M3_1.b_close < GetSyntheticEMA(3, 34, 1));
+   bool rsi_resonance_buy = (rsi_m3 < RSI_Buy_Max && rsi_m12 > 50 && rsi_m12 < RSI_M12_Limit); 
+   bool rsi_resonance_sell = (rsi_m3 > RSI_Sell_Min && rsi_m12 < 50 && rsi_m12 > (100 - RSI_M12_Limit)); 
+
+   double vol_sum_m1 = 0;
+   for(int k=1; k<=20; k++) vol_sum_m1 += (double)iVolume(NULL, PERIOD_M1, k);
+   double vol_m1_avg = vol_sum_m1 / 20.0;    
+   
+   int elap_sec = (int)(TimeCurrent() % 60); 
+   if(elap_sec < 5) elap_sec = 5; 
+   double expected_vol = (vol_m1_avg / 60.0) * elap_sec;
+   double cur_vol = (double)iVolume(NULL, PERIOD_M1, 0);
+   bool vol_ignite = !Use_Vol_Ignition || (cur_vol > expected_vol * 1.5) || (iVolume(NULL, PERIOD_M1, 1) > vol_m1_avg * 1.3);
+   bool m1_pre_sqz = !Use_M1_Structure || (iVolume(NULL, PERIOD_M1, 1) < vol_m1_avg * 1.3); 
+
+   double buffer = Breakout_Buffer * Point;
+   double eff_buf = (vol_ignite && cur_vol > vol_m1_avg * 1.5) ? 0 : buffer;
+   
+   double buy_trigger, sell_trigger;
+   if (Use_Shadow_Entry && iClose(NULL, PERIOD_M1, 1) > iOpen(NULL, PERIOD_M1, 1)) buy_trigger = iClose(NULL, PERIOD_M1, 1) + eff_buf; 
+   else buy_trigger = iHigh(NULL, PERIOD_M1, 1) + eff_buf;
+   
+   if (Use_Shadow_Entry && iClose(NULL, PERIOD_M1, 1) < iOpen(NULL, PERIOD_M1, 1)) sell_trigger = iClose(NULL, PERIOD_M1, 1) - eff_buf;
+   else sell_trigger = iLow(NULL, PERIOD_M1, 1) - eff_buf;
+   
+   double m12_macd_main = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_MAIN);
+   double m12_macd_sig  = GetSyntheticMACD(12, 12, 26, 9, 0, MODE_SIGNAL);
+
+   double cur_dev_m12 = MathAbs(M12_0.b_close - ema_m12) / Point;
+   double cur_dev_m3  = MathAbs(M12_0.b_close - ema_m3) / Point; 
+   
+   bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
+   bool ui_m3_sync = (is_uptrend && m3_trend_up) || (is_dntrend && m3_trend_dn);
+   bool rsi_ok = (is_uptrend ? rsi_resonance_buy : rsi_resonance_sell);
+   int spread = (int)MarketInfo(Symbol(), MODE_SPREAD);
+   bool grav_ok = (cur_dev_m12 < Max_Dev_From_MA && cur_dev_m3 < Max_Dev_From_M3);
+   
+   double vol_r = expected_vol > 0 ? cur_vol / expected_vol : 0;
+   double m1_sqz_r = vol_m1_avg > 0 ? (double)iVolume(NULL, PERIOD_M1, 1) / vol_m1_avg : 0;
+   double mom_v = M12_0.b_close - M12_1.b_close;
+   
+   UpdateUI(M12_0.b_close, ema_m12, vol_r, m1_sqz_r, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, 
+            m12_macd_main, m12_macd_sig, vol_ignite, ui_m3_sync, mom_v, m1_pre_sqz, is_uptrend, ui_m30_sync, cur_dev_m12, cur_dev_m3, rsi_ok, spread, adx_ok, grav_ok);
 }
