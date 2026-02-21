@@ -217,11 +217,11 @@ void OnTick() {
    bool ui_macd_ok = (is_uptrend ? macd_buy_ok : macd_sell_ok);
 
    double vol_r = expected_vol > 0 ? Volume[0] / expected_vol : 0;
-   double m1_sqz_r = vol_m1_avg > 0 ? (double)iVolume(NULL, PERIOD_M1, 1) / vol_m1_avg : 0;
+   double m3_sqz_r = (vol_ma_m3 > 0) ? (M3_1.b_volume / vol_ma_m3) : 0;
    double mom_v = M12_0.b_close - M12_1.b_close;
    
-   UpdateUI(M12_0.b_close, ema_m12, vol_r, m1_sqz_r, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, 
-            m12_macd_main, m12_macd_sig, vol_ignite, ui_m3_sync, mom_v, m1_pre_sqz, is_uptrend, ui_m30_sync, cur_dev_m12, cur_dev_m3, rsi_ok, spread, adx_ok, grav_ok);
+   UpdateUI(M12_0.b_close, ema_m12, vol_r, m3_sqz_r, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, 
+            m12_macd_main, m12_macd_sig, vol_ignite, ui_m3_sync, mom_v, is_sqz, is_uptrend, ui_m30_sync, cur_dev_m12, cur_dev_m3, rsi_ok, spread, adx_ok, grav_ok);
 
    if(CheckRisk()) return;      
    ManageGridExit();           
@@ -568,7 +568,7 @@ void UpdateUI(double price, double ema, double vol_s, double m1_sqz, double rsi_
    
    y += 13;
    DrawLabel("LQ_C4", 15,  y, "[4] MACD: " + DoubleToString(macd_m-macd_s, 2), 7, (bull?macd_m>macd_s:macd_m<macd_s) ? clrSpringGreen : clrGray);
-   DrawLabel("LQ_C5", 115, y, "[5] RSI: " + DoubleToString(rsi_m3,0) + "/" + DoubleToString(rsi_m12,0), 7, rsi_ok ? clrSpringGreen : clrGray);
+   DrawLabel("LQ_C5", 115, y, "[5] RSI(3/12): " + DoubleToString(rsi_m3,1) + "/" + DoubleToString(rsi_m12,1), 7, rsi_ok ? clrSpringGreen : clrGray);
    
    y += 13;
    DrawLabel("LQ_C6", 15,  y, "[6] ADX: " + DoubleToString(adx, 1), 7, adx_ok ? clrSpringGreen : clrGray);
@@ -576,7 +576,7 @@ void UpdateUI(double price, double ema, double vol_s, double m1_sqz, double rsi_
    
    y += 13;
    DrawLabel("LQ_C8", 15,  y, "[8] Ignit: " + DoubleToString(vol_s, 1) + "x", 7, vol_ignite ? clrSpringGreen : clrGray);
-   DrawLabel("LQ_C9", 115, y, "[9] Sqz: " + DoubleToString(m1_sqz, 1) + "x", 7, m1_struct_ok ? clrSpringGreen : clrGray);
+   DrawLabel("LQ_C9", 115, y, "[9] M3 Sqz: " + DoubleToString(m1_sqz, 1) + "x", 7, m1_struct_ok ? clrSpringGreen : clrGray);
    
    y += 13;
    DrawLabel("LQ_C10", 15,  y, "[10] Spread: " + (string)spread, 7, (spread <= Max_Spread_Point) ? clrSpringGreen : clrRed);
@@ -671,6 +671,8 @@ void DrawDashboardOffline() {
    double cur_dev_m12 = MathAbs(M12_0.b_close - ema_m12) / Point;
    double cur_dev_m3  = MathAbs(M12_0.b_close - ema_m3) / Point; 
    
+   double m3_sqz_r = (vol_ma_m3 > 0) ? (M3_1.b_volume / vol_ma_m3) : 0;
+   bool is_sqz = (M3_1.b_volume < vol_ma_m3 * Vol_Squeeze_F); 
    bool ui_m30_sync = (is_uptrend && m30_bull) || (is_dntrend && m30_bear);
    bool ui_m3_sync = (is_uptrend && m3_trend_up) || (is_dntrend && m3_trend_dn);
    bool rsi_ok = (is_uptrend ? rsi_resonance_buy : rsi_resonance_sell);
@@ -678,9 +680,8 @@ void DrawDashboardOffline() {
    bool grav_ok = (cur_dev_m12 < Max_Dev_From_MA && cur_dev_m3 < Max_Dev_From_M3);
    
    double vol_r = expected_vol > 0 ? cur_vol / expected_vol : 0;
-   double m1_sqz_r = vol_m1_avg > 0 ? (double)iVolume(NULL, PERIOD_M1, 1) / vol_m1_avg : 0;
    double mom_v = M12_0.b_close - M12_1.b_close;
    
-   UpdateUI(M12_0.b_close, ema_m12, vol_r, m1_sqz_r, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, 
-            m12_macd_main, m12_macd_sig, vol_ignite, ui_m3_sync, mom_v, m1_pre_sqz, is_uptrend, ui_m30_sync, cur_dev_m12, cur_dev_m3, rsi_ok, spread, adx_ok, grav_ok);
+   UpdateUI(M12_0.b_close, ema_m12, vol_r, m3_sqz_r, rsi_m3, rsi_m12, adx_m30, is_uptrend, buy_trigger, sell_trigger, 
+            m12_macd_main, m12_macd_sig, vol_ignite, ui_m3_sync, mom_v, is_sqz, is_uptrend, ui_m30_sync, cur_dev_m12, cur_dev_m3, rsi_ok, spread, adx_ok, grav_ok);
 }
