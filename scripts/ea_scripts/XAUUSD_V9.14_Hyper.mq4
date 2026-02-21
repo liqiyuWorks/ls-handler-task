@@ -36,7 +36,8 @@ extern string _E_ = "=== Smart Exit V9.3 ===";
 extern bool   Use_MACD_Exit      = true;  // Enable "Shrinking Momentum" Exit
 extern double MACD_Exit_Min_Profit = 2.0; // Only exit if profit > $2
 
-extern int    Max_Spread_Point = 50;  
+extern int    Max_Spread_Point   = 50;  
+extern int    Max_Slippage_Points= 30;    // [NEW] Breakout Execution Slippage
 
 // --- Strategy Parameters (V9.14 Hyper Shadow) ---
 extern string _P_ = "=== Entry V9.14 (Hyper) ===";
@@ -279,7 +280,6 @@ void ManageGridRecovery() {
     }
     
     double grid_dist = GetGridDistance();
-    int slip = 20; // Allow 20 points slippage for grid recovery
     
     // Core Small-Capital Snowball: Calculate base lot dynamically
     double base_lot = (!Use_Auto_Lot) ? Fixed_Lot : NormalizeDouble(AccountBalance() / 1000.0 * 0.01 * Auto_Lot_Risk, 2);
@@ -289,11 +289,15 @@ void ManageGridRecovery() {
     double next_lot = NormalizeDouble(base_lot * MathPow(Lot_Multi, cnt), 2);
     if (next_lot < 0.01) next_lot = 0.01;
     
+    if (AccountFreeMargin() < MarketInfo(Symbol(), MODE_MARGINREQUIRED) * next_lot) {
+        Print("Grid Blocked: Insufficient Free Margin."); return;
+    }
+    
     if (type == OP_BUY && (last_price - Ask) >= grid_dist) {
         int t = -1; int retries = 0;
         RefreshRates();
         while(t < 0 && retries < 3) {
-           t = OrderSend(Symbol(), OP_BUY, next_lot, MarketInfo(Symbol(), MODE_ASK), slip, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
+           t = OrderSend(Symbol(), OP_BUY, next_lot, MarketInfo(Symbol(), MODE_ASK), Max_Slippage_Points, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrBlue);
            if (t < 0) { retries++; Sleep(100); RefreshRates(); }
         }
         if(t < 0) Print("Grid Buy failed after 3 retries: ", GetLastError());
@@ -301,7 +305,7 @@ void ManageGridRecovery() {
         int t = -1; int retries = 0;
         RefreshRates();
         while(t < 0 && retries < 3) {
-           t = OrderSend(Symbol(), OP_SELL, next_lot, MarketInfo(Symbol(), MODE_BID), slip, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
+           t = OrderSend(Symbol(), OP_SELL, next_lot, MarketInfo(Symbol(), MODE_BID), Max_Slippage_Points, 0, 0, sComm+"_L"+IntegerToString(cnt+1), Magic, 0, clrRed);
            if (t < 0) { retries++; Sleep(100); RefreshRates(); }
         }
         if(t < 0) Print("Grid Sell failed after 3 retries: ", GetLastError());
@@ -322,26 +326,20 @@ bool ExecuteOrderClose(int ticket, double lots, int type, int slippage, color cl
     RefreshRates();
     double price = (type == OP_BUY) ? MarketInfo(Symbol(), MODE_BID) : MarketInfo(Symbol(), MODE_ASK);
     while(!res && retries < 3) {
-       res = OrderClose(ticket, lots, price, slippage, clr);
+       res = OrderClose(ticket, lots, price, Max_Slippage_Points, clr); // Use global slip
        if(!res) { retries++; Sleep(100); RefreshRates(); price = (type == OP_BUY) ? MarketInfo(Symbol(), MODE_BID) : MarketInfo(Symbol(), MODE_ASK); }
     }
     return res;
 }
 
 void CloseAllOrders() {
-    int slip = 20; // Aggressive slip for emergency exits
     for(int i=OrdersTotal()-1; i>=0; i--) if(OrderSelect(i, SELECT_BY_POS) && OrderMagicNumber() == Magic) {
-        bool res = ExecuteOrderClose(OrderTicket(), OrderLots(), OrderType(), slip, clrGray);
+        bool res = ExecuteOrderClose(OrderTicket(), OrderLots(), OrderType(), Max_Slippage_Points, clrGray);
         if(!res) Print("OrderClose failed after retries: Ticket ", OrderTicket(), " Error: ", GetLastError());
     }
 }
 
 void OpenInitialTrade(int type) {
-    if (AccountFreeMargin() < 10) { Print("Margin too low to execute."); return; }
-    RefreshRates();
-    double price = (type == 0) ? MarketInfo(Symbol(), MODE_ASK) : MarketInfo(Symbol(), MODE_BID);
-    int t = -1; int retries = 0; int slip = 10; // Tight slip for entry
-    
     // Core Small-Capital Snowball: Calculate base lot dynamically
     double base_lot = (!Use_Auto_Lot) ? Fixed_Lot : NormalizeDouble(AccountBalance() / 1000.0 * 0.01 * Auto_Lot_Risk, 2);
     if(base_lot < 0.01) base_lot = 0.01;
@@ -349,8 +347,17 @@ void OpenInitialTrade(int type) {
     double lot_size = NormalizeDouble(base_lot, 2);
     if (lot_size <= 0) lot_size = 0.01;
     
+    if (AccountFreeMargin() < MarketInfo(Symbol(), MODE_MARGINREQUIRED) * lot_size) { 
+        Print("Margin Dynamic Block: Free=", AccountFreeMargin(), " Required=", MarketInfo(Symbol(), MODE_MARGINREQUIRED) * lot_size); 
+        return; 
+    }
+    
+    RefreshRates();
+    double price = (type == 0) ? MarketInfo(Symbol(), MODE_ASK) : MarketInfo(Symbol(), MODE_BID);
+    int t = -1; int retries = 0; 
+    
     while(t < 0 && retries < 3) {
-        t = OrderSend(Symbol(), (type == 0 ? OP_BUY : OP_SELL), lot_size, price, slip, 0, 0, sComm+"_L1", Magic, 0, (type == 0 ? clrBlue : clrRed));
+        t = OrderSend(Symbol(), (type == 0 ? OP_BUY : OP_SELL), lot_size, price, Max_Slippage_Points, 0, 0, sComm+"_L1", Magic, 0, (type == 0 ? clrBlue : clrRed));
         if (t < 0) { retries++; Sleep(100); RefreshRates(); price = (type == 0) ? MarketInfo(Symbol(), MODE_ASK) : MarketInfo(Symbol(), MODE_BID); }
     }
     if(t < 0) Print("Initial Trade failed after 3 retries: ", GetLastError());
@@ -371,7 +378,7 @@ SyntheticBar GetSyntheticBar(int period_min, int shift) {
       if (period_min == 30 && cache_m30_id[shift] == current_tick_id) return cache_m30[shift];
    }
 
-   SyntheticBar bar; bar.b_open=0; bar.b_high=0; bar.b_low=999999; bar.b_close=0; bar.b_volume=0;
+   SyntheticBar bar; bar.b_open=0; bar.b_high=0; bar.b_low=999999; bar.b_close=0; bar.b_volume=0; bar.b_time=0;
    int period_seconds = period_min * 60;
    // --- MT4 Standard Alignment: Epoch-based ---
    datetime current_time = Time[0];
@@ -380,13 +387,29 @@ SyntheticBar GetSyntheticBar(int period_min, int shift) {
    
    int start_idx = iBarShift(NULL, PERIOD_M1, target_start_time, false);
    if (start_idx != -1) {
-       bar.b_open = iOpen(NULL, PERIOD_M1, start_idx); bar.b_time = iTime(NULL, PERIOD_M1, start_idx);
+       bool is_first = true;
        for (int i = start_idx; i >= 0; i--) {
           datetime t = iTime(NULL, PERIOD_M1, i);
-          if (t >= target_end_time) break;
+          if (t >= target_end_time) break;      // Stopped crossing into future periods
+          if (t < target_start_time) continue;  // Prevent prior period gap contamination
+
+          if (is_first) { 
+              bar.b_open = iOpen(NULL, PERIOD_M1, i); 
+              bar.b_time = target_start_time; 
+              is_first = false; 
+          }
           if (iHigh(NULL, PERIOD_M1, i) > bar.b_high) bar.b_high = iHigh(NULL, PERIOD_M1, i);
           if (iLow(NULL, PERIOD_M1, i) < bar.b_low)   bar.b_low  = iLow(NULL, PERIOD_M1, i);
-          bar.b_close = iClose(NULL, PERIOD_M1, i); bar.b_volume += (double)iVolume(NULL, PERIOD_M1, i);
+          bar.b_close = iClose(NULL, PERIOD_M1, i); 
+          bar.b_volume += (double)iVolume(NULL, PERIOD_M1, i);
+       }
+       if(is_first) {
+           int fallback = iBarShift(NULL, PERIOD_M1, target_start_time, false);
+           if(fallback != -1) {
+              bar.b_open = iClose(NULL, PERIOD_M1, fallback);
+              bar.b_high = bar.b_open; bar.b_low = bar.b_open; bar.b_close = bar.b_open;
+              bar.b_time = target_start_time;
+           }
        }
    }
    
