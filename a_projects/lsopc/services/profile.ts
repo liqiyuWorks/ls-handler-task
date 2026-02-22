@@ -3,6 +3,7 @@ import { getAuthToken } from './auth';
 
 export interface MeResponse {
   username: string;
+  phone?: string | null;
   email?: string | null;
   nickname?: string | null;
   balance: number;

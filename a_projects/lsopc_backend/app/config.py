@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # 本地测试: http://localhost:8000 ；Docker 部署: http://api.lsopc.cn
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 
+    # 互亿无线 短信验证码（ihuyi）
+    IHUYI_ACCOUNT: str = "C47365157"
+    IHUYI_PASSWORD: str = "8dca2f2b194ff1e99af892c85ea34e0f"
+    IHUYI_SMS_HOST: str = "api.ihuyi.com"
+    IHUYI_SMS_URI: str = "/sms/Submit.json"
+    # 验证码有效期（秒）
+    SMS_CODE_EXPIRE_SECONDS: int = 300
+
 
 settings = Settings()
 

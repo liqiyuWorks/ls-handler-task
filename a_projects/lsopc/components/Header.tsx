@@ -13,14 +13,26 @@ const Header: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // 检查登录状态
-  useEffect(() => {
-    if (isAuthenticated()) {
-      const user = getCurrentUser();
-      if (user && user.username) {
-        setCurrentUser(user.username);
-      }
+  const refreshDisplayName = () => {
+    if (!isAuthenticated()) {
+      setCurrentUser(null);
+      return;
     }
+    const user = getCurrentUser();
+    if (user) setCurrentUser(user.nickname || user.username || '');
+  };
+
+  useEffect(() => {
+    refreshDisplayName();
+  }, []);
+
+  useEffect(() => {
+    window.addEventListener('storage', refreshDisplayName);
+    window.addEventListener('authStateChanged', refreshDisplayName);
+    return () => {
+      window.removeEventListener('storage', refreshDisplayName);
+      window.removeEventListener('authStateChanged', refreshDisplayName);
+    };
   }, []);
 
   // 监听全局登录请求事件
@@ -35,8 +47,8 @@ const Header: React.FC = () => {
     };
   }, []);
 
-  const handleAuthSuccess = (username: string) => {
-    setCurrentUser(username);
+  const handleAuthSuccess = (displayName: string) => {
+    setCurrentUser(displayName);
   };
 
   const handleLogout = () => {

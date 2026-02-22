@@ -15,12 +15,21 @@ export interface User {
   username: string;
   email?: string;
   nickname?: string;
+  phone?: string;
 }
 
 export interface AuthResponse {
   access_token: string;
   token_type: string;
-  user?: User; // 假设后端返回用户信息，如果没有则从前端临时构造
+  user?: User;
+}
+
+/** 登录成功：带 user；need_set_password 时需引导用户设置密码 */
+export interface TokenWithUser {
+  access_token: string;
+  token_type: string;
+  user: User;
+  need_set_password?: boolean;
 }
 
 export interface RegisterResponse {
@@ -48,33 +57,90 @@ export async function register(data: RegisterData): Promise<RegisterResponse> {
   return response.json();
 }
 
-// 登录
-export async function login(data: LoginData): Promise<AuthResponse> {
+/** 手机号+密码登录（默认方式，减少验证码发送） */
+export async function login(data: { username: string; password: string }): Promise<TokenWithUser> {
   const formData = new URLSearchParams();
-  // 根据提供的 curl 命令构建表单数据
-  formData.append('grant_type', '');
-  formData.append('username', data.username);
+  formData.append('username', data.username.trim());
   formData.append('password', data.password);
-  formData.append('scope', '');
-  formData.append('client_id', 'string');
-  // 注意：这里使用占位符，如果后端强制验证 client_secret，请替换为真实值
-  formData.append('client_secret', 'string'); 
 
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: {
-      'Accept': 'application/json',
+      Accept: 'application/json',
       'Content-Type': 'application/x-www-form-urlencoded',
     },
     body: formData.toString(),
   });
 
+  const res = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: '登录失败' }));
-    throw new Error(error.detail || '登录失败');
+    throw new Error(res.detail || '手机号或密码错误');
   }
+  return res as TokenWithUser;
+}
 
-  return response.json();
+/** 发送短信验证码 */
+export async function sendSmsCode(phone: string): Promise<{ ok: boolean; message?: string }> {
+  const response = await fetch(`${API_BASE_URL}/auth/send-sms-code`, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: phone.trim() }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const msg = data.detail || (response.status === 429 ? '请 60 秒后再获取验证码' : '验证码发送失败');
+    throw new Error(typeof msg === 'string' ? msg : msg[0]?.msg || '验证码发送失败');
+  }
+  return data;
+}
+
+/** 手机验证码登录/注册（未注册则自动注册） */
+export async function loginBySms(phone: string, code: string): Promise<TokenWithUser> {
+  const response = await fetch(`${API_BASE_URL}/auth/login-by-sms`, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone: phone.trim(), code: code.trim() }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const msg = data.detail || '验证码错误或已过期';
+    throw new Error(typeof msg === 'string' ? msg : '登录失败');
+  }
+  return data as TokenWithUser;
+}
+
+/** 首次设置密码（验证码注册后或未设密用户，需已登录） */
+export async function setPassword(password: string): Promise<void> {
+  const token = getAuthToken();
+  if (!token) throw new Error('请先登录');
+  const response = await fetch(`${API_BASE_URL}/auth/me/set-password`, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ password }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.detail || '设置失败');
+}
+
+/** 个人中心修改密码 */
+export async function changePassword(oldPassword: string, newPassword: string): Promise<void> {
+  const token = getAuthToken();
+  if (!token) throw new Error('请先登录');
+  const response = await fetch(`${API_BASE_URL}/auth/me/change-password`, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.detail || '修改失败');
 }
 
 // === 认证状态管理 ===

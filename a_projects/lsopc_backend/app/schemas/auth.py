@@ -8,6 +8,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 
 class UserBase(BaseModel):
     username: str = Field(..., min_length=3, max_length=50)
+    phone: Optional[str] = Field(default=None, max_length=11, description="手机号，唯一键，不可修改")
     email: Optional[EmailStr] = None
     nickname: Optional[str] = Field(default=None, max_length=50, description="昵称")
     balance: float = Field(default=0.0, ge=0, description="账户余额（元）")
@@ -27,6 +28,49 @@ class UserCreate(UserBase):
 class UserLogin(BaseModel):
     username: str
     password: str
+
+
+# 手机验证码登录 / 注册
+class SendSmsCodeRequest(BaseModel):
+    phone: str = Field(..., min_length=11, max_length=11, description="11 位手机号")
+
+    @field_validator("phone")
+    @classmethod
+    def phone_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise ValueError("手机号须为数字")
+        return v
+
+
+class LoginBySmsRequest(BaseModel):
+    phone: str = Field(..., min_length=11, max_length=11, description="11 位手机号")
+    code: str = Field(..., min_length=4, max_length=8, description="短信验证码")
+
+    @field_validator("phone")
+    @classmethod
+    def phone_digits(cls, v: str) -> str:
+        if not v.isdigit():
+            raise ValueError("手机号须为数字")
+        return v
+
+
+class TokenWithUser(BaseModel):
+    """登录成功返回：令牌 + 用户信息（供前端保存）"""
+    access_token: str
+    token_type: str = "bearer"
+    user: UserBase
+    need_set_password: bool = Field(default=False, description="首次注册或未设密时需在客户端完成设置密码")
+
+
+class SetPasswordRequest(BaseModel):
+    """首次设置密码（验证码注册后或未设密用户）"""
+    password: str = Field(..., min_length=6, description="登录密码，至少6位")
+
+
+class ChangePasswordRequest(BaseModel):
+    """在个人中心修改密码"""
+    old_password: str = Field(..., description="当前密码")
+    new_password: str = Field(..., min_length=6, description="新密码，至少6位")
 
 
 class UserInDB(UserBase):

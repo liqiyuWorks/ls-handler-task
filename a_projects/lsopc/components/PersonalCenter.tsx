@@ -9,14 +9,17 @@ import {
   ArrowLeft,
   Save,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Coins,
   Image as ImageIcon,
   Video,
   MessageSquare,
   FileText,
   Info,
+  Lock,
 } from 'lucide-react';
-import { getCurrentUser, isAuthenticated, saveAuth } from '@/services/auth';
+import { getCurrentUser, isAuthenticated, saveAuth, changePassword } from '@/services/auth';
 import { getMe, updateProfile, recharge as rechargeApi, getUsageRecords, type UsageRecord } from '@/services/profile';
 import { getImageOptions } from '@/services/image';
 import { getVideoOptions } from '@/services/video';
@@ -48,7 +51,7 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
 const PersonalCenter: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabId>('account');
-  const [profile, setProfile] = useState({ username: '', email: '', nickname: '' });
+  const [profile, setProfile] = useState({ username: '', phone: '', email: '', nickname: '' });
   const [balance, setBalance] = useState<number>(0);
   const [totalSpent, setTotalSpent] = useState<number>(0);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -67,6 +70,13 @@ const PersonalCenter: React.FC = () => {
     image_models_with_price?: { model: string; price_cny: number }[];
   } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   // 拉取当前用户信息与余额
   const fetchMe = async () => {
@@ -75,6 +85,7 @@ const PersonalCenter: React.FC = () => {
       const data = await getMe();
       setProfile({
         username: data.username,
+        phone: data.phone ?? '',
         email: data.email ?? '',
         nickname: data.nickname ?? data.username ?? '',
       });
@@ -82,7 +93,7 @@ const PersonalCenter: React.FC = () => {
       setTotalSpent(data.total_spent ?? 0);
       const token = localStorage.getItem('auth_token');
       if (token) {
-        saveAuth(token, { username: data.username, email: data.email ?? undefined, nickname: data.nickname ?? undefined });
+        saveAuth(token, { username: data.username, phone: data.phone ?? undefined, email: data.email ?? undefined, nickname: data.nickname ?? undefined });
       }
     } catch (e) {
       setMeError(e instanceof Error ? e.message : '获取用户信息失败');
@@ -141,11 +152,40 @@ const PersonalCenter: React.FC = () => {
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2000);
       const token = localStorage.getItem('auth_token');
-      if (token) saveAuth(token, { username: data.username, email: data.email ?? undefined, nickname: data.nickname ?? undefined });
+      if (token) saveAuth(token, { username: data.username, phone: data.phone ?? undefined, email: data.email ?? undefined, nickname: data.nickname ?? undefined });
     } catch (e) {
       setProfileError(e instanceof Error ? e.message : '保存失败');
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword.length < 6) {
+      setPasswordError('新密码至少 6 位');
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setPasswordError('两次输入的新密码不一致');
+      return;
+    }
+    setPasswordError(null);
+    setPasswordChanging(true);
+    try {
+      await changePassword(oldPassword, newPassword);
+      setPasswordSuccess(true);
+      setOldPassword('');
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      setTimeout(() => {
+        setPasswordSuccess(false);
+        setShowPasswordForm(false);
+      }, 2000);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : '修改失败');
+    } finally {
+      setPasswordChanging(false);
     }
   };
 
@@ -236,14 +276,14 @@ const PersonalCenter: React.FC = () => {
                 ) : (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm text-gray-400 mb-1">用户名</label>
+                    <label className="block text-sm text-gray-400 mb-1">手机号</label>
                     <input
                       type="text"
-                      value={profile.username}
+                      value={profile.phone || '—'}
                       readOnly
                       className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white/80 cursor-not-allowed"
                     />
-                    <p className="text-xs text-gray-500 mt-1">用户名不可修改</p>
+                    <p className="text-xs text-gray-500 mt-1">手机号为唯一标识，不可修改</p>
                   </div>
                   <div>
                     <label className="block text-sm text-gray-400 mb-1">昵称</label>
@@ -278,6 +318,65 @@ const PersonalCenter: React.FC = () => {
                     )}
                     {profileSaved ? '已保存' : '保存修改'}
                   </button>
+
+                  <div className="mt-6 pt-5 border-t border-white/10">
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordForm((v) => !v)}
+                      className="w-full flex items-center justify-between gap-2 py-2 text-left text-sm text-gray-400 hover:text-white transition-colors"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Lock size={14} className="text-orange-400/80" />
+                        修改密码
+                      </span>
+                      {showPasswordForm ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    </button>
+                    {showPasswordForm && (
+                      <form onSubmit={handleChangePassword} className="mt-4 space-y-3 pl-6 border-l border-white/10">
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">当前密码</label>
+                          <input
+                            type="password"
+                            value={oldPassword}
+                            onChange={(e) => setOldPassword(e.target.value)}
+                            placeholder="请输入当前密码"
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">新密码</label>
+                          <input
+                            type="password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            placeholder="至少 6 位"
+                            minLength={6}
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-gray-500 mb-1">确认新密码</label>
+                          <input
+                            type="password"
+                            value={newPasswordConfirm}
+                            onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                            placeholder="再次输入"
+                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
+                          />
+                        </div>
+                        {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
+                        {passwordSuccess && <p className="text-xs text-green-400">密码已修改</p>}
+                        <button
+                          type="submit"
+                          disabled={passwordChanging}
+                          className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50"
+                        >
+                          {passwordChanging ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Lock size={12} />}
+                          确认修改
+                        </button>
+                      </form>
+                    )}
+                  </div>
                 </div>
                 )}
                 {meError && <p className="text-sm text-red-400 mt-2">{meError}</p>}

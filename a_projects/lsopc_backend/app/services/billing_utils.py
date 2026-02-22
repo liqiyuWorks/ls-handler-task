@@ -74,7 +74,7 @@ async def deduct_and_record(
     if cost_cny <= 0:
         return
     updated = await db.db.users.find_one_and_update(
-        {"username": username, "balance": {"$gte": cost_cny}},
+        {"$or": [{"username": username}, {"phone": username}], "balance": {"$gte": cost_cny}},
         {"$inc": {"balance": -cost_cny, "total_spent": cost_cny}},
         return_document=ReturnDocument.AFTER,
     )
@@ -85,13 +85,16 @@ async def deduct_and_record(
         username, cost_cny, updated.get("balance", 0), updated.get("total_spent", 0),
     )
     try:
-        await db.db[USAGE_RECORDS_COLLECTION].insert_one({
+        record_doc = {
             "username": username,
             "record_type": record_type,
             "type_label": type_label,
             "amount": cost_cny,
             "count": 1,
             "created_at": datetime.utcnow(),
-        })
+        }
+        if updated.get("phone"):
+            record_doc["phone"] = updated["phone"]
+        await db.db[USAGE_RECORDS_COLLECTION].insert_one(record_doc)
     except Exception as e:
         logger.warning("[DB] 写入 usage_records 失败: %s", e)
