@@ -64,10 +64,10 @@ const PersonalCenter: React.FC = () => {
   const [rechargeError, setRechargeError] = useState<string | null>(null);
   const [meLoading, setMeLoading] = useState(true);
   const [meError, setMeError] = useState<string | null>(null);
-  const [imagePricing, setImagePricing] = useState<{ cny_per_image?: string } | null>(null);
+  const [imagePricing, setImagePricing] = useState<{ cny_per_image?: string; usd_per_image?: string } | null>(null);
   const [videoPricing, setVideoPricing] = useState<{
-    text_models_with_price?: { model: string; price_cny: number }[];
-    image_models_with_price?: { model: string; price_cny: number }[];
+    text_models_with_price?: { model: string; price_cny: number; price_usd: number }[];
+    image_models_with_price?: { model: string; price_cny: number; price_usd: number }[];
   } | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -128,10 +128,10 @@ const PersonalCenter: React.FC = () => {
       setPricingLoading(true);
       Promise.all([getImageOptions(), getVideoOptions()])
         .then(([img, vid]) => {
-          setImagePricing((img as { pricing?: { cny_per_image?: string } }).pricing ?? null);
+          setImagePricing((img as { pricing?: { cny_per_image?: string; usd_per_image?: string } }).pricing ?? null);
           setVideoPricing({
-            text_models_with_price: (vid as { text_models_with_price?: { model: string; price_cny: number }[] }).text_models_with_price ?? [],
-            image_models_with_price: (vid as { image_models_with_price?: { model: string; price_cny: number }[] }).image_models_with_price ?? [],
+            text_models_with_price: (vid as { text_models_with_price?: { model: string; price_cny: number; price_usd: number }[] }).text_models_with_price ?? [],
+            image_models_with_price: (vid as { image_models_with_price?: { model: string; price_cny: number; price_usd: number }[] }).image_models_with_price ?? [],
           });
         })
         .catch(() => {
@@ -229,11 +229,10 @@ const PersonalCenter: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg text-left text-sm font-medium transition-all ${
-                    activeTab === tab.id
+                  className={`w-full flex items-center justify-between gap-2 px-4 py-3 rounded-lg text-left text-sm font-medium transition-all ${activeTab === tab.id
                       ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30'
                       : 'text-gray-400 hover:text-white hover:bg-white/5 border border-transparent'
-                  }`}
+                    }`}
                 >
                   <span className="flex items-center gap-2">
                     {tab.icon}
@@ -251,9 +250,8 @@ const PersonalCenter: React.FC = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                  activeTab === tab.id ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-white/5 text-gray-400 border border-white/10'
-                }`}
+                className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all ${activeTab === tab.id ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'bg-white/5 text-gray-400 border border-white/10'
+                  }`}
               >
                 {tab.icon}
                 {tab.label}
@@ -274,110 +272,110 @@ const PersonalCenter: React.FC = () => {
                     <span className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
                   </div>
                 ) : (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">手机号</label>
-                    <input
-                      type="text"
-                      value={profile.phone || '—'}
-                      readOnly
-                      className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white/80 cursor-not-allowed"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">手机号为唯一标识，不可修改</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">昵称</label>
-                    <input
-                      type="text"
-                      value={profile.nickname}
-                      onChange={(e) => setProfile((p) => ({ ...p, nickname: e.target.value }))}
-                      placeholder="选填"
-                      className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-400 mb-1">邮箱</label>
-                    <input
-                      type="email"
-                      value={profile.email}
-                      onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
-                      placeholder="your@email.com"
-                      className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50"
-                    />
-                  </div>
-                  {profileError && <p className="text-sm text-red-400">{profileError}</p>}
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={profileSaving}
-                    className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-medium rounded-lg transition-all"
-                  >
-                    {profileSaving ? (
-                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      <Save size={18} />
-                    )}
-                    {profileSaved ? '已保存' : '保存修改'}
-                  </button>
-
-                  <div className="mt-6 pt-5 border-t border-white/10">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">手机号</label>
+                      <input
+                        type="text"
+                        value={profile.phone || '—'}
+                        readOnly
+                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white/80 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">手机号为唯一标识，不可修改</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">昵称</label>
+                      <input
+                        type="text"
+                        value={profile.nickname}
+                        onChange={(e) => setProfile((p) => ({ ...p, nickname: e.target.value }))}
+                        placeholder="选填"
+                        className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">邮箱</label>
+                      <input
+                        type="email"
+                        value={profile.email}
+                        onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+                        placeholder="your@email.com"
+                        className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50"
+                      />
+                    </div>
+                    {profileError && <p className="text-sm text-red-400">{profileError}</p>}
                     <button
-                      type="button"
-                      onClick={() => setShowPasswordForm((v) => !v)}
-                      className="w-full flex items-center justify-between gap-2 py-2 text-left text-sm text-gray-400 hover:text-white transition-colors"
+                      onClick={handleSaveProfile}
+                      disabled={profileSaving}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-medium rounded-lg transition-all"
                     >
-                      <span className="flex items-center gap-2">
-                        <Lock size={14} className="text-orange-400/80" />
-                        修改密码
-                      </span>
-                      {showPasswordForm ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      {profileSaving ? (
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Save size={18} />
+                      )}
+                      {profileSaved ? '已保存' : '保存修改'}
                     </button>
-                    {showPasswordForm && (
-                      <form onSubmit={handleChangePassword} className="mt-4 space-y-3 pl-6 border-l border-white/10">
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">当前密码</label>
-                          <input
-                            type="password"
-                            value={oldPassword}
-                            onChange={(e) => setOldPassword(e.target.value)}
-                            placeholder="请输入当前密码"
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">新密码</label>
-                          <input
-                            type="password"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            placeholder="至少 6 位"
-                            minLength={6}
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-gray-500 mb-1">确认新密码</label>
-                          <input
-                            type="password"
-                            value={newPasswordConfirm}
-                            onChange={(e) => setNewPasswordConfirm(e.target.value)}
-                            placeholder="再次输入"
-                            className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
-                          />
-                        </div>
-                        {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
-                        {passwordSuccess && <p className="text-xs text-green-400">密码已修改</p>}
-                        <button
-                          type="submit"
-                          disabled={passwordChanging}
-                          className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50"
-                        >
-                          {passwordChanging ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Lock size={12} />}
-                          确认修改
-                        </button>
-                      </form>
-                    )}
+
+                    <div className="mt-6 pt-5 border-t border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setShowPasswordForm((v) => !v)}
+                        className="w-full flex items-center justify-between gap-2 py-2 text-left text-sm text-gray-400 hover:text-white transition-colors"
+                      >
+                        <span className="flex items-center gap-2">
+                          <Lock size={14} className="text-orange-400/80" />
+                          修改密码
+                        </span>
+                        {showPasswordForm ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      </button>
+                      {showPasswordForm && (
+                        <form onSubmit={handleChangePassword} className="mt-4 space-y-3 pl-6 border-l border-white/10">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">当前密码</label>
+                            <input
+                              type="password"
+                              value={oldPassword}
+                              onChange={(e) => setOldPassword(e.target.value)}
+                              placeholder="请输入当前密码"
+                              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">新密码</label>
+                            <input
+                              type="password"
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              placeholder="至少 6 位"
+                              minLength={6}
+                              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">确认新密码</label>
+                            <input
+                              type="password"
+                              value={newPasswordConfirm}
+                              onChange={(e) => setNewPasswordConfirm(e.target.value)}
+                              placeholder="再次输入"
+                              className="w-full bg-black/20 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 text-sm"
+                            />
+                          </div>
+                          {passwordError && <p className="text-xs text-red-400">{passwordError}</p>}
+                          {passwordSuccess && <p className="text-xs text-green-400">密码已修改</p>}
+                          <button
+                            type="submit"
+                            disabled={passwordChanging}
+                            className="flex items-center gap-2 px-3 py-2 bg-white/10 hover:bg-white/15 border border-white/10 text-white text-sm font-medium rounded-lg transition-all disabled:opacity-50"
+                          >
+                            {passwordChanging ? <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Lock size={12} />}
+                            确认修改
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </div>
-                </div>
                 )}
                 {meError && <p className="text-sm text-red-400 mt-2">{meError}</p>}
               </Card>
@@ -545,7 +543,10 @@ const PersonalCenter: React.FC = () => {
                             {imagePricing?.cny_per_image ? (
                               <tr className="border-b border-white/5">
                                 <td className="py-2">按张计费</td>
-                                <td className="py-2 text-right text-orange-400/90">{imagePricing.cny_per_image}</td>
+                                <td className="py-2 text-right text-orange-400/90">
+                                  {imagePricing.usd_per_image}
+                                  <span className="text-gray-500 text-xs ml-2">({imagePricing.cny_per_image})</span>
+                                </td>
                               </tr>
                             ) : (
                               <tr>
@@ -575,16 +576,22 @@ const PersonalCenter: React.FC = () => {
                             {videoPricing?.text_models_with_price?.map((m) => (
                               <tr key={m.model} className="border-b border-white/5">
                                 <td className="py-2">{VIDEO_MODEL_LABELS[m.model] ?? m.model}</td>
-                                <td className="py-2 text-right text-orange-400/90">¥{m.price_cny.toFixed(2)}/次</td>
+                                <td className="py-2 text-right text-orange-400/90">
+                                  ${m.price_usd.toFixed(2)}/次
+                                  <span className="text-gray-500 text-xs ml-2">(约 ¥{m.price_cny.toFixed(2)}/次)</span>
+                                </td>
                               </tr>
                             ))}
                             {videoPricing?.image_models_with_price?.length
                               ? videoPricing.image_models_with_price.map((m) => (
-                                  <tr key={m.model} className="border-b border-white/5">
-                                    <td className="py-2">{VIDEO_MODEL_LABELS[m.model] ?? m.model}</td>
-                                    <td className="py-2 text-right text-orange-400/90">¥{m.price_cny.toFixed(2)}/次</td>
-                                  </tr>
-                                ))
+                                <tr key={m.model} className="border-b border-white/5">
+                                  <td className="py-2">{VIDEO_MODEL_LABELS[m.model] ?? m.model}</td>
+                                  <td className="py-2 text-right text-orange-400/90">
+                                    ${m.price_usd.toFixed(2)}/次
+                                    <span className="text-gray-500 text-xs ml-2">(约 ¥{m.price_cny.toFixed(2)}/次)</span>
+                                  </td>
+                                </tr>
+                              ))
                               : null}
                             {(!videoPricing?.text_models_with_price?.length && !videoPricing?.image_models_with_price?.length) && (
                               <tr>

@@ -9,6 +9,7 @@ import KnowledgeBaseManager from './components/KnowledgeBaseManager';
 import PersonalCenter from './components/PersonalCenter';
 import ImageGeneration from './components/ImageGeneration';
 import VideoGeneration from './components/VideoGeneration';
+import PromptEngineering from './components/PromptEngineering';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -117,6 +118,7 @@ const App: React.FC = () => {
             <Route path="/finance-agent" element={<FinanceChatPage />} />
             <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />
             <Route path="/profile" element={<PersonalCenter />} />
+            <Route path="/prompt-engineering" element={<PromptEngineering />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

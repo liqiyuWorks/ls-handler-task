@@ -118,9 +118,9 @@ const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
             <div className="mb-10 text-center md:text-left flex flex-col md:flex-row items-center md:items-end gap-3 md:gap-6">
               <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-amber-500 flex items-center justify-center md:justify-start gap-3">
                 <Sparkles className="text-amber-400" size={32} />
-                LiSheng Pro 视觉引擎
+                Pro 旗舰创研引擎
               </h2>
-              <p className="text-gray-400 mt-2 md:mb-1 font-light tracking-wide text-sm">基于底层自研多模态大模型，提供最顶尖的视觉生成 VIP 体验。</p>
+              <p className="text-gray-400 mt-2 md:mb-1 font-light tracking-wide text-sm">基于多项核心自研多模态模型，根据业务需求深度对齐的最先进创作能力。</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -142,7 +142,7 @@ const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
                     AI 创意工坊 <span className="text-amber-500/80 font-light text-xl">Pro</span>
                   </h3>
                   <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
-                    商业级高保真生图大模型，极高分辨率、多比例控制，释放专业级无穷想象力。
+                    自研商业级高保真生图大模型，支持超精细画质与多比例控制，让专业想象力自由落地。
                   </p>
                 </div>
 
@@ -172,7 +172,7 @@ const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
                     AI 视频生成 <span className="text-amber-500/80 font-light text-xl">Pro</span>
                   </h3>
                   <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
-                    行业领先动态视频生成，突破静态界限。图生视频、文生视频为您开启影视级创作之旅。
+                    行业领先的自研动态视频生成技术，支持根据特定需求深度定制。图生视频、文生视频为您开启影视级创作之旅。
                   </p>
                 </div>
 

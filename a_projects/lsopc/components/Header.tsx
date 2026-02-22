@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { APP_CONFIG } from '../constants';
 import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon, Video, Settings, Sparkles, ChevronDown, Layers, LayoutGrid, Compass, BookOpen } from 'lucide-react';
@@ -14,6 +15,11 @@ const Header: React.FC = () => {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showProMenu, setShowProMenu] = useState(false);
   const [showExploreMenu, setShowExploreMenu] = useState(false);
+  const [showTutorialMenu, setShowTutorialMenu] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
+
+  const videoUrl = "https://weixin.qq.com/sph/AOQouN7yb";
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(videoUrl)}`;
 
   const refreshDisplayName = () => {
     if (!isAuthenticated()) {
@@ -96,7 +102,68 @@ const Header: React.FC = () => {
             首页
           </button>
 
-          {/* Explore Dropdown Menu */}
+          {/* Tutorial Dropdown Menu */}
+          <div
+            className="relative"
+            onMouseEnter={() => setShowTutorialMenu(true)}
+            onMouseLeave={() => setShowTutorialMenu(false)}
+          >
+            <button
+              onClick={() => setShowTutorialMenu(!showTutorialMenu)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${showTutorialMenu
+                ? 'bg-white/10 text-white shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+            >
+              <BookOpen size={16} className={showTutorialMenu ? 'text-purple-400' : ''} />
+              教程
+              <ChevronDown size={14} className={`transition-transform duration-300 ${showTutorialMenu ? 'rotate-180' : ''} ${showTutorialMenu ? 'text-purple-200' : 'text-gray-500'}`} />
+            </button>
+
+            {/* Tutorial Dropdown Content */}
+            {showTutorialMenu && (
+              <div className="absolute top-full left-0 mt-2 w-60 bg-[#111] rounded-2xl shadow-2xl overflow-hidden z-50 border border-white/10 py-2 animate-fadeIn">
+                <div className="px-5 py-3 border-b border-white/5">
+                  <span className="font-bold text-white text-sm">进阶实战指南</span>
+                </div>
+
+                <div className="p-2 space-y-0.5">
+                  <button
+                    onClick={() => { navigate('/prompt-engineering'); setShowTutorialMenu(false); }}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-purple-400 transition-colors">
+                      <Layers size={18} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-white text-sm mb-0.5 group-hover:text-purple-300 transition-colors">提示词工程</div>
+                      <div className="text-[11px] text-gray-500 tracking-wide">掌握与 AI 对话的核心技术</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (window.innerWidth < 768) {
+                        window.open(videoUrl, '_blank');
+                      } else {
+                        setShowVideoModal(true);
+                      }
+                      setShowTutorialMenu(false);
+                    }}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-red-400 transition-colors">
+                      <Video size={18} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-white text-sm mb-0.5 group-hover:text-red-300 transition-colors">自研 Agent：研报自动化</div>
+                      <div className="text-[11px] text-gray-500 tracking-wide">打通研报自动化的“最后一公里”</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <div
             className="relative"
             onMouseEnter={() => setShowExploreMenu(true)}
@@ -198,8 +265,8 @@ const Header: React.FC = () => {
               <div className="absolute top-full right-0 md:left-1/2 md:-translate-x-1/2 mt-2 w-72 bg-white rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn border border-gray-100 py-2">
 
                 <div className="px-5 py-3 flex items-center gap-2 border-b border-gray-100">
-                  <span className="font-bold text-gray-900 text-sm">LiSheng 视觉生成大模型</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white leading-none">new</span>
+                  <span className="font-bold text-gray-900 text-sm">自研视觉创作引擎</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500 text-white leading-none uppercase">进阶创作</span>
                 </div>
 
                 <div className="p-2 space-y-1">
@@ -212,7 +279,7 @@ const Header: React.FC = () => {
                     </div>
                     <div>
                       <div className="font-bold text-gray-900 text-sm mb-0.5 group-hover:text-amber-600 transition-colors">AI 创意工坊</div>
-                      <div className="text-xs text-gray-500">专业级底图图像生成工具</div>
+                      <div className="text-xs text-gray-500 tracking-tight">自研顶尖底图图像生成与编辑</div>
                     </div>
                   </button>
 
@@ -225,7 +292,7 @@ const Header: React.FC = () => {
                     </div>
                     <div>
                       <div className="font-bold text-gray-900 text-sm mb-0.5 group-hover:text-amber-600 transition-colors">AI 视频生成</div>
-                      <div className="text-xs text-gray-500">高品质动态视频生成权限</div>
+                      <div className="text-xs text-gray-500 tracking-tight">根据需求深度定制的影视级动态视觉</div>
                     </div>
                   </button>
                 </div>
@@ -345,6 +412,29 @@ const Header: React.FC = () => {
             </div>
           </div>
 
+          <div className="mx-4 mt-2 px-2">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <BookOpen size={12} />
+              教程
+            </div>
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => { navigate('/prompt-engineering'); setIsMenuOpen(false); }}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all text-sm w-full text-left"
+              >
+                <Layers size={18} />
+                提示词工程
+              </button>
+              <button
+                onClick={() => { window.open(videoUrl, '_blank'); setIsMenuOpen(false); }}
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all text-sm w-full text-left"
+              >
+                <Video size={18} />
+                自研 Agent：研报自动化
+              </button>
+            </div>
+          </div>
+
           <div className="mx-4 mt-2 mb-1 px-2">
             <div className="text-xs font-bold text-amber-500/70 uppercase tracking-wider mb-2 flex items-center gap-1">
               <Sparkles size={12} />
@@ -424,6 +514,62 @@ const Header: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Video Channel Modal - Rendered via Portal to escape header constraints */}
+      {showVideoModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 animate-fadeIn">
+          <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={() => setShowVideoModal(false)}></div>
+          <div className="relative w-full max-w-[360px] bg-[#0a0a0a] border border-white/10 rounded-[32px] overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)] animate-scaleIn">
+            {/* Close Button - more prominent */}
+            <button
+              onClick={() => setShowVideoModal(false)}
+              className="absolute top-6 right-6 p-2.5 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-all z-[60]"
+            >
+              <X size={22} />
+            </button>
+
+            <div className="p-10 flex flex-col items-center text-center">
+              <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center mb-6">
+                <Video size={28} className="text-red-500" />
+              </div>
+
+              <h3 className="text-xl font-bold text-white mb-2 tracking-tight">微信视频号 · 进阶实战</h3>
+              <p className="text-gray-400 text-xs mb-8 leading-relaxed max-w-[240px]">
+                作为投研人，带你通过实战演示打通研报自动化的“最后一公里”
+              </p>
+
+              <div className="relative p-5 bg-white rounded-3xl mb-8 group transition-all hover:shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+                <img
+                  src={qrCodeUrl}
+                  alt="WeChat Video Channel QR Code"
+                  className="w-40 h-40"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-white/60 backdrop-blur-[1px] rounded-3xl">
+                  <div className="p-2 bg-black rounded-lg mb-2">
+                    <User size={16} className="text-white" />
+                  </div>
+                  <p className="text-black font-extrabold text-xs">微信扫码观看</p>
+                </div>
+              </div>
+
+              <div className="w-full space-y-3">
+                <button
+                  onClick={() => window.open(videoUrl, '_blank')}
+                  className="w-full py-4 bg-white text-black font-bold rounded-2xl hover:bg-gray-100 transition-all flex items-center justify-center gap-2 text-sm"
+                >
+                  在网页浏览器打开
+                  <MonitorPlay size={18} />
+                </button>
+
+                <p className="text-[10px] text-gray-500 font-medium">
+                  推荐在移动端直接观看体验更佳
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Auth Modal */}
