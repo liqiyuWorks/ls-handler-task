@@ -7,6 +7,7 @@ Coze 知识库服务
 import os
 import json
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Optional, Any
 
 class CozeService:
@@ -68,7 +69,47 @@ class CozeService:
             
         response = requests.get(url, headers=self.headers, params=params, timeout=30)
         response.raise_for_status()
-        return response.json()
+        data = response.json()
+        # 用文档列表接口为每个知识库补全 doc_count（列表接口可能不返回或为 0）
+        self._enrich_dataset_counts(data, space_id or self.space_id)
+        return data
+
+    def _enrich_dataset_counts(self, list_response: Dict[str, Any], space_id: Optional[str]) -> None:
+        """为列表中的每个知识库填充 doc_count（命中数 hit_count 若接口未返回则保持原样）。"""
+        if not space_id:
+            return
+        inner = list_response.get("data") if list_response.get("code") == 0 else list_response
+        if not isinstance(inner, dict):
+            return
+        dataset_list = inner.get("dataset_list") or inner.get("list") or []
+        if not dataset_list:
+            return
+
+        def get_doc_total(ds: Dict[str, Any]) -> int:
+            did = ds.get("dataset_id") or ds.get("id") or ""
+            if not did:
+                return 0
+            try:
+                resp = self.list_files(str(did), space_id=space_id, page=1, size=1)
+                total = (resp.get("data") or {}).get("total") if isinstance(resp.get("data"), dict) else None
+                if total is None:
+                    total = resp.get("total", 0)
+                return int(total) if total is not None else 0
+            except Exception:
+                return 0
+
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_ds = {executor.submit(get_doc_total, ds): ds for ds in dataset_list}
+            for future in as_completed(future_to_ds):
+                ds = future_to_ds[future]
+                try:
+                    ds["doc_count"] = future.result()
+                    if "hit_count" not in ds:
+                        ds["hit_count"] = 0
+                except Exception:
+                    ds["doc_count"] = ds.get("doc_count", 0)
+                    if "hit_count" not in ds:
+                        ds["hit_count"] = 0
 
     def list_files(
         self,

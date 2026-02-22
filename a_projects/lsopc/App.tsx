@@ -10,6 +10,7 @@ import PersonalCenter from './components/PersonalCenter';
 import ImageGeneration from './components/ImageGeneration';
 import VideoGeneration from './components/VideoGeneration';
 import PromptEngineering from './components/PromptEngineering';
+import VideoCourses from './components/VideoCourses';
 
 const Home: React.FC = () => {
   const navigate = useNavigate();
@@ -28,9 +29,10 @@ interface ChatLayoutProps {
   botId?: string;
   initialMessage?: string;
   placeholder?: string;
+  quickSuggestions?: string[];
 }
 
-const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, placeholder }) => {
+const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, placeholder, quickSuggestions }) => {
   const navigate = useNavigate();
   return (
     <div className="flex-grow flex flex-col gap-3 md:gap-4 animate-fadeIn h-[calc(100dvh-100px)] md:h-[calc(100vh-140px)] pt-16 md:pt-20">
@@ -45,8 +47,8 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, p
               {title}
             </h2>
           </div>
-          <p className="text-[10px] md:text-xs text-gray-500 font-medium uppercase tracking-widest pl-5">
-            System Online • Protocol Secure
+          <p className="text-[10px] md:text-xs text-gray-500 font-medium pl-5">
+            已就绪，随时为您服务
           </p>
         </div>
 
@@ -64,6 +66,7 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, p
           botId={botId}
           initialMessage={initialMessage}
           placeholder={placeholder}
+          quickSuggestions={quickSuggestions}
         />
       </div>
     </div>
@@ -73,9 +76,10 @@ const ChatLayout: React.FC<ChatLayoutProps> = ({ title, botId, initialMessage, p
 const SavingsChatPage: React.FC = () => {
   return (
     <ChatLayout
-      title="省钱助手正在待命"
-      initialMessage="您好！我是您的省钱大王助手。请告诉我您想买什么，或者粘贴商品链接，我将为您寻找全网最低价和隐藏优惠券。"
-      placeholder="输入商品名称或粘贴链接..."
+      title="省钱大王 · 随时帮您"
+      initialMessage="嗨，我是您的省钱小助手～\n\n想买什么直接说，或者**粘贴商品链接**给我，我帮您比全网低价、找隐藏优惠券，能省一点是一点。"
+      placeholder="说说想买啥，或贴个链接都行～"
+      quickSuggestions={['粘贴商品链接帮我比价', '推荐今日好价']}
     />
   );
 };
@@ -83,10 +87,11 @@ const SavingsChatPage: React.FC = () => {
 const FinanceChatPage: React.FC = () => {
   return (
     <ChatLayout
-      title="财报分析助手正在待命"
+      title="财报分析 · 随时帮您"
       botId={APP_CONFIG.COZE_BOT_ID_FINANCE}
-      initialMessage="您好！我是您的财报分析助手。请上传或粘贴您想分析的财报数据，或者直接询问某家公司的财务状况。"
-      placeholder="输入公司名称或粘贴财报数据..."
+      initialMessage="您好呀，我是您的财报小助手～\n\n您可以**上传或粘贴财报数据**，或直接告诉我**公司名称**，我来帮您解读经营状况和风险要点。"
+      placeholder="输入公司名或粘贴财报内容..."
+      quickSuggestions={['输入公司名称查询', '粘贴财报数据解读']}
     />
   );
 };
@@ -94,10 +99,11 @@ const FinanceChatPage: React.FC = () => {
 const ArticleCoverChatPage: React.FC = () => {
   return (
     <ChatLayout
-      title="文章封面助手正在待命"
+      title="封面助手 · 随时帮您"
       botId={APP_CONFIG.COZE_BOT_ID_ARTICLE_COVER}
-      initialMessage="您好！我是您的文章封面助手。请告诉我您的文章主题或从文章中摘录一段文字，我将为您生成一张精美的封面图。"
-      placeholder="输入文章主题或关键词..."
+      initialMessage="嗨，我是您的封面小助手～\n\n发我**文章主题或摘录一段文字**，我帮您生成一张好看又贴题的封面图，直接可用。"
+      placeholder="输入文章主题或摘录一段文字..."
+      quickSuggestions={['根据文章主题生成封面', '摘录一段文字生成封面']}
     />
   );
 };
@@ -119,6 +125,7 @@ const App: React.FC = () => {
             <Route path="/article-cover-agent" element={<ArticleCoverChatPage />} />
             <Route path="/profile" element={<PersonalCenter />} />
             <Route path="/prompt-engineering" element={<PromptEngineering />} />
+            <Route path="/video-courses" element={<VideoCourses />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

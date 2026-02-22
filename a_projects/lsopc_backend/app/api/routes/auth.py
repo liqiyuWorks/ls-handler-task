@@ -27,6 +27,8 @@ from app.schemas.auth import (
     TokenWithUser,
     SetPasswordRequest,
     ChangePasswordRequest,
+    CozeConfigResponse,
+    CozeConfigUpdate,
 )
 from app.services.auth_utils import get_password_hash, verify_password, create_access_token
 from app.services.database import db
@@ -323,6 +325,50 @@ async def change_password(
     }
     logger.info("User change password: %s", display_id)
     return UserBase(**user_data)
+
+
+@router.get("/coze-config", response_model=CozeConfigResponse, summary="获取扣子知识库配置")
+async def get_coze_config(current_user: UserBase = Depends(get_current_user)):
+    """返回当前用户的 Coze API Token 与 Space ID（用于扣子知识库管理页）。未配置时均为 null。"""
+    user = await db.db.users.find_one(
+        {"$or": [{"phone": current_user.username}, {"username": current_user.username}]}
+    )
+    if not user:
+        return CozeConfigResponse(coze_api_token=None, coze_space_id=None)
+    return CozeConfigResponse(
+        coze_api_token=user.get("coze_api_token"),
+        coze_space_id=user.get("coze_space_id"),
+    )
+
+
+@router.patch("/coze-config", response_model=CozeConfigResponse, summary="更新扣子知识库配置")
+async def update_coze_config(
+    body: CozeConfigUpdate,
+    current_user: UserBase = Depends(get_current_user),
+):
+    """保存或更新当前用户的 Coze API Token、Space ID。仅更新传入的字段。"""
+    update_data = body.model_dump(exclude_unset=True)
+    if not update_data:
+        user = await db.db.users.find_one(
+            {"$or": [{"phone": current_user.username}, {"username": current_user.username}]}
+        )
+        if not user:
+            return CozeConfigResponse(coze_api_token=None, coze_space_id=None)
+        return CozeConfigResponse(
+            coze_api_token=user.get("coze_api_token"),
+            coze_space_id=user.get("coze_space_id"),
+        )
+    updated = await db.db.users.find_one_and_update(
+        {"$or": [{"phone": current_user.username}, {"username": current_user.username}]},
+        {"$set": update_data},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")
+    return CozeConfigResponse(
+        coze_api_token=updated.get("coze_api_token"),
+        coze_space_id=updated.get("coze_space_id"),
+    )
 
 
 # 调用记录集合名

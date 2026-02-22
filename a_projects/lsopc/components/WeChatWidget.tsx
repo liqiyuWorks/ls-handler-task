@@ -2,24 +2,49 @@ import React, { useState } from 'react';
 
 const WeChatWidget: React.FC = () => {
     const [isOpen, setIsOpen] = useState(false);
+    const [videoQrLoaded, setVideoQrLoaded] = useState(true);
+
+    const cardClass = 'w-[200px] flex flex-col bg-white/10 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl';
+    const titleClass = 'text-center text-[10px] text-white/60 mb-3 uppercase tracking-widest';
+    const qrWrapClass = 'bg-white p-2 rounded-xl w-[168px] h-[168px] mx-auto overflow-hidden shrink-0';
+    const captionClass = 'text-center text-xs text-white/80 mt-3 font-medium tracking-widest whitespace-nowrap';
 
     return (
         <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4 pointer-events-none">
-            {/* QR Code Card - Transitions in/out */}
             <div
-                className={`bg-white/10 backdrop-blur-xl border border-white/10 p-4 rounded-2xl shadow-2xl transition-all duration-300 origin-bottom-right pointer-events-auto ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4 !pointer-events-none'
+                className={`flex flex-col sm:flex-row items-stretch gap-4 transition-all duration-300 origin-bottom-right pointer-events-auto ${isOpen ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4 !pointer-events-none'
                     }`}
             >
-                <div className="bg-white p-2 rounded-xl">
-                    <img
-                        src="/wechat_qr.jpg"
-                        alt="WeChat QR Code"
-                        className="w-40 h-40 object-cover rounded-lg"
-                    />
+                {/* 公众号 */}
+                <div className={cardClass}>
+                    <p className={titleClass}>公众号</p>
+                    <div className={`${qrWrapClass} flex items-center justify-center`}>
+                        <img
+                            src="/wechat_qr.jpg"
+                            alt="公众号二维码"
+                            className="w-full h-full object-cover object-center rounded-lg"
+                        />
+                    </div>
+                    <p className={captionClass}>扫码关注官方账号</p>
                 </div>
-                <p className="text-center text-xs text-white/80 mt-3 font-medium tracking-widest">
-                    扫码关注官方账号
-                </p>
+
+                {/* 视频号 - 与公众号完全对称 */}
+                <div className={cardClass}>
+                    <p className={titleClass}>视频号</p>
+                    <div className={`${qrWrapClass} flex items-center justify-center`}>
+                        {videoQrLoaded ? (
+                            <img
+                                src="/video_channel_qr.png"
+                                alt="视频号二维码"
+                                className="w-full h-full object-cover object-center rounded-lg"
+                                onError={() => setVideoQrLoaded(false)}
+                            />
+                        ) : (
+                            <span className="text-[10px] text-gray-400 text-center px-2">请将视频号二维码放入 public/video_channel_qr.png</span>
+                        )}
+                    </div>
+                    <p className={captionClass}>扫码关注视频号</p>
+                </div>
             </div>
 
             {/* Floating Button */}

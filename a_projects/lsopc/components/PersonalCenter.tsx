@@ -18,14 +18,17 @@ import {
   FileText,
   Info,
   Lock,
+  Database,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { getCurrentUser, isAuthenticated, saveAuth, changePassword } from '@/services/auth';
-import { getMe, updateProfile, recharge as rechargeApi, getUsageRecords, type UsageRecord } from '@/services/profile';
+import { getMe, updateProfile, recharge as rechargeApi, getUsageRecords, getCozeConfig, updateCozeConfig, type UsageRecord } from '@/services/profile';
 import { getImageOptions } from '@/services/image';
 import { getVideoOptions } from '@/services/video';
 import { formatBeijingTime } from '@/utils/date';
 
-type TabId = 'profile' | 'account' | 'pricing';
+type TabId = 'profile' | 'account' | 'pricing' | 'coze';
 
 const VIDEO_MODEL_LABELS: Record<string, string> = {
   'veo-3.1': '竖屏 · 标准',
@@ -45,6 +48,7 @@ const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ chi
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'profile', label: '个人信息', icon: <User size={18} /> },
   { id: 'account', label: '账户与消费', icon: <Wallet size={18} /> },
+  { id: 'coze', label: '第三方配置', icon: <Database size={18} /> },
   { id: 'pricing', label: '费用说明', icon: <Info size={18} /> },
 ];
 
@@ -77,6 +81,13 @@ const PersonalCenter: React.FC = () => {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [cozeToken, setCozeToken] = useState('');
+  const [cozeSpaceId, setCozeSpaceId] = useState('');
+  const [cozeConfigLoading, setCozeConfigLoading] = useState(false);
+  const [cozeConfigSaving, setCozeConfigSaving] = useState(false);
+  const [cozeConfigError, setCozeConfigError] = useState<string | null>(null);
+  const [cozeConfigSuccess, setCozeConfigSuccess] = useState(false);
+  const [cozeTokenVisible, setCozeTokenVisible] = useState(false);
 
   // 拉取当前用户信息与余额
   const fetchMe = async () => {
@@ -119,6 +130,21 @@ const PersonalCenter: React.FC = () => {
         .then(setRecords)
         .catch((e) => setRecordsError(e instanceof Error ? e.message : '获取失败'))
         .finally(() => setRecordsLoading(false));
+    }
+  }, [activeTab]);
+
+  // 进入「扣子知识库配置」时拉取已保存配置
+  useEffect(() => {
+    if (activeTab === 'coze') {
+      setCozeConfigError(null);
+      setCozeConfigLoading(true);
+      getCozeConfig()
+        .then((r) => {
+          setCozeToken(r.coze_api_token ?? '');
+          setCozeSpaceId(r.coze_space_id ?? '');
+        })
+        .catch((e) => setCozeConfigError(e instanceof Error ? e.message : '获取配置失败'))
+        .finally(() => setCozeConfigLoading(false));
     }
   }, [activeTab]);
 
@@ -200,6 +226,24 @@ const PersonalCenter: React.FC = () => {
       setRechargeError(e instanceof Error ? e.message : '充值失败');
     } finally {
       setRechargeLoading(false);
+    }
+  };
+
+  const handleSaveCozeConfig = async () => {
+    setCozeConfigSaving(true);
+    setCozeConfigError(null);
+    setCozeConfigSuccess(false);
+    try {
+      await updateCozeConfig({
+        coze_api_token: cozeToken || undefined,
+        coze_space_id: cozeSpaceId || undefined,
+      });
+      setCozeConfigSuccess(true);
+      setTimeout(() => setCozeConfigSuccess(false), 3000);
+    } catch (e) {
+      setCozeConfigError(e instanceof Error ? e.message : '保存失败');
+    } finally {
+      setCozeConfigSaving(false);
     }
   };
 
@@ -509,6 +553,68 @@ const PersonalCenter: React.FC = () => {
                   )}
                 </Card>
               </div>
+            )}
+
+            {activeTab === 'coze' && (
+              <Card className="animate-fadeIn">
+                <h2 className="text-lg font-semibold text-white mb-2 flex items-center gap-2">
+                  <Database size={20} className="text-orange-400" />
+                  扣子知识库配置
+                </h2>
+                <p className="text-gray-400 text-sm mb-4">在此配置 Coze API Token 与 Space ID，将随账号保存。配置后可在「探索 → 扣子知识库管理」页使用知识库能力。</p>
+                {cozeConfigLoading ? (
+                  <div className="flex justify-center py-8">
+                    <span className="w-8 h-8 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Coze API Token</label>
+                      <div className="relative">
+                        <input
+                          type={cozeTokenVisible ? 'text' : 'password'}
+                          value={cozeToken}
+                          onChange={(e) => setCozeToken(e.target.value)}
+                          placeholder="pat_..."
+                          className="w-full bg-black/20 border border-white/10 rounded-lg pl-4 pr-11 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setCozeTokenVisible((v) => !v)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                          aria-label={cozeTokenVisible ? '隐藏' : '显示明文'}
+                        >
+                          {cozeTokenVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-gray-400 mb-1">Space ID</label>
+                      <input
+                        type="text"
+                        value={cozeSpaceId}
+                        onChange={(e) => setCozeSpaceId(e.target.value)}
+                        placeholder="743..."
+                        className="w-full bg-black/20 border border-white/10 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50"
+                      />
+                    </div>
+                    {cozeConfigError && <p className="text-sm text-red-400">{cozeConfigError}</p>}
+                    {cozeConfigSuccess && <p className="text-sm text-green-400">配置已保存</p>}
+                    <button
+                      onClick={handleSaveCozeConfig}
+                      disabled={cozeConfigSaving}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-medium rounded-lg transition-all"
+                    >
+                      {cozeConfigSaving ? (
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Save size={18} />
+                      )}
+                      {cozeConfigSuccess ? '已保存' : '保存配置'}
+                    </button>
+                  </div>
+                )}
+              </Card>
             )}
 
             {activeTab === 'pricing' && (

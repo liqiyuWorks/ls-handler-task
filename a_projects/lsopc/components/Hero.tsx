@@ -59,7 +59,6 @@ const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
               <h2 className="text-3xl font-bold text-white flex items-center gap-3">
                 📚 智能助手与资源
               </h2>
-              <p className="text-gray-400 mt-2 font-light">内置多个实用智能助手，助您提升效率。</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -92,93 +91,69 @@ const Hero: React.FC<HeroProps> = ({ onStartChat }) => {
                 <p className="text-gray-400 text-sm mb-6 h-10 line-clamp-2">一键生成吸睛的公众号与自媒体文章封面。</p>
                 <button onClick={() => navigate('/article-cover-agent')} className="text-sm font-medium text-gray-300 group-hover:text-white flex items-center gap-1">开始对话 <span className="group-hover:translate-x-1 transition-transform">→</span></button>
               </div>
-
-              {/* Placeholder Tutorial 1 */}
-              <div className="md:col-span-1 border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center opacity-50 relative overflow-hidden">
-                <div className="absolute inset-0 bg-repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px)"></div>
-                <div className="text-3xl mb-3">📖</div>
-                <h3 className="text-base font-medium text-white mb-2">AI 提效实战指南</h3>
-                <p className="text-xs text-gray-400 tracking-wider">COMING SOON</p>
-              </div>
-
-              {/* Placeholder Tutorial 2 */}
-              <div className="md:col-span-2 border border-dashed border-white/10 rounded-2xl p-6 flex flex-col items-center justify-center text-center opacity-50 relative overflow-hidden">
-                <div className="absolute inset-0 bg-repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px)"></div>
-                <div className="text-3xl mb-3">🛠️</div>
-                <h3 className="text-base font-medium text-white mb-2">如何利用大模型分析行业报告</h3>
-                <p className="text-xs text-gray-400 tracking-wider">COMING SOON</p>
-              </div>
             </div>
           </section>
         </div>
 
-        {/* Section 2: Advanced Creation Engines (VIP/Pro) */}
+        {/* Section 2: Pro 旗舰创研引擎 - 与探索应用布局一致，增强质感与高级感 */}
         <div className={`transition-all duration-700 w-full ${activeTab === 'pro' ? 'opacity-100 translate-y-0 relative z-20' : 'opacity-0 translate-y-10 absolute pointer-events-none'}`}>
           <section id="advanced-creation" className="w-full">
-            <div className="mb-10 text-center md:text-left flex flex-col md:flex-row items-center md:items-end gap-3 md:gap-6">
-              <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-amber-500 flex items-center justify-center md:justify-start gap-3">
-                <Sparkles className="text-amber-400" size={32} />
-                Pro 旗舰创研引擎
+            <div className="mb-10 text-center md:text-left flex flex-col items-center md:items-start">
+              <h2 className="text-3xl font-bold text-white flex items-center gap-3">
+                <span className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500/20 to-amber-600/10 border border-amber-500/30">
+                  <Sparkles className="text-amber-400" size={22} />
+                </span>
+                <span className="bg-clip-text text-transparent bg-gradient-to-r from-amber-200 to-amber-500">Pro 旗舰创研引擎</span>
               </h2>
-              <p className="text-gray-400 mt-2 md:mb-1 font-light tracking-wide text-sm">基于多项核心自研多模态模型，根据业务需求深度对齐的最先进创作能力。</p>
+              <p className="text-gray-400 mt-2 font-light text-sm tracking-wide">基于多项核心自研多模态模型，根据业务需求深度对齐的最先进创作能力。</p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Image Generation */}
-              <div className="group relative bg-gradient-to-br from-white/5 to-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 hover:border-amber-500/40 transition-all duration-500 shadow-xl overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-colors"></div>
-
-                <div className="mb-8 relative z-10">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-2xl flex items-center justify-center text-4xl shadow-inner border border-amber-500/20">
-                      🖼️
-                    </div>
-                    <div className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-200 to-amber-500 text-amber-950 text-xs font-bold flex items-center gap-1 shadow-[0_0_15px_rgba(251,191,36,0.3)]">
-                      <Sparkles size={12} />
-                      PRO
-                    </div>
+              {/* AI 创意工坊 Pro - 与智能助手卡片同结构，Pro 专属质感 */}
+              <div className="group relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/[0.08] hover:border-amber-500/30 transition-all duration-300 overflow-hidden ring-1 ring-white/5 hover:ring-amber-500/20 shadow-lg hover:shadow-[0_0_40px_-12px_rgba(251,191,36,0.15)]">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors pointer-events-none" />
+                <div className="flex items-center gap-4 mb-4 relative z-10">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-xl flex items-center justify-center text-2xl border border-amber-500/20 group-hover:scale-110 transition-transform shadow-inner">
+                    🖼️
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-3 tracking-wide flex items-center gap-2">
-                    AI 创意工坊 <span className="text-amber-500/80 font-light text-xl">Pro</span>
-                  </h3>
-                  <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
-                    自研商业级高保真生图大模型，支持超精细画质与多比例控制，让专业想象力自由落地。
-                  </p>
+                  <div className="flex-1 flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className="text-lg font-bold text-white">AI 创意工坊 Pro</h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400/90 to-amber-500 text-amber-950 text-[10px] font-bold tracking-wider shadow-[0_0_12px_rgba(251,191,36,0.25)]">
+                      PRO
+                    </span>
+                  </div>
                 </div>
-
+                <p className="text-gray-400 text-sm mb-6 h-10 line-clamp-2 leading-relaxed relative z-10">
+                  自研商业级高保真生图大模型，支持超精细画质与多比例控制，让专业想象力自由落地。
+                </p>
                 <button
                   onClick={() => navigate('/image-generation')}
-                  className="relative z-10 w-full py-4 rounded-xl font-bold text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all duration-300 shadow-[0_0_20px_rgba(251,191,36,0.2)] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)]"
+                  className="relative z-10 w-full py-3 rounded-xl font-bold text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all duration-300 shadow-[0_0_18px_rgba(251,191,36,0.25)] hover:shadow-[0_0_28px_rgba(251,191,36,0.35)] text-sm"
                 >
                   开始生成
                 </button>
               </div>
 
-              {/* Video Generation */}
-              <div className="group relative bg-gradient-to-br from-white/5 to-black/40 backdrop-blur-md border border-white/10 rounded-3xl p-8 hover:border-amber-500/40 transition-all duration-500 shadow-xl overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/10 rounded-full blur-3xl group-hover:bg-amber-500/20 transition-colors"></div>
-
-                <div className="mb-8 relative z-10">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="w-16 h-16 bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-2xl flex items-center justify-center text-4xl shadow-inner border border-amber-500/20">
-                      🎬
-                    </div>
-                    <div className="px-3 py-1 rounded-full bg-gradient-to-r from-amber-200 to-amber-500 text-amber-950 text-xs font-bold flex items-center gap-1 shadow-[0_0_15px_rgba(251,191,36,0.3)]">
-                      <Sparkles size={12} />
-                      PRO
-                    </div>
+              {/* AI 视频生成 Pro */}
+              <div className="group relative bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/[0.08] hover:border-amber-500/30 transition-all duration-300 overflow-hidden ring-1 ring-white/5 hover:ring-amber-500/20 shadow-lg hover:shadow-[0_0_40px_-12px_rgba(251,191,36,0.15)]">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition-colors pointer-events-none" />
+                <div className="flex items-center gap-4 mb-4 relative z-10">
+                  <div className="w-12 h-12 bg-gradient-to-br from-amber-500/20 to-amber-600/10 rounded-xl flex items-center justify-center text-2xl border border-amber-500/20 group-hover:scale-110 transition-transform shadow-inner">
+                    🎬
                   </div>
-                  <h3 className="text-2xl font-bold text-white mb-3 tracking-wide flex items-center gap-2">
-                    AI 视频生成 <span className="text-amber-500/80 font-light text-xl">Pro</span>
-                  </h3>
-                  <p className="text-gray-400 text-sm leading-relaxed h-12 line-clamp-2 font-light">
-                    行业领先的自研动态视频生成技术，支持根据特定需求深度定制。图生视频、文生视频为您开启影视级创作之旅。
-                  </p>
+                  <div className="flex-1 flex items-center justify-between gap-2 flex-wrap">
+                    <h3 className="text-lg font-bold text-white">AI 视频生成 Pro</h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-gradient-to-r from-amber-400/90 to-amber-500 text-amber-950 text-[10px] font-bold tracking-wider shadow-[0_0_12px_rgba(251,191,36,0.25)]">
+                      PRO
+                    </span>
+                  </div>
                 </div>
-
+                <p className="text-gray-400 text-sm mb-6 h-10 line-clamp-2 leading-relaxed relative z-10">
+                  行业领先的自研动态视频生成技术，支持根据特定需求深度定制。图生视频、文生视频为您开启影视级创作之旅。
+                </p>
                 <button
                   onClick={() => navigate('/video-generation')}
-                  className="relative z-10 w-full py-4 rounded-xl font-bold text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all duration-300 shadow-[0_0_20px_rgba(251,191,36,0.2)] hover:shadow-[0_0_30px_rgba(251,191,36,0.4)]"
+                  className="relative z-10 w-full py-3 rounded-xl font-bold text-amber-950 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 transition-all duration-300 shadow-[0_0_18px_rgba(251,191,36,0.25)] hover:shadow-[0_0_28px_rgba(251,191,36,0.35)] text-sm"
                 >
                   开始生成
                 </button>

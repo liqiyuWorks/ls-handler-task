@@ -46,7 +46,7 @@ const PlatformTools: React.FC = () => {
                     </div>
                     <div className="flex-1 text-center md:text-left">
                         <h3 className="text-lg font-bold text-white mb-2 group-hover:text-purple-400 transition-colors">
-                            知识库管理
+                            扣子知识库管理
                         </h3>
                         <p className="text-gray-400 text-sm mb-4">
                             管理 AI 助手的核心知识数据，支持文件上传与 URL 索引。

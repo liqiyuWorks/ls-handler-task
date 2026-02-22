@@ -118,3 +118,15 @@ class UsageRecordResponse(BaseModel):
     amount: float = Field(..., ge=0, description="消耗金额（元）")
     count: int = Field(default=1, ge=0)
     created_at: str = Field(..., description="创建时间 ISO 字符串")
+
+
+class CozeConfigResponse(BaseModel):
+    """扣子知识库配置：API Token 与 Space ID（仅当前用户）"""
+    coze_api_token: Optional[str] = Field(default=None, description="Coze API Token，未配置时为 null")
+    coze_space_id: Optional[str] = Field(default=None, description="Coze Space ID，未配置时为 null")
+
+
+class CozeConfigUpdate(BaseModel):
+    """更新扣子知识库配置（可只传需要更新的字段）"""
+    coze_api_token: Optional[str] = Field(default=None, description="Coze API Token")
+    coze_space_id: Optional[str] = Field(default=None, description="Coze Space ID")

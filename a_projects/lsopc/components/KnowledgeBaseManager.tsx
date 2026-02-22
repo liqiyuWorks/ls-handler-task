@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Database, FileText, Upload, Link, Check, AlertCircle, RefreshCw, Trash2, FolderOpen, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Settings, Database, FileText, Upload, Link, Check, AlertCircle, RefreshCw, Trash2, FolderOpen, ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { API_BASE_URL } from '@/config';
 import { formatBeijingDate } from '@/utils/date';
+import { isAuthenticated } from '@/services/auth';
+import { getCozeConfig, updateCozeConfig } from '@/services/profile';
 
 // Utility components for UI consistency
 const Card: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
@@ -71,6 +73,7 @@ const KnowledgeBaseManager: React.FC = () => {
     // State
     const [token, setToken] = useState(localStorage.getItem('coze_token') || '');
     const [spaceId, setSpaceId] = useState(localStorage.getItem('coze_space_id') || '');
+    const [tokenVisible, setTokenVisible] = useState(false);
     const [showConfig, setShowConfig] = useState(!token || !spaceId);
 
     const [datasets, setDatasets] = useState<Dataset[]>([]);
@@ -88,7 +91,18 @@ const KnowledgeBaseManager: React.FC = () => {
     // const [urlName, setUrlName] = useState(''); // Removed simple name state
     const [fileInput, setFileInput] = useState<FileList | null>(null);
 
-    // Persist config
+    // 登录用户：从后端拉取配置；未登录：仅用 localStorage
+    useEffect(() => {
+        if (isAuthenticated()) {
+            getCozeConfig()
+                .then((r) => {
+                    if (r.coze_api_token) setToken(r.coze_api_token);
+                    if (r.coze_space_id) setSpaceId(r.coze_space_id);
+                })
+                .catch(() => {});
+        }
+    }, []);
+
     useEffect(() => {
         if (token) localStorage.setItem('coze_token', token);
         if (spaceId) localStorage.setItem('coze_space_id', spaceId);
@@ -123,8 +137,24 @@ const KnowledgeBaseManager: React.FC = () => {
             setShowConfig(false);
         } catch (err: any) {
             handleError(err);
-            // If auth error, show config
             if (err.status === 401 || JSON.stringify(err).includes("401")) setShowConfig(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    /** 保存配置并连接：登录用户会写入数据库，并同步到本地 */
+    const saveAndConnect = async () => {
+        if (!token || !spaceId) return;
+        setLoading(true);
+        try {
+            if (isAuthenticated()) {
+                await updateCozeConfig({ coze_api_token: token, coze_space_id: spaceId });
+            }
+            await fetchDatasets();
+            if (isAuthenticated()) handleSuccess('配置已保存到账号，并已连接');
+        } catch (err: any) {
+            handleError(err);
         } finally {
             setLoading(false);
         }
@@ -277,7 +307,7 @@ const KnowledgeBaseManager: React.FC = () => {
                     </button>
                     <div>
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-400 to-pink-500 bg-clip-text text-transparent">
-                            知识库管理
+                            扣子知识库管理
                         </h1>
                         <p className="text-gray-400 text-sm mt-1">Coze Knowledge Base Management</p>
                     </div>
@@ -313,12 +343,23 @@ const KnowledgeBaseManager: React.FC = () => {
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-2">Coze API Token</label>
-                                    <Input
-                                        type="password"
-                                        value={token}
-                                        onChange={e => setToken(e.target.value)}
-                                        placeholder="pat_..."
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            type={tokenVisible ? 'text' : 'password'}
+                                            value={token}
+                                            onChange={e => setToken(e.target.value)}
+                                            placeholder="pat_..."
+                                            className="pr-11"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setTokenVisible(v => !v)}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition-colors"
+                                            aria-label={tokenVisible ? '隐藏' : '显示明文'}
+                                        >
+                                            {tokenVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        </button>
+                                    </div>
                                 </div>
                                 <div>
                                     <label className="block text-sm text-gray-400 mb-2">Space ID</label>
@@ -330,7 +371,7 @@ const KnowledgeBaseManager: React.FC = () => {
                                 </div>
                             </div>
                             <div className="mt-6 flex justify-end">
-                                <Button onClick={fetchDatasets} disabled={loading}>
+                                <Button onClick={saveAndConnect} disabled={loading}>
                                     {loading ? <RefreshCw className="animate-spin" /> : <RefreshCw />}
                                     保存并连接
                                 </Button>
@@ -348,7 +389,7 @@ const KnowledgeBaseManager: React.FC = () => {
                                 onClick={() => setSelectedDataset(null)}
                                 className="cursor-pointer hover:text-orange-400 transition"
                             >
-                                知识库列表
+                                扣子知识库列表
                             </span>
                             <span>/</span>
                             <span className="text-white font-medium">{selectedDataset.name}</span>
@@ -492,14 +533,14 @@ const KnowledgeBaseManager: React.FC = () => {
                         {loading && datasets.length === 0 && (
                             <div className="text-center py-20 text-gray-500">
                                 <RefreshCw className="mx-auto w-10 h-10 animate-spin mb-4 text-orange-500/50" />
-                                加载知识库中...
+                                加载扣子知识库中...
                             </div>
                         )}
 
                         {!loading && datasets.length === 0 && (
                             <div className="text-center py-20 text-gray-500">
                                 <Database className="mx-auto w-12 h-12 mb-4 opacity-50" />
-                                <p>未找到知识库</p>
+                                <p>未找到扣子知识库</p>
                                 <p className="text-sm mt-2">请检查您的 API Token 和 Space ID 配置</p>
                             </div>
                         )}
@@ -527,11 +568,11 @@ const KnowledgeBaseManager: React.FC = () => {
                                         <div className="grid grid-cols-2 gap-4 border-t border-white/5 pt-4">
                                             <div>
                                                 <p className="text-xs text-gray-500 uppercase tracking-wider">文档数</p>
-                                                <p className="text-lg font-mono">{ds.doc_count}</p>
+                                                <p className="text-lg font-mono">{ds.doc_count ?? 0}</p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-gray-500 uppercase tracking-wider">命中数</p>
-                                                <p className="text-lg font-mono">{ds.hit_count}</p>
+                                                <p className="text-lg font-mono">{ds.hit_count ?? 0}</p>
                                             </div>
                                         </div>
                                     </div>

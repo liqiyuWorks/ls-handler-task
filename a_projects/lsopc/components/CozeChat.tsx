@@ -13,12 +13,15 @@ interface CozeChatProps {
     botId?: string;
     initialMessage?: string;
     placeholder?: string;
+    /** 首条消息下方展示的快捷建议，点击后自动发送 */
+    quickSuggestions?: string[];
 }
 
 const CozeChat: React.FC<CozeChatProps> = ({
     botId,
-    initialMessage = '您好！我是您的省钱大王助手。请问想买点什么？我可以帮您比价、找券、推荐好物。',
-    placeholder = '输入您想购买的商品...'
+    initialMessage = '嗨，我是您的省钱小助手～ 想买什么直接说，或粘贴链接，帮您比价找券。',
+    placeholder = '说说想买啥，或贴个链接都行～',
+    quickSuggestions
 }) => {
     const [messages, setMessages] = useState<Message[]>([
         { role: 'assistant', content: initialMessage }
@@ -79,7 +82,7 @@ const CozeChat: React.FC<CozeChatProps> = ({
                 (error) => {
                     console.error('Chat error:', error);
                     setIsLoading(false);
-                    setMessages(prev => [...prev, { role: 'assistant', content: '抱歉，我现在遇到了一些问题，请稍后再试。' }]);
+                    setMessages(prev => [...prev, { role: 'assistant', content: '抱歉呀，我这边暂时出了点小状况，请稍后再试一下～' }]);
                 },
                 botId
             );
@@ -122,6 +125,13 @@ const CozeChat: React.FC<CozeChatProps> = ({
                                     }`}
                             >
                                 {msg.role === 'assistant' ? (
+                                    index === messages.length - 1 && isLoading && !msg.content.trim() ? (
+                                        <div className="flex gap-2 py-1">
+                                            <div className="w-1.5 h-1.5 bg-orange-500/60 rounded-full animate-bounce"></div>
+                                            <div className="w-1.5 h-1.5 bg-orange-500/60 rounded-full animate-bounce [animation-delay:0.2s]"></div>
+                                            <div className="w-1.5 h-1.5 bg-orange-500/60 rounded-full animate-bounce [animation-delay:0.4s]"></div>
+                                        </div>
+                                    ) : (
                                     <div className="prose prose-invert prose-p:my-1 prose-pre:bg-black/40 prose-pre:border prose-pre:border-white/10 prose-code:text-orange-300 prose-code:bg-orange-500/10 prose-code:px-1 prose-code:rounded max-w-none text-sm md:text-[15px]">
                                         <ReactMarkdown
                                             remarkPlugins={[remarkGfm]}
@@ -136,6 +146,7 @@ const CozeChat: React.FC<CozeChatProps> = ({
                                             {msg.content}
                                         </ReactMarkdown>
                                     </div>
+                                    )
                                 ) : (
                                     <span className="text-sm md:text-[15px] whitespace-pre-wrap">{msg.content}</span>
                                 )}
@@ -144,13 +155,53 @@ const CozeChat: React.FC<CozeChatProps> = ({
                             {/* Timestamp or Status (Optional) */}
                             <div className="mt-1.5 px-1 flex items-center gap-1.5 opacity-40 text-[10px] md:text-xs">
                                 {msg.role === 'assistant' && <Sparkles className="w-3 h-3 text-orange-400" />}
-                                <span>{msg.role === 'user' ? '已发送' : 'AI 助手'}</span>
+                                <span>{msg.role === 'user' ? '已发送' : '小助手'}</span>
                             </div>
+                            {/* 首条欢迎语下方的快捷建议 */}
+                            {msg.role === 'assistant' && index === 0 && quickSuggestions && quickSuggestions.length > 0 && messages.length === 1 && !isLoading && (
+                                <div className="mt-3 flex flex-wrap gap-2">
+                                    {quickSuggestions.map((text, i) => (
+                                        <button
+                                            key={i}
+                                            type="button"
+                                            onClick={() => {
+                                                setMessages(prev => [...prev, { role: 'user', content: text }]);
+                                                setIsLoading(true);
+                                                const history = messages.map(m => ({ role: m.role, content: m.content, content_type: 'text' as const }));
+                                                let botMessageContent = '';
+                                                setMessages(prev => [...prev, { role: 'assistant', content: '' }]);
+                                                chatWithCoze(
+                                                    [...history, { role: 'user', content: text, content_type: 'text' }],
+                                                    (chunk) => {
+                                                        botMessageContent += chunk;
+                                                        setMessages(prev => {
+                                                            const next = [...prev];
+                                                            next[next.length - 1].content = botMessageContent;
+                                                            return next;
+                                                        });
+                                                    },
+                                                    () => setIsLoading(false),
+                                                    (err) => {
+                                                        console.error('Chat error:', err);
+                                                        setIsLoading(false);
+                                                        setMessages(prev => [...prev, { role: 'assistant', content: '抱歉呀，我这边暂时出了点小状况，请稍后再试一下～' }]);
+                                                    },
+                                                    botId
+                                                );
+                                            }}
+                                            className="px-3 py-1.5 rounded-full text-xs font-medium bg-white/10 hover:bg-white/20 text-gray-300 hover:text-white border border-white/10 transition-colors"
+                                        >
+                                            {text}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 ))}
 
-                {isLoading && (
+                {/* 仅在“最后一条不是助手消息”时显示独立加载行，避免与流式助手消息重复出现两个小助手 */}
+                {isLoading && messages[messages.length - 1]?.role !== 'assistant' && (
                     <div className="flex gap-3 md:gap-4">
                         <div className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center bg-white/5 border border-white/10 text-gray-400 animate-pulse">
                             <Bot className="w-4 h-4 md:w-5 md:h-5" />
