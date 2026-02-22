@@ -471,6 +471,80 @@ const PromptEngineering: React.FC = () => {
                             </div>
                         </div>
                     </div>
+
+                    <div className="mt-12 p-1 rounded-3xl bg-gradient-to-br from-green-500/20 to-teal-500/20 overflow-hidden">
+                        <div className="bg-[#050505] rounded-[22px] p-8 md:p-10 border border-white/5">
+                            <div className="flex justify-between items-center mb-8 flex-wrap gap-4">
+                                <h4 className="text-xl font-bold flex items-center gap-3 text-white">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-teal-500 flex items-center justify-center text-white shadow-lg shadow-green-500/20">
+                                        <Info size={20} />
+                                    </div>
+                                    完整示例预览：客服回复提示词 (综合限制)
+                                </h4>
+                                <button
+                                    onClick={() => copyToClipboard('角色：你是某电商平台的客服代表，叫小美。\n任务：回复用户的售后咨询。\n\n语言限制：\n✅ 必须做到：\n- 称呼用"您"，显示尊重\n- 第一句表示理解和歉意（如果是问题）\n- 用"我们会..."展示负责态度\n- 结尾询问"还有什么可以帮您的吗？"\n\n❌ 严格禁止：\n- 使用"亲"、"哦"等过于随意的词\n- 推卸责任的表达（"这不是我们的问题"）\n- 空洞的套话（"感谢您的反馈"就结束）\n- 冰冷的机器人式回复\n\n风格要求：\n- 语气：专业且有温度\n- 节奏：先共情，再解决，后确认\n- 长度：80-150字\n\n格式要求：\n第一段：表示理解（20字内）\n第二段：解决方案（50-80字）\n第三段：后续跟进（30字内）')}
+                                    className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl transition-all text-sm font-bold flex items-center gap-2 border border-white/10"
+                                >
+                                    <Copy size={16} /> 复制客服模板
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-6">
+                                    <div className="bg-white/5 p-6 rounded-2xl border border-white/5">
+                                        <h5 className="text-green-400 font-bold mb-4 flex items-center gap-2"><CheckCircle2 size={16} /> ✅ 必须做到</h5>
+                                        <ul className="space-y-3 text-sm text-gray-300">
+                                            <li className="flex items-start gap-2"><div className="text-green-500 mt-0.5">•</div>称呼用"您"，显示尊重</li>
+                                            <li className="flex items-start gap-2"><div className="text-green-500 mt-0.5">•</div>第一句表示理解和歉意</li>
+                                            <li className="flex items-start gap-2"><div className="text-green-500 mt-0.5">•</div>用"我们会..."展示负责态度</li>
+                                            <li className="flex items-start gap-2"><div className="text-green-500 mt-0.5">•</div>结尾询问"还有什么可以帮您的吗？"</li>
+                                        </ul>
+                                    </div>
+                                    <div className="bg-black/40 p-6 rounded-2xl border border-red-500/20">
+                                        <h5 className="text-red-400 font-bold mb-4 flex items-center gap-2"><AlertTriangle size={16} /> ❌ 严格禁止</h5>
+                                        <ul className="space-y-3 text-sm text-gray-400">
+                                            <li className="flex items-start gap-2"><div className="text-red-500 mt-0.5">×</div>使用"亲"、"哦"等过于随意的词</li>
+                                            <li className="flex items-start gap-2"><div className="text-red-500 mt-0.5">×</div>推卸责任（"这不是我们的问题"）</li>
+                                            <li className="flex items-start gap-2"><div className="text-red-500 mt-0.5">×</div>空洞的套话（"感谢反馈"就结束）</li>
+                                            <li className="flex items-start gap-2"><div className="text-red-500 mt-0.5">×</div>冰冷的机器人式回复</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div className="space-y-6">
+                                    <div className="bg-white/5 p-6 rounded-2xl border border-white/5 h-full">
+                                        <h5 className="text-teal-400 font-bold mb-4 flex items-center gap-2"><Layers size={16} /> 风格与格式要求</h5>
+                                        <div className="space-y-6">
+                                            <div>
+                                                <div className="text-[11px] text-gray-500 uppercase tracking-widest mb-2 font-bold">基础设定</div>
+                                                <p className="text-sm text-gray-300">
+                                                    角色：某电商平台客服代表小美<br />
+                                                    任务：回复用户售后咨询<br />
+                                                    总字数：<span className="text-teal-300 font-mono bg-teal-500/20 px-1 rounded">80-150字</span>
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <div className="text-[11px] text-gray-500 uppercase tracking-widest mb-2 font-bold">结构化输出</div>
+                                                <div className="bg-black/50 rounded-xl p-4 border border-white/5 font-mono text-xs text-gray-400 space-y-3">
+                                                    <div className="flex gap-4 border-b border-white/5 pb-2">
+                                                        <span className="text-gray-500 w-12">第一段</span>
+                                                        <span className="text-gray-300">表示理解（20字内）</span>
+                                                    </div>
+                                                    <div className="flex gap-4 border-b border-white/5 pb-2">
+                                                        <span className="text-gray-500 w-12">第二段</span>
+                                                        <span className="text-gray-300">解决方案（50-80字）</span>
+                                                    </div>
+                                                    <div className="flex gap-4">
+                                                        <span className="text-gray-500 w-12">第三段</span>
+                                                        <span className="text-gray-300">后续跟进（30字内）</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
 
                 {/* Chapter 5 */}
@@ -523,20 +597,38 @@ const PromptEngineering: React.FC = () => {
                             </div>
                         </div>
                         <div className="p-6 rounded-3xl bg-white/5 border border-white/10">
-                            <h4 className="text-sm font-bold text-blue-400 mb-4 flex items-center gap-2">
-                                <Database size={14} /> 案例 2：从文本提取 JSON
+                            <h4 className="text-sm font-bold text-blue-400 mb-4 flex items-center justify-between">
+                                <span className="flex items-center gap-2"><Database size={14} /> 案例 2：从文本提取 JSON</span>
+                                <button
+                                    onClick={() => copyToClipboard('你是内容分析专家。分析用户输入的{{user_content}}，提取关键信息。\n\n输出要求：必须是标准JSON格式，方便后续节点解析\n{\n  "sentiment": "positive|neutral|negative",\n  "keywords": ["关键词1", "关键词2", "关键词3"],\n  "category": "分类名称",\n  "summary": "一句话总结",\n  "action_items": [\n    "待办事项1",\n    "待办事项2"\n  ],\n  "confidence_score": 0.95\n}\n\n注意：\n- sentiment只能是这三个值之一\n- keywords最多5个\n- confidence_score是0-1之间的小数')}
+                                    className="p-1.5 hover:bg-white/10 rounded-lg text-gray-500 hover:text-white transition-colors"
+                                >
+                                    <Copy size={12} />
+                                </button>
                             </h4>
                             <div className="space-y-4">
-                                <div className="p-3 bg-black/40 rounded-lg border border-white/5">
-                                    <div className="text-[10px] text-gray-500 mb-2 font-mono">New Task</div>
-                                    <p className="text-[11px] text-gray-400 italic">"特斯拉今天宣布降价 2 万，起售价 22.99 万..."</p>
+                                <div className="p-3 bg-black/40 rounded-lg border border-white/5 overflow-x-auto">
+                                    <div className="text-[10px] text-gray-500 mb-2 font-mono flex gap-2"><span className="text-green-400">✅ 标准化输出示例</span></div>
+                                    <pre className="text-[10px] text-blue-300/80 font-mono leading-relaxed">
+                                        {`{
+  "sentiment": "positive|neutral|negative",
+  "keywords": ["关键词1", "关键词2"],
+  "category": "分类名称",
+  "summary": "一句话总结",
+  "action_items": [
+    "待办事项1"
+  ],
+  "confidence_score": 0.95
+}`}
+                                    </pre>
                                 </div>
-                                <div className="p-3 bg-blue-500/5 rounded-lg border border-blue-500/10 font-mono text-[9px] text-blue-300/80">
-                                    {"{"}<br />
-                                    &nbsp;&nbsp;"brand": "特斯拉",<br />
-                                    &nbsp;&nbsp;"event": "降价",<br />
-                                    &nbsp;&nbsp;"amount": "2万元"<br />
-                                    {"}"}
+                                <div className="p-3 bg-blue-500/5 rounded-lg border border-blue-500/10">
+                                    <div className="text-[10px] text-blue-400/70 mb-2 font-bold block">严格注意项</div>
+                                    <ul className="text-[10px] text-gray-400 space-y-1 list-disc pl-4">
+                                        <li>sentiment 只能是预设三个值之一</li>
+                                        <li>keywords 最多5个</li>
+                                        <li>confidence_score 是0-1之间的小数</li>
+                                    </ul>
                                 </div>
                             </div>
                         </div>
