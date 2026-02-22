@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { APP_CONFIG } from '../constants';
-import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon, Video, Settings } from 'lucide-react';
+import { MonitorPlay, Database, Home as HomeIcon, Menu, X, User, LogOut, Image as ImageIcon, Video, Settings, Sparkles, ChevronDown, Layers, LayoutGrid, Compass, BookOpen } from 'lucide-react';
 import AuthModal from './AuthModal';
 import { getCurrentUser, clearAuth, isAuthenticated } from '../services/auth';
 
@@ -12,6 +12,8 @@ const Header: React.FC = () => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showProMenu, setShowProMenu] = useState(false);
+  const [showExploreMenu, setShowExploreMenu] = useState(false);
 
   const refreshDisplayName = () => {
     if (!isAuthenticated()) {
@@ -40,7 +42,7 @@ const Header: React.FC = () => {
     const handleOpenAuthModal = () => {
       setIsAuthModalOpen(true);
     };
-    
+
     window.addEventListener('openAuthModal', handleOpenAuthModal);
     return () => {
       window.removeEventListener('openAuthModal', handleOpenAuthModal);
@@ -82,11 +84,11 @@ const Header: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="hidden md:flex items-center gap-1 bg-white/5 p-1.5 rounded-full border border-white/5 backdrop-blur-sm">
+        <nav className="hidden md:flex items-center gap-2 bg-white/5 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
           <button
             onClick={() => navigate('/')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/')
-              ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
+            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/')
+              ? 'bg-white/10 text-white shadow-sm'
               : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
           >
@@ -94,48 +96,156 @@ const Header: React.FC = () => {
             首页
           </button>
 
-          <button
-            onClick={() => navigate('/knowledge-base')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/knowledge-base')
-              ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+          {/* Explore Dropdown Menu */}
+          <div
+            className="relative"
+            onMouseEnter={() => setShowExploreMenu(true)}
+            onMouseLeave={() => setShowExploreMenu(false)}
           >
-            <Database size={16} className={isActive('/knowledge-base') ? 'text-purple-400' : ''} />
-            知识库
-          </button>
+            <button
+              onClick={() => setShowExploreMenu(!showExploreMenu)}
+              className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${showExploreMenu || isActive('/knowledge-base')
+                ? 'bg-white/10 text-white shadow-sm'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
+            >
+              <Compass size={16} className={showExploreMenu || isActive('/knowledge-base') ? 'text-blue-400' : ''} />
+              探索
+              <ChevronDown size={14} className={`transition-transform duration-300 ${showExploreMenu ? 'rotate-180' : ''} ${showExploreMenu || isActive('/knowledge-base') ? 'text-blue-200' : 'text-gray-500'}`} />
+            </button>
 
-          <button
-            onClick={() => navigate('/image-generation')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/image-generation')
-              ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-          >
-            <ImageIcon size={16} className={isActive('/image-generation') ? 'text-pink-400' : ''} />
-            图片生成
-          </button>
+            {/* Explore Dropdown Content */}
+            {showExploreMenu && (
+              <div className="absolute top-full left-0 mt-2 w-64 bg-[#111] rounded-2xl shadow-2xl overflow-hidden z-50 border border-white/10 py-2 animate-fadeIn">
 
-          <button
-            onClick={() => navigate('/video-generation')}
-            className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${isActive('/video-generation')
-              ? 'bg-white/10 text-white shadow-sm ring-1 ring-white/5'
-              : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-          >
-            <Video size={16} className={isActive('/video-generation') ? 'text-teal-400' : ''} />
-            视频生成
-          </button>
+                <div className="px-5 py-3 border-b border-white/5">
+                  <span className="font-bold text-white text-sm">发现更多可能</span>
+                </div>
 
-          <a
-            href="/overview.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all duration-300"
+                <div className="p-2 space-y-0.5">
+                  <a
+                    href="/overview.html"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowExploreMenu(false)}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-blue-400 transition-colors">
+                      <MonitorPlay size={18} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-white text-sm mb-0.5 group-hover:text-blue-300 transition-colors">演示体验</div>
+                      <div className="text-[11px] text-gray-500 tracking-wide">全方位了解产品能力</div>
+                    </div>
+                  </a>
+
+                  <button
+                    onClick={() => { navigate('/knowledge-base'); setShowExploreMenu(false); }}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-purple-400 transition-colors">
+                      <BookOpen size={18} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-white text-sm mb-0.5 group-hover:text-purple-300 transition-colors">知识库</div>
+                      <div className="text-[11px] text-gray-500 tracking-wide">沉淀行业经验与最佳实践</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      const appsSection = document.getElementById('apps-resources');
+                      if (appsSection) appsSection.scrollIntoView({ behavior: 'smooth' });
+                      setShowExploreMenu(false);
+                    }}
+                    className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl hover:bg-white/5 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-green-400 transition-colors">
+                      <Database size={18} />
+                    </div>
+                    <div>
+                      <div className="font-medium text-white text-sm mb-0.5 group-hover:text-green-300 transition-colors">智能应用</div>
+                      <div className="text-[11px] text-gray-500 tracking-wide">探索未来赛道与实用插件</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="w-px h-4 bg-white/10 mx-1"></div>
+
+          {/* Pro Dropdown Menu */}
+          <div
+            className="relative"
+            onMouseEnter={() => setShowProMenu(true)}
+            onMouseLeave={() => setShowProMenu(false)}
           >
-            <MonitorPlay size={16} />
-            演示
-          </a>
+            <button
+              onClick={() => setShowProMenu(!showProMenu)}
+              className={`flex items-center gap-1.5 px-5 py-2 rounded-full text-sm font-bold transition-all duration-300 shadow-[0_0_15px_rgba(251,191,36,0.15)] border border-amber-500/30 ${showProMenu || isActive('/image-generation') || isActive('/video-generation')
+                ? 'bg-gradient-to-r from-amber-100 to-amber-50 text-amber-900 border-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.3)]'
+                : 'bg-amber-900/20 text-amber-400 hover:bg-amber-500/20 hover:text-amber-300'
+                }`}
+            >
+              <Sparkles size={16} className={showProMenu || isActive('/image-generation') || isActive('/video-generation') ? 'text-amber-600' : 'text-amber-400'} />
+              Pro
+              <ChevronDown size={14} className={`transition-transform duration-300 ${showProMenu ? 'rotate-180' : ''} ${showProMenu || isActive('/image-generation') || isActive('/video-generation') ? 'text-amber-700' : 'text-amber-500/70'}`} />
+            </button>
+
+            {/* Dropdown Content */}
+            {showProMenu && (
+              <div className="absolute top-full right-0 md:left-1/2 md:-translate-x-1/2 mt-2 w-72 bg-white rounded-2xl shadow-2xl overflow-hidden z-50 animate-fadeIn border border-gray-100 py-2">
+
+                <div className="px-5 py-3 flex items-center gap-2 border-b border-gray-100">
+                  <span className="font-bold text-gray-900 text-sm">LiSheng 视觉生成大模型</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500 text-white leading-none">new</span>
+                </div>
+
+                <div className="p-2 space-y-1">
+                  <button
+                    onClick={() => { navigate('/image-generation'); setShowProMenu(false); }}
+                    className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-amber-500 transition-colors">
+                      <Layers size={20} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-gray-900 text-sm mb-0.5 group-hover:text-amber-600 transition-colors">AI 创意工坊</div>
+                      <div className="text-xs text-gray-500">专业级底图图像生成工具</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => { navigate('/video-generation'); setShowProMenu(false); }}
+                    className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-gray-50 transition-colors text-left group"
+                  >
+                    <div className="mt-0.5 text-gray-400 group-hover:text-amber-500 transition-colors">
+                      <LayoutGrid size={20} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-gray-900 text-sm mb-0.5 group-hover:text-amber-600 transition-colors">AI 视频生成</div>
+                      <div className="text-xs text-gray-500">高品质动态视频生成权限</div>
+                    </div>
+                  </button>
+                </div>
+
+                <div className="p-2 border-t border-gray-100 border-dashed mt-1">
+                  <button className="w-full flex items-start gap-4 p-3 rounded-xl hover:bg-amber-50 transition-colors text-left group">
+                    <div className="mt-0.5 text-amber-500">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <div className="font-bold text-gray-900 text-sm mb-0.5 group-hover:text-amber-700 transition-colors">开通 Pro</div>
+                      <div className="text-xs text-gray-500">解锁每日不限量生成及商业授权</div>
+                    </div>
+                  </button>
+                </div>
+
+              </div>
+            )}
+          </div>
+
         </nav>
 
         {/* User Auth Area - Desktop */}
@@ -149,7 +259,7 @@ const Header: React.FC = () => {
                 <User size={16} className="text-orange-400" />
                 {currentUser}
               </button>
-              
+
               {/* User Dropdown Menu */}
               {showUserMenu && (
                 <div className="absolute right-0 top-full mt-2 w-44 bg-gray-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 animate-fadeIn">
@@ -198,46 +308,72 @@ const Header: React.FC = () => {
           <button
             onClick={() => { navigate('/'); setIsMenuOpen(false); }}
             className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/')
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
+              ? 'bg-white/10 text-white'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
               }`}
           >
             <HomeIcon size={20} className={isActive('/') ? 'text-orange-400' : ''} />
             首页
           </button>
 
-          <button
-            onClick={() => { navigate('/knowledge-base'); setIsMenuOpen(false); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/knowledge-base')
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-          >
-            <Database size={20} className={isActive('/knowledge-base') ? 'text-purple-400' : ''} />
-            知识库
-          </button>
+          <div className="mx-4 mt-2 px-2">
+            <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <Compass size={12} />
+              探索
+            </div>
+            <div className="flex flex-col gap-1">
+              <a
+                href="/overview.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-all text-sm"
+              >
+                <MonitorPlay size={18} />
+                演示体验
+              </a>
 
-          <button
-            onClick={() => { navigate('/image-generation'); setIsMenuOpen(false); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/image-generation')
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-          >
-            <ImageIcon size={20} className={isActive('/image-generation') ? 'text-pink-400' : ''} />
-            图片生成
-          </button>
+              <button
+                onClick={() => { navigate('/knowledge-base'); setIsMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-2.5 rounded-xl font-medium transition-all text-sm ${isActive('/knowledge-base')
+                  ? 'bg-white/10 text-white'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+                  }`}
+              >
+                <BookOpen size={18} className={isActive('/knowledge-base') ? 'text-purple-400' : ''} />
+                知识库
+              </button>
+            </div>
+          </div>
 
-          <button
-            onClick={() => { navigate('/video-generation'); setIsMenuOpen(false); }}
-            className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/video-generation')
-                ? 'bg-white/10 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
-          >
-            <Video size={20} className={isActive('/video-generation') ? 'text-teal-400' : ''} />
-            视频生成
-          </button>
+          <div className="mx-4 mt-2 mb-1 px-2">
+            <div className="text-xs font-bold text-amber-500/70 uppercase tracking-wider mb-2 flex items-center gap-1">
+              <Sparkles size={12} />
+              Pro 视觉生成
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => { navigate('/image-generation'); setIsMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/image-generation')
+                  ? 'bg-gradient-to-r from-amber-500/20 to-transparent text-amber-400 border border-amber-500/20'
+                  : 'text-amber-500/70 hover:text-amber-400 hover:bg-amber-500/10'
+                  }`}
+              >
+                <Layers size={20} />
+                AI 创意工坊
+              </button>
+
+              <button
+                onClick={() => { navigate('/video-generation'); setIsMenuOpen(false); }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all ${isActive('/video-generation')
+                  ? 'bg-gradient-to-r from-amber-500/20 to-transparent text-amber-400 border border-amber-500/20'
+                  : 'text-amber-500/70 hover:text-amber-400 hover:bg-amber-500/10'
+                  }`}
+              >
+                <LayoutGrid size={20} />
+                AI 视频生成
+              </button>
+            </div>
+          </div>
 
           <a
             href="/overview.html"
